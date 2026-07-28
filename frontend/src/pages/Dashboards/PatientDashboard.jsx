@@ -53,7 +53,7 @@ export const PatientDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="My Active Consultations" value="1 OPD Visit" subtitle="Consultant Physician" icon={Heart} color="sky" />
         <StatCard title="Published Reports" value={`${reports.length} Reports`} subtitle="Approved Diagnostics" icon={FileText} color="emerald" />
-        <StatCard title="Billing Status" value="$0.00 Due" subtitle="Paid in Full" icon={Receipt} color="purple" />
+        <StatCard title="Billing Status" value="₹0.00 Due" subtitle="Paid in Full" icon={Receipt} color="purple" />
         <StatCard title="Room Request Portal" value="READY" subtitle="In-Bed Amenity Console" icon={Bell} color="amber" />
       </div>
 

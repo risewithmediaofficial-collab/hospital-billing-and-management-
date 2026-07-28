@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
-import { UserCheck, CalendarDays, Fingerprint, DollarSign } from 'lucide-react';
+import { UserCheck, CalendarDays, Fingerprint, IndianRupee } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
 
@@ -33,7 +33,7 @@ export const HRDashboard = () => {
         <StatCard title="Staff On Duty Today" value={`${staff.length} Staff`} subtitle="Active Hospital Accounts" icon={UserCheck} color="emerald" />
         <StatCard title="Biometric Sync Status" value="ONLINE" subtitle="Biometric Gateway" icon={Fingerprint} color="sky" />
         <StatCard title="Duty Roster Status" value="PUBLISHED" subtitle="Current Shift Cycle" icon={CalendarDays} color="purple" />
-        <StatCard title="Monthly Payroll Status" value="READY" subtitle="Payroll Cycle" icon={DollarSign} color="amber" />
+        <StatCard title="Monthly Payroll Status" value="READY" subtitle="Payroll Cycle" icon={IndianRupee} color="amber" />
       </div>
 
       <Card>

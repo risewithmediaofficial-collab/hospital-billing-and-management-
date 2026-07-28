@@ -1,6 +1,6 @@
-export const formatCurrency = (amount, symbol = '$') => {
+export const formatCurrency = (amount, symbol = '₹') => {
   if (amount === undefined || amount === null) return `${symbol}0.00`;
-  return `${symbol}${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${symbol}${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const formatDate = (dateString) => {

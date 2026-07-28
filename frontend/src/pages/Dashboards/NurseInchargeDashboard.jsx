@@ -83,7 +83,7 @@ export const NurseInchargeDashboard = () => {
                 <span className="font-mono font-bold text-sky-400">UHID: HOSP-2026-00001</span>
               </div>
               <p className="font-bold text-white text-sm">madhu n (Male, 45 yrs)</p>
-              <p className="text-slate-300">Target Ward: <span className="text-amber-300 font-bold">Ward 3B - Inpatient (GENERAL)</span> • Tariff: $150.00/day</p>
+              <p className="text-slate-300">Target Ward: <span className="text-amber-300 font-bold">Ward 3B - Inpatient (GENERAL)</span> • Tariff: ₹150.00/day</p>
               <p className="text-slate-400 italic">"Reason: Patient requires inpatient observation and fracture immobilization. Requisition by Dr. Gregory House."</p>
             </div>
             <div className="flex gap-2">

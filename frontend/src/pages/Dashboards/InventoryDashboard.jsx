@@ -18,7 +18,7 @@ export const InventoryDashboard = () => {
         <StatCard title="Ward Indent Requests" value="0 Pending" subtitle="ICU & Ward Indents" icon={Truck} color="amber" />
         <StatCard title="Reorder Level Alerts" value="0 Items" subtitle="Low Stock Items" icon={AlertCircle} color="sky" />
         <StatCard title="Active Purchase Orders" value="0 POs" subtitle="Awaiting Vendor GRN" icon={ShoppingCart} color="purple" />
-        <StatCard title="Total Asset Value" value="$0.00" subtitle="Consumables & Assets" icon={Package} color="emerald" />
+        <StatCard title="Total Asset Value" value="₹0.00" subtitle="Consumables & Assets" icon={Package} color="emerald" />
       </div>
 
       <Card>

@@ -98,10 +98,10 @@ export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
                 }}
                 className="w-full glass-input rounded-lg p-2 text-white font-bold text-xs"
               >
-                <option value="GENERAL" className="bg-slate-900">General Ward 3B ($150.00/day)</option>
-                <option value="SEMI_PRIVATE" className="bg-slate-900">Semi-Private Ward ($250.00/day)</option>
-                <option value="PRIVATE" className="bg-slate-900">Deluxe Private Suite ($500.00/day)</option>
-                <option value="ICU" className="bg-slate-900">Intensive Care Unit - ICU ($650.00/day)</option>
+                <option value="GENERAL" className="bg-slate-900">General Ward 3B (₹150.00/day)</option>
+                <option value="SEMI_PRIVATE" className="bg-slate-900">Semi-Private Ward (₹250.00/day)</option>
+                <option value="PRIVATE" className="bg-slate-900">Deluxe Private Suite (₹500.00/day)</option>
+                <option value="ICU" className="bg-slate-900">Intensive Care Unit - ICU (₹650.00/day)</option>
               </select>
             </div>
 

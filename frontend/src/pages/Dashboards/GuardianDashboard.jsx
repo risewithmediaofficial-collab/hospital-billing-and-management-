@@ -2,7 +2,7 @@ import React from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Eye, CreditCard, Activity, DollarSign } from 'lucide-react';
+import { Eye, CreditCard, Activity, IndianRupee } from 'lucide-react';
 
 export const GuardianDashboard = () => {
   return (
@@ -14,8 +14,8 @@ export const GuardianDashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Patient Treatment Status" value="STABLE" subtitle="Post-Op Recovery Ward 3B" icon={Activity} color="emerald" />
-        <StatCard title="Total Unbilled IPD Charges" value="$1,240.00" subtitle="Room + Diagnostics" icon={CreditCard} color="sky" />
-        <StatCard title="Advance Deposit Balance" value="$2,000.00" subtitle="Remaining Credit" icon={DollarSign} color="purple" />
+        <StatCard title="Total Unbilled IPD Charges" value="₹1,240.00" subtitle="Room + Diagnostics" icon={CreditCard} color="sky" />
+        <StatCard title="Advance Deposit Balance" value="₹2,000.00" subtitle="Remaining Credit" icon={IndianRupee} color="purple" />
         <StatCard title="Active Care Requests" value="0 Pending" subtitle="Nurse Attended" icon={Eye} color="amber" />
       </div>
 

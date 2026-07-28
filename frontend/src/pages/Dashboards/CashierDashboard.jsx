@@ -7,7 +7,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
 import {
-  CreditCard, Receipt, Lock, DollarSign, Stethoscope,
+  CreditCard, Receipt, Lock, IndianRupee, Stethoscope,
   User, Pill, CheckCircle, Clock, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
@@ -113,7 +113,7 @@ export const CashierDashboard = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Today's Shift Collection" value={formatCurrency(todayCollected)} subtitle="Cash & Digital Payments" icon={DollarSign} color="emerald" />
+        <StatCard title="Today's Shift Collection" value={formatCurrency(todayCollected)} subtitle="Cash & Digital Payments" icon={IndianRupee} color="emerald" />
         <StatCard title="Receipts Issued Today" value={`${receiptsCount} Receipts`} subtitle="Thermal Printed" icon={Receipt} color="sky" />
         <StatCard title="Pending Bills" value={`${unpaidInvoices.length} Invoices`} subtitle="Doctor-Finalized, Awaiting Payment" icon={Clock} color="amber" />
         <StatCard title="Shift Reconciliation" value="BALANCED" subtitle="0 Discrepancy" icon={Lock} color="purple" />

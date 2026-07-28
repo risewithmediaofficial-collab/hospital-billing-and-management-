@@ -5,7 +5,8 @@ import { Navbar } from '../components/layout/Navbar';
 import { Sidebar } from '../components/layout/Sidebar';
 import { GlobalCodeBlueModal } from '../components/emergency/GlobalCodeBlueModal';
 import { GenericSubView } from '../components/common/GenericSubView';
-import { ROLES } from '../utils/constants';
+import { ROLES, ROLE_NAVIGATION } from '../utils/constants';
+import { useAuthStore } from '../store/authStore';
 
 import { LoginPage } from '../pages/LoginPage';
 import { HospitalRegisterPage } from '../pages/HospitalRegisterPage';
@@ -30,12 +31,15 @@ import { GuardianDashboard } from '../pages/Dashboards/GuardianDashboard';
 
 const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuthStore();
+  const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];
+  const shouldHideSidebar = hideSidebar || menuItems.length === 0;
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100">
-      {!hideSidebar && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
+      {!shouldHideSidebar && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar onToggleSidebar={hideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
+        <Navbar onToggleSidebar={shouldHideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
         <main className={`flex-1 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
       <GlobalCodeBlueModal />
@@ -146,7 +150,7 @@ export const AppRoutes = () => {
         <Route path="/hr/dashboard" element={<MainLayout><HRDashboard /></MainLayout>} />
         <Route path="/hr/roster" element={<MainLayout><GenericSubView title="Duty Rostering Engine" subtitle="Shift Roster Scheduling" iconName="CalendarDays" /></MainLayout>} />
         <Route path="/hr/attendance" element={<MainLayout><GenericSubView title="Biometric Attendance Log" subtitle="eSSL Biometric Scanner Sync" iconName="Fingerprint" /></MainLayout>} />
-        <Route path="/hr/payroll" element={<MainLayout><GenericSubView title="Monthly Payroll Processing" subtitle="Salary & Commission Slips" iconName="DollarSign" /></MainLayout>} />
+        <Route path="/hr/payroll" element={<MainLayout><GenericSubView title="Monthly Payroll Processing" subtitle="Salary & Commission Slips" iconName="IndianRupee" /></MainLayout>} />
       </Route>
 
       {/* 13. Patient Sub-Routes */}
@@ -162,7 +166,7 @@ export const AppRoutes = () => {
         <Route path="/guardian-portal/dashboard" element={<MainLayout><GuardianDashboard /></MainLayout>} />
         <Route path="/guardian-portal/bills" element={<MainLayout><GenericSubView title="Patient Daily Billing Summary" subtitle="Read-only Ledger Items" iconName="CreditCard" /></MainLayout>} />
         <Route path="/guardian-portal/updates" element={<MainLayout><GenericSubView title="Doctor & Nursing Progress Updates" subtitle="Live Inpatient Updates" iconName="Activity" /></MainLayout>} />
-        <Route path="/guardian-portal/pay-online" element={<MainLayout><GenericSubView title="Online Bill Payment Gateway" subtitle="Instant Payment Clearance" iconName="DollarSign" /></MainLayout>} />
+        <Route path="/guardian-portal/pay-online" element={<MainLayout><GenericSubView title="Online Bill Payment Gateway" subtitle="Instant Payment Clearance" iconName="IndianRupee" /></MainLayout>} />
       </Route>
 
       {/* Redirect Root to Login */}
