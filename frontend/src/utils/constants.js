@@ -1,0 +1,58 @@
+export const ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  HOSPITAL_ADMIN: 'HOSPITAL_ADMIN',
+  DOCTOR: 'DOCTOR',
+  NURSE: 'NURSE',
+  NURSE_INCHARGE: 'NURSE_INCHARGE',
+  RECEPTIONIST: 'RECEPTIONIST',
+  PHARMACIST: 'PHARMACIST',
+  LAB_TECH: 'LAB_TECH',
+  RADIOLOGIST: 'RADIOLOGIST',
+  CASHIER: 'CASHIER',
+  INVENTORY_MANAGER: 'INVENTORY_MANAGER',
+  HR_MANAGER: 'HR_MANAGER',
+  PATIENT: 'PATIENT',
+  GUARDIAN: 'GUARDIAN',
+};
+
+export const ROLE_NAMES = {
+  SUPER_ADMIN: 'System Super Admin',
+  HOSPITAL_ADMIN: 'Hospital Administrator',
+  DOCTOR: 'Doctor / Consultant',
+  NURSE: 'Nurse / Ward Staff',
+  NURSE_INCHARGE: 'Nurse In-Charge',
+  RECEPTIONIST: 'Receptionist / Front Desk',
+  PHARMACIST: 'Pharmacist',
+  LAB_TECH: 'Lab Technician / Pathologist',
+  RADIOLOGIST: 'Radiologist',
+  CASHIER: 'Billing Clerk / Cashier',
+  INVENTORY_MANAGER: 'Inventory Manager',
+  HR_MANAGER: 'HR / Payroll Manager',
+  PATIENT: 'Patient Portal',
+  GUARDIAN: 'Guardian Portal',
+};
+
+export const ROLE_NAVIGATION = {
+  SUPER_ADMIN: [],
+  HOSPITAL_ADMIN: [],
+  DOCTOR: [
+    { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope' },
+    { title: 'Queued Patients', path: '/doctor/dashboard?tab=LIVE', icon: 'Hourglass' },
+    { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2' },
+    { title: 'Department Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2' },
+  ],
+  NURSE: [],
+  NURSE_INCHARGE: [],
+  RECEPTIONIST: [
+    { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard' },
+    { title: 'Patient Directory & Queue', path: '/reception/registered-patients', icon: 'Users' },
+  ],
+  PHARMACIST: [],
+  LAB_TECH: [],
+  RADIOLOGIST: [],
+  CASHIER: [],
+  INVENTORY_MANAGER: [],
+  HR_MANAGER: [],
+  PATIENT: [],
+  GUARDIAN: [],
+};

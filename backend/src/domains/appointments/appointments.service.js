@@ -1,0 +1,159 @@
+import { Appointment } from '../../models/Appointment.js';
+import { Patient } from '../../models/Patient.js';
+import { User } from '../../models/User.js';
+import { Hospital } from '../../models/Hospital.js';
+import { Branch } from '../../models/Branch.js';
+import { socketManager } from '../../events/socketManager.js';
+import { ApiError } from '../../utils/apiError.js';
+
+export class AppointmentsService {
+  static async issueToken(data, user) {
+    let hospitalId = user?.hospitalId;
+    let branchId = user?.branchId;
+
+    if (!hospitalId) {
+      const defaultHosp = await Hospital.findOne({});
+      hospitalId = defaultHosp?._id;
+    }
+    if (!branchId) {
+      const defaultBranch = await Branch.findOne({ hospitalId });
+      branchId = defaultBranch?._id;
+    }
+
+    // Bulletproof Doctor Resolution & Availability Check
+    let doctor = null;
+    if (data.doctorId) {
+      doctor = await User.findById(data.doctorId);
+      if (doctor && doctor.isAvailable === false) {
+        throw new ApiError(400, 'This doctor is currently unavailable. Please select another available doctor.', null, 'DOCTOR_UNAVAILABLE');
+      }
+    }
+    if (!doctor && hospitalId) {
+      doctor = await User.findOne({ hospitalId, role: 'DOCTOR', isAvailable: { $ne: false } });
+    }
+    if (!doctor) {
+      doctor = await User.findOne({ role: 'DOCTOR', isAvailable: { $ne: false } });
+    }
+    if (!doctor) {
+      doctor = await User.findOne({ hospitalId, isAvailable: { $ne: false } });
+    }
+    if (!doctor) {
+      doctor = await User.findOne({ isAvailable: { $ne: false } });
+    }
+
+    if (!doctor) {
+      throw new ApiError(400, 'No active/available doctor exists in system to assign token. Please select an available doctor.', null, 'NO_DOCTOR_AVAILABLE');
+    }
+
+    // Find Patient or create walk-in patient
+    let patient = null;
+    if (data.patientId) {
+      patient = await Patient.findById(data.patientId);
+    } else if (data.uhid) {
+      patient = await Patient.findOne({ uhid: data.uhid.toUpperCase() });
+    }
+
+    if (!patient) {
+      const count = await Patient.countDocuments({ hospitalId });
+      const seq = String(count + 1).padStart(5, '0');
+      const year = new Date().getFullYear();
+      const uhid = `HOSP-${year}-${seq}`;
+
+      patient = await Patient.create({
+        hospitalId,
+        branchId,
+        uhid,
+        firstName: data.patientName || 'Walk-in Patient',
+        lastName: `(${uhid})`,
+        gender: 'MALE',
+        dob: new Date('1995-01-01'),
+        phone: data.phone || '+1 (555) 000-0000',
+        address: 'Walk-in Registration Counter',
+        city: 'Main City',
+        emergencyContact: {
+          name: data.patientName || 'Self / Walk-in',
+          phone: data.phone || '+1 (555) 000-0000',
+          relation: 'Self',
+        },
+      });
+    }
+
+    // Calculate today's token number
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayTokens = await Appointment.countDocuments({
+      hospitalId,
+      appointmentDate: todayStr,
+    });
+
+    const tokenNumber = todayTokens + 1;
+    const appointmentNo = `APT-${todayStr.replace(/-/g, '')}-${tokenNumber}`;
+
+    const appointment = await Appointment.create({
+      hospitalId: hospitalId || doctor.hospitalId,
+      branchId: branchId || doctor.branchId,
+      patientId: patient._id,
+      doctorId: doctor._id,
+      departmentId: doctor.departmentId || branchId || doctor.branchId,
+      appointmentNo,
+      tokenNumber,
+      appointmentDate: todayStr,
+      status: 'WAITING', // Strictly WAITING until doctor consults
+      chiefComplaints: data.chiefComplaints || 'OPD Check-up',
+      cabinNo: doctor.cabinNo || 'Cabin 102',
+    });
+
+    // Notify connected Doctor & Queue TV displays
+    socketManager.emitToBranch(branchId || doctor.branchId, 'opd_queue:updated', {
+      doctorId: doctor._id,
+      tokenNumber,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+    });
+
+    return await Appointment.findById(appointment._id).populate('patientId').populate('doctorId');
+  }
+
+  static async getOpdQueue(user, doctorId = null) {
+    let hospitalId = user?.hospitalId;
+    if (!hospitalId) {
+      const defaultHosp = await Hospital.findOne({});
+      hospitalId = defaultHosp?._id;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const filter = {
+      appointmentDate: todayStr,
+    };
+    if (hospitalId) {
+      filter.hospitalId = hospitalId;
+    }
+
+    if (user?.role === 'DOCTOR') {
+      filter.doctorId = user.id;
+    } else if (doctorId) {
+      filter.doctorId = doctorId;
+    }
+
+    return await Appointment.find(filter)
+      .populate('patientId')
+      .populate('doctorId')
+      .sort({ tokenNumber: 1 });
+  }
+
+  static async updateTokenStatus(appointmentId, status, user) {
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      throw new ApiError(404, 'OPD token appointment not found', null, 'NOT_FOUND');
+    }
+
+    appointment.status = status;
+    await appointment.save();
+
+    socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+      appointmentId,
+      status,
+      tokenNumber: appointment.tokenNumber,
+    });
+
+    return appointment;
+  }
+}
