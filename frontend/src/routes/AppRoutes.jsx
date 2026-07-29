@@ -36,7 +36,7 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
   const shouldHideSidebar = hideSidebar || menuItems.length === 0;
 
   return (
-    <div className="min-h-screen flex bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex bg-slate-100 text-slate-900">
       {!shouldHideSidebar && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar onToggleSidebar={shouldHideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
@@ -133,7 +133,7 @@ export const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/create-invoice" element={<MainLayout><GenericSubView title="Invoice Generator Station" subtitle="Consolidated Patient Invoices" iconName="PlusCircle" /></MainLayout>} />
-        <Route path="/billing/receipts" element={<MainLayout><GenericSubView title="Receipts & Payment History" subtitle="80mm Thermal Receipt Records" iconName="Receipt" /></MainLayout>} />
+        <Route path="/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/shift-close" element={<MainLayout><GenericSubView title="End-of-Shift Reconciliation" subtitle="Drawer Cash Balancing" iconName="Lock" /></MainLayout>} />
       </Route>
 

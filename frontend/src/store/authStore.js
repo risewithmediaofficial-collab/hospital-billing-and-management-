@@ -12,7 +12,8 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosClient.post('/auth/login', { email, password });
-      const { user, tokens } = response.data;
+      const payload = response.data?.data || response.data;
+      const { user, tokens } = payload;
 
       localStorage.setItem('hpmbs_access_token', tokens.accessToken);
 
@@ -39,7 +40,8 @@ export const useAuthStore = create((set, get) => ({
     }
     try {
       const response = await axiosClient.get('/auth/me');
-      set({ user: response.data, isAuthenticated: true, isLoading: false });
+      const userData = response.data?.data || response.data;
+      set({ user: userData, isAuthenticated: true, isLoading: false });
     } catch (err) {
       localStorage.removeItem('hpmbs_access_token');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });

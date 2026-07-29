@@ -10,8 +10,8 @@ export const InventoryDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Central Supply Store & Inventory Management</h2>
-        <p className="text-xs text-slate-400 mt-1">{user?.name || 'Inventory Manager'} — Central Stores Desk</p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Central Supply Store & Inventory Management</h2>
+        <p className="text-xs text-slate-500 mt-1">{user?.name || 'Inventory Manager'} — Central Stores Desk</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -22,8 +22,8 @@ export const InventoryDashboard = () => {
       </div>
 
       <Card>
-        <h3 className="text-base font-bold text-white mb-3 flex items-center gap-2">
-          <Truck size={18} className="text-amber-400" />
+        <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+          <Truck size={18} className="text-amber-600" />
           Pending Ward Stock Indents
         </h3>
         <div className="p-8 text-center text-slate-500 text-sm">

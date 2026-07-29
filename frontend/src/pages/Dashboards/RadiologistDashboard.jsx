@@ -68,7 +68,7 @@ export const RadiologistDashboard = () => {
     try {
       await axiosClient.post(`/diagnostics/orders/${selectedOrder._id}/report`, {
         reportSummary: impression || 'Radiology DICOM scan reviewed. No acute bony abnormality.',
-        price: selectedOrder.price || 800,
+        price: selectedOrder.price === '' || selectedOrder.price === undefined || selectedOrder.price === null ? 800 : Number(selectedOrder.price),
         attachments: [
           {
             fileName: `${selectedOrder.testName}_DICOM_${selectedOrder.uhid}.pdf`,
@@ -105,8 +105,8 @@ export const RadiologistDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Radiology & PACS Imaging Workstation</h2>
-        <p className="text-xs text-slate-400 mt-1">{user?.name || 'Radiologist'} — Auto-Dispatched Imaging Queue (X-Ray / MRI / CT / USG)</p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Radiology & PACS Imaging Workstation</h2>
+        <p className="text-xs text-slate-500 mt-1">{user?.name || 'Radiologist'} — Auto-Dispatched Imaging Queue (X-Ray / MRI / CT / USG)</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -120,11 +120,11 @@ export const RadiologistDashboard = () => {
         {/* PACS Scan Queue with Active / Completed Tabs */}
         <Card className="lg:col-span-1">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
               <button
                 onClick={() => setActiveTab('ACTIVE')}
                 className={`px-3 py-1 rounded font-bold transition-all ${
-                  activeTab === 'ACTIVE' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'
+                  activeTab === 'ACTIVE' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 Active Scans ({activeOrders.length})
@@ -132,13 +132,13 @@ export const RadiologistDashboard = () => {
               <button
                 onClick={() => setActiveTab('COMPLETED')}
                 className={`px-3 py-1 rounded font-bold transition-all ${
-                  activeTab === 'COMPLETED' ? 'bg-emerald-500 text-white shadow' : 'text-slate-400 hover:text-white'
+                  activeTab === 'COMPLETED' ? 'bg-emerald-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 Completed ({completedOrders.length})
               </button>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] bg-sky-500/10 text-sky-400 font-bold border border-sky-500/20">
+            <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
               DICOM PACS
             </span>
           </div>
@@ -151,27 +151,27 @@ export const RadiologistDashboard = () => {
                   onClick={() => setSelectedOrder(ord)}
                   className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     selectedOrder?._id === ord._id
-                      ? 'bg-sky-500/15 border-sky-500/50 shadow-md'
-                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                      ? 'bg-indigo-50 border-indigo-400 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      ord.status === 'COMPLETED' ? 'bg-emerald-500 text-slate-950' : 'bg-sky-500 text-white'
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                      ord.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     }`}>
                       {ord.testName}
                     </span>
                     <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                      ord.priority === 'EMERGENCY' ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse' : 'bg-slate-800 text-slate-400'
+                      ord.priority === 'EMERGENCY' ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
                       {ord.priority}
                     </span>
                   </div>
-                  <p className="font-bold text-white text-sm mt-1">{ord.patientName} ({ord.patientAge})</p>
+                  <p className="font-bold text-slate-900 text-sm mt-1">{ord.patientName} ({ord.patientAge})</p>
                   <div className="flex justify-between items-center mt-1">
-                    <span className="text-xs text-sky-400 font-mono">UHID: {ord.uhid}</span>
+                    <span className="text-xs text-indigo-700 font-mono">UHID: {ord.uhid}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                      ord.status === 'COMPLETED' || ord.status === 'REPORT_UPLOADED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                      ord.status === 'COMPLETED' || ord.status === 'REPORT_UPLOADED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
                     }`}>
                       {ord.status}
                     </span>
@@ -188,9 +188,9 @@ export const RadiologistDashboard = () => {
 
         {/* DICOM Viewer & Impression Form */}
         <Card className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Monitor size={18} className="text-purple-400" />
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Monitor size={18} className="text-purple-600" />
               DICOM Imaging Viewer & Diagnostic Sign-Off
             </h3>
             {selectedOrder && (
@@ -201,7 +201,7 @@ export const RadiologistDashboard = () => {
                   </Button>
                 )}
                 {(selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED') && (
-                  <span className="px-3 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold text-xs flex items-center gap-1">
+                  <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center gap-1">
                     <CheckCircle2 size={14} /> SCAN COMPLETED
                   </span>
                 )}
@@ -211,23 +211,23 @@ export const RadiologistDashboard = () => {
 
           {selectedOrder ? (
             <div className="space-y-4 text-xs">
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="p-3 rounded-xl bg-white border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div>
-                  <p className="text-slate-400">Patient Name:</p>
-                  <p className="font-bold text-white text-sm">{selectedOrder.patientName}</p>
+                  <p className="text-slate-500">Patient Name:</p>
+                  <p className="font-bold text-slate-900 text-sm">{selectedOrder.patientName}</p>
                 </div>
                 <div>
-                  <p className="text-slate-400">UHID & OP/IP:</p>
-                  <p className="font-mono text-sky-400 font-bold">{selectedOrder.uhid} ({selectedOrder.opIpNumber || 'OP-101'})</p>
+                  <p className="text-slate-500">UHID & OP/IP:</p>
+                  <p className="font-mono text-indigo-700 font-bold">{selectedOrder.uhid} ({selectedOrder.opIpNumber || 'OP-101'})</p>
                 </div>
                 <div>
-                  <p className="text-slate-400">Requesting Doctor:</p>
-                  <p className="font-bold text-white">{selectedOrder.doctorName}</p>
+                  <p className="text-slate-500">Requesting Doctor:</p>
+                  <p className="font-bold text-slate-900">{selectedOrder.doctorName}</p>
                 </div>
                 <div>
-                  <p className="text-slate-400">Current Status:</p>
+                  <p className="text-slate-500">Current Status:</p>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                    selectedOrder.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                    selectedOrder.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                   }`}>
                     {selectedOrder.status}
                   </span>
@@ -235,52 +235,54 @@ export const RadiologistDashboard = () => {
               </div>
 
               {/* Simulated High-Res DICOM Viewport */}
-              <div className="h-44 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center relative overflow-hidden">
+              <div className="h-44 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center relative overflow-hidden">
                 <div className="text-center z-20 space-y-1">
-                  <FileImage size={36} className="text-sky-400 mx-auto animate-pulse" />
-                  <p className="text-white font-bold">{selectedOrder.testName} PA View — High Resolution DICOM Scan</p>
-                  <p className="text-[11px] text-slate-400">Study Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                  <FileImage size={36} className="text-indigo-500 mx-auto animate-pulse" />
+                  <p className="text-slate-900 font-bold">{selectedOrder.testName} PA View — High Resolution DICOM Scan</p>
+                  <p className="text-[11px] text-slate-500">Study Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
 
               {selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED' ? (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-2">
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-emerald-400 text-sm flex items-center gap-1.5">
+                    <span className="font-bold text-emerald-600 text-sm flex items-center gap-1.5">
                       <CheckCircle2 size={16} /> Scan Completed & Radiologist Report Published
                     </span>
-                    <span className="text-[11px] text-slate-400">Signed by: {selectedOrder.technicianName || user?.name}</span>
+                    <span className="text-[11px] text-slate-500">Signed by: {selectedOrder.technicianName || user?.name}</span>
                   </div>
-                  <p className="text-slate-200 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <p className="text-slate-700 bg-white p-3 rounded-lg border border-slate-200">
                     "{selectedOrder.reportSummary}"
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handlePublishReport} className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-lg bg-slate-900 border border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200">
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1">Radiology Service Charge (₹):</label>
+                      <label className="block text-slate-600 font-bold mb-1">Radiology Service Charge (₹):</label>
                       <input
-                        type="number"
-                        className="w-full glass-input rounded-lg p-2 text-xs text-white font-mono font-bold"
-                        value={selectedOrder.price || 800}
-                        onChange={(e) =>
-                          setSelectedOrder((prev) => ({ ...prev, price: Number(e.target.value) || 0 }))
-                        }
+                        type="text"
+                        placeholder="Type cost (e.g. 800)"
+                        className="w-full glass-input rounded-lg p-2 text-xs text-slate-900 font-mono font-bold"
+                        value={selectedOrder.price === undefined || selectedOrder.price === null ? '' : selectedOrder.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedOrder((prev) => ({ ...prev, price: val }));
+                        }}
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1">Charge Status:</label>
-                      <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-400 font-bold border border-sky-500/20 text-[11px] block">
+                      <label className="block text-slate-600 font-bold mb-1">Charge Status:</label>
+                      <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 text-[11px] block">
                         SUBMITTED TO DOCTOR FOR REVIEW
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-bold mb-1">Radiologist Diagnostic Impression & Findings:</label>
+                    <label className="block text-slate-600 font-bold mb-1">Radiologist Diagnostic Impression & Findings:</label>
                     <textarea
-                      className="w-full glass-input rounded-lg p-2.5 text-xs text-white"
+                      className="w-full glass-input rounded-lg p-2.5 text-xs text-slate-900"
                       rows={3}
                       placeholder="Enter radiologist impression notes..."
                       value={impression}

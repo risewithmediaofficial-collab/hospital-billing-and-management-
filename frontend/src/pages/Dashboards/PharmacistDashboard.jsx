@@ -10,8 +10,8 @@ export const PharmacistDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Pharmacy POS & FEFO Stock Workstation</h2>
-        <p className="text-xs text-slate-400 mt-1">{user?.name || 'Pharmacist'} — Central Pharmacy Workstation</p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Pharmacy POS & FEFO Stock Workstation</h2>
+        <p className="text-xs text-slate-500 mt-1">{user?.name || 'Pharmacist'} — Central Pharmacy Workstation</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -22,12 +22,12 @@ export const PharmacistDashboard = () => {
       </div>
 
       <Card>
-        <h3 className="text-base font-bold text-white mb-3 flex items-center justify-between">
+        <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <Pill size={18} className="text-sky-400" />
+            <Pill size={18} className="text-indigo-500" />
             Pending E-Prescription Dispense Queue
           </span>
-          <span className="text-xs text-slate-400 font-mono">FEFO Auto Batch Selection Active</span>
+          <span className="text-xs text-slate-500 font-mono">FEFO Auto Batch Selection Active</span>
         </h3>
 
         <div className="p-8 text-center text-slate-500 text-sm">

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
-import { Lock, Mail, Building2, PlusCircle } from 'lucide-react';
+import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck } from 'lucide-react';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -40,24 +39,34 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background Radial Glow */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-sky-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center z-10">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 shadow-xl shadow-sky-500/20 mb-4 border border-sky-400/30">
-          <Building2 size={32} className="text-white" />
-        </div>
-        <h2 className="text-3xl font-black text-white tracking-tight">HPMBS Enterprise SaaS</h2>
-        <p className="mt-1 text-sm text-slate-400">Multi-Tenant Hospital Management Platform</p>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-indigo-100 opacity-60 blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-slate-200 opacity-60 blur-3xl"></div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10 px-4">
-        <Card className="p-8">
-          <form onSubmit={handleLogin} autoComplete="off" className="space-y-5">
+      <div className="relative w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 shadow-lg mb-5 border border-indigo-500">
+            <Building2 size={30} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">HPMBS Enterprise</h1>
+          <p className="mt-1.5 text-sm text-slate-500 font-medium">Multi-Tenant Hospital Management Platform</p>
+        </div>
+
+        {/* Login Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-8">
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-slate-900">Sign in to your workstation</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Enter your credentials to access your assigned module.</p>
+          </div>
+
+          <form onSubmit={handleLogin} autoComplete="off" className="space-y-4">
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+                <AlertCircle size={15} className="flex-shrink-0" />
                 {error}
               </div>
             )}
@@ -84,17 +93,37 @@ export const LoginPage = () => {
               required
             />
 
-            <Button type="submit" variant="primary" className="w-full py-2.5 font-bold" isLoading={isLoading}>
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full py-2.5 font-bold mt-2"
+              isLoading={isLoading}
+            >
               Sign In to Workstation
             </Button>
           </form>
 
-          <div className="mt-6 text-center border-t border-slate-800/80 pt-4">
-            <Link to="/register-hospital" className="text-xs text-sky-400 hover:underline flex items-center justify-center gap-1.5 font-bold">
-              <PlusCircle size={15} /> Hospital Executive? Register your Hospital SaaS Tenant
+          {/* HIPAA badge */}
+          <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400 font-medium">
+            <ShieldCheck size={13} className="text-indigo-400" />
+            HIPAA Compliant &bull; End-to-End Encrypted
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-200 text-center">
+            <Link
+              to="/register-hospital"
+              className="text-xs text-indigo-600 hover:text-indigo-700 hover:underline flex items-center justify-center gap-1.5 font-bold transition-colors"
+            >
+              <PlusCircle size={14} />
+              Hospital Executive? Register your Hospital SaaS Tenant
             </Link>
           </div>
-        </Card>
+        </div>
+
+        {/* Footer note */}
+        <p className="text-center text-[11px] text-slate-400 mt-5">
+          &copy; {new Date().getFullYear()} HPMBS &bull; Trusted Healthcare IT Solutions
+        </p>
       </div>
     </div>
   );

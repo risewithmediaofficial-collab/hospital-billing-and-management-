@@ -20,8 +20,8 @@ export const NurseDashboard = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Ward Nursing Station & Care Monitor</h2>
-          <p className="text-xs text-slate-400 mt-1">Inpatient Ward — Care Requests & Vitals Station</p>
+          <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Ward Nursing Station & Care Monitor</h2>
+          <p className="text-xs text-neutral-500 mt-1">Inpatient Ward — Care Requests & Vitals Station</p>
         </div>
         <Button variant="danger" size="sm" onClick={handleTestCodeBlueTrigger}>
           <AlertOctagon size={16} />
@@ -38,15 +38,15 @@ export const NurseDashboard = () => {
 
       {/* Visual Ward Bed Matrix */}
       <Card>
-        <h3 className="text-base font-bold text-white mb-4 flex items-center justify-between">
+        <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <Bed size={18} className="text-sky-400" />
+            <Bed size={18} className="text-indigo-500" />
             Live Bed Matrix & Care Request Timers
           </span>
-          <span className="text-xs text-slate-400 font-mono">Auto-Escalation Enabled</span>
+          <span className="text-xs text-neutral-500 font-mono">Auto-Escalation Enabled</span>
         </h3>
 
-        <div className="p-8 text-center text-slate-500 text-sm">
+        <div className="p-8 text-center text-neutral-500 text-sm">
           No active admitted patients in ward beds. Admitted IPD patients will appear here in real time!
         </div>
       </Card>

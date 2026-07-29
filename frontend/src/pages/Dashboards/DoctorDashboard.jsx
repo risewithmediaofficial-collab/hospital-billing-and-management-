@@ -9,6 +9,8 @@ import { RequestInvestigationModal } from '../../components/modals/RequestInvest
 import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
+import { useNotificationStore } from '../../store/notificationStore';
+import { ROLE_NAMES } from '../../utils/constants';
 import { axiosClient } from '../../api/axiosClient';
 import {
   Stethoscope,
@@ -34,6 +36,7 @@ export const DoctorDashboard = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const { markAsRead, addNotification } = useNotificationStore();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
   const [liveQueue, setLiveQueue] = useState([]);
   const [completedQueue, setCompletedQueue] = useState([]);
@@ -85,8 +88,33 @@ export const DoctorDashboard = () => {
 
     const handleInvestigationUpdate = (data) => {
       fetchDepartmentOrders();
-      if (selectedToken && (data.patientId === selectedToken.patientId?._id || data.patientId === selectedToken.patientId)) {
-        fetchPatientInvestigations(selectedToken.patientId?._id || selectedToken.patientId);
+      const activePatientId = selectedToken?.patientId?._id || selectedToken?.patientId || currentPatient?._id || currentPatient?.id;
+      if (activePatientId) {
+        fetchPatientInvestigations(activePatientId);
+      }
+      if (data && data.orderId) {
+        addNotification({
+          orderId: data.orderId,
+          patientId: data.patientId,
+          patientName: data.patientName,
+          uhid: data.uhid,
+          testName: data.testName,
+          status: data.status || 'COMPLETED',
+          reportSummary: data.reportSummary || '',
+          title: `Report Ready: ${data.testName || 'Investigation'}`,
+        });
+      }
+    };
+
+    const handleDoctorAvailability = (data) => {
+      const myId = user?.id || user?._id;
+      if (String(data.id || data._id) === String(myId)) {
+        if (data.isAvailable !== undefined) setIsAvailable(Boolean(data.isAvailable));
+        if (data.cabinNo) {
+          setCabinNo(data.cabinNo);
+          setTempCabin(data.cabinNo);
+        }
+        if (data.availabilityUpdatedAt) setAvailabilityUpdatedAt(data.availabilityUpdatedAt);
       }
     };
 
@@ -95,6 +123,7 @@ export const DoctorDashboard = () => {
     socket.on('investigation:new_request', handleInvestigationUpdate);
     socket.on('investigation:status_updated', handleInvestigationUpdate);
     socket.on('diagnostics:report_ready', handleInvestigationUpdate);
+    socket.on('doctor:availability_changed', handleDoctorAvailability);
 
     return () => {
       socket.off('opd_queue:updated', handleQueueUpdate);
@@ -102,6 +131,7 @@ export const DoctorDashboard = () => {
       socket.off('investigation:new_request', handleInvestigationUpdate);
       socket.off('investigation:status_updated', handleInvestigationUpdate);
       socket.off('diagnostics:report_ready', handleInvestigationUpdate);
+      socket.off('doctor:availability_changed', handleDoctorAvailability);
     };
   }, [socket, selectedToken]);
 
@@ -204,7 +234,8 @@ export const DoctorDashboard = () => {
     setIsTogglingStatus(true);
     setStatusMessage(null);
     try {
-      const res = await axiosClient.patch(`/auth/staff/${user?.id || user?._id}/availability`, {
+      const targetId = user?.id || user?._id || 'me';
+      const res = await axiosClient.patch(`/auth/staff/${targetId}/availability`, {
         isAvailable: nextState,
         cabinNo,
       });
@@ -216,7 +247,7 @@ export const DoctorDashboard = () => {
       setAvailabilityUpdatedAt(payload.availabilityUpdatedAt || new Date());
       setStatusMessage({
         type: 'success',
-        text: `Doctor status updated to ${updatedAvailable ? 'ONLINE & ACTIVE' : 'OFFLINE / UNAVAILABLE'}.`,
+        text: `Doctor status updated to ${updatedAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}.`,
       });
     } catch (err) {
       console.error('Failed to update availability:', err);
@@ -237,7 +268,8 @@ export const DoctorDashboard = () => {
     setIsTogglingStatus(true);
     setStatusMessage(null);
     try {
-      const res = await axiosClient.patch(`/auth/staff/${user?.id || user?._id}/availability`, {
+      const targetId = user?.id || user?._id || 'me';
+      const res = await axiosClient.patch(`/auth/staff/${targetId}/availability`, {
         isAvailable,
         cabinNo: tempCabin.trim(),
       });
@@ -277,24 +309,24 @@ export const DoctorDashboard = () => {
       >
         <form onSubmit={handleSaveCabin} className="space-y-4 text-xs pt-2">
           <div>
-            <label className="block text-slate-300 font-bold mb-1.5">
+            <label className="block text-slate-700 font-bold mb-1.5">
               Assigned OPD Cabin / Room Number:
             </label>
             <input
               type="text"
-              className="w-full glass-input rounded-xl p-3 text-sm text-white font-bold font-mono focus:border-sky-500"
+              className="w-full glass-input rounded-xl p-3 text-sm text-slate-900 font-bold font-mono focus:border-blue-500"
               placeholder="e.g. Cabin 102, Room 304, Block B-12"
               value={tempCabin}
               onChange={(e) => setTempCabin(e.target.value)}
               required
               autoFocus
             />
-            <p className="text-[11px] text-slate-400 mt-1.5">
+            <p className="text-[11px] text-slate-500 mt-1.5">
               This cabin number will be displayed on Reception Token Tickets and patient queue displays.
             </p>
           </div>
 
-          <div className="flex gap-2 pt-2 border-t border-slate-800">
+          <div className="flex gap-2 pt-2 border-t border-slate-200">
             <Button
               type="button"
               variant="outline"
@@ -319,43 +351,43 @@ export const DoctorDashboard = () => {
       {activeTab === 'OVERVIEW' && (
         <>
           {/* Premium Professional Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/90 border border-slate-800 backdrop-blur-md shadow-xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-900">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-black text-white tracking-tight">Doctor Clinical EMR Workstation</h2>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Doctor Clinical EMR Workstation</h2>
 
                 {/* Status Badge */}
                 {isAvailable ? (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-extrabold text-xs shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs shadow-xs">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
                     </span>
-                    <span>ONLINE &amp; ACTIVE</span>
+                    <span>AVAILABLE</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-extrabold text-xs">
-                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500"></span>
-                    <span>OFFLINE / UNAVAILABLE</span>
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-xs">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-600"></span>
+                    <span>UNAVAILABLE</span>
                   </div>
                 )}
 
                 {/* OPD Cabin Badge */}
                 <button
                   onClick={() => { setTempCabin(cabinNo); setIsEditingCabin(true); }}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 hover:border-sky-400 text-sky-400 font-extrabold text-xs transition-all shadow-[0_0_12px_rgba(14,165,233,0.15)] group"
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-700 font-extrabold text-xs transition-all shadow-xs group"
                   title="Click to edit your assigned OPD Cabin / Consultation Room"
                 >
-                  <DoorClosed size={15} className="group-hover:scale-110 transition-transform text-sky-400" />
-                  <span>OPD Cabin: <strong className="text-white ml-0.5">{cabinNo}</strong></span>
-                  <Pencil size={12} className="text-sky-300 ml-1 opacity-70 group-hover:opacity-100" />
+                  <DoorClosed size={15} className="group-hover:scale-110 transition-transform text-indigo-600" />
+                  <span>OPD Cabin: <strong className="text-slate-900 ml-0.5">{cabinNo}</strong></span>
+                  <Pencil size={12} className="text-indigo-500 ml-1 opacity-70 group-hover:opacity-100" />
                 </button>
               </div>
 
-              <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-2">
+              <p className="text-xs text-slate-600 mt-1.5 flex items-center gap-2">
                 <span>{user?.name || 'Doctor / Consultant'} — Live OPD Queue Desk</span>
-                <span className="text-slate-600">•</span>
-                <span className="font-mono text-slate-400">{cabinNo}</span>
+                <span className="text-slate-400">•</span>
+                <span className="font-mono text-slate-700 font-bold">{cabinNo}</span>
                 {availabilityUpdatedAt && (
                   <span className="text-slate-500 font-mono text-[11px]">
                     (Updated: {new Date(availabilityUpdatedAt).toLocaleTimeString()})
@@ -373,19 +405,19 @@ export const DoctorDashboard = () => {
                 onClick={handleToggleAvailability}
               >
                 <Power size={14} />
-                {isAvailable ? 'Mark as Unavailable (Go Offline)' : 'Mark as Available (Go Online)'}
+                {isAvailable ? 'Mark as Unavailable' : 'Mark as Available'}
               </Button>
             </div>
           </div>
 
           {statusMessage && (
-            <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between shadow-lg ${
+            <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
               statusMessage.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-rose-50 border-rose-200 text-rose-700'
             }`}>
               <span className="font-medium">{statusMessage.text}</span>
-              <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
+              <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-700 font-bold ml-2">✕</button>
             </div>
           )}
 
@@ -407,7 +439,7 @@ export const DoctorDashboard = () => {
             placeholder="Search patient, token, test, UHID..."
             value={queueSearchTerm}
             onChange={(e) => setQueueSearchTerm(e.target.value)}
-            className="w-full glass-input rounded-xl py-2.5 pl-9 pr-3 text-xs text-white"
+            className="w-full glass-input rounded-xl py-2.5 pl-9 pr-3 text-xs text-slate-900"
           />
           <Search size={14} className="absolute left-3 top-3 text-slate-400" />
         </div>
@@ -417,13 +449,13 @@ export const DoctorDashboard = () => {
       {activeTab === 'LIVE' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Queued Patient List */}
-          <Card className="lg:col-span-1 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Users size={16} className="text-sky-400" />
+          <Card className="lg:col-span-1 space-y-3 bg-white border border-slate-200 shadow-sm text-black">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <h3 className="text-xs font-black text-black uppercase tracking-wider flex items-center gap-2">
+                <Users size={16} className="text-sky-600" />
                 Live OPD Token Queue ({filteredLiveQueue.length})
               </h3>
-              <span className="px-2 py-0.5 rounded text-[10px] bg-sky-500/10 text-sky-400 font-extrabold border border-sky-500/20">
+              <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-black border border-indigo-200">
                 {cabinNo}
               </span>
             </div>
@@ -439,26 +471,26 @@ export const DoctorDashboard = () => {
                       onClick={() => handleSelectToken(tok)}
                       className={`p-3 rounded-xl border cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-sky-500/15 border-sky-500/60 shadow-lg shadow-sky-500/10 scale-[1.01]'
-                          : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                          ? 'bg-indigo-50 border-indigo-400 shadow-sm scale-[1.01]'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] bg-emerald-500 text-slate-950 font-black">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] bg-emerald-600 text-white font-black">
                           TOKEN #{tok.tokenNumber}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
                           tok.status === 'IN_CONSULTATION'
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse'
-                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
+                            : 'bg-amber-50 text-amber-700 border-amber-300'
                         }`}>
                           {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULT' : '⏳ WAITING'}
                         </span>
                       </div>
 
-                      <p className="font-bold text-white text-xs tracking-tight">{pat.firstName} {pat.lastName}</p>
-                      <p className="text-[11px] text-sky-400 font-mono font-medium mt-0.5">{pat.uhid || 'UHID'} • {pat.gender || 'M'}</p>
-                      <p className="text-[11px] text-amber-400 font-medium mt-1 truncate">
+                      <p className="font-extrabold text-slate-900 text-xs tracking-tight">{pat.firstName} {pat.lastName}</p>
+                      <p className="text-[11px] text-indigo-700 font-mono font-bold mt-0.5">{pat.uhid || 'UHID'} • {pat.gender || 'M'}</p>
+                      <p className="text-[11px] text-amber-800 font-bold mt-1 truncate">
                         Chief: {tok.chiefComplaints || 'OPD Checkup'}
                       </p>
                     </div>
@@ -473,27 +505,27 @@ export const DoctorDashboard = () => {
           </Card>
 
           {/* Consultation Workspace for Selected Patient */}
-          <Card className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Stethoscope size={18} className="text-emerald-400" />
+          <Card className="lg:col-span-2 space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                <Stethoscope size={18} className="text-emerald-600" />
                 Patient Consultation Workspace
               </h3>
             </div>
 
           {selectedToken && currentPatient ? (
             <div className="space-y-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-slate-400 text-xs">Active Patient:</p>
-                  <p className="text-base font-bold text-white">
+                  <p className="text-slate-600 text-xs font-bold">Active Patient:</p>
+                  <p className="text-base font-black text-black">
                     {currentPatient.firstName} {currentPatient.lastName} • {currentPatient.gender} • Blood: {currentPatient.bloodGroup || 'O+'}
                   </p>
-                  <p className="text-xs text-sky-400 font-mono mt-0.5">UHID: {currentPatient.uhid} • Phone: {currentPatient.phone || 'N/A'}</p>
-                  <p className="text-xs text-amber-400 font-semibold mt-1">Chief Complaint: {selectedToken.chiefComplaints || 'Check-up'}</p>
+                  <p className="text-xs text-indigo-700 font-mono font-bold mt-0.5">UHID: {currentPatient.uhid} • Phone: {currentPatient.phone || 'N/A'}</p>
+                  <p className="text-xs text-amber-800 font-extrabold mt-1">Chief Complaint: {selectedToken.chiefComplaints || 'Check-up'}</p>
                 </div>
 
-                <span className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono font-black text-sm">
+                <span className="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-300 font-mono font-black text-sm">
                   TOKEN #{selectedToken.tokenNumber}
                 </span>
               </div>
@@ -503,7 +535,7 @@ export const DoctorDashboard = () => {
                 <Button
                   size="md"
                   variant="success"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-600/20"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsConsultationModalOpen(true)}
                 >
                   <Stethoscope size={20} />
@@ -513,7 +545,7 @@ export const DoctorDashboard = () => {
                 <Button
                   size="md"
                   variant="primary"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-sky-600/20"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsRequestModalOpen(true)}
                 >
                   <TestTube size={20} />
@@ -523,7 +555,7 @@ export const DoctorDashboard = () => {
                 <Button
                   size="md"
                   variant="warning"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsAdmitModalOpen(true)}
                 >
                   <BedDouble size={20} />
@@ -534,8 +566,8 @@ export const DoctorDashboard = () => {
               {/* Live Requested Department Investigation Tracking */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-white flex items-center gap-1.5 text-xs">
-                    <FileCheck2 className="text-sky-400" size={16} />
+                  <h4 className="font-extrabold text-black flex items-center gap-1.5 text-xs">
+                    <FileCheck2 className="text-sky-600" size={16} />
                     Live Requested Department Investigations ({patientInvestigations.length})
                   </h4>
                 </div>
@@ -543,37 +575,37 @@ export const DoctorDashboard = () => {
                 <div className="space-y-2">
                   {patientInvestigations.length > 0 ? (
                     patientInvestigations.map((inv) => (
-                      <div key={inv._id} className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs space-y-2">
+                      <div key={inv._id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-2 text-black">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500 text-slate-950">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-600 text-white">
                               {inv.testCategory}
                             </span>
-                            <span className="font-bold text-white text-sm">{inv.testName}</span>
+                            <span className="font-extrabold text-black text-sm">{inv.testName}</span>
                             <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                              inv.priority === 'EMERGENCY' ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse' :
-                              inv.priority === 'URGENT' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
-                              'bg-slate-800 text-slate-400'
+                              inv.priority === 'EMERGENCY' ? 'bg-red-100 text-red-700 border-red-300 animate-pulse' :
+                              inv.priority === 'URGENT' ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                              'bg-slate-200 text-slate-700'
                             }`}>
                               {inv.priority}
                             </span>
                           </div>
 
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            inv.status === 'REQUESTED' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                            inv.status === 'DEPARTMENT_RECEIVED' || inv.status === 'ACCEPTED' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' :
-                            inv.status === 'IN_PROGRESS' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                            'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            inv.status === 'REQUESTED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            inv.status === 'DEPARTMENT_RECEIVED' || inv.status === 'ACCEPTED' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                            inv.status === 'IN_PROGRESS' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                            'bg-emerald-50 text-emerald-700 border-emerald-200'
                           }`}>
                             {inv.status}
                           </span>
                         </div>
 
                         {inv.status === 'REPORT_UPLOADED' || inv.status === 'COMPLETED' ? (
-                          <div className="p-2.5 rounded bg-emerald-500/5 border border-emerald-500/20 text-emerald-300 space-y-1.5">
+                          <div className="p-2.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5">
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-emerald-400">Findings: "{inv.reportSummary}"</span>
-                              <span className="text-[10px] text-slate-400">By: {inv.technicianName}</span>
+                              <span className="font-extrabold text-emerald-900">Findings: "{inv.reportSummary}"</span>
+                              <span className="text-[10px] text-slate-600 font-bold">By: {inv.technicianName}</span>
                             </div>
                             {inv.attachments?.length > 0 && (
                               <div className="flex gap-2 pt-1">
@@ -583,7 +615,8 @@ export const DoctorDashboard = () => {
                                     href={att.fileUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sky-400 hover:text-sky-300 font-semibold text-[11px] flex items-center gap-1"
+                                    onClick={() => markAsRead(inv._id)}
+                                    className="px-2 py-1 rounded bg-white border border-slate-300 text-sky-700 hover:text-sky-900 font-bold text-[11px] flex items-center gap-1 shadow-xs"
                                   >
                                     <Eye size={12} /> View Report Scan ({att.fileName})
                                   </a>
@@ -592,9 +625,9 @@ export const DoctorDashboard = () => {
                             )}
                           </div>
                         ) : (
-                          <div className="flex justify-between text-[11px] text-slate-400">
-                            <span>Clinical Notes: {inv.clinicalNotes || 'None'}</span>
-                            <span>Requested at: {new Date(inv.createdAt).toLocaleTimeString()}</span>
+                          <div className="flex justify-between text-[11px] text-slate-600">
+                            <span className="font-medium">Clinical Notes: {inv.clinicalNotes || 'None'}</span>
+                            <span className="font-mono">Requested at: {new Date(inv.createdAt).toLocaleTimeString()}</span>
                           </div>
                         )}
                       </div>
@@ -616,17 +649,17 @@ export const DoctorDashboard = () => {
 
       {/* COMPLETED VISITS TAB */}
       {activeTab === 'COMPLETED' && (
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <CheckCircle2 size={18} className="text-emerald-400" />
+        <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-emerald-600" />
               Completed Consultation History ({filteredCompletedQueue.length})
             </h3>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
                 <tr>
                   <th className="p-3">Token #</th>
                   <th className="p-3">UHID</th>
@@ -636,19 +669,19 @@ export const DoctorDashboard = () => {
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-black">
                 {filteredCompletedQueue.length > 0 ? (
                   filteredCompletedQueue.map((tok) => {
                     const pat = tok.patientId || {};
                     return (
-                      <tr key={tok._id} className="hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3 font-mono font-bold text-emerald-400">#{tok.tokenNumber}</td>
-                        <td className="p-3 font-mono font-bold text-sky-400">{pat.uhid || '—'}</td>
-                        <td className="p-3 font-bold text-white">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-amber-400 font-medium">{tok.chiefComplaints || 'Checkup'}</td>
-                        <td className="p-3 text-slate-400">{new Date(tok.updatedAt || tok.createdAt).toLocaleTimeString()}</td>
+                      <tr key={tok._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono font-bold text-emerald-700">#{tok.tokenNumber}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid || '—'}</td>
+                        <td className="p-3 font-extrabold text-black">{pat.firstName} {pat.lastName}</td>
+                        <td className="p-3 text-amber-800 font-bold">{tok.chiefComplaints || 'Checkup'}</td>
+                        <td className="p-3 text-slate-600 font-medium">{new Date(tok.updatedAt || tok.createdAt).toLocaleTimeString()}</td>
                         <td className="p-3 text-right">
-                          <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
                             ✅ FINALISED & BILLED
                           </span>
                         </td>
@@ -670,14 +703,14 @@ export const DoctorDashboard = () => {
 
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <FileCheck2 size={18} className="text-amber-400" />
+              <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                <FileCheck2 size={18} className="text-amber-600" />
                 Department Reports & Charges Inbox ({filteredDeptOrders.length})
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5 font-medium">
                 Incoming diagnostic lab test results, radiology X-Ray/MRI/CT scans, and department charges submitted to Doctor.
               </p>
             </div>
@@ -685,7 +718,7 @@ export const DoctorDashboard = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
                 <tr>
                   <th className="p-3">Category</th>
                   <th className="p-3">Test / Service Name</th>
@@ -697,27 +730,27 @@ export const DoctorDashboard = () => {
                   <th className="p-3 text-right">Scans & Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-black">
                 {filteredDeptOrders.length > 0 ? (
                   filteredDeptOrders.map((ord) => {
                     const isReady = ord.status === 'REPORT_UPLOADED';
                     return (
-                      <tr key={ord._id} className="hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3 font-mono font-bold text-sky-400">{ord.testCategory}</td>
-                        <td className="p-3 font-bold text-white">{ord.testName}</td>
-                        <td className="p-3 font-bold text-slate-200">{ord.patientName}</td>
-                        <td className="p-3 font-mono text-sky-400">{ord.uhid}</td>
-                        <td className="p-3 font-mono font-bold text-emerald-400">
+                      <tr key={ord._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono font-bold text-indigo-700">{ord.testCategory}</td>
+                        <td className="p-3 font-extrabold text-black">{ord.testName}</td>
+                        <td className="p-3 font-bold text-black">{ord.patientName}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">{ord.uhid}</td>
+                        <td className="p-3 font-mono font-black text-emerald-700">
                           ₹{ord.totalDepartmentCharge || ord.price || 0}
                         </td>
-                        <td className="p-3 text-slate-300 max-w-xs truncate">
+                        <td className="p-3 text-black max-w-xs truncate font-medium">
                           {ord.reportSummary ? `"${ord.reportSummary}"` : 'Awaiting technician entry'}
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            isReady ? 'bg-emerald-500 text-slate-950 font-black animate-pulse' :
-                            ord.status === 'REQUESTED' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                            'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                            isReady ? 'bg-emerald-600 text-white animate-pulse' :
+                            ord.status === 'REQUESTED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-sky-50 text-sky-700 border-sky-200'
                           }`}>
                             {isReady ? '✅ REPORT READY' : ord.status}
                           </span>
@@ -728,7 +761,8 @@ export const DoctorDashboard = () => {
                               href={ord.attachments[0].fileUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:text-sky-300 font-bold text-[11px] inline-flex items-center gap-1"
+                              onClick={() => markAsRead(ord._id)}
+                              className="px-2.5 py-1 rounded bg-sky-50 border border-sky-200 text-sky-700 hover:text-sky-900 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
                             >
                               <Eye size={12} /> View Scan
                             </a>
@@ -766,6 +800,8 @@ export const DoctorDashboard = () => {
         onClose={() => setIsRequestModalOpen(false)}
         patient={currentPatient}
         tokenNumber={selectedToken?.tokenNumber || 1}
+        doctorId={selectedToken?.doctorId?._id || selectedToken?.doctorId || user?.id || user?._id}
+        doctorName={selectedToken?.doctorId?.name ? `Dr. ${selectedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (user?.name ? `Dr. ${user.name.replace(/^Dr\.\s*/i, '')}` : 'Dr. Madhu Narayan')}
         onSuccess={() => fetchPatientInvestigations(currentPatient?._id || currentPatient?.id)}
       />
 

@@ -197,16 +197,18 @@ export class AuthService {
   }
 
   static async toggleDoctorAvailability(staffId, isAvailable, cabinNo, requestingUser) {
-    const staffDoc = await User.findById(staffId);
+    const targetId = (staffId === 'me' || !staffId) ? (requestingUser?.id || requestingUser?._id) : staffId;
+    const staffDoc = await User.findById(targetId);
     if (!staffDoc) {
       throw new ApiError(404, 'Doctor account not found', null, 'NOT_FOUND');
     }
 
-    // Only the doctor themselves or an admin can change availability/cabin
+    // Only the doctor themselves, any doctor user, or an admin/receptionist can change availability/cabin
     const requesterId = requestingUser?.id || requestingUser?._id;
     const isOwner = String(staffDoc._id) === String(requesterId);
-    const isAdmin = ['HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(requestingUser?.role);
-    if (!isOwner && !isAdmin) {
+    const isDoctorRole = requestingUser?.role === 'DOCTOR';
+    const isAdmin = ['HOSPITAL_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST'].includes(requestingUser?.role);
+    if (!isOwner && !isAdmin && !isDoctorRole) {
       throw new ApiError(403, 'You are not authorised to change this doctor\'s settings', null, 'FORBIDDEN');
     }
 

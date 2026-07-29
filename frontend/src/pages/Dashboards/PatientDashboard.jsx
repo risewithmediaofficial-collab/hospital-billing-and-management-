@@ -46,8 +46,8 @@ export const PatientDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Patient Personal Health Portal</h2>
-        <p className="text-xs text-slate-400 mt-1">Welcome back, <span className="text-sky-400 font-bold">{user?.name || 'Patient'}</span></p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Patient Personal Health Portal</h2>
+        <p className="text-xs text-slate-500 mt-1">Welcome back, <span className="text-indigo-600 font-bold">{user?.name || 'Patient'}</span></p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -59,30 +59,30 @@ export const PatientDashboard = () => {
 
       {/* Published Diagnostic Reports Section */}
       <Card>
-        <h3 className="text-base font-bold text-white mb-3 flex items-center justify-between">
+        <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <FileText size={18} className="text-emerald-400" />
+            <FileText size={18} className="text-emerald-600" />
             Approved Diagnostic Reports & Imaging
           </span>
-          <span className="text-xs text-slate-400 font-mono">EHR Verified Reports</span>
+          <span className="text-xs text-slate-500 font-mono">EHR Verified Reports</span>
         </h3>
 
         <div className="space-y-3 text-xs">
           {reports.length > 0 ? (
             reports.map((rep) => (
-              <div key={rep._id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+              <div key={rep._id} className="p-3 rounded-xl bg-white border border-slate-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="font-bold text-white text-sm">{rep.testName}</span>
-                    <p className="text-[11px] text-slate-400">Category: {rep.testCategory} • Requested by: Dr. {rep.doctorName}</p>
+                    <span className="font-bold text-slate-900 text-sm">{rep.testName}</span>
+                    <p className="text-[11px] text-slate-500">Category: {rep.testCategory} • Requested by: Dr. {rep.doctorName}</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-600 font-bold border border-emerald-200">
                     {rep.status}
                   </span>
                 </div>
 
                 {rep.reportSummary && (
-                  <p className="text-slate-300 italic text-[11px]">Findings: "{rep.reportSummary}"</p>
+                  <p className="text-slate-600 italic text-[11px]">Findings: "{rep.reportSummary}"</p>
                 )}
 
                 {rep.attachments?.length > 0 && (
@@ -93,7 +93,7 @@ export const PatientDashboard = () => {
                         href={att.fileUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:text-sky-300 font-bold text-xs flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:text-indigo-900 font-bold text-xs flex items-center gap-1.5"
                       >
                         <Eye size={14} /> View & Download Report ({att.fileName})
                       </a>
@@ -110,19 +110,19 @@ export const PatientDashboard = () => {
 
       <Card>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Bell size={18} className="text-amber-400" />
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Bell size={18} className="text-amber-600" />
             In-Bed Patient Amenity & Care Request Console
           </h3>
-          <span className="text-xs text-emerald-400 font-bold">Connected to Nurse Station</span>
+          <span className="text-xs text-emerald-600 font-bold">Connected to Nurse Station</span>
         </div>
 
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-slate-500 mb-4">
           Tap any button below to immediately notify your assigned ward nurse.
         </p>
 
         {requestStatus && (
-          <div className="p-3 mb-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
+          <div className="p-3 mb-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs font-bold flex items-center gap-2">
             <CheckCircle size={16} /> {requestStatus}
           </div>
         )}
@@ -130,7 +130,7 @@ export const PatientDashboard = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <Button
             variant="glass"
-            className="py-3.5 border-sky-500/30 text-sky-300 font-bold"
+            className="py-3.5 border-indigo-200 text-indigo-700 font-bold"
             isLoading={isLoading}
             onClick={() => handleCreateRequest('WATER')}
           >
@@ -139,7 +139,7 @@ export const PatientDashboard = () => {
 
           <Button
             variant="glass"
-            className="py-3.5 border-indigo-500/30 text-indigo-300 font-bold"
+            className="py-3.5 border-indigo-200 text-indigo-600 font-bold"
             isLoading={isLoading}
             onClick={() => handleCreateRequest('BLANKET')}
           >
@@ -148,7 +148,7 @@ export const PatientDashboard = () => {
 
           <Button
             variant="glass"
-            className="py-3.5 border-amber-500/30 text-amber-300 font-bold"
+            className="py-3.5 border-amber-200 text-amber-600 font-bold"
             isLoading={isLoading}
             onClick={() => handleCreateRequest('MEDICINE')}
           >

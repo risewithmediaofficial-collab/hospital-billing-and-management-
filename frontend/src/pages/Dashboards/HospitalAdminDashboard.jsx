@@ -48,7 +48,6 @@ export const HospitalAdminDashboard = () => {
   const fetchStaff = async () => {
     try {
       const res = await axiosClient.get('/auth/staff');
-      // Strictly exclude SUPER_ADMIN accounts (Developer/Platform accounts) from Hospital Admin view
       const hospitalStaffOnly = (res.data || []).filter(
         (st) => st.role !== 'SUPER_ADMIN' && st.email !== 'superadmin@gmail.com'
       );
@@ -66,14 +65,7 @@ export const HospitalAdminDashboard = () => {
       await axiosClient.post('/auth/staff', staffForm);
       setSuccessMsg(`New ${staffForm.role} '${staffForm.name}' created with email ${staffForm.email}!`);
       setIsCreateModalOpen(false);
-      setStaffForm({
-        name: '',
-        email: '',
-        password: '',
-        role: 'DOCTOR',
-        phone: '',
-        specialization: '',
-      });
+      setStaffForm({ name: '', email: '', password: '', role: 'DOCTOR', phone: '', specialization: '' });
       fetchStaff();
     } catch (err) {
       setErrorMsg(err.error?.message || err.message || 'Failed to create staff account');
@@ -82,7 +74,6 @@ export const HospitalAdminDashboard = () => {
     }
   };
 
-  // Button 1: Open View Password Modal
   const handleOpenViewModal = (staff) => {
     setSelectedStaff(staff);
     setViewAdminPassword('');
@@ -109,7 +100,6 @@ export const HospitalAdminDashboard = () => {
     }
   };
 
-  // Button 2: Open Change Password Modal
   const handleOpenChangeModal = (staff) => {
     setSelectedStaff(staff);
     setChangeForm({ newPassword: '', adminPassword: '' });
@@ -145,8 +135,8 @@ export const HospitalAdminDashboard = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Hospital Tenant Administration Workstation</h2>
-          <p className="text-xs text-slate-400 mt-1">Authorized Hospital Executive Portal — Staff Provisioning & Role Privileges</p>
+          <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Hospital Tenant Administration Workstation</h2>
+          <p className="text-xs text-neutral-500 mt-1">Authorized Hospital Executive Portal — Staff Provisioning & Role Privileges</p>
         </div>
         <Button variant="primary" size="sm" onClick={() => setIsCreateModalOpen(true)}>
           <UserPlus size={16} /> Create Hospital Staff Account
@@ -161,24 +151,24 @@ export const HospitalAdminDashboard = () => {
       </div>
 
       {successMsg && (
-        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
-          <CheckCircle size={16} /> {successMsg}
+        <div className="p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-700 text-xs font-bold flex items-center gap-2">
+          <CheckCircle size={16} className="text-neutral-600" /> {successMsg}
         </div>
       )}
 
       {/* Staff Provisioning Table */}
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <ShieldCheck size={18} className="text-sky-400" />
+          <h3 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-neutral-600" />
             Provisioned Hospital Staff Accounts ({staffList.length})
           </h3>
-          <span className="text-xs text-slate-400 font-mono">Hospital Internal Roster</span>
+          <span className="text-xs text-neutral-500 font-mono">Hospital Internal Roster</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+            <thead className="bg-neutral-100 text-neutral-600 uppercase tracking-wider text-[10px] border-b border-neutral-200">
               <tr>
                 <th className="p-3">Staff Name</th>
                 <th className="p-3">Login Email</th>
@@ -188,35 +178,32 @@ export const HospitalAdminDashboard = () => {
                 <th className="p-3 text-right">Credentials Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
+            <tbody className="divide-y divide-neutral-100 text-neutral-800">
               {staffList.length > 0 ? (
                 staffList.map((st) => (
-                  <tr key={st._id} className="hover:bg-slate-900/40">
-                    <td className="p-3 font-bold text-white">{st.name}</td>
-                    <td className="p-3 font-mono text-sky-400">{st.email}</td>
-                    <td className="p-3 font-bold text-purple-400">{st.role}</td>
-                    <td className="p-3 text-slate-400">{st.specialization || 'General'}</td>
+                  <tr key={st._id} className="hover:bg-neutral-50">
+                    <td className="p-3 font-bold text-neutral-900">{st.name}</td>
+                    <td className="p-3 font-mono text-neutral-600">{st.email}</td>
+                    <td className="p-3 font-bold text-neutral-700">{st.role}</td>
+                    <td className="p-3 text-neutral-500">{st.specialization || 'General'}</td>
                     <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border border-neutral-300 font-bold">
                         {st.status || 'ACTIVE'}
                       </span>
                     </td>
                     <td className="p-3 text-right space-x-2">
-                      {/* BUTTON 1: View Current Password */}
                       <Button size="sm" variant="outline" className="font-semibold gap-1" onClick={() => handleOpenViewModal(st)}>
-                        <Eye size={14} className="text-sky-400" /> View Password
+                        <Eye size={14} /> View Password
                       </Button>
-
-                      {/* BUTTON 2: Change Password */}
                       <Button size="sm" variant="outline" className="font-semibold gap-1" onClick={() => handleOpenChangeModal(st)}>
-                        <Key size={14} className="text-amber-400" /> Change Password
+                        <Key size={14} /> Change Password
                       </Button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-slate-500">
+                  <td colSpan={6} className="p-4 text-center text-neutral-500">
                     No hospital staff accounts created yet. Click 'Create Hospital Staff Account' to add your doctors, nurses, cashiers, and receptionists!
                   </td>
                 </tr>
@@ -228,39 +215,45 @@ export const HospitalAdminDashboard = () => {
 
       {/* MODAL 1: View Current Password */}
       {isViewModalOpen && selectedStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="max-w-md w-full glass-panel rounded-2xl p-6 relative border border-sky-500/30">
-            <button onClick={() => setIsViewModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-              <X size={20} />
-            </button>
-
-            <div className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 mb-2">
-                <Eye className="text-sky-400" size={22} />
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-600 flex-shrink-0">
+                  <Eye size={18} />
+                </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">View Staff Password</h3>
-                  <p className="text-[11px] text-slate-400">Staff: <span className="text-sky-400 font-bold">{selectedStaff.name} ({selectedStaff.email})</span></p>
+                  <h3 className="text-base font-bold text-neutral-900">View Staff Password</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Staff: <span className="font-bold text-neutral-700">{selectedStaff.name} ({selectedStaff.email})</span>
+                  </p>
                 </div>
               </div>
+              <button onClick={() => setIsViewModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
 
+            <div className="modal-body space-y-4 text-xs">
               {errorMsg && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 flex items-center gap-2">
                   <AlertCircle size={16} /> {errorMsg}
                 </div>
               )}
 
               {revealedPassword !== null ? (
-                <div className="space-y-4 py-2">
-                  <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-2">
-                    <p className="text-xs text-slate-400">Current Assigned Password:</p>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-center space-y-2">
+                    <p className="text-xs text-neutral-500">Current Assigned Password:</p>
                     <div className="flex items-center justify-center gap-2">
-                      <span className="text-2xl font-mono font-extrabold text-emerald-400 tracking-wider">
+                      <span className="text-2xl font-mono font-extrabold text-neutral-900 tracking-wider">
                         {showRevealedPassword ? revealedPassword : '••••••••'}
                       </span>
                       <button
                         type="button"
                         onClick={() => setShowRevealedPassword(!showRevealedPassword)}
-                        className="text-slate-400 hover:text-white p-1"
+                        className="text-neutral-500 hover:text-neutral-900 p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
+                        aria-label={showRevealedPassword ? 'Hide password' : 'Show password'}
                       >
                         {showRevealedPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -277,17 +270,12 @@ export const HospitalAdminDashboard = () => {
                     type="password"
                     value={viewAdminPassword}
                     onChange={(e) => setViewAdminPassword(e.target.value)}
-                    placeholder="Enter your admin password (e.g. HospitalAdmin123!)"
+                    placeholder="Enter your admin password"
                     required
                   />
-
-                  <div className="pt-2 flex gap-2">
-                    <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsViewModalOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>
-                      Reveal Password
-                    </Button>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsViewModalOpen(false)}>Cancel</Button>
+                    <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Reveal Password</Button>
                   </div>
                 </form>
               )}
@@ -298,177 +286,155 @@ export const HospitalAdminDashboard = () => {
 
       {/* MODAL 2: Change Staff Password */}
       {isChangeModalOpen && selectedStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="max-w-md w-full glass-panel rounded-2xl p-6 relative border border-amber-500/30">
-            <button onClick={() => setIsChangeModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-              <X size={20} />
-            </button>
-
-            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 mb-2">
-                <Key className="text-amber-400" size={22} />
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-600 flex-shrink-0">
+                  <Key size={18} />
+                </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Change Staff Password</h3>
-                  <p className="text-[11px] text-slate-400">Target: <span className="text-amber-400 font-bold">{selectedStaff.name} ({selectedStaff.email})</span></p>
+                  <h3 className="text-base font-bold text-neutral-900">Change Staff Password</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Target: <span className="font-bold text-neutral-700">{selectedStaff.name} ({selectedStaff.email})</span>
+                  </p>
                 </div>
               </div>
+              <button onClick={() => setIsChangeModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
 
-              {errorMsg && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
-                  <AlertCircle size={16} /> {errorMsg}
+            <div className="modal-body">
+              <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
+                {errorMsg && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 flex items-center gap-2">
+                    <AlertCircle size={16} /> {errorMsg}
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Input
+                    label="Enter New Password for Staff"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={changeForm.newPassword}
+                    onChange={(e) => setChangeForm({ ...changeForm, newPassword: e.target.value })}
+                    placeholder="Enter new password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
+                    aria-label={showNewPassword ? 'Hide' : 'Show'}
+                  >
+                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-              )}
 
-              {/* New Password */}
-              <div className="relative">
-                <Input
-                  label="Enter New Password for Staff"
-                  type={showNewPassword ? 'text' : 'password'}
-                  value={changeForm.newPassword}
-                  onChange={(e) => setChangeForm({ ...changeForm, newPassword: e.target.value })}
-                  placeholder="Enter new password (e.g. 0001)"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-8 text-slate-400 hover:text-white"
-                >
-                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+                <div className="relative">
+                  <Input
+                    label="Verify Your Hospital Admin Password"
+                    type={showAdminPasswordChange ? 'text' : 'password'}
+                    value={changeForm.adminPassword}
+                    onChange={(e) => setChangeForm({ ...changeForm, adminPassword: e.target.value })}
+                    placeholder="Enter your admin password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPasswordChange(!showAdminPasswordChange)}
+                    className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
+                    aria-label={showAdminPasswordChange ? 'Hide' : 'Show'}
+                  >
+                    {showAdminPasswordChange ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
 
-              {/* Admin Verification Password */}
-              <div className="relative">
-                <Input
-                  label="Verify Your Hospital Admin Password"
-                  type={showAdminPasswordChange ? 'text' : 'password'}
-                  value={changeForm.adminPassword}
-                  onChange={(e) => setChangeForm({ ...changeForm, adminPassword: e.target.value })}
-                  placeholder="Enter your admin password (e.g. HospitalAdmin123!)"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowAdminPasswordChange(!showAdminPasswordChange)}
-                  className="absolute right-3 top-8 text-slate-400 hover:text-white"
-                >
-                  {showAdminPasswordChange ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsChangeModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="warning" className="w-1/2 font-bold" isLoading={isLoading}>
-                  Confirm & Update Password
-                </Button>
-              </div>
-            </form>
+                <div className="flex gap-2 pt-2">
+                  <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsChangeModalOpen(false)}>Cancel</Button>
+                  <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Confirm & Update Password</Button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal for Creating Staff */}
+      {/* MODAL 3: Create Staff */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="max-w-md w-full glass-panel rounded-2xl p-6 relative border border-sky-500/30">
-            <button onClick={() => setIsCreateModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-              <X size={20} />
-            </button>
-
-            <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 mb-2">
-                <UserPlus className="text-sky-400" size={22} />
-                <h3 className="text-lg font-bold text-white">Create Hospital Staff User</h3>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
-                  <AlertCircle size={16} /> {errorMsg}
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-600 flex-shrink-0">
+                  <UserPlus size={18} />
                 </div>
-              )}
-
-              <Input
-                label="Full Staff Name"
-                value={staffForm.name}
-                onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                placeholder="e.g. Dr. Madhu Narayan"
-                required
-              />
-
-              <Input
-                label="Staff Work Email (Login ID)"
-                type="email"
-                value={staffForm.email}
-                onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                placeholder="e.g. narayanamadhu93@gmail.com"
-                required
-              />
-
-              <Input
-                label="Specialization / Department (Optional)"
-                value={staffForm.specialization}
-                onChange={(e) => setStaffForm({ ...staffForm, specialization: e.target.value })}
-                placeholder="e.g. Cardiology, Pediatrics, General OPD"
-              />
-
-              <Input
-                label="Phone Number (Optional)"
-                value={staffForm.phone}
-                onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                placeholder="e.g. +91 9876543210"
-              />
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1 uppercase tracking-wider text-[10px]">Assign Hospital Role</label>
-                <select
-                  value={staffForm.role}
-                  onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
-                  className="w-full glass-input rounded-lg p-2 text-white font-bold text-xs"
-                >
-                  <option value="DOCTOR" className="bg-slate-900">Doctor / Consultant</option>
-                  <option value="RECEPTIONIST" className="bg-slate-900">Receptionist / Front Desk</option>
-                  <option value="CASHIER" className="bg-slate-900">Cashier / Billing Desk</option>
-                  <option value="PHARMACIST" className="bg-slate-900">Pharmacist</option>
-                  <option value="LAB_TECH" className="bg-slate-900">Lab Technician</option>
-                  <option value="RADIOLOGIST" className="bg-slate-900">Radiologist</option>
-                  <option value="NURSE" className="bg-slate-900">Ward Nurse</option>
-                  <option value="NURSE_INCHARGE" className="bg-slate-900">Nurse In-Charge</option>
-                  <option value="INVENTORY_MANAGER" className="bg-slate-900">Inventory Manager</option>
-                  <option value="HR_MANAGER" className="bg-slate-900">HR Manager</option>
-                </select>
+                <h3 className="text-base font-bold text-neutral-900">Create Hospital Staff User</h3>
               </div>
+              <button onClick={() => setIsCreateModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
 
-              {/* Password field with Eye Toggle */}
-              <div className="relative">
-                <Input
-                  label="Assign Initial Password"
-                  type={showCreatePassword ? 'text' : 'password'}
-                  value={staffForm.password}
-                  onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                  placeholder="e.g. 0001"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCreatePassword(!showCreatePassword)}
-                  className="absolute right-3 top-8 text-slate-400 hover:text-white"
-                >
-                  {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+            <div className="modal-body">
+              <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
+                {errorMsg && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 flex items-center gap-2">
+                    <AlertCircle size={16} /> {errorMsg}
+                  </div>
+                )}
 
-              <div className="pt-2 flex gap-2">
-                <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsCreateModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>
-                  Create Staff Account
-                </Button>
-              </div>
-            </form>
+                <Input label="Full Staff Name" value={staffForm.name} onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })} placeholder="e.g. Dr. Madhu Narayan" required />
+                <Input label="Staff Work Email (Login ID)" type="email" value={staffForm.email} onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} placeholder="e.g. narayanamadhu93@gmail.com" required />
+                <Input label="Specialization / Department (Optional)" value={staffForm.specialization} onChange={(e) => setStaffForm({ ...staffForm, specialization: e.target.value })} placeholder="e.g. Cardiology, Pediatrics, General OPD" />
+                <Input label="Phone Number (Optional)" value={staffForm.phone} onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} placeholder="e.g. +91 9876543210" />
+
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1.5 uppercase tracking-wider text-[10px]">Assign Hospital Role</label>
+                  <select
+                    value={staffForm.role}
+                    onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                    className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-neutral-900 font-medium"
+                  >
+                    <option value="DOCTOR">Doctor / Consultant (OPD & IPD Clinical Practitioner)</option>
+                    <option value="LAB_TECH">Lab Technician / Pathologist (CBC, Urine Analysis, Blood, Culture, Biopsy)</option>
+                    <option value="RADIOLOGIST">Radiologist / PACS Specialist (CT Scan, MRI, X-Ray, USG / Ultrasound)</option>
+                    <option value="RECEPTIONIST">Receptionist / Front Desk (Patient Registration & OPD Token Calling)</option>
+                    <option value="CASHIER">Cashier / Billing Desk (Invoices & Thermal Payment Receipts)</option>
+                    <option value="PHARMACIST">Pharmacist (FEFO E-Prescription Dispense & Stock Manager)</option>
+                    <option value="NURSE">Ward Nurse (Live Bed Matrix & In-Bed Care Requests)</option>
+                    <option value="NURSE_INCHARGE">Nurse In-Charge (Bed Allocations & Shift Duty Roster)</option>
+                    <option value="INVENTORY_MANAGER">Inventory Manager (Central Stores & Supply Indents)</option>
+                    <option value="HR_MANAGER">HR / Payroll Manager (Staff Roster & Biometric Attendance)</option>
+                  </select>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    label="Assign Initial Password"
+                    type={showCreatePassword ? 'text' : 'password'}
+                    value={staffForm.password}
+                    onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                    placeholder="e.g. 0001"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
+                    aria-label={showCreatePassword ? 'Hide' : 'Show'}
+                  >
+                    {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
+                  <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Create Staff Account</Button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

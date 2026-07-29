@@ -198,15 +198,15 @@ export const ReceptionWorkspaceView = () => {
             variant="outline"
             size="sm"
             onClick={() => navigate('/reception/dashboard')}
-            className="mb-2 gap-1.5 font-bold text-sky-400 border-sky-500/30 hover:bg-sky-500/10 text-xs"
+            className="mb-2 gap-1.5 font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs"
           >
             <ArrowLeft size={14} /> Back to Reception Counter
           </Button>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Users size={24} className="text-sky-400" />
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <Users size={24} className="text-indigo-600" />
             Patient Directory & Lifecycle Tracker
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Manage registered patients, monitor active OPD queues, and track completed & billed visits.
           </p>
         </div>
@@ -222,13 +222,13 @@ export const ReceptionWorkspaceView = () => {
       </div>
 
       {/* 4-Tab Sub-Navbar */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs">
         <button
           onClick={() => setActiveTab('REGISTERED')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
             activeTab === 'REGISTERED'
-              ? 'bg-sky-500 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
           }`}
         >
           <UserCheck size={16} />
@@ -239,8 +239,8 @@ export const ReceptionWorkspaceView = () => {
           onClick={() => setActiveTab('QUEUED')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
             activeTab === 'QUEUED'
-              ? 'bg-amber-500 text-slate-950 shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-amber-500 text-white shadow-md'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
           }`}
         >
           <Ticket size={16} />
@@ -251,8 +251,8 @@ export const ReceptionWorkspaceView = () => {
           onClick={() => setActiveTab('COMPLETED')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
             activeTab === 'COMPLETED'
-              ? 'bg-emerald-500 text-slate-950 shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-emerald-500 text-white shadow-md'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
           }`}
         >
           <CheckCircle2 size={16} />
@@ -264,7 +264,7 @@ export const ReceptionWorkspaceView = () => {
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
             activeTab === 'ALL'
               ? 'bg-purple-500 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
           }`}
         >
           <FolderOpen size={16} />
@@ -290,11 +290,11 @@ export const ReceptionWorkspaceView = () => {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <UserCheck size={18} className="text-sky-400" />
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserCheck size={18} className="text-indigo-500" />
                 Registered Patients Awaiting Token ({filteredAwaiting.length})
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Newly registered patients ready to get an OPD token. Once issued, they automatically move to the Queue.
               </p>
             </div>
@@ -302,7 +302,7 @@ export const ReceptionWorkspaceView = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="p-3">UHID</th>
                   <th className="p-3">Patient Name</th>
@@ -314,17 +314,17 @@ export const ReceptionWorkspaceView = () => {
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {filteredAwaiting.length > 0 ? (
                   filteredAwaiting.map((pat) => (
-                    <tr key={pat._id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="p-3 font-mono font-extrabold text-sky-400">{pat.uhid}</td>
-                      <td className="p-3 font-bold text-white">{pat.firstName} {pat.lastName}</td>
-                      <td className="p-3 text-slate-300">{pat.age ? `${pat.age} Yrs` : 'N/A'}</td>
-                      <td className="p-3 text-slate-400">{pat.gender}</td>
-                      <td className="p-3 font-mono text-slate-300">{pat.phone}</td>
-                      <td className="p-3 text-amber-400 font-medium">{pat.chiefComplaints || 'OPD Checkup'}</td>
-                      <td className="p-3 text-slate-400">{new Date(pat.createdAt).toLocaleDateString()}</td>
+                    <tr key={pat._id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3 font-mono font-extrabold text-indigo-700">{pat.uhid}</td>
+                      <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
+                      <td className="p-3 text-slate-600">{pat.age ? `${pat.age} Yrs` : 'N/A'}</td>
+                      <td className="p-3 text-slate-500">{pat.gender}</td>
+                      <td className="p-3 font-mono text-slate-600">{pat.phone}</td>
+                      <td className="p-3 text-amber-600 font-medium">{pat.chiefComplaints || 'OPD Checkup'}</td>
+                      <td className="p-3 text-slate-500">{new Date(pat.createdAt).toLocaleDateString()}</td>
                       <td className="p-3 text-right">
                         <Button size="sm" variant="success" className="font-bold gap-1 text-xs" onClick={() => handleIssueTokenForPatient(pat)}>
                           <Ticket size={14} /> Issue OPD Token
@@ -350,17 +350,17 @@ export const ReceptionWorkspaceView = () => {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Ticket size={18} className="text-amber-400" />
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Ticket size={18} className="text-amber-600" />
                 Active OPD Token Queue ({filteredQueued.length})
               </h3>
-              <p className="text-xs text-slate-400">Patients currently waiting or undergoing consultation with doctors.</p>
+              <p className="text-xs text-slate-500">Patients currently waiting or undergoing consultation with doctors.</p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="p-3">Token #</th>
                   <th className="p-3">UHID</th>
@@ -371,27 +371,27 @@ export const ReceptionWorkspaceView = () => {
                   <th className="p-3">Queue Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {filteredQueued.length > 0 ? (
                   filteredQueued.map((tok) => {
                     const pat = tok.patientId || {};
                     const doc = tok.doctorId || {};
                     return (
-                      <tr key={tok._id} className="hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3 font-black text-amber-400 font-mono text-sm">#{tok.tokenNumber}</td>
-                        <td className="p-3 font-mono font-bold text-sky-400">{pat.uhid || '—'}</td>
-                        <td className="p-3 font-bold text-white">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-slate-200">
-                          <span className="font-bold text-sky-400">Dr. {doc.name || 'Doctor'}</span>
-                          <p className="text-[10px] text-slate-400">{doc.specialization || 'OPD Clinic'}</p>
+                      <tr key={tok._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-black text-amber-600 font-mono text-sm">#{tok.tokenNumber}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid || '—'}</td>
+                        <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
+                        <td className="p-3 text-slate-700">
+                          <span className="font-bold text-indigo-700">Dr. {doc.name || 'Doctor'}</span>
+                          <p className="text-[10px] text-slate-500">{doc.specialization || 'OPD Clinic'}</p>
                         </td>
-                        <td className="p-3 text-slate-300 font-medium">{tok.cabinNo || doc.cabinNo || 'Cabin 102'}</td>
-                        <td className="p-3 text-amber-400 font-medium">{tok.chiefComplaints || 'Check-up'}</td>
+                        <td className="p-3 text-slate-600 font-medium">{tok.cabinNo || doc.cabinNo || 'Cabin 102'}</td>
+                        <td className="p-3 text-amber-600 font-medium">{tok.chiefComplaints || 'Check-up'}</td>
                         <td className="p-3">
                           <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold border ${
                             tok.status === 'IN_CONSULTATION'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-200 animate-pulse'
+                              : 'bg-amber-50 text-amber-600 border-amber-200'
                           }`}>
                             {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULTATION' : '⏳ WAITING'}
                           </span>
@@ -417,17 +417,17 @@ export const ReceptionWorkspaceView = () => {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <CheckCircle2 size={18} className="text-emerald-400" />
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-600" />
                 Completed & Billed Consultations ({filteredCompleted.length})
               </h3>
-              <p className="text-xs text-slate-400">Patients who have finished doctor consultation and billing.</p>
+              <p className="text-xs text-slate-500">Patients who have finished doctor consultation and billing.</p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="p-3">Token #</th>
                   <th className="p-3">UHID</th>
@@ -438,32 +438,32 @@ export const ReceptionWorkspaceView = () => {
                   <th className="p-3">Payment Clearance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {filteredCompleted.length > 0 ? (
                   filteredCompleted.map((item) => {
                     const pat = item.patientId || {};
                     const doc = item.doctorId || {};
                     const inv = item.invoice;
                     return (
-                      <tr key={item._id} className="hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3 font-mono font-bold text-emerald-400">#{item.tokenNumber}</td>
-                        <td className="p-3 font-mono font-bold text-sky-400">{pat.uhid || '—'}</td>
-                        <td className="p-3 font-bold text-white">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-slate-200">
-                          <span className="font-bold text-white">Dr. {doc.name || 'Doctor'}</span>
-                          <p className="text-[10px] text-slate-400">{doc.specialization || 'OPD'}</p>
+                      <tr key={item._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono font-bold text-emerald-600">#{item.tokenNumber}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid || '—'}</td>
+                        <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
+                        <td className="p-3 text-slate-700">
+                          <span className="font-bold text-slate-900">Dr. {doc.name || 'Doctor'}</span>
+                          <p className="text-[10px] text-slate-500">{doc.specialization || 'OPD'}</p>
                         </td>
-                        <td className="p-3 font-mono text-slate-300">{inv ? inv.invoiceNo : '—'}</td>
-                        <td className="p-3 font-mono font-bold text-white">
+                        <td className="p-3 font-mono text-slate-600">{inv ? inv.invoiceNo : '—'}</td>
+                        <td className="p-3 font-mono font-bold text-slate-900">
                           {inv ? formatCurrency(inv.grandTotal) : '—'}
                         </td>
                         <td className="p-3">
                           <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold border ${
                             item.billingStatus === 'PAID'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                               : item.billingStatus === 'PARTIALLY_PAID'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                              : 'bg-red-500/10 text-red-400 border-red-500/30'
+                              ? 'bg-amber-50 text-amber-600 border-amber-200'
+                              : 'bg-red-50 text-red-600 border-red-200'
                           }`}>
                             {item.billingStatus === 'PAID'
                               ? '✅ PAID & CLEARED'
@@ -493,11 +493,11 @@ export const ReceptionWorkspaceView = () => {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <FolderOpen size={18} className="text-purple-400" />
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <FolderOpen size={18} className="text-purple-600" />
                 All Hospital Patients Master Directory ({filteredAllPatients.length})
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Complete permanent list of all registered patients in the hospital database.
               </p>
             </div>
@@ -505,7 +505,7 @@ export const ReceptionWorkspaceView = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-100 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="p-3">UHID</th>
                   <th className="p-3">Patient Name</th>
@@ -517,28 +517,28 @@ export const ReceptionWorkspaceView = () => {
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {filteredAllPatients.length > 0 ? (
                   filteredAllPatients.map((pat) => {
                     const isQueued = queuedPatientIds.has((pat._id || '').toString());
                     const isCompleted = completedPatientIds.has((pat._id || '').toString());
 
                     return (
-                      <tr key={pat._id} className="hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3 font-mono font-extrabold text-sky-400">{pat.uhid}</td>
-                        <td className="p-3 font-bold text-white">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-slate-300">{pat.age ? `${pat.age} Yrs` : 'N/A'}</td>
-                        <td className="p-3 text-slate-400">{pat.gender}</td>
-                        <td className="p-3 font-mono text-slate-300">{pat.phone}</td>
-                        <td className="p-3 text-amber-400 font-medium">{pat.chiefComplaints || 'OPD Checkup'}</td>
-                        <td className="p-3 text-slate-400">{new Date(pat.createdAt).toLocaleDateString()}</td>
+                      <tr key={pat._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono font-extrabold text-indigo-700">{pat.uhid}</td>
+                        <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
+                        <td className="p-3 text-slate-600">{pat.age ? `${pat.age} Yrs` : 'N/A'}</td>
+                        <td className="p-3 text-slate-500">{pat.gender}</td>
+                        <td className="p-3 font-mono text-slate-600">{pat.phone}</td>
+                        <td className="p-3 text-amber-600 font-medium">{pat.chiefComplaints || 'OPD Checkup'}</td>
+                        <td className="p-3 text-slate-500">{new Date(pat.createdAt).toLocaleDateString()}</td>
                         <td className="p-3 text-right">
                           {isQueued ? (
-                            <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
+                            <span className="px-2 py-1 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold">
                               ⏳ IN QUEUE TODAY
                             </span>
                           ) : isCompleted ? (
-                            <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                            <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold">
                               ✅ COMPLETED TODAY
                             </span>
                           ) : (

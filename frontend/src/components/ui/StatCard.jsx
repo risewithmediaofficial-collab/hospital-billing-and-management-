@@ -1,35 +1,50 @@
 import React from 'react';
 import { Card } from './Card';
 
-export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'sky', trend }) => {
-  const colorMap = {
-    sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    red: 'bg-red-500/10 text-red-400 border-red-500/20',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  };
+// Color map for icon containers — professional accent palette
+const colorMap = {
+  sky:     { bg: 'bg-sky-50',     text: 'text-sky-600',     border: 'border-sky-200'     },
+  blue:    { bg: 'bg-blue-50',    text: 'text-blue-600',    border: 'border-blue-200'    },
+  indigo:  { bg: 'bg-indigo-50',  text: 'text-indigo-600',  border: 'border-indigo-200'  },
+  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
+  amber:   { bg: 'bg-amber-50',   text: 'text-amber-600',   border: 'border-amber-200'   },
+  red:     { bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-200'     },
+  purple:  { bg: 'bg-purple-50',  text: 'text-purple-600',  border: 'border-purple-200'  },
+  rose:    { bg: 'bg-rose-50',    text: 'text-rose-600',    border: 'border-rose-200'    },
+  teal:    { bg: 'bg-teal-50',    text: 'text-teal-600',    border: 'border-teal-200'    },
+  default: { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200'   },
+};
+
+export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'default', trend }) => {
+  const scheme = colorMap[color] || colorMap.default;
 
   return (
-    <Card interactive className="relative overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
-          <h3 className="text-2xl font-bold text-white mt-1">{value}</h3>
-          {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+    <Card interactive>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            {title}
+          </p>
+          <h3 className="text-2xl font-black text-slate-900 mt-1 tracking-tight leading-none tabular-nums">
+            {value}
+          </h3>
+          {subtitle && (
+            <p className="text-xs text-slate-500 mt-1 truncate">{subtitle}</p>
+          )}
         </div>
         {Icon && (
-          <div className={`p-3 rounded-xl border ${colorMap[color] || colorMap.sky}`}>
-            <Icon size={24} />
+          <div className={`p-3 rounded-xl border flex-shrink-0 ${scheme.bg} ${scheme.text} ${scheme.border}`}>
+            <Icon size={22} />
           </div>
         )}
       </div>
+
       {trend && (
-        <div className="mt-3 flex items-center gap-1 text-xs">
-          <span className={trend.isPositive ? 'text-emerald-400' : 'text-red-400'}>
+        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 text-xs">
+          <span className={`font-bold ${trend.isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
             {trend.isPositive ? '↑' : '↓'} {trend.value}
           </span>
-          <span className="text-slate-500">{trend.label}</span>
+          <span className="text-slate-400">{trend.label}</span>
         </div>
       )}
     </Card>

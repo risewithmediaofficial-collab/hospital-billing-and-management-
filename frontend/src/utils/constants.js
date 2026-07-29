@@ -77,7 +77,7 @@ export const ROLE_NAVIGATION = {
   CASHIER: [
     { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard' },
     { title: 'Invoice Generator', path: '/billing/create-invoice', icon: 'PlusCircle' },
-    { title: 'Receipts & Payments', path: '/billing/receipts', icon: 'Receipt' },
+    { title: 'Receipts & Payment History', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt' },
     { title: 'Shift Close Reconciliation', path: '/billing/shift-close', icon: 'Lock' },
   ],
   INVENTORY_MANAGER: [

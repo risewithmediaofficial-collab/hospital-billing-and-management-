@@ -145,6 +145,16 @@ export class BillingService {
   }
 
   static async getReceipts(user) {
-    return await Receipt.find({ branchId: user.branchId }).populate('patientId').populate('cashierId').sort({ createdAt: -1 });
+    return await Receipt.find({ branchId: user.branchId })
+      .populate({
+        path: 'invoiceId',
+        populate: [
+          { path: 'patientId' },
+          { path: 'consultation', populate: { path: 'doctorId' } },
+        ],
+      })
+      .populate('patientId')
+      .populate('cashierId')
+      .sort({ createdAt: -1 });
   }
 }

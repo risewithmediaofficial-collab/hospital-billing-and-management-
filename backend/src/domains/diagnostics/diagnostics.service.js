@@ -35,6 +35,8 @@ export class DiagnosticsService {
     const testCategory = data.testCategory || 'OTHER';
     const testName = data.testName || 'General Diagnostic Investigation';
     const priority = data.priority || 'NORMAL';
+    const doctorId = data.doctorId || user?.id || user?._id;
+    const doctorName = data.doctorName || user?.name || 'Doctor Consultant';
 
     const newOrder = await DiagnosticOrder.create({
       hospitalId,
@@ -46,8 +48,8 @@ export class DiagnosticsService {
       patientGender: patient.gender || 'MALE',
       opIpNumber: data.opIpNumber || `OP-${patient.uhid}`,
       tokenNumber: data.tokenNumber || 1,
-      doctorId: user.id || user._id,
-      doctorName: user.name || 'Doctor Consultant',
+      doctorId,
+      doctorName,
       testCategory,
       testName,
       clinicalNotes: data.clinicalNotes || '',
@@ -58,8 +60,8 @@ export class DiagnosticsService {
         {
           status: 'REQUESTED',
           timestamp: new Date(),
-          updatedBy: user.name || 'Doctor Consultant',
-          notes: `Investigation '${testName}' requested by ${user.name || 'Doctor'} (Priority: ${priority})`,
+          updatedBy: doctorName,
+          notes: `Investigation '${testName}' requested by ${doctorName} (Priority: ${priority})`,
         },
       ],
     });
@@ -137,7 +139,7 @@ export class DiagnosticsService {
     }
 
     // Broadcast status change to Doctor and Department
-    socketManager.emitToBranch(order.branchId, 'investigation:status_updated', {
+    const payload = {
       orderId: order._id,
       patientId: order.patientId,
       patientName: order.patientName,
@@ -146,7 +148,14 @@ export class DiagnosticsService {
       status: order.status,
       updatedBy: user?.name || 'Technician',
       timestamp: new Date(),
-    });
+    };
+
+    if (order.branchId) {
+      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', payload);
+    }
+    if (socketManager.io) {
+      socketManager.io.emit('investigation:status_updated', payload);
+    }
 
     return order;
   }
@@ -205,15 +214,25 @@ export class DiagnosticsService {
     await order.save();
 
     // Broadcast report ready event
-    socketManager.emitToBranch(order.branchId, 'diagnostics:report_ready', {
+    const reportPayload = {
       orderId: order._id,
       patientId: order.patientId,
       patientName: order.patientName,
       uhid: order.uhid,
       testName: order.testName,
+      status: order.status,
       reportSummary: order.reportSummary,
       attachments: order.attachments,
-    });
+    };
+
+    if (order.branchId) {
+      socketManager.emitToBranch(order.branchId, 'diagnostics:report_ready', reportPayload);
+      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', reportPayload);
+    }
+    if (socketManager.io) {
+      socketManager.io.emit('diagnostics:report_ready', reportPayload);
+      socketManager.io.emit('investigation:status_updated', reportPayload);
+    }
 
     return order;
   }
@@ -229,11 +248,11 @@ export class DiagnosticsService {
 
     if (query.testCategory) {
       if (query.testCategory === 'RADIOLOGY') {
-        filter.testCategory = { $in: ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND'] };
+        filter.testCategory = { $in: ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'] };
       } else if (query.testCategory === 'PATHOLOGY') {
-        filter.testCategory = { $in: ['LABORATORY', 'BLOOD_TEST', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY'] };
+        filter.testCategory = { $in: ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'] };
       } else if (query.testCategory === 'CARDIOLOGY') {
-        filter.testCategory = { $in: ['ECG', 'ECHO', 'EEG', 'PFT'] };
+        filter.testCategory = { $in: ['ECG', 'ECHO', 'EEG', 'PFT', 'CARDIOLOGY'] };
       } else {
         filter.testCategory = query.testCategory;
       }

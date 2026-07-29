@@ -38,41 +38,41 @@ export const HospitalRegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Ambient Glows */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-100 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-100 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="max-w-2xl w-full relative z-10 my-8">
         {/* Header Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-semibold mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 text-xs font-semibold mb-3">
             <Activity size={14} /> Multi-Tenant Hospital SaaS Platform
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
             Register Your Hospital
           </h1>
-          <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+          <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
             Apply for your dedicated enterprise Hospital Patient Management & Billing System tenant workspace.
           </p>
         </div>
 
         {/* Main Card */}
-        <div className="glass-panel p-8 rounded-2xl border border-slate-800 shadow-2xl">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
           {registeredResult ? (
             <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
                 <CheckCircle size={36} />
               </div>
-              <h2 className="text-2xl font-bold text-white">Application Submitted Successfully!</h2>
-              <p className="text-xs text-slate-300 max-w-md mx-auto">
-                Your hospital application for <span className="font-bold text-sky-400">{registeredResult.hospital?.name}</span> has been received and is currently <span className="font-bold text-amber-400">PENDING_APPROVAL</span> by the Master Platform Super Admin.
+              <h2 className="text-2xl font-bold text-slate-900">Application Submitted Successfully!</h2>
+              <p className="text-xs text-slate-600 max-w-md mx-auto">
+                Your hospital application for <span className="font-bold text-indigo-600">{registeredResult.hospital?.name}</span> has been received and is currently <span className="font-bold text-amber-600">PENDING_APPROVAL</span> by the Master Platform Super Admin.
               </p>
 
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-left text-xs space-y-2 max-w-lg mx-auto">
-                <p><span className="text-slate-400">Assigned Subdomain:</span> <span className="font-mono font-bold text-sky-400">{registeredResult.hospital?.subdomain}.hpmbs.com</span></p>
-                <p><span className="text-slate-400">Authorized Contact:</span> <span className="font-bold text-white">{registeredResult.hospital?.contactName} ({registeredResult.hospital?.contactEmail})</span></p>
-                <p><span className="text-slate-400">Selected SaaS Plan:</span> <span className="font-bold text-purple-400">{registeredResult.hospital?.plan}</span></p>
+              <div className="p-4 rounded-xl bg-white border border-slate-200 text-left text-xs space-y-2 max-w-lg mx-auto">
+                <p><span className="text-slate-500">Assigned Subdomain:</span> <span className="font-mono font-bold text-indigo-600">{registeredResult.hospital?.subdomain}.hpmbs.com</span></p>
+                <p><span className="text-slate-500">Authorized Contact:</span> <span className="font-bold text-slate-900">{registeredResult.hospital?.contactName} ({registeredResult.hospital?.contactEmail})</span></p>
+                <p><span className="text-slate-500">Selected SaaS Plan:</span> <span className="font-bold text-purple-600">{registeredResult.hospital?.plan}</span></p>
               </div>
 
               <div className="pt-4 flex justify-center gap-4">
@@ -86,7 +86,7 @@ export const HospitalRegisterPage = () => {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
                   {error}
                 </div>
               )}
@@ -111,15 +111,15 @@ export const HospitalRegisterPage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1 uppercase tracking-wider text-[10px]">Select SaaS Plan</label>
+                  <label className="block text-slate-600 font-semibold mb-1 uppercase tracking-wider text-[10px]">Select SaaS Plan</label>
                   <select
                     value={formData.plan}
                     onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-                    className="w-full glass-input rounded-lg p-2.5 text-white font-bold"
+                    className="w-full glass-input rounded-lg p-2.5 text-slate-900 font-bold"
                   >
-                    <option value="STARTER" className="bg-slate-900">Starter Tier (Single Branch, 10 Staff)</option>
-                    <option value="PROFESSIONAL" className="bg-slate-900">Professional Tier (Multi-Branch, 50 Staff)</option>
-                    <option value="ENTERPRISE" className="bg-slate-900">Enterprise Tier (Unlimited Branches & ICU)</option>
+                    <option value="STARTER" className="bg-white">Starter Tier (Single Branch, 10 Staff)</option>
+                    <option value="PROFESSIONAL" className="bg-white">Professional Tier (Multi-Branch, 50 Staff)</option>
+                    <option value="ENTERPRISE" className="bg-white">Enterprise Tier (Unlimited Branches & ICU)</option>
                   </select>
                 </div>
 
@@ -171,7 +171,7 @@ export const HospitalRegisterPage = () => {
               </div>
 
               <div className="pt-2 flex items-center justify-between">
-                <Link to="/login" className="text-xs text-slate-400 hover:text-sky-400">
+                <Link to="/login" className="text-xs text-slate-500 hover:text-indigo-600">
                   Already have an approved account? Log in
                 </Link>
                 <Button type="submit" variant="primary" size="lg" className="font-bold" isLoading={isLoading}>
