@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node scripts/seed.js",
+    "seed:superadmin": "node scripts/seed-superadmin.js",
     "unseed": "node scripts/unseed.js"
   },
   "dependencies": {

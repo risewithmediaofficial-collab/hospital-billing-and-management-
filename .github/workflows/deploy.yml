@@ -23,6 +23,16 @@ jobs:
           timeout: 60s          # ← connection timeout
           command_timeout: 10m  # ← script execution timeout
           script: |
+            mkdir -p /docker/hospital-billing
             cd /docker/hospital-billing
-            git pull origin main
+            if [ ! -d ".git" ]; then
+              git init
+              git remote add origin https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git
+              git fetch origin main
+              git reset --hard origin/main
+              git branch -M main
+            else
+              git pull origin main
+            fi
             docker compose up -d --build
+            docker compose exec -T backend npm run seed:superadmin

@@ -79,7 +79,7 @@ async function seedDatabase() {
     await Role.insertMany(rolesToCreate);
 
     console.log('[Seed] Creating Master Platform Super Admin Account...');
-    const superAdminPassword = '1234';
+    const superAdminPassword = '0000';
 
     const superAdminUser = await User.create({
       hospitalId: platformHospital._id,
