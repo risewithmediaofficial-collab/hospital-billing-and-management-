@@ -38,9 +38,6 @@ export const Modal = ({
   return (
     <div
       className="modal-overlay animate-fade-in"
-      onClick={(e) => {
-        if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose();
-      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}

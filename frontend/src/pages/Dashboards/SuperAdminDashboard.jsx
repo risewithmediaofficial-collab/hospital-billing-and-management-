@@ -224,7 +224,7 @@ export const SuperAdminDashboard = () => {
 
       {/* Direct Provisioning Modal */}
       {isDirectCreateOpen && (
-        <div className="modal-overlay animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) { setIsDirectCreateOpen(false); setProvisionedCreds(null); } }}>
+        <div className="modal-overlay animate-fade-in">
           <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="flex items-center gap-3">

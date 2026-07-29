@@ -46,12 +46,13 @@ export class SaasService {
         state: data.state || 'NY',
         country: data.country || 'USA',
       },
+      initialAdminPassword: data.adminPassword || 'HospitalAdmin123!',
       isActive: true,
     });
 
     return {
       hospital,
-      adminInitialPassword: data.adminPassword || 'HospitalAdmin123!',
+      adminInitialPassword: hospital.initialAdminPassword,
     };
   }
 
@@ -85,19 +86,29 @@ export class SaasService {
       });
     }
 
-    // Create initial Hospital Admin user account
-    let adminUser = await User.findOne({ hospitalId: hospital._id, role: ROLES.HOSPITAL_ADMIN });
-    if (!adminUser) {
-      const defaultPassword = 'HospitalAdmin123!';
-      const passwordHash = await bcrypt.hash(defaultPassword, 12);
+    // Create or update initial Hospital Admin user account with the requested password
+    const adminPassword = hospital.initialAdminPassword || 'HospitalAdmin123!';
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    const cleanEmail = hospital.contactEmail.toLowerCase().trim();
 
+    let adminUser = await User.findOne({ email: cleanEmail });
+    if (adminUser) {
+      adminUser.hospitalId = hospital._id;
+      adminUser.branchId = branch._id;
+      adminUser.passwordHash = passwordHash;
+      adminUser.assignedPasswordHint = adminPassword;
+      adminUser.role = ROLES.HOSPITAL_ADMIN;
+      adminUser.status = 'ACTIVE';
+      adminUser.isActive = true;
+      await adminUser.save();
+    } else {
       adminUser = await User.create({
         hospitalId: hospital._id,
         branchId: branch._id,
         name: hospital.contactName || 'Hospital Admin',
-        email: hospital.contactEmail,
+        email: cleanEmail,
         passwordHash,
-        assignedPasswordHint: defaultPassword,
+        assignedPasswordHint: adminPassword,
         role: ROLES.HOSPITAL_ADMIN,
         phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
@@ -110,7 +121,7 @@ export class SaasService {
         name: adminUser.name,
         email: adminUser.email,
         role: adminUser.role,
-        tempPassword: 'HospitalAdmin123!',
+        tempPassword: adminPassword,
       },
     };
   }

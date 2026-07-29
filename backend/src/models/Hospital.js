@@ -26,6 +26,7 @@ const hospitalSchema = new mongoose.Schema(
       state: { type: String, default: '' },
       country: { type: String, default: '' },
     },
+    initialAdminPassword: { type: String, default: 'HospitalAdmin123!' },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

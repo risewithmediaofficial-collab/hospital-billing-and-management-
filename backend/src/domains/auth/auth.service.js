@@ -7,7 +7,8 @@ import { ApiError } from '../../utils/apiError.js';
 
 export class AuthService {
   static async login(email, password) {
-    const user = await User.findOne({ email }).populate('hospitalId').populate('branchId');
+    const cleanEmail = email ? String(email).toLowerCase().trim() : '';
+    const user = await User.findOne({ email: cleanEmail }).populate('hospitalId').populate('branchId');
     if (!user) {
       throw new ApiError(401, 'Invalid email or password credentials', null, 'INVALID_CREDENTIALS');
     }

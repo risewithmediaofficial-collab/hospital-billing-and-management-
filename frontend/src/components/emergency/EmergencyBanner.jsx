@@ -181,7 +181,7 @@ export const EmergencyBanner = () => {
 
       {/* Active Emergency History & Resolution Modal */}
       {isViewModalOpen && (
-        <div className="modal-overlay animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setIsViewModalOpen(false); }}>
+        <div className="modal-overlay animate-fade-in">
           <div className="modal-container max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header bg-slate-900 text-white">
               <div className="flex items-center gap-3">

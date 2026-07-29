@@ -47,10 +47,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
   };
 
   return (
-    <div
-      className="modal-overlay animate-fade-in"
-      onClick={(e) => { if (e.target === e.currentTarget) handleReset(); }}
-    >
+    <div className="modal-overlay animate-fade-in">
       <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
 
         {/* Sticky Header */}
