@@ -17,7 +17,7 @@ services:
     container_name: hpmbs_backend
     restart: always
     environment:
-      PORT: 5000
+      PORT: 5003
       NODE_ENV: production
       MONGO_URI: mongodb://mongo:27017/hpmbs_db
       JWT_SECRET: hpmbs_super_secret_jwt_key_2026_production_grade
@@ -26,7 +26,7 @@ services:
       REFRESH_TOKEN_EXPIRES_IN: 30d
       CORS_ORIGIN: "*"
     ports:
-      - "5003:5000"
+      - "5003:5003"
     depends_on:
       - mongo
 
