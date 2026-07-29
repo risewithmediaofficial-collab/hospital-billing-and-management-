@@ -120,6 +120,7 @@ export const HospitalAdminDashboard = () => {
       setIsChangeModalOpen(false);
       setSelectedStaff(null);
       setChangeForm({ newPassword: '', adminPassword: '' });
+      fetchStaff();
     } catch (err) {
       setErrorMsg(err.error?.message || err.message || 'Invalid Admin Password verification');
     } finally {
