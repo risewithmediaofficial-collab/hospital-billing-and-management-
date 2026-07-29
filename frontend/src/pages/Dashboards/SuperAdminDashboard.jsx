@@ -68,7 +68,7 @@ export const SuperAdminDashboard = () => {
         hospitalName: directForm.hospitalName,
         adminEmail: approveRes.data.adminUser?.email || directForm.contactEmail,
         adminPassword: directForm.adminPassword || 'HospitalAdmin123!',
-        loginUrl: 'http://localhost:5173/login',
+        loginUrl: `${window.location.origin}/login`,
       });
       fetchHospitals();
     } catch (err) {

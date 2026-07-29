@@ -7,28 +7,38 @@ import { ApiError } from '../../utils/apiError.js';
 
 export class SaasService {
   static async registerHospital(data) {
-    const existingEmail = await Hospital.findOne({ contactEmail: data.contactEmail });
-    if (existingEmail) {
-      throw new ApiError(400, 'A hospital application with this email already exists', null, 'DUPLICATE_EMAIL');
+    if (!data.contactEmail || !data.hospitalName) {
+      throw new ApiError(400, 'Hospital name and contact email are required', null, 'VALIDATION_ERROR');
     }
 
-    const subdomain = data.subdomain.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const code = subdomain.toUpperCase();
+    const cleanEmail = data.contactEmail.toLowerCase().trim();
+    const existingEmail = await Hospital.findOne({ contactEmail: cleanEmail });
+    if (existingEmail) {
+      throw new ApiError(400, `A hospital application with email '${cleanEmail}' already exists`, null, 'DUPLICATE_EMAIL');
+    }
+
+    let rawSubdomain = data.subdomain || data.hospitalName;
+    let subdomain = String(rawSubdomain).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    if (!subdomain) {
+      subdomain = `hosp${Date.now().toString(36)}`;
+    }
+    let code = subdomain.toUpperCase();
 
     const existingSubdomain = await Hospital.findOne({ subdomain });
     if (existingSubdomain) {
-      throw new ApiError(400, `Subdomain '${subdomain}' is already taken`, null, 'DUPLICATE_SUBDOMAIN');
+      subdomain = `${subdomain}${Math.floor(100 + Math.random() * 900)}`;
+      code = subdomain.toUpperCase();
     }
 
     const hospital = await Hospital.create({
-      name: data.hospitalName,
+      name: data.hospitalName.trim(),
       code,
       subdomain,
       status: 'PENDING_APPROVAL',
       plan: data.plan || 'PROFESSIONAL',
-      contactName: data.contactName,
-      contactEmail: data.contactEmail,
-      contactPhone: data.contactPhone,
+      contactName: data.contactName || data.hospitalName || 'Hospital Administrator',
+      contactEmail: cleanEmail,
+      contactPhone: data.contactPhone || '+1 (555) 000-0000',
       licenseNumber: data.licenseNumber || `LIC-${Date.now()}`,
       address: {
         street: data.street || 'Main Medical St',
@@ -36,11 +46,12 @@ export class SaasService {
         state: data.state || 'NY',
         country: data.country || 'USA',
       },
+      isActive: true,
     });
 
     return {
       hospital,
-      adminInitialPassword: data.adminPassword,
+      adminInitialPassword: data.adminPassword || 'HospitalAdmin123!',
     };
   }
 
@@ -64,11 +75,11 @@ export class SaasService {
         hospitalId: hospital._id,
         name: `${hospital.name} Main Branch`,
         branchCode: `${hospital.code}-MAIN`,
-        phone: hospital.contactPhone,
+        phone: hospital.contactPhone || '+1 (555) 000-0000',
         email: hospital.contactEmail,
-        address: hospital.address.street || 'Main Medical St',
-        city: hospital.address.city || 'Metropolis',
-        state: hospital.address.state || 'NY',
+        address: hospital.address?.street || 'Main Medical St',
+        city: hospital.address?.city || 'Metropolis',
+        state: hospital.address?.state || 'NY',
         postalCode: '10001',
         isMainBranch: true,
       });
@@ -83,11 +94,12 @@ export class SaasService {
       adminUser = await User.create({
         hospitalId: hospital._id,
         branchId: branch._id,
-        name: hospital.contactName,
+        name: hospital.contactName || 'Hospital Admin',
         email: hospital.contactEmail,
         passwordHash,
+        assignedPasswordHint: defaultPassword,
         role: ROLES.HOSPITAL_ADMIN,
-        phone: hospital.contactPhone,
+        phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
       });
     }
