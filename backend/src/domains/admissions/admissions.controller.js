@@ -28,3 +28,13 @@ export const allocateBed = async (req, res, next) => {
     next(error);
   }
 };
+
+export const dischargePatient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const discharged = await AdmissionsService.dischargePatient(id, req.user);
+    return sendSuccess(res, 200, 'Patient discharged & bed liberated to AVAILABLE', discharged);
+  } catch (error) {
+    next(error);
+  }
+};

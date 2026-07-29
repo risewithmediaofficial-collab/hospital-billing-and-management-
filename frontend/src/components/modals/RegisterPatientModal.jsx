@@ -5,7 +5,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { X, UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
 
-export const RegisterPatientModal = ({ isOpen, onClose, onSuccess }) => {
+export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken }) => {
   useScrollLock(isOpen);
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', age: '', gender: 'MALE',
@@ -15,17 +15,24 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [createdPatient, setCreatedPatient] = useState(null);
   const [error, setError] = useState(null);
+  const [shouldIssueTokenImmediately, setShouldIssueTokenImmediately] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, issueToken = false) => {
+    if (e) e.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
       const response = await axiosClient.post('/patients', formData);
-      setCreatedPatient(response.data);
-      if (onSuccess) onSuccess(response.data);
+      const newPat = response.data;
+      setCreatedPatient(newPat);
+      if (onSuccess) onSuccess(newPat);
+
+      if (issueToken) {
+        onClose();
+        if (onIssueToken) onIssueToken(newPat);
+      }
     } catch (err) {
       setError(err.response?.data?.error?.message || err.error?.message || 'Failed to register patient');
     } finally {
@@ -69,7 +76,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess }) => {
               <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
                 <CheckCircle size={30} />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Patient Registered!</h3>
+              <h3 className="text-xl font-bold text-slate-900">Patient Registered Successfully!</h3>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Assigned UHID:</span>
@@ -90,12 +97,27 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess }) => {
                   <span className="text-slate-700">{createdPatient.phone}</span>
                 </div>
               </div>
-              <Button variant="primary" className="w-full font-bold" onClick={handleReset}>
-                Close & Return to Front Desk
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                <Button variant="outline" className="w-full font-bold text-xs" onClick={handleReset}>
+                  Saved to Registered List
+                </Button>
+                {onIssueToken && (
+                  <Button
+                    variant="primary"
+                    className="w-full font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => {
+                      const pat = createdPatient;
+                      handleReset();
+                      onIssueToken(pat);
+                    }}
+                  >
+                    Issue OPD Token Now
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3.5">
+            <form onSubmit={(e) => handleSubmit(e, shouldIssueTokenImmediately)} autoComplete="off" className="space-y-3.5">
               {error && (
                 <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
                   <AlertCircle size={15} /> {error}
@@ -127,9 +149,26 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess }) => {
               <Input label="Chief Complaint / Reason for Visit" value={formData.chiefComplaints} onChange={(e) => setFormData({ ...formData, chiefComplaints: e.target.value })} placeholder="e.g. Fever, Chest tightness, Routine OPD checkup" />
               <Input label="Residential Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} required placeholder="Street address, city" />
 
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="outline" className="w-1/2" onClick={onClose}>Cancel</Button>
-                <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Generate UHID</Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="w-full font-bold text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  isLoading={isLoading && !shouldIssueTokenImmediately}
+                  onClick={() => setShouldIssueTokenImmediately(false)}
+                >
+                  Register & Save Patient
+                </Button>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                  isLoading={isLoading && shouldIssueTokenImmediately}
+                  onClick={() => setShouldIssueTokenImmediately(true)}
+                >
+                  Register & Issue Token
+                </Button>
               </div>
             </form>
           )}

@@ -172,6 +172,8 @@ export class EmrService {
       hospitalId: hospId,
       branchId: brId,
       patientId: appointment.patientId,
+      doctorId: user.id || user._id,
+      doctorName: user.name ? `Dr. ${user.name}` : 'Doctor Consultant',
       invoiceNo,
       items,
       subtotal,

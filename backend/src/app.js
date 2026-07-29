@@ -18,6 +18,7 @@ import requestRoutes from './domains/requests/requests.routes.js';
 import billingRoutes from './domains/billing/billing.routes.js';
 import diagnosticRoutes from './domains/diagnostics/diagnostics.routes.js';
 import admissionRoutes from './domains/admissions/admissions.routes.js';
+import emergencyRoutes from './domains/emergency/emergency.routes.js';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/v1/requests', requestRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/diagnostics', diagnosticRoutes);
 app.use('/api/v1/admissions', admissionRoutes);
+app.use('/api/v1/emergency', emergencyRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

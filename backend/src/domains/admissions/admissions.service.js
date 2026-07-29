@@ -68,34 +68,61 @@ export class AdmissionsService {
       throw new ApiError(404, 'Admission requisition record not found', null, 'NOT_FOUND');
     }
 
+    if (admission.status === 'ADMITTED') {
+      throw new ApiError(400, `Patient ${admission.patientName} is already admitted to Bed ${admission.bedNumber}.`, null, 'ALREADY_ADMITTED');
+    }
+
+    const { wardName, bedNumber, dailyTariff } = data;
+
     let bed = null;
     if (data.bedId) {
       bed = await Bed.findById(data.bedId);
-    } else {
-      bed = await Bed.findOne({ branchId: admission.branchId, status: BED_STATUS.AVAILABLE });
+    } else if (bedNumber) {
+      bed = await Bed.findOne({
+        branchId: admission.branchId,
+        bedNumber: bedNumber.trim()
+      }).populate('currentPatientId');
     }
 
+    // Check if bed is already occupied by a different patient
+    if (bed && bed.status === BED_STATUS.OCCUPIED) {
+      const currentPatId = bed.currentPatientId?._id || bed.currentPatientId;
+      if (String(currentPatId) !== String(admission.patientId)) {
+        const occPat = bed.currentPatientId;
+        const occName = occPat ? `${occPat.firstName || ''} ${occPat.lastName || ''}`.trim() : 'another patient';
+        throw new ApiError(400, `Bed '${bed.bedNumber}' in ${bed.wardName} is currently OCCUPIED by patient '${occName}'. Please select an available bed.`, null, 'BED_OCCUPIED');
+      }
+    }
+
+    const selectedWard = wardName || admission.targetWardName || 'Ward 3B - Inpatient';
+    const selectedBedNo = bedNumber ? bedNumber.trim() : (bed ? bed.bedNumber : `BED-30${Math.floor(Math.random() * 90 + 10)}`);
+    const selectedTariff = dailyTariff ? Number(dailyTariff) : (admission.dailyTariff || 150.0);
+
     if (!bed) {
-      // Auto-create bed if none available
+      // Create new bed record with wardName and bedNumber specified by Nurse
       bed = await Bed.create({
         hospitalId: admission.hospitalId,
         branchId: admission.branchId,
-        bedNumber: `BED-30${Math.floor(Math.random() * 90 + 10)}`,
-        wardName: admission.targetWardName,
-        wardType: admission.wardType,
-        dailyTariff: admission.dailyTariff,
+        bedNumber: selectedBedNo,
+        wardName: selectedWard,
+        wardType: admission.wardType || 'GENERAL',
+        dailyTariff: selectedTariff,
         status: BED_STATUS.OCCUPIED,
         currentPatientId: admission.patientId,
       });
     } else {
       bed.status = BED_STATUS.OCCUPIED;
       bed.currentPatientId = admission.patientId;
+      bed.wardName = selectedWard;
+      bed.dailyTariff = selectedTariff;
       await bed.save();
     }
 
     admission.status = 'ADMITTED';
     admission.bedId = bed._id;
     admission.bedNumber = bed.bedNumber;
+    admission.targetWardName = bed.wardName;
+    admission.dailyTariff = bed.dailyTariff;
     admission.admittedAt = new Date();
     await admission.save();
 
@@ -107,6 +134,35 @@ export class AdmissionsService {
       bedNumber: bed.bedNumber,
       wardName: bed.wardName,
     });
+
+    return admission;
+  }
+
+  static async dischargePatient(admissionId, user) {
+    const admission = await Admission.findById(admissionId);
+    if (!admission) {
+      throw new ApiError(404, 'Admission record not found', null, 'NOT_FOUND');
+    }
+
+    admission.status = 'DISCHARGED';
+    admission.dischargedAt = new Date();
+    await admission.save();
+
+    if (admission.bedId) {
+      const bed = await Bed.findById(admission.bedId);
+      if (bed) {
+        bed.status = BED_STATUS.AVAILABLE;
+        bed.currentPatientId = null;
+        await bed.save();
+      }
+    } else if (admission.bedNumber) {
+      const bed = await Bed.findOne({ branchId: admission.branchId, bedNumber: admission.bedNumber });
+      if (bed) {
+        bed.status = BED_STATUS.AVAILABLE;
+        bed.currentPatientId = null;
+        await bed.save();
+      }
+    }
 
     return admission;
   }

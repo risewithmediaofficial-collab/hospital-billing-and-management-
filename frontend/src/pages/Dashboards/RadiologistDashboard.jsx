@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -10,11 +11,24 @@ import { FileImage, CheckCircle2, Monitor, Activity, FileCheck, Upload, Check, E
 export const RadiologistDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const [activeTab, setActiveTab] = useState('ACTIVE');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
+  const [activeTab, setActiveTab] = useState(tabParam || 'ACTIVE');
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [impression, setImpression] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam.toUpperCase());
+    } else {
+      setActiveTab('ACTIVE');
+    }
+  }, [tabParam, location.search]);
 
   useEffect(() => {
     fetchOrders();
@@ -196,13 +210,18 @@ export const RadiologistDashboard = () => {
             {selectedOrder && (
               <div className="flex gap-2">
                 {selectedOrder.status === 'REQUESTED' && (
-                  <Button size="sm" variant="primary" onClick={() => handleUpdateStatus(selectedOrder._id, 'IN_PROGRESS')}>
-                    <Check size={14} /> Accept Scan Request
+                  <Button size="sm" variant="primary" className="bg-sky-600 hover:bg-sky-700 font-bold text-xs" onClick={() => handleUpdateStatus(selectedOrder._id, 'ACCEPTED')}>
+                    <Check size={14} /> Accept Request & Notify Doctor
                   </Button>
+                )}
+                {selectedOrder.status === 'ACCEPTED' && (
+                  <span className="px-3 py-1 rounded bg-sky-50 text-sky-700 border border-sky-200 font-bold text-xs flex items-center gap-1">
+                    <Monitor size={14} /> ACCEPTED — PROCESSING SCAN
+                  </span>
                 )}
                 {(selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED') && (
                   <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center gap-1">
-                    <CheckCircle2 size={14} /> SCAN COMPLETED
+                    <CheckCircle2 size={14} /> REPORT SUBMITTED TO DOCTOR
                   </span>
                 )}
               </div>

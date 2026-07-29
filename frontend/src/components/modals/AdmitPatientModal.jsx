@@ -31,15 +31,17 @@ export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
     setError(null);
     try {
       await axiosClient.post('/admissions/request', {
-        patientId: patient._id,
+        patientId: patient._id || patient.id,
         wardType,
         targetWardName,
-        admissionReason: admissionReason || 'Inpatient observation and treatment',
+        admissionReason: admissionReason.trim() || 'Inpatient observation and treatment',
       });
       setIsRequested(true);
       if (onSuccess) onSuccess();
     } catch (err) {
-      setIsRequested(true); // Graceful fallback
+      console.error('Failed to dispatch admission requisition:', err);
+      const msg = err.error?.message || err.message || 'Failed to dispatch requisition to Nurse desk.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

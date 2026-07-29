@@ -231,7 +231,14 @@ export const ReceptionDashboard = () => {
         </div>
       </Card>
 
-      <RegisterPatientModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onSuccess={fetchData} />
+      <RegisterPatientModal
+        isOpen={isRegisterOpen}
+        onClose={() => setIsRegisterOpen(false)}
+        onSuccess={fetchData}
+        onIssueToken={(pat) => {
+          setIsTokenOpen(true);
+        }}
+      />
       <IssueTokenModal isOpen={isTokenOpen} onClose={() => setIsTokenOpen(false)} onSuccess={fetchData} initialDoctorId={selectedDoctorId} />
     </div>
   );

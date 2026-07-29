@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useEmergencyStore } from '../../store/emergencyStore';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
 import * as Icons from 'lucide-react';
@@ -10,39 +11,53 @@ import * as Icons from 'lucide-react';
 export const Sidebar = ({ isOpen, onClose }) => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const { unreadCount, addNotification, fetchInitialNotifications } = useNotificationStore();
+  const { addNotification, fetchInitialNotifications, getUnreadCountForNav } = useDepartmentNotificationStore();
+  const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
   const location = useLocation();
   const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];
 
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
 
   useEffect(() => {
-    if (user?.role !== 'DOCTOR') return;
-
-    fetchInitialNotifications();
-
-    if (socket) {
-      const handleReportReady = (data) => {
-        addNotification({
-          orderId: data.orderId,
-          patientId: data.patientId,
-          patientName: data.patientName,
-          uhid: data.uhid,
-          testName: data.testName,
-          status: data.status || 'COMPLETED',
-          title: `Report Ready: ${data.testName || 'Diagnostic Scan'}`,
-          message: data.reportSummary || `Diagnostic scan results ready for ${data.patientName || 'patient'}.`,
-        });
-      };
-
-      socket.on('diagnostics:report_ready', handleReportReady);
-      socket.on('investigation:status_updated', handleReportReady);
-      return () => {
-        socket.off('diagnostics:report_ready', handleReportReady);
-        socket.off('investigation:status_updated', handleReportReady);
-      };
+    if (user?.role) {
+      fetchInitialNotifications(user.role);
+      fetchActiveEmergencies();
     }
-  }, [user, socket, addNotification, fetchInitialNotifications]);
+  }, [user, fetchInitialNotifications, fetchActiveEmergencies]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleWorkflowEvent = (data) => {
+      addNotification({
+        id: data.id || `wf_${Date.now()}`,
+        event: data.event,
+        title: data.title || 'Department Alert',
+        message: data.message || '',
+        patientName: data.payload?.patientName || 'Patient',
+        uhid: data.payload?.uhid || 'N/A',
+        orderId: data.payload?.orderId || null,
+        linkedPath: data.linkedPath || data.payload?.linkedPath || null,
+        timestamp: data.timestamp,
+      });
+    };
+
+    const handleEmergencyAlert = (data) => {
+      addEmergency(data);
+    };
+
+    socket.on('emergency:alert', handleEmergencyAlert);
+    socket.on('emergency:code_blue_triggered', handleEmergencyAlert);
+    socket.on('diagnostics:report_ready', handleWorkflowEvent);
+    socket.on('investigation:status_updated', handleWorkflowEvent);
+
+    return () => {
+      socket.off('emergency:alert', handleEmergencyAlert);
+      socket.off('emergency:code_blue_triggered', handleEmergencyAlert);
+      socket.off('diagnostics:report_ready', handleWorkflowEvent);
+      socket.off('investigation:status_updated', handleWorkflowEvent);
+    };
+  }, [socket, addNotification, addEmergency]);
 
   useEffect(() => {
     if (!user?.role || !['CASHIER', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
@@ -129,8 +144,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
             const IconComponent = Icons[item.icon] || Icons.Circle;
             const label = item.title || item.name || 'Navigation Item';
             const active = isItemActive(item.path);
-            const isDeptResponses = item.path.includes('tab=DEPT_RESPONSES');
+            const navUnreadCount = getUnreadCountForNav(item.path);
+            const isEmergencyItem = item.path === '/emergency';
             const isReceiptsHistory = item.path.includes('tab=RECEIPTS') || item.path.includes('/billing/receipts');
+
             return (
               <Link
                 key={item.path}
@@ -140,22 +157,38 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
                   active
                     ? 'bg-indigo-50 text-indigo-700 font-semibold border-l-indigo-500'
+                    : isEmergencyItem && activeCount > 0
+                    ? 'bg-red-50 text-red-700 font-bold border-l-red-600 animate-pulse'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <IconComponent
                     size={16}
-                    className={`shrink-0 ${active ? 'text-indigo-500' : 'text-slate-400'}`}
+                    className={`shrink-0 ${
+                      isEmergencyItem && activeCount > 0
+                        ? 'text-red-600'
+                        : active
+                        ? 'text-indigo-500'
+                        : 'text-slate-400'
+                    }`}
                   />
                   <span className="truncate">{label}</span>
                 </div>
-                {isDeptResponses && unreadCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs animate-pulse">
-                    {unreadCount}
+
+                {isEmergencyItem && activeCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-xs animate-bounce">
+                    {activeCount}
                   </span>
                 )}
-                {isReceiptsHistory && totalReceiptsCount > 0 && (
+
+                {!isEmergencyItem && navUnreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs animate-pulse">
+                    {navUnreadCount}
+                  </span>
+                )}
+
+                {isReceiptsHistory && totalReceiptsCount > 0 && navUnreadCount === 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
                     {totalReceiptsCount}
                   </span>

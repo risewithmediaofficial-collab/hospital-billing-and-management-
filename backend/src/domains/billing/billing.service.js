@@ -23,15 +23,28 @@ export class BillingService {
       status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
     })
       .populate('patientId')
+      .populate('doctorId', 'name specialization cabinNo')
       .sort({ createdAt: -1 });
 
     // Attach consultation data to each invoice
     const enriched = await Promise.all(
       invoices.map(async (inv) => {
-        const consultation = await Consultation.findOne({ patientId: inv.patientId })
-          .populate('doctorId', 'name specialization')
+        const filter = { patientId: inv.patientId?._id || inv.patientId };
+        if (inv.doctorId) {
+          filter.doctorId = inv.doctorId._id || inv.doctorId;
+        }
+
+        let consultation = await Consultation.findOne(filter)
+          .populate('doctorId', 'name specialization cabinNo')
           .sort({ createdAt: -1 })
           .lean();
+
+        if (!consultation && inv.patientId) {
+          consultation = await Consultation.findOne({ patientId: inv.patientId._id || inv.patientId })
+            .populate('doctorId', 'name specialization cabinNo')
+            .sort({ createdAt: -1 })
+            .lean();
+        }
 
         return {
           ...inv.toObject(),
@@ -145,16 +158,34 @@ export class BillingService {
   }
 
   static async getReceipts(user) {
-    return await Receipt.find({ branchId: user.branchId })
+    const receipts = await Receipt.find({ branchId: user.branchId })
       .populate({
         path: 'invoiceId',
         populate: [
           { path: 'patientId' },
-          { path: 'consultation', populate: { path: 'doctorId' } },
+          { path: 'doctorId', select: 'name specialization' },
         ],
       })
       .populate('patientId')
       .populate('cashierId')
       .sort({ createdAt: -1 });
+
+    const enriched = await Promise.all(
+      receipts.map(async (rc) => {
+        const rcObj = rc.toObject();
+        if (rcObj.invoiceId && !rcObj.invoiceId.doctorId && rcObj.invoiceId.patientId) {
+          const consult = await Consultation.findOne({ patientId: rcObj.invoiceId.patientId._id || rcObj.invoiceId.patientId })
+            .populate('doctorId', 'name specialization')
+            .sort({ createdAt: -1 })
+            .lean();
+          if (consult) {
+            rcObj.invoiceId.consultation = consult;
+          }
+        }
+        return rcObj;
+      })
+    );
+
+    return enriched;
   }
 }

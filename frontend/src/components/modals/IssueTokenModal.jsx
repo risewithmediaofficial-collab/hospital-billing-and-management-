@@ -210,7 +210,7 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                 </label>
                 {isDoctorLocked && selectedDoctor ? (
                   <div className="w-full bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-900 flex items-center justify-between">
-                    <span>Dr. {selectedDoctor.name} — {selectedDoctor.specialization || 'General OPD'}</span>
+                    <span>{selectedDoctor.name?.startsWith('Dr.') ? selectedDoctor.name : `Dr. ${selectedDoctor.name}`} — {selectedDoctor.specialization || 'General OPD'}</span>
                     <span className="text-amber-600 text-[10px] flex items-center gap-0.5 font-bold"><Lock size={10} /> Fixed</span>
                   </div>
                 ) : (
@@ -222,7 +222,7 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                     {activeDoctors.length > 0 ? (
                       activeDoctors.map((doc) => (
                         <option key={doc._id} value={doc._id}>
-                          Dr. {doc.name} — {doc.specialization || 'General OPD Clinic'}
+                          {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD Clinic'}
                         </option>
                       ))
                     ) : (

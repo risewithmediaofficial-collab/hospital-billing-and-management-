@@ -28,6 +28,8 @@ import { InventoryDashboard } from '../pages/Dashboards/InventoryDashboard';
 import { HRDashboard } from '../pages/Dashboards/HRDashboard';
 import { PatientDashboard } from '../pages/Dashboards/PatientDashboard';
 import { GuardianDashboard } from '../pages/Dashboards/GuardianDashboard';
+import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
+import { EmergencyConsoleView } from '../pages/Emergency/EmergencyConsoleView';
 
 const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -40,6 +42,7 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
       {!shouldHideSidebar && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar onToggleSidebar={shouldHideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
+        <EmergencyBanner />
         <main className={`flex-1 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
       <GlobalCodeBlueModal />
@@ -117,16 +120,16 @@ export const AppRoutes = () => {
       {/* 8. Lab Tech Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.LAB_TECH, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
-        <Route path="/laboratory/samples" element={<MainLayout><GenericSubView title="Sample Intake & Barcodes" subtitle="Barcode Scanning LIS" iconName="QrCode" /></MainLayout>} />
-        <Route path="/laboratory/results" element={<MainLayout><GenericSubView title="Result Entry Workbench" subtitle="Analyzer Test Input" iconName="FileSpreadsheet" /></MainLayout>} />
-        <Route path="/laboratory/approvals" element={<MainLayout><GenericSubView title="Pathologist Report Sign-Off" subtitle="Digital Approval Console" iconName="CheckCircle2" /></MainLayout>} />
+        <Route path="/laboratory/samples" element={<MainLayout><LabTechDashboard /></MainLayout>} />
+        <Route path="/laboratory/results" element={<MainLayout><LabTechDashboard /></MainLayout>} />
+        <Route path="/laboratory/approvals" element={<MainLayout><LabTechDashboard /></MainLayout>} />
       </Route>
 
       {/* 9. Radiologist Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.RADIOLOGIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
-        <Route path="/radiology/dicom" element={<MainLayout><GenericSubView title="PACS DICOM Viewer" subtitle="High-Resolution Radiology Scans" iconName="FileImage" /></MainLayout>} />
-        <Route path="/radiology/reports" element={<MainLayout><GenericSubView title="Radiology Diagnostic Reports" subtitle="CT, MRI & X-Ray Impressions" iconName="FileCheck" /></MainLayout>} />
+        <Route path="/radiology/dicom" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
+        <Route path="/radiology/reports" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
       </Route>
 
       {/* 10. Cashier Sub-Routes */}
@@ -168,6 +171,9 @@ export const AppRoutes = () => {
         <Route path="/guardian-portal/updates" element={<MainLayout><GenericSubView title="Doctor & Nursing Progress Updates" subtitle="Live Inpatient Updates" iconName="Activity" /></MainLayout>} />
         <Route path="/guardian-portal/pay-online" element={<MainLayout><GenericSubView title="Online Bill Payment Gateway" subtitle="Instant Payment Clearance" iconName="IndianRupee" /></MainLayout>} />
       </Route>
+
+      {/* Global Emergency Route */}
+      <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
 
       {/* Redirect Root to Login */}
       <Route path="/" element={<Navigate to="/login" replace />} />

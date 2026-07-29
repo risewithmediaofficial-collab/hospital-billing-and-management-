@@ -6,6 +6,8 @@ const invoiceSchema = new mongoose.Schema(
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
+    doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    doctorName: { type: String, default: '' },
     invoiceNo: { type: String, required: true },
     items: [
       {

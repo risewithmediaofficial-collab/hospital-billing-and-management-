@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -27,10 +27,18 @@ import {
 export const ReceptionWorkspaceView = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const { socket } = useSocket();
 
-  // Tab state: 'REGISTERED' | 'QUEUED' | 'COMPLETED' | 'ALL'
-  const [activeTab, setActiveTab] = useState('REGISTERED');
+  // Tab state: 'QUEUED' | 'COMPLETED' | 'ALL' | 'REGISTERED'
+  const [activeTab, setActiveTab] = useState(tabParam || 'QUEUED');
+
+  useEffect(() => {
+    if (tabParam && ['REGISTERED', 'QUEUED', 'COMPLETED', 'ALL'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   const [patients, setPatients] = useState([]);
   const [queuedPatients, setQueuedPatients] = useState([]);
@@ -204,10 +212,13 @@ export const ReceptionWorkspaceView = () => {
           </Button>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Users size={24} className="text-indigo-600" />
-            Patient Directory & Lifecycle Tracker
+            {activeTab === 'QUEUED' && `Queued / Active OPD (${queuedPatients.length})`}
+            {activeTab === 'COMPLETED' && `Completed & Billed Visits (${completedPatients.length})`}
+            {activeTab === 'ALL' && `All Hospital Patients (${patients.length})`}
+            {activeTab === 'REGISTERED' && `Registered Patients (Awaiting Token)`}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage registered patients, monitor active OPD queues, and track completed & billed visits.
+            Full-screen live tracking for active OPD queues, completed patient visits, and hospital master directory.
           </p>
         </div>
 
@@ -221,56 +232,7 @@ export const ReceptionWorkspaceView = () => {
         </div>
       </div>
 
-      {/* 4-Tab Sub-Navbar */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs">
-        <button
-          onClick={() => setActiveTab('REGISTERED')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
-            activeTab === 'REGISTERED'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-          }`}
-        >
-          <UserCheck size={16} />
-          Registered Patients (Awaiting Token) ({registeredAwaitingToken.length})
-        </button>
 
-        <button
-          onClick={() => setActiveTab('QUEUED')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
-            activeTab === 'QUEUED'
-              ? 'bg-amber-500 text-white shadow-md'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-          }`}
-        >
-          <Ticket size={16} />
-          Queued / Active OPD ({queuedPatients.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('COMPLETED')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
-            activeTab === 'COMPLETED'
-              ? 'bg-emerald-500 text-white shadow-md'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-          }`}
-        >
-          <CheckCircle2 size={16} />
-          Completed & Billed ({completedPatients.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ALL')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all ${
-            activeTab === 'ALL'
-              ? 'bg-purple-500 text-white shadow-md'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-          }`}
-        >
-          <FolderOpen size={16} />
-          All Hospital Patients ({patients.length})
-        </button>
-      </div>
 
       {/* Search Input */}
       <div className="flex items-center justify-between gap-4">
@@ -382,7 +344,9 @@ export const ReceptionWorkspaceView = () => {
                         <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid || '—'}</td>
                         <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
                         <td className="p-3 text-slate-700">
-                          <span className="font-bold text-indigo-700">Dr. {doc.name || 'Doctor'}</span>
+                          <span className="font-bold text-indigo-700">
+                            {doc.name ? (doc.name.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`) : 'Doctor'}
+                          </span>
                           <p className="text-[10px] text-slate-500">{doc.specialization || 'OPD Clinic'}</p>
                         </td>
                         <td className="p-3 text-slate-600 font-medium">{tok.cabinNo || doc.cabinNo || 'Cabin 102'}</td>
@@ -564,7 +528,15 @@ export const ReceptionWorkspaceView = () => {
       )}
 
       {/* Modals */}
-      <RegisterPatientModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onSuccess={fetchAllData} />
+      <RegisterPatientModal
+        isOpen={isRegisterOpen}
+        onClose={() => setIsRegisterOpen(false)}
+        onSuccess={fetchAllData}
+        onIssueToken={(pat) => {
+          setSelectedPatient(pat);
+          setIsTokenOpen(true);
+        }}
+      />
       <IssueTokenModal isOpen={isTokenOpen} onClose={() => setIsTokenOpen(false)} onSuccess={fetchAllData} initialPatient={selectedPatient} />
     </div>
   );

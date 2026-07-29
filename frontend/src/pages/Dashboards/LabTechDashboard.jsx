@@ -1,20 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
-import { TestTube, QrCode, FileCheck, CheckCircle2, FlaskConical, AlertCircle, Upload, Check } from 'lucide-react';
+import { TestTube, QrCode, FileCheck, CheckCircle2, FlaskConical, AlertCircle, Upload, Check, Printer, FileSpreadsheet } from 'lucide-react';
 
 export const LabTechDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const [activeTab, setActiveTab] = useState('ACTIVE');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
+  const [activeTab, setActiveTab] = useState(tabParam || 'ACTIVE');
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [reportSummary, setReportSummary] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam.toUpperCase());
+    } else {
+      setActiveTab('ACTIVE');
+    }
+  }, [tabParam, location.search]);
 
   useEffect(() => {
     fetchOrders();
@@ -100,14 +114,23 @@ export const LabTechDashboard = () => {
   const inProgressCount = orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ACCEPTED').length;
   const emergencyCount = orders.filter((o) => o.priority === 'EMERGENCY').length;
 
-  const currentQueue = activeTab === 'ACTIVE' ? activeOrders : completedOrders;
+  const currentQueue = (activeTab === 'COMPLETED' || activeTab === 'REPORTS') ? completedOrders : activeOrders;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Pathology Laboratory & LIS Workstation</h2>
-        <p className="text-xs text-slate-500 mt-1">{user?.name || 'Lab Technologist'} — Auto-Dispatched Pathology Queue</p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          {activeTab === 'SAMPLES' && 'Sample Intake & Barcode Scanning Workbench'}
+          {activeTab === 'RESULTS' && 'Pathology Analyzer & Result Entry Workbench'}
+          {(activeTab === 'REPORTS' || activeTab === 'COMPLETED') && 'Pathology Report Verification & Sign-Off'}
+          {(activeTab === 'ACTIVE' || activeTab === 'OVERVIEW') && 'Pathology Laboratory & LIS Workstation'}
+        </h2>
+        <p className="text-xs text-slate-500 mt-1">
+          {user?.name || 'Lab Technologist'} — Auto-Dispatched Pathology Queue & Laboratory Information System
+        </p>
       </div>
+
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Active Pathology Requests" value={`${activeOrders.length} Active`} subtitle="Auto-Dispatched by Doctors" icon={TestTube} color="amber" />
@@ -196,13 +219,18 @@ export const LabTechDashboard = () => {
             {selectedOrder && (
               <div className="flex gap-2">
                 {selectedOrder.status === 'REQUESTED' && (
-                  <Button size="sm" variant="primary" onClick={() => handleUpdateStatus(selectedOrder._id, 'IN_PROGRESS')}>
-                    <Check size={14} /> Accept Request & Begin Test
+                  <Button size="sm" variant="primary" className="bg-sky-600 hover:bg-sky-700 font-bold text-xs" onClick={() => handleUpdateStatus(selectedOrder._id, 'ACCEPTED')}>
+                    <Check size={14} /> Accept Request & Notify Doctor
                   </Button>
+                )}
+                {selectedOrder.status === 'ACCEPTED' && (
+                  <span className="px-3 py-1 rounded bg-sky-50 text-sky-700 border border-sky-200 font-bold text-xs flex items-center gap-1">
+                    <FlaskConical size={14} /> ACCEPTED — PROCESSING TEST
+                  </span>
                 )}
                 {(selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED') && (
                   <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center gap-1">
-                    <CheckCircle2 size={14} /> TEST COMPLETED
+                    <CheckCircle2 size={14} /> REPORT SUBMITTED TO DOCTOR
                   </span>
                 )}
               </div>

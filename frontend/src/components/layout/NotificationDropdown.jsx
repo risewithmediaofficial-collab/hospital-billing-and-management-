@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, Check, CheckCheck, Clock, FileCheck2, X, ChevronRight, Inbox
@@ -7,7 +7,7 @@ import {
 
 export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useDepartmentNotificationStore();
   const [activeTab, setActiveTab] = useState('UNREAD'); // 'UNREAD' | 'READ'
   const dropdownRef = useRef(null);
 
@@ -33,8 +33,11 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
   const handleNotificationClick = (notif) => {
     markAsRead(notif.id);
     onClose();
-    // Navigate to Doctor Dashboard Department Responses tab
-    navigate('/doctor/dashboard?tab=DEPT_RESPONSES');
+    if (notif.linkedPath) {
+      navigate(notif.linkedPath);
+    } else {
+      navigate('/doctor/dashboard?tab=DEPT_RESPONSES');
+    }
   };
 
   return (

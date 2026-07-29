@@ -4,6 +4,7 @@ import { User } from '../../models/User.js';
 import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { socketManager } from '../../events/socketManager.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 
 export class AppointmentsService {
@@ -109,6 +110,15 @@ export class AppointmentsService {
       patientName: `${patient.firstName} ${patient.lastName}`,
     });
 
+    WorkflowEventService.emit(WORKFLOW_EVENTS.PATIENT_QUEUED, {
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      uhid: patient.uhid,
+      tokenNumber,
+      doctorId: doctor._id,
+      doctorName: doctor.name,
+      linkedPath: '/doctor/dashboard?tab=LIVE',
+    }, branchId || doctor.branchId);
+
     return await Appointment.findById(appointment._id).populate('patientId').populate('doctorId');
   }
 
@@ -120,17 +130,22 @@ export class AppointmentsService {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const filter = {
-      appointmentDate: todayStr,
-    };
-    if (hospitalId) {
-      filter.hospitalId = hospitalId;
-    }
+    let filter = {};
 
     if (user?.role === 'DOCTOR') {
-      filter.doctorId = user.id;
+      const docId = user.id || user._id;
+      filter = {
+        doctorId: docId,
+        $or: [
+          { status: { $in: ['WAITING', 'IN_CONSULTATION'] } },
+          { appointmentDate: todayStr }
+        ]
+      };
     } else if (doctorId) {
-      filter.doctorId = doctorId;
+      filter = { doctorId };
+    } else {
+      filter = { appointmentDate: todayStr };
+      if (hospitalId) filter.hospitalId = hospitalId;
     }
 
     return await Appointment.find(filter)
@@ -140,7 +155,7 @@ export class AppointmentsService {
   }
 
   static async updateTokenStatus(appointmentId, status, user) {
-    const appointment = await Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId).populate('patientId').populate('doctorId');
     if (!appointment) {
       throw new ApiError(404, 'OPD token appointment not found', null, 'NOT_FOUND');
     }
@@ -153,6 +168,26 @@ export class AppointmentsService {
       status,
       tokenNumber: appointment.tokenNumber,
     });
+
+    const pName = appointment.patientId ? `${appointment.patientId.firstName || ''} ${appointment.patientId.lastName || ''}`.trim() : 'Patient';
+    const uhid = appointment.patientId?.uhid || 'N/A';
+    const docName = appointment.doctorId?.name || user?.name || 'Doctor';
+
+    if (status === 'IN_CONSULTATION') {
+      WorkflowEventService.emit(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
+        patientName: pName,
+        uhid,
+        doctorName: docName,
+        linkedPath: '/reception/registered-patients?tab=QUEUED',
+      }, appointment.branchId);
+    } else if (status === 'COMPLETED') {
+      WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+        patientName: pName,
+        uhid,
+        doctorName: docName,
+        linkedPath: '/billing/dashboard',
+      }, appointment.branchId);
+    }
 
     return appointment;
   }

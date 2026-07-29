@@ -3,7 +3,7 @@ import { axiosClient } from '../api/axiosClient';
 
 const getSavedReadIds = () => {
   try {
-    const saved = localStorage.getItem('hpmbs_read_notifs');
+    const saved = localStorage.getItem('hpmbs_dept_read_notifs');
     return saved ? JSON.parse(saved) : [];
   } catch (e) {
     return [];
@@ -16,55 +16,45 @@ const saveReadIdToStorage = (id) => {
     const strId = String(id);
     if (!readIds.includes(strId)) {
       const updated = [...readIds, strId];
-      localStorage.setItem('hpmbs_read_notifs', JSON.stringify(updated));
+      localStorage.setItem('hpmbs_dept_read_notifs', JSON.stringify(updated));
     }
   } catch (e) {}
 };
 
-export const useNotificationStore = create((set, get) => ({
+export const useDepartmentNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
 
-  // Add a new notification with strict deduplication
+  // Add notification with strict deduplication
   addNotification: (data) => {
     const { notifications } = get();
-    const notifId = data.id || `${data.orderId || ''}_${data.status || ''}_${data.testName || ''}`;
+    const notifId = data.id || `${data.event || 'EVT'}_${data.orderId || data.patientId || Date.now()}`;
     const readIds = getSavedReadIds();
-    const isAlreadyRead = readIds.includes(String(data.orderId)) || readIds.includes(String(notifId));
+    const isAlreadyRead = readIds.includes(String(notifId)) || (data.orderId && readIds.includes(String(data.orderId)));
 
-    // Check if notification already exists
-    const exists = notifications.some(
-      (n) => n.id === notifId || (data.orderId && n.orderId === data.orderId && n.status === data.status)
-    );
-
-    if (exists) return; // Do not allow duplicate notification to increment count
+    const exists = notifications.some((n) => n.id === notifId);
+    if (exists) return;
 
     const newNotif = {
       id: notifId,
-      orderId: data.orderId,
-      patientId: data.patientId,
+      event: data.event || 'WORKFLOW_EVENT',
+      title: data.title || 'Department Notification',
+      message: data.message || '',
       patientName: data.patientName || 'Patient',
       uhid: data.uhid || 'N/A',
-      testName: data.testName || 'Diagnostic Test',
-      status: data.status || 'COMPLETED',
-      title: data.title || `Report Ready: ${data.testName || 'Investigation'}`,
-      message: data.message || `Diagnostic scan/report completed for ${data.patientName || 'patient'} (${data.uhid || ''}).`,
-      reportSummary: data.reportSummary || '',
+      orderId: data.orderId || null,
+      linkedPath: data.linkedPath || null,
       timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
       isRead: isAlreadyRead,
-      category: data.category || 'INVESTIGATION',
+      priority: data.priority || 'NORMAL',
     };
 
     const updated = [newNotif, ...notifications];
-    const newUnread = updated.filter((n) => !n.isRead).length;
+    const unread = updated.filter((n) => !n.isRead).length;
 
-    set({
-      notifications: updated,
-      unreadCount: newUnread,
-    });
+    set({ notifications: updated, unreadCount: unread });
   },
 
-  // Mark a single notification as read (reduces count by 1, moves to read history)
   markAsRead: (id) => {
     const { notifications } = get();
     saveReadIdToStorage(id);
@@ -79,29 +69,38 @@ export const useNotificationStore = create((set, get) => ({
     });
 
     if (countChanged) {
-      const newUnread = updated.filter((n) => !n.isRead).length;
-      set({
-        notifications: updated,
-        unreadCount: newUnread,
-      });
+      const unread = updated.filter((n) => !n.isRead).length;
+      set({ notifications: updated, unreadCount: unread });
     }
   },
 
-  // Mark all notifications as read
   markAllAsRead: () => {
     const { notifications } = get();
     notifications.forEach((n) => {
-      if (n.orderId) saveReadIdToStorage(n.orderId);
       if (n.id) saveReadIdToStorage(n.id);
+      if (n.orderId) saveReadIdToStorage(n.orderId);
     });
     const updated = notifications.map((n) => ({ ...n, isRead: true }));
-    set({
-      notifications: updated,
-      unreadCount: 0,
-    });
+    set({ notifications: updated, unreadCount: 0 });
   },
 
-  // Fetch initial completed reports for doctor from server
+  getUnreadCountForNav: (navPath) => {
+    const { notifications } = get();
+    if (!navPath) return 0;
+
+    const [pathname, search] = navPath.split('?');
+    return notifications.filter((n) => {
+      if (n.isRead) return false;
+      if (!n.linkedPath) return false;
+
+      const [nPathname, nSearch] = n.linkedPath.split('?');
+      if (search && nSearch) {
+        return pathname === nPathname && search === nSearch;
+      }
+      return pathname === nPathname;
+    }).length;
+  },
+
   fetchInitialNotifications: async () => {
     try {
       const res = await axiosClient.get('/diagnostics/orders');
@@ -119,27 +118,22 @@ export const useNotificationStore = create((set, get) => ({
         return {
           id: notifId,
           orderId: ord._id,
-          patientId: ord.patientId?._id || ord.patientId,
+          event: 'LAB_SUBMITTED',
           patientName: ord.patientName || (ord.patientId ? `${ord.patientId.firstName || ''} ${ord.patientId.lastName || ''}`.trim() : 'Patient'),
           uhid: ord.uhid || ord.patientId?.uhid || 'N/A',
-          testName: ord.testName || 'Diagnostic Scan',
-          status: ord.status,
           title: `Report Ready: ${ord.testName}`,
-          message: ord.reportSummary || `Diagnostic scan findings uploaded by ${ord.technicianName || 'Specialist'}.`,
-          reportSummary: ord.reportSummary || '',
+          message: ord.reportSummary || `Diagnostic scan report completed for ${ord.patientName || 'Patient'}.`,
           timestamp: ord.updatedAt ? new Date(ord.updatedAt) : new Date(),
           isRead,
-          category: ord.testCategory || 'INVESTIGATION',
+          linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+          priority: 'HIGH',
         };
       });
 
       const unread = fetchedNotifs.filter((n) => !n.isRead).length;
-      set({
-        notifications: fetchedNotifs,
-        unreadCount: unread,
-      });
+      set({ notifications: fetchedNotifs, unreadCount: unread });
     } catch (err) {
-      console.error('Failed to load initial notifications:', err);
+      console.error('Failed to fetch initial department notifications:', err);
     }
   },
 }));

@@ -71,6 +71,22 @@ class SocketManager {
     }
   }
 
+  emitToRoles(roles, event, data) {
+    if (this.io && Array.isArray(roles)) {
+      roles.forEach((role) => {
+        this.io.to(`role_${role}`).emit(event, data);
+      });
+    }
+  }
+
+  emitEmergency(event, data) {
+    if (this.io) {
+      this.io.emit('emergency:alert', data);
+      this.io.emit('emergency:code_blue_triggered', data);
+      this.io.emit(event, data);
+    }
+  }
+
   broadcastCodeBlue(data) {
     if (this.io) {
       this.io.emit('emergency:code_blue_triggered', data);

@@ -48,10 +48,10 @@ export const CashierDashboard = () => {
   useEffect(() => {
     if (isReceiptsRoute) {
       setActiveTab('RECEIPTS');
-    } else if (tabParam === 'UNPAID') {
+    } else {
       setActiveTab('UNPAID');
     }
-  }, [isReceiptsRoute, tabParam]);
+  }, [isReceiptsRoute, tabParam, location.search, location.pathname]);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [unpaidInvoices, setUnpaidInvoices] = useState([]);
   const [allReceipts, setAllReceipts] = useState([]);
@@ -139,7 +139,8 @@ export const CashierDashboard = () => {
 
   const patient    = selectedInvoice?.patientId;
   const consult    = selectedInvoice?.consultation;
-  const doctor     = consult?.doctorId;
+  const doctor     = selectedInvoice?.doctorId || consult?.doctorId;
+  const doctorName = selectedInvoice?.doctorName || (doctor?.name ? `Dr. ${doctor.name}` : (consult?.doctorId?.name ? `Dr. ${consult.doctorId.name}` : null));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -170,8 +171,6 @@ export const CashierDashboard = () => {
         </div>
       )}
 
-
-
       {activeTab === 'UNPAID' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Pending Invoice Queue */}
@@ -187,7 +186,8 @@ export const CashierDashboard = () => {
               <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
                 {unpaidInvoices.map((inv) => {
                   const pat = inv.patientId || {};
-                  const doc = inv.consultation?.doctorId;
+                  const docObj = inv.doctorId || inv.consultation?.doctorId;
+                  const docNameStr = inv.doctorName || docObj?.name || inv.consultation?.doctorId?.name;
                   const isSelected = selectedInvoice?._id === inv._id;
                   return (
                     <div
@@ -210,10 +210,10 @@ export const CashierDashboard = () => {
                         </span>
                       </div>
                       <p className="font-bold text-slate-900 text-sm">{pat.firstName} {pat.lastName}</p>
-                      {doc && (
-                        <p className="text-slate-500 text-[10px] mt-0.5">
+                      {docNameStr && (
+                        <p className="text-slate-600 font-semibold text-[10px] mt-0.5">
                           <Stethoscope size={10} className="inline mr-0.5 text-indigo-500" />
-                          Dr. {doc.name} — {doc.specialization || 'General'}
+                          {docNameStr.startsWith('Dr.') ? docNameStr : `Dr. ${docNameStr}`}
                         </p>
                       )}
                       <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-200">
@@ -270,11 +270,13 @@ export const CashierDashboard = () => {
                       )}
                     </div>
                   </div>
-                  {doctor && (
+                  {(doctorName || doctor) && (
                     <div className="text-right">
-                      <p className="text-slate-500 text-[10px] uppercase tracking-wider">Consulting Doctor</p>
-                      <p className="text-slate-900 font-bold">Dr. {doctor.name}</p>
-                      <p className="text-indigo-600 text-[10px]">{doctor.specialization || 'General OPD'}</p>
+                      <p className="text-slate-500 text-[10px] uppercase tracking-wider font-bold">Attending / Billed Doctor</p>
+                      <p className="text-slate-900 font-extrabold text-sm">
+                        {doctorName ? (doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`) : `Dr. ${doctor?.name}`}
+                      </p>
+                      <p className="text-indigo-600 text-[10px] font-semibold">{doctor?.specialization || 'Consultant Specialist'}</p>
                     </div>
                   )}
                 </div>
@@ -433,6 +435,8 @@ export const CashierDashboard = () => {
                 {filteredReceipts.length > 0 ? (
                   filteredReceipts.map((rc) => {
                     const pat = rc.patientId || rc.invoiceId?.patientId || {};
+                    const rcDocObj = rc.invoiceId?.doctorId || rc.invoiceId?.consultation?.doctorId;
+                    const rcDocName = rc.invoiceId?.doctorName || rcDocObj?.name || rc.invoiceId?.consultation?.doctorId?.name;
                     return (
                       <tr key={rc._id} className="hover:bg-slate-50">
                         <td className="p-3">
@@ -444,6 +448,12 @@ export const CashierDashboard = () => {
                           <p className="text-slate-500 text-[10px] font-mono">
                             UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
                           </p>
+                          {rcDocName && (
+                            <p className="text-indigo-600 text-[10px] font-bold mt-0.5">
+                              <Stethoscope size={10} className="inline mr-0.5 text-indigo-500" />
+                              {rcDocName.startsWith('Dr.') ? rcDocName : `Dr. ${rcDocName}`}
+                            </p>
+                          )}
                         </td>
                         <td className="p-3 text-center">
                           <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -544,6 +554,17 @@ export const CashierDashboard = () => {
                 </span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2">
+                <span className="text-slate-500">Attending Doctor:</span>
+                <span className="font-bold text-slate-900">
+                  {(() => {
+                    const dName = selectedReceiptForView.invoiceId?.doctorName ||
+                                  selectedReceiptForView.invoiceId?.doctorId?.name ||
+                                  selectedReceiptForView.invoiceId?.consultation?.doctorId?.name;
+                    return dName ? (dName.startsWith('Dr.') ? dName : `Dr. ${dName}`) : 'Consultant Specialist';
+                  })()}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-500">Invoice No:</span>
                 <span className="font-mono text-slate-900">{selectedReceiptForView.invoiceId?.invoiceNo || 'INV'}</span>
               </div>

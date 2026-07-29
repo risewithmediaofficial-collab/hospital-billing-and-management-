@@ -4,6 +4,7 @@ import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { AuditLog } from '../../models/AuditLog.js';
 import { socketManager } from '../../events/socketManager.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 
 export class DiagnosticsService {
@@ -98,6 +99,19 @@ export class DiagnosticsService {
       createdAt: newOrder.createdAt,
     });
 
+    const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(testCategory);
+    const evtName = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED : WORKFLOW_EVENTS.LAB_ORDER_CREATED;
+    WorkflowEventService.emit(evtName, {
+      orderId: newOrder._id,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      uhid: patient.uhid,
+      doctorName,
+      testName,
+      testCategory,
+      priority,
+      linkedPath: isRadio ? '/radiology/dashboard' : '/laboratory/dashboard',
+    }, branchId);
+
     return newOrder;
   }
 
@@ -155,6 +169,28 @@ export class DiagnosticsService {
     }
     if (socketManager.io) {
       socketManager.io.emit('investigation:status_updated', payload);
+    }
+
+    const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
+    if (status === 'ACCEPTED') {
+      const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED : WORKFLOW_EVENTS.LAB_ACCEPTED;
+      WorkflowEventService.emit(evt, {
+        orderId: order._id,
+        patientName: order.patientName,
+        uhid: order.uhid,
+        testName: order.testName,
+        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      }, order.branchId);
+    } else if (status === 'COMPLETED' || status === 'REPORT_UPLOADED') {
+      const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED;
+      WorkflowEventService.emit(evt, {
+        orderId: order._id,
+        patientName: order.patientName,
+        uhid: order.uhid,
+        testName: order.testName,
+        reportSummary: order.reportSummary,
+        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      }, order.branchId);
     }
 
     return order;

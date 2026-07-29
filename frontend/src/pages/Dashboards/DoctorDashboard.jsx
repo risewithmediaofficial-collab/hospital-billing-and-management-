@@ -9,6 +9,7 @@ import { RequestInvestigationModal } from '../../components/modals/RequestInvest
 import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { axiosClient } from '../../api/axiosClient';
@@ -30,13 +31,14 @@ import {
   Power,
   X,
   Search,
+  Clock,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const { markAsRead, addNotification } = useNotificationStore();
+  const { notifications, markAsRead, addNotification } = useDepartmentNotificationStore();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
   const [liveQueue, setLiveQueue] = useState([]);
   const [completedQueue, setCompletedQueue] = useState([]);
@@ -77,6 +79,16 @@ export const DoctorDashboard = () => {
     fetchOpdQueue();
     fetchDepartmentOrders();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'DEPT_RESPONSES' && departmentOrders.length > 0) {
+      departmentOrders.forEach((ord) => {
+        if (ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED') {
+          markAsRead(ord._id);
+        }
+      });
+    }
+  }, [activeTab, departmentOrders, markAsRead]);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
   useEffect(() => {
@@ -446,7 +458,7 @@ export const DoctorDashboard = () => {
       )}
 
       {/* Main EMR Content Area based on Active Sub-Navbar Tab */}
-      {activeTab === 'LIVE' && (
+      {(activeTab === 'LIVE' || activeTab === 'OVERVIEW') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Queued Patient List */}
           <Card className="lg:col-span-1 space-y-3 bg-white border border-slate-200 shadow-sm text-black">
@@ -747,28 +759,66 @@ export const DoctorDashboard = () => {
                           {ord.reportSummary ? `"${ord.reportSummary}"` : 'Awaiting technician entry'}
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                            isReady ? 'bg-emerald-600 text-white animate-pulse' :
-                            ord.status === 'REQUESTED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-sky-50 text-sky-700 border-sky-200'
-                          }`}>
-                            {isReady ? '✅ REPORT READY' : ord.status}
-                          </span>
+                          {ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED' ? (
+                            <span className="text-xs font-bold text-slate-900">
+                              Report Ready
+                            </span>
+                          ) : ord.status === 'ACCEPTED' ? (
+                            <span className="text-xs font-medium text-slate-600">
+                              Accepted & Processing by Dept
+                            </span>
+                          ) : (
+                            <span className="text-xs font-normal text-slate-500">
+                              Pending Dept Acceptance
+                            </span>
+                          )}
                         </td>
                         <td className="p-3 text-right">
-                          {ord.attachments?.length > 0 ? (
-                            <a
-                              href={ord.attachments[0].fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={() => markAsRead(ord._id)}
-                              className="px-2.5 py-1 rounded bg-sky-50 border border-sky-200 text-sky-700 hover:text-sky-900 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
-                            >
-                              <Eye size={12} /> View Scan
-                            </a>
-                          ) : (
-                            <span className="text-[11px] text-slate-500 font-mono">No scans</span>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {ord.attachments?.length > 0 && (
+                              <a
+                                href={ord.attachments[0].fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => markAsRead(ord._id)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
+                              >
+                                <Eye size={12} /> View Scan
+                              </a>
+                            )}
+
+                            {ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED' ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  markAsRead(ord._id);
+                                  try {
+                                    await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
+                                    fetchDepartmentOrders();
+                                  } catch (e) {
+                                    console.error('Failed to approve charge:', e);
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
+                                  ord.chargeStatus === 'APPROVED' || (notifications.find((n) => n.orderId === ord._id || n.id?.includes(ord._id))?.isRead)
+                                    ? 'bg-slate-100 border border-slate-300 text-slate-700'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                                }`}
+                              >
+                                <CheckCircle2 size={12} />
+                                {ord.chargeStatus === 'APPROVED' || (notifications.find((n) => n.orderId === ord._id || n.id?.includes(ord._id))?.isRead) ? 'Doctor Accepted' : 'Accept Report'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
+                                title="Report is being processed by department. You will be unlocked when department submits final report."
+                              >
+                                <Clock size={12} /> {ord.status === 'ACCEPTED' ? 'Dept Processing...' : 'Pending Dept'}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
