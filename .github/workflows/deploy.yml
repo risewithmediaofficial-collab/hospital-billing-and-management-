@@ -19,9 +19,9 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          port: 22
-          timeout: 60s          # ← connection timeout
-          command_timeout: 10m  # ← script execution timeout
+          port: ${{ secrets.PORT || 22 }}
+          timeout: 120s         # ← connection timeout
+          command_timeout: 15m  # ← script execution timeout
           script: |
             mkdir -p /docker/hospital-billing
             cd /docker/hospital-billing

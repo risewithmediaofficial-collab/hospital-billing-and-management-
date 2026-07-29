@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
-import { Building2, ShieldCheck, CheckCircle, Clock, Users, PlusCircle, X, Key } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, XCircle, Clock, Users, PlusCircle, X, Key } from 'lucide-react';
 
 export const SuperAdminDashboard = () => {
   const [hospitals, setHospitals] = useState([]);
@@ -48,6 +48,20 @@ export const SuperAdminDashboard = () => {
       fetchHospitals();
     } catch (err) {
       setActionMessage(`Failed to approve hospital: ${err.error?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReject = async (hospitalId, name) => {
+    setIsLoading(true);
+    setActionMessage(null);
+    try {
+      await axiosClient.patch(`/saas/hospitals/${hospitalId}/status`, { status: 'REJECTED' });
+      setActionMessage(`Hospital registration application for '${name}' has been rejected.`);
+      fetchHospitals();
+    } catch (err) {
+      setActionMessage(`Failed to reject hospital: ${err.error?.message || err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -150,9 +164,12 @@ export const SuperAdminDashboard = () => {
                         PENDING
                       </span>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right space-x-2">
                       <Button size="sm" variant="primary" className="font-bold" isLoading={isLoading} onClick={() => handleApprove(hosp._id, hosp.name)}>
-                        <CheckCircle size={14} /> Approve Hospital Tenant
+                        <CheckCircle size={14} /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="font-bold border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" isLoading={isLoading} onClick={() => handleReject(hosp._id, hosp.name)}>
+                        <XCircle size={14} /> Reject
                       </Button>
                     </td>
                   </tr>

@@ -7,7 +7,7 @@ const hospitalSchema = new mongoose.Schema(
     subdomain: { type: String, required: true, unique: true, lowercase: true, trim: true },
     status: {
       type: String,
-      enum: ['PENDING_APPROVAL', 'APPROVED', 'SUSPENDED'],
+      enum: ['PENDING_APPROVAL', 'APPROVED', 'SUSPENDED', 'REJECTED'],
       default: 'PENDING_APPROVAL',
       index: true,
     },
