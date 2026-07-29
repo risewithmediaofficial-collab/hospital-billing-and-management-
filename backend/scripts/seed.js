@@ -80,13 +80,14 @@ async function seedDatabase() {
 
     console.log('[Seed] Creating Master Platform Super Admin Account...');
     const superAdminPassword = '0000';
+    const hashedSuperAdminPassword = await bcrypt.hash(superAdminPassword, 12);
 
     const superAdminUser = await User.create({
       hospitalId: platformHospital._id,
       branchId: mainBranch._id,
       name: 'Platform Master Owner',
       email: 'superadmin@gmail.com',
-      passwordHash: superAdminPassword,
+      passwordHash: hashedSuperAdminPassword,
       assignedPasswordHint: superAdminPassword,
       role: ROLES.SUPER_ADMIN,
       phone: '+1 (800) 555-SAAS',

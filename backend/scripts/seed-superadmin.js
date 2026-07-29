@@ -61,12 +61,13 @@ async function seedSuperAdmin() {
 
     const superAdminEmail = 'superadmin@gmail.com';
     const superAdminPassword = '0000';
+    const hashedPassword = await bcrypt.hash(superAdminPassword, 12);
 
     let superAdminUser = await User.findOne({ email: superAdminEmail });
 
     if (superAdminUser) {
-      console.log(`[Seed SuperAdmin] User '${superAdminEmail}' exists. Updating password to '0000'...`);
-      superAdminUser.passwordHash = superAdminPassword;
+      console.log(`[Seed SuperAdmin] User '${superAdminEmail}' exists. Updating password hash...`);
+      superAdminUser.passwordHash = hashedPassword;
       superAdminUser.assignedPasswordHint = superAdminPassword;
       superAdminUser.role = ROLES.SUPER_ADMIN;
       superAdminUser.status = 'ACTIVE';
@@ -79,7 +80,7 @@ async function seedSuperAdmin() {
         branchId: mainBranch._id,
         name: 'Platform Master Owner',
         email: superAdminEmail,
-        passwordHash: superAdminPassword,
+        passwordHash: hashedPassword,
         assignedPasswordHint: superAdminPassword,
         role: ROLES.SUPER_ADMIN,
         phone: '+1 (800) 555-SAAS',
