@@ -61,10 +61,21 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
     return location.pathname === itemPathname || location.pathname.startsWith(`${itemPathname}/`);
   };
 
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   return (
     <>
       {isOpen && (
-        <div onClick={onClose} className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden" aria-hidden="true" />
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden" aria-hidden="true" />
       )}
 
       <aside
@@ -72,14 +83,24 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-200 flex-shrink-0 bg-white">
-          <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0 shadow-sm">
-            SA
+        <div className="h-16 px-5 flex items-center justify-between gap-3 border-b border-slate-200 flex-shrink-0 bg-white">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0 shadow-sm">
+              SA
+            </div>
+            <div className="min-w-0">
+              <span className="font-extrabold text-slate-800 text-sm tracking-tight leading-none block">Super Admin</span>
+              <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Platform Control</span>
+            </div>
           </div>
-          <div className="min-w-0">
-            <span className="font-extrabold text-slate-800 text-sm tracking-tight leading-none block">Super Admin</span>
-            <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Platform Control</span>
-          </div>
+
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+            aria-label="Close sidebar"
+          >
+            <Icons.X size={20} />
+          </button>
         </div>
 
         {drilldownHospitalId && (
