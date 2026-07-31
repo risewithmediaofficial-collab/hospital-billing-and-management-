@@ -1,12 +1,52 @@
-import React from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import * as Icons from 'lucide-react';
 import { SUPER_ADMIN_NAVIGATION, HOSPITAL_DRILLDOWN_NAVIGATION } from '../../utils/superAdminNavigation';
 import { useSuperAdminContextStore } from '../../store/superAdminContextStore';
 
+let savedSuperAdminSidebarScrollTop = 0;
+
 export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null }) => {
   const location = useLocation();
   const { selectedHospitalName } = useSuperAdminContextStore();
+  const navRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const restore = () => {
+      if (navRef.current && savedSuperAdminSidebarScrollTop > 0) {
+        navRef.current.scrollTop = savedSuperAdminSidebarScrollTop;
+      }
+    };
+
+    restore();
+
+    const handle1 = requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(restore);
+    });
+
+    const timer1 = setTimeout(restore, 20);
+    const timer2 = setTimeout(restore, 100);
+
+    return () => {
+      cancelAnimationFrame(handle1);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [location.pathname, location.search]);
+
+  const handleNavScroll = (e) => {
+    if (e.currentTarget.scrollTop > 0) {
+      savedSuperAdminSidebarScrollTop = e.currentTarget.scrollTop;
+    }
+  };
+
+  const handleLinkClick = () => {
+    if (navRef.current && navRef.current.scrollTop > 0) {
+      savedSuperAdminSidebarScrollTop = navRef.current.scrollTop;
+    }
+    if (onClose) onClose();
+  };
 
   const menuItems = drilldownHospitalId
     ? HOSPITAL_DRILLDOWN_NAVIGATION(drilldownHospitalId)
@@ -28,7 +68,7 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
       )}
 
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-lg lg:shadow-none ${
+        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-64 h-full max-h-screen bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-lg lg:shadow-none shrink-0 overflow-hidden ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -43,7 +83,7 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
         </div>
 
         {drilldownHospitalId && (
-          <div className="px-3 pt-3 pb-1">
+          <div className="px-3 pt-3 pb-1 shrink-0">
             <div className="px-3 py-2.5 rounded-lg bg-violet-50 border border-violet-100 text-xs">
               <p className="text-violet-400 uppercase tracking-wider text-[10px] font-bold">Hospital Context</p>
               <p className="font-bold text-violet-700 mt-0.5 truncate text-sm">{selectedHospitalName || 'Hospital'}</p>
@@ -51,9 +91,9 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
           </div>
         )}
 
-        <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Navigation</p>
+        <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Navigation</p>
 
-        <nav className="flex-1 px-3 pb-3 space-y-0.5 overflow-y-auto" aria-label="Super Admin navigation">
+        <nav ref={navRef} onScroll={handleNavScroll} className="flex-1 min-h-0 px-3 pb-3 space-y-0.5 overflow-y-auto" aria-label="Super Admin navigation">
           {menuItems.map((item) => {
             const IconComponent = Icons[item.icon] || Icons.Circle;
             const active = isItemActive(item.path);
@@ -61,7 +101,7 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={onClose}
+                onClick={handleLinkClick}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
                   active

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { Navbar } from '../components/layout/Navbar';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -46,16 +46,25 @@ import { EmergencyConsoleView } from '../pages/Emergency/EmergencyConsoleView';
 const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuthStore();
+  const location = useLocation();
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [location.pathname, location.search]);
+
   const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];
   const shouldHideSidebar = hideSidebar || menuItems.length === 0;
 
   return (
-    <div className="min-h-screen flex bg-slate-100 text-slate-900">
+    <div className="h-screen max-h-screen flex bg-slate-100 text-slate-900 overflow-hidden">
       {!shouldHideSidebar && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Navbar onToggleSidebar={shouldHideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
         <EmergencyBanner />
-        <main className={`flex-1 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
+        <main ref={mainRef} className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
       <GlobalCodeBlueModal />
     </div>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { LogOut, Bell, Menu, Shield } from 'lucide-react';
@@ -15,18 +15,27 @@ export const SuperAdminLayout = ({ children, noPadding = false }) => {
   const { user, logout } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const { hospitalId } = useParams();
+  const location = useLocation();
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [location.pathname, location.search]);
+
   const isDrilldown = Boolean(hospitalId);
 
   return (
-    <div className="min-h-screen flex bg-slate-100 text-slate-900">
+    <div className="h-screen max-h-screen flex bg-slate-100 text-slate-900 overflow-hidden">
       <SuperAdminSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         drilldownHospitalId={hospitalId || null}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 border-b border-slate-200 bg-white sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between gap-3 shadow-sm">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <header className="h-16 border-b border-slate-200 bg-white shrink-0 px-4 sm:px-6 flex items-center justify-between gap-3 shadow-sm z-30">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -85,7 +94,7 @@ export const SuperAdminLayout = ({ children, noPadding = false }) => {
           <GlobalSearchBar />
         </div>
 
-        <main className={`flex-1 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
+        <main ref={mainRef} className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
 
     </div>

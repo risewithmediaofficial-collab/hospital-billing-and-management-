@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
@@ -7,6 +7,8 @@ import { useEmergencyStore } from '../../store/emergencyStore';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
 import * as Icons from 'lucide-react';
+
+let savedSidebarScrollTop = 0;
 
 const ALL_MODULE_NAVIGATION = [
   { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
@@ -97,6 +99,44 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { addNotification, fetchInitialNotifications, getUnreadCountForNav } = useDepartmentNotificationStore();
   const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
   const location = useLocation();
+  const navRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const restore = () => {
+      if (navRef.current && savedSidebarScrollTop > 0) {
+        navRef.current.scrollTop = savedSidebarScrollTop;
+      }
+    };
+
+    restore();
+
+    const handle1 = requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(restore);
+    });
+
+    const timer1 = setTimeout(restore, 20);
+    const timer2 = setTimeout(restore, 100);
+
+    return () => {
+      cancelAnimationFrame(handle1);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [location.pathname, location.search]);
+
+  const handleNavScroll = (e) => {
+    if (e.currentTarget.scrollTop > 0) {
+      savedSidebarScrollTop = e.currentTarget.scrollTop;
+    }
+  };
+
+  const handleLinkClick = () => {
+    if (navRef.current && navRef.current.scrollTop > 0) {
+      savedSidebarScrollTop = navRef.current.scrollTop;
+    }
+    if (onClose) onClose();
+  };
 
   const userRoles = [
     user?.role,
@@ -220,7 +260,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       )}
 
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-lg lg:shadow-none ${
+        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-64 h-full max-h-screen bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-lg lg:shadow-none shrink-0 overflow-hidden ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -240,7 +280,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Role Identity Badge */}
-        <div className="px-3 pt-3 pb-1">
+        <div className="px-3 pt-3 pb-1 shrink-0">
           <div className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
             <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
               Active Roles & Privileges
@@ -257,13 +297,15 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Divider label */}
-        <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
           Navigation
         </p>
 
         {/* Navigation Links */}
         <nav
-          className="flex-1 px-3 pb-3 space-y-0.5 overflow-y-auto"
+          ref={navRef}
+          onScroll={handleNavScroll}
+          className="flex-1 min-h-0 px-3 pb-3 space-y-0.5 overflow-y-auto"
           aria-label="Sidebar navigation"
         >
           {menuItems.map((item) => {
@@ -278,7 +320,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={onClose}
+                onClick={handleLinkClick}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
                   active
