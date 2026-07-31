@@ -285,7 +285,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 HPMBS
               </span>
               <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
-                Enterprise SaaS
+                Healthcare System
               </span>
             </div>
           </div>
@@ -303,7 +303,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         <div className="px-3 pt-3 pb-1 shrink-0">
           <div className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
             <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
-              Active Roles & Privileges
+              Active User Role
             </p>
             <p className="font-bold text-indigo-700 mt-0.5 truncate text-sm">
               {primaryRoleName}
@@ -318,7 +318,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
         {/* Divider label */}
         <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-          Navigation
+          Main Menu
         </p>
 
         {/* Navigation Links */}
@@ -389,7 +389,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 flex-shrink-0 bg-slate-50">
           <p className="text-[11px] text-slate-400 font-medium text-center">
-            HPMBS v1.0.0 &mdash; HIPAA Compliant
+            HPMBS Enterprise OS v2.4.0 &mdash; ISO &amp; HIPAA Compliant
           </p>
         </div>
       </aside>

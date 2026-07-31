@@ -19,7 +19,7 @@ export const GenericSubView = ({ title, subtitle, icon: IconName, stats = [], ac
             </div>
             <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">{title}</h2>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">Route Path: <span className="font-mono text-neutral-600">{location.pathname}</span> — {subtitle}</p>
+          <p className="text-xs text-neutral-500 mt-1 font-medium">{subtitle}</p>
         </div>
 
         {actions.length > 0 && (

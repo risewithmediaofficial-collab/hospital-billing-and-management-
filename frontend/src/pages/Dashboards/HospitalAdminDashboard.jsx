@@ -485,8 +485,10 @@ export const HospitalAdminDashboard = () => {
             Configure Multi-Role Assignments, Department Allocations & Fine-Grained Module Action Privileges
           </p>
         </div>
-        <Button variant="primary" size="sm" onClick={handleOpenCreateModal}>
-          <UserPlus size={16} /> Create Staff Account & Access Configuration
+        <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="w-full sm:w-auto text-xs shrink-0 whitespace-normal text-center sm:text-left py-2.5 sm:py-2">
+          <UserPlus size={16} className="shrink-0" />
+          <span className="sm:hidden">Create Staff Account</span>
+          <span className="hidden sm:inline">Create Staff Account & Access Configuration</span>
         </Button>
       </div>
 
@@ -622,47 +624,51 @@ export const HospitalAdminDashboard = () => {
         <div className="modal-overlay animate-fade-in">
           <div className="modal-container max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header flex-shrink-0">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="p-2 rounded-lg bg-indigo-100 border border-indigo-200 text-indigo-700 flex-shrink-0">
                   <UserCog size={20} />
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-neutral-900">
-                    {staffForm.id ? `Edit Staff Access Configuration: ${staffForm.name}` : 'Create Staff Account & Permission Configuration'}
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm sm:text-base font-bold text-neutral-900 leading-snug break-words">
+                    {staffForm.id ? `Edit Staff: ${staffForm.name}` : 'Create Staff Account & Permissions'}
                   </h3>
-                  <p className="text-xs text-neutral-500 mt-0.5">
+                  <p className="text-xs text-neutral-500 mt-0.5 hidden sm:block">
                     Assign Roles, Departments, Module Navigation & Action-Level Permissions
                   </p>
                 </div>
               </div>
-              <button onClick={() => setIsStaffModalOpen(false)} className="modal-close-btn" aria-label="Close">
+              <button onClick={() => setIsStaffModalOpen(false)} className="modal-close-btn shrink-0" aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Tabs Header */}
-            <div className="flex border-b border-neutral-200 bg-neutral-50 px-6 pt-2 flex-shrink-0">
+            <div className="flex border-b border-neutral-200 bg-neutral-50 px-3 sm:px-6 pt-2 flex-shrink-0 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 type="button"
-                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
+                className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
                   activeFormTab === 'DETAILS'
                     ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg'
                     : 'border-transparent text-neutral-500 hover:text-neutral-900'
                 }`}
                 onClick={() => setActiveFormTab('DETAILS')}
               >
-                <Users size={15} /> 1. Staff Profile, Roles & Departments
+                <Users size={15} />
+                <span className="hidden sm:inline">1. Staff Profile, Roles & Departments</span>
+                <span className="sm:hidden">1. Profile & Roles</span>
               </button>
               <button
                 type="button"
-                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
+                className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
                   activeFormTab === 'PERMISSIONS'
                     ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg'
                     : 'border-transparent text-neutral-500 hover:text-neutral-900'
                 }`}
                 onClick={() => setActiveFormTab('PERMISSIONS')}
               >
-                <SlidersHorizontal size={15} /> 2. Module & Action Permissions Matrix ({Object.values(staffForm.permissions).flat().length} Actions Granted)
+                <SlidersHorizontal size={15} />
+                <span className="hidden sm:inline">2. Module & Action Permissions Matrix ({Object.values(staffForm.permissions).flat().length} Actions Granted)</span>
+                <span className="sm:hidden">2. Permissions ({Object.values(staffForm.permissions).flat().length})</span>
               </button>
             </div>
 
@@ -914,23 +920,25 @@ export const HospitalAdminDashboard = () => {
               </div>
 
               {/* Modal Footer */}
-              <div className="modal-footer flex items-center justify-between border-t border-neutral-200 p-4 bg-neutral-50 flex-shrink-0">
-                <Button type="button" variant="outline" onClick={() => setIsStaffModalOpen(false)}>
+              <div className="modal-footer flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 border-t border-neutral-200 p-3 sm:p-4 bg-neutral-50 flex-shrink-0">
+                <Button type="button" variant="outline" onClick={() => setIsStaffModalOpen(false)} className="w-full sm:w-auto order-2 sm:order-1">
                   Cancel
                 </Button>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto order-1 sm:order-2">
                   {activeFormTab === 'PERMISSIONS' ? (
-                    <Button type="button" variant="outline" onClick={() => setActiveFormTab('DETAILS')}>
+                    <Button type="button" variant="outline" onClick={() => setActiveFormTab('DETAILS')} className="w-full sm:w-auto">
                       &larr; Back to Profile
                     </Button>
                   ) : (
-                    <Button type="button" variant="outline" onClick={() => setActiveFormTab('PERMISSIONS')}>
-                      Next: Permissions Matrix &rarr;
+                    <Button type="button" variant="outline" onClick={() => setActiveFormTab('PERMISSIONS')} className="w-full sm:w-auto">
+                      Next: Permissions &rarr;
                     </Button>
                   )}
-                  <Button type="submit" variant="primary" className="font-bold gap-2" isLoading={isLoading}>
-                    <CheckCircle size={16} /> Save Staff Configuration
+                  <Button type="submit" variant="primary" className="font-bold gap-2 w-full sm:w-auto justify-center" isLoading={isLoading}>
+                    <CheckCircle size={16} />
+                    <span className="sm:hidden">Save Account</span>
+                    <span className="hidden sm:inline">Save Staff Configuration</span>
                   </Button>
                 </div>
               </div>
