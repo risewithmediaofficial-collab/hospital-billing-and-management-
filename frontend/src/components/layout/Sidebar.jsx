@@ -8,13 +8,131 @@ import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
 import * as Icons from 'lucide-react';
 
+const ALL_MODULE_NAVIGATION = [
+  { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
+  { title: 'Patients Management', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
+  { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
+  { title: 'Appointments Desk', path: '/reception/dashboard', icon: 'Calendar', module: 'appointments' },
+  { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
+  { title: 'Nursing Workstation', path: '/nursing/dashboard', icon: 'Activity', module: 'nursing' },
+  { title: 'Patient Vitals & MAR', path: '/nursing/vitals', icon: 'ClipboardList', module: 'nursing' },
+  { title: 'Ward In-Charge Desk', path: '/nurse-incharge/dashboard', icon: 'ShieldCheck', module: 'ipd' },
+  { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory' },
+  { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology' },
+  { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy' },
+  { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing' },
+  { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing' },
+  { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
+  { title: 'Inventory Desk', path: '/inventory/dashboard', icon: 'Boxes', module: 'inventory' },
+  { title: 'HR Desk', path: '/hr/dashboard', icon: 'UserCheck', module: 'hr' },
+];
+
+const checkItemPermission = (user, item) => {
+  if (!user) return false;
+  if (user.role === 'SUPER_ADMIN' || user.role === 'HOSPITAL_ADMIN') {
+    if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
+      return false;
+    }
+    return true;
+  }
+
+  // Explicit module check
+  const permissions = user.permissions || {};
+  if (permissions['*']?.includes('*') || permissions['*']?.includes('view')) return true;
+
+  const targetModule = item.module || ({
+    '/doctor/': 'doctorConsultation', '/reception/': 'appointments', '/nursing/': 'nursing',
+    '/nurse-incharge/': 'ipd', '/laboratory/': 'laboratory', '/radiology/': 'radiology',
+    '/pharmacy/': 'pharmacy', '/billing/': 'billing', '/inventory/': 'inventory', '/hr/': 'hr',
+    '/emergency': 'emergency',
+  })[Object.keys({
+    '/doctor/': 1, '/reception/': 1, '/nursing/': 1, '/nurse-incharge/': 1, '/laboratory/': 1, '/radiology/': 1, '/pharmacy/': 1, '/billing/': 1, '/inventory/': 1, '/hr/': 1, '/emergency': 1,
+  }).find((prefix) => item.path.startsWith(prefix))];
+
+  if (!targetModule) return false;
+
+  const aliases = {
+    dashboard: ['dashboard', 'doctorConsultation', 'doctor'],
+    doctor: ['doctor', 'doctorConsultation', 'emr'],
+    doctorConsultation: ['doctorConsultation', 'doctor', 'emr', 'dashboard'],
+    patients: ['patients', 'patientRegistration'],
+    patientRegistration: ['patientRegistration', 'patients'],
+    appointments: ['appointments', 'reception', 'tokens'],
+    tokens: ['tokens', 'appointments', 'reception'],
+    reception: ['reception', 'appointments', 'patientRegistration', 'tokens', 'patients'],
+    nursing: ['nursing'],
+    ipd: ['ipd', 'nursing', 'beds'],
+    beds: ['beds', 'ipd'],
+    laboratory: ['laboratory', 'diagnostics'],
+    radiology: ['radiology', 'diagnostics'],
+    pharmacy: ['pharmacy'],
+    billing: ['billing'],
+    inventory: ['inventory'],
+    hr: ['hr'],
+    emergency: ['emergency'],
+    notifications: ['notifications'],
+    reports: ['reports'],
+    auditLogs: ['auditLogs'],
+    hospitalSettings: ['hospitalSettings'],
+  }[targetModule] || [targetModule];
+
+  for (const mod of aliases) {
+    const values = permissions[mod];
+    if (Array.isArray(values) && values.length > 0) {
+      if (values.includes('*') || values.includes('view') || values.some((a) => typeof a === 'string')) {
+        return true;
+      }
+    }
+    if (typeof values === 'object' && values !== null && (values.view === true || values['*'] === true)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const Sidebar = ({ isOpen, onClose }) => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
   const { addNotification, fetchInitialNotifications, getUnreadCountForNav } = useDepartmentNotificationStore();
   const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
   const location = useLocation();
-  const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];
+
+  const userRoles = [
+    user?.role,
+    ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
+  ].filter(Boolean);
+
+  let menuItems = [];
+  if (user?.role === 'HOSPITAL_ADMIN') {
+    const adminNavs = ROLE_NAVIGATION.HOSPITAL_ADMIN || [];
+    menuItems = adminNavs.filter((item) => {
+      if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
+        return false;
+      }
+      return true;
+    });
+  } else {
+    let rawItems = [];
+    userRoles.forEach((roleCode) => {
+      const navs = ROLE_NAVIGATION[roleCode] || [];
+      rawItems.push(...navs);
+    });
+
+    ALL_MODULE_NAVIGATION.forEach((navItem) => {
+      if (checkItemPermission(user, navItem)) {
+        rawItems.push(navItem);
+      }
+    });
+
+    const seenPaths = new Set();
+    menuItems = rawItems.filter((item) => {
+      if (!item?.path) return false;
+      if (seenPaths.has(item.path)) return false;
+      seenPaths.add(item.path);
+      return checkItemPermission(user, item);
+    });
+  }
 
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
 
@@ -60,7 +178,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
   }, [socket, addNotification, addEmergency]);
 
   useEffect(() => {
-    if (!user?.role || !['CASHIER', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
+    if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
 
     const fetchReceiptsCount = async () => {
       try {
@@ -86,6 +204,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
     }
     return location.pathname === itemPathname && !location.search.includes('tab=');
   };
+
+  const primaryRoleName = ROLE_NAMES[user?.role] || user?.role || 'Staff Member';
+  const additionalRoleNames = (user?.additionalRoles || []).map((r) => ROLE_NAMES[r] || r).join(', ');
 
   return (
     <>
@@ -122,11 +243,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
         <div className="px-3 pt-3 pb-1">
           <div className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
             <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
-              Active Role
+              Active Roles & Privileges
             </p>
             <p className="font-bold text-indigo-700 mt-0.5 truncate text-sm">
-              {ROLE_NAMES[user?.role] || user?.role}
+              {primaryRoleName}
             </p>
+            {additionalRoleNames && (
+              <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">
+                + {additionalRoleNames}
+              </p>
+            )}
           </div>
         </div>
 

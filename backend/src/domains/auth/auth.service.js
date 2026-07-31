@@ -1,11 +1,57 @@
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User } from '../../models/User.js';
 import { Role } from '../../models/Role.js';
 import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { ApiError } from '../../utils/apiError.js';
+import { permissionsFor } from '../../config/permissions.js';
 
 export class AuthService {
+  static async assertStaffCreationAllowed(data, requestingUser) {
+    if (!requestingUser?.hospitalId) {
+      throw new ApiError(403, 'A hospital context is required to create staff.', null, 'HOSPITAL_CONTEXT_REQUIRED');
+    }
+
+    const hospital = await Hospital.findById(requestingUser.hospitalId);
+    if (!hospital || !hospital.isActive || hospital.status !== 'APPROVED') {
+      throw new ApiError(403, 'This hospital account is not active for staff provisioning.', null, 'HOSPITAL_INACTIVE');
+    }
+    if (hospital.subscriptionEndDate && hospital.subscriptionEndDate < new Date()) {
+      throw new ApiError(403, 'The hospital subscription has expired. Upgrade the plan to create staff.', null, 'SUBSCRIPTION_EXPIRED');
+    }
+
+    const role = data.role || 'DOCTOR';
+    const roleLimitKey = {
+      HOSPITAL_ADMIN: 'hospitalAdmins', DOCTOR: 'doctors', RECEPTIONIST: 'receptionists',
+      NURSE: 'nurses', NURSE_INCHARGE: 'nurses', LAB_TECH: 'laboratoryStaff',
+      RADIOLOGIST: 'radiologyStaff', PHARMACIST: 'pharmacyStaff', CASHIER: 'billingStaff',
+    }[role];
+    const moduleKey = {
+      DOCTOR: 'doctors', RECEPTIONIST: 'reception', NURSE: 'nursing', NURSE_INCHARGE: 'nursing',
+      LAB_TECH: 'laboratory', RADIOLOGIST: 'radiology', PHARMACIST: 'pharmacy', CASHIER: 'billing',
+    }[role];
+    if (moduleKey && hospital.enabledModules?.[moduleKey] === false) {
+      throw new ApiError(403, `The ${moduleKey} module is not enabled for this hospital.`, null, 'MODULE_DISABLED');
+    }
+
+    const base = { hospitalId: hospital._id, isActive: true };
+    const totalStaff = await User.countDocuments({ ...base, role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] } });
+    const totalLimit = Number(hospital.staffLimits?.totalStaff);
+    if (Number.isFinite(totalLimit) && totalStaff >= totalLimit) {
+      throw new ApiError(403, `The total staff limit (${totalLimit}) for your subscription has been reached.`, null, 'TOTAL_STAFF_LIMIT_REACHED');
+    }
+    if (roleLimitKey) {
+      const roleCount = roleLimitKey === 'nurses'
+        ? await User.countDocuments({ ...base, role: { $in: ['NURSE', 'NURSE_INCHARGE'] } })
+        : await User.countDocuments({ ...base, role });
+      const limit = Number(hospital.staffLimits?.[roleLimitKey]);
+      if (Number.isFinite(limit) && roleCount >= limit) {
+        throw new ApiError(403, `The ${roleLimitKey} limit (${limit}) for your current subscription plan has been reached.`, null, 'ROLE_STAFF_LIMIT_REACHED');
+      }
+    }
+  }
+
   static async login(email, password) {
     const cleanEmail = email ? String(email).toLowerCase().trim() : '';
     const user = await User.findOne({ email: cleanEmail }).populate('hospitalId').populate('branchId');
@@ -37,10 +83,16 @@ export class AuthService {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        additionalRoles: user.additionalRoles || [],
+        additionalDepartments: user.additionalDepartments || [],
+        status: user.status || (user.isActive ? 'ACTIVE' : 'INACTIVE'),
+        isActive: user.isActive,
         roleName: roleDoc ? roleDoc.name : user.role,
+        permissions: permissionsFor(user, user.hospitalId?.enabledModules),
         defaultRoute: roleDoc ? roleDoc.defaultRoute : '/dashboard',
         hospitalId: user.hospitalId?._id,
         hospitalName: user.hospitalId?.name,
+        enabledModules: user.hospitalId?.enabledModules || {},
         branchId: user.branchId?._id,
         branchName: user.branchId?.name,
       },
@@ -52,10 +104,23 @@ export class AuthService {
   }
 
   static async createStaffUser(data, requestingUser) {
-    const existingUser = await User.findOne({ email: data.email.toLowerCase().trim() });
-    if (existingUser) {
-      throw new ApiError(400, `A user with email '${data.email}' already exists`, null, 'DUPLICATE_EMAIL');
+    if (!data.name || !String(data.name).trim()) {
+      throw new ApiError(400, 'Staff full name is required.', null, 'VALIDATION_ERROR');
     }
+    if (!data.email || !String(data.email).trim()) {
+      throw new ApiError(400, 'Staff email address is required.', null, 'VALIDATION_ERROR');
+    }
+    if (!data.password || !String(data.password).trim()) {
+      throw new ApiError(400, 'Staff account password is required.', null, 'VALIDATION_ERROR');
+    }
+
+    const cleanEmail = String(data.email).toLowerCase().trim();
+    const existingUser = await User.findOne({ email: cleanEmail });
+    if (existingUser) {
+      throw new ApiError(400, `A user with email '${cleanEmail}' already exists`, null, 'DUPLICATE_EMAIL');
+    }
+
+    await this.assertStaffCreationAllowed(data, requestingUser);
 
     let hospitalId = requestingUser?.hospitalId || data.hospitalId;
     if (typeof hospitalId === 'object' && hospitalId?._id) {
@@ -72,11 +137,24 @@ export class AuthService {
     }
 
     if (!branchId && hospitalId) {
-      const branch = await Branch.findOne({ hospitalId });
+      let branch = await Branch.findOne({ hospitalId });
+      if (!branch) {
+        branch = await Branch.findOne({});
+      }
+      if (!branch && hospitalId) {
+        try {
+          branch = await Branch.create({ hospitalId, name: 'Main Branch', code: 'MAIN' });
+        } catch (e) {
+          // ignore creation error
+        }
+      }
       if (branch) branchId = branch._id;
     }
 
     const passwordHash = await bcrypt.hash(data.password, 12);
+
+    const status = data.status || 'ACTIVE';
+    const isActive = status === 'ACTIVE';
 
     const newUser = await User.create({
       hospitalId,
@@ -87,8 +165,18 @@ export class AuthService {
       passwordHash,
       assignedPasswordHint: data.password,
       role: data.role || 'DOCTOR',
+      additionalRoles: Array.isArray(data.additionalRoles) ? data.additionalRoles : [],
+      departmentId: data.departmentId || undefined,
+      additionalDepartments: Array.isArray(data.additionalDepartments) ? data.additionalDepartments : [],
+      employeeId: data.employeeId || '',
+      designation: data.designation || '',
+      assignedUnit: data.assignedUnit || '',
+      shiftDetails: data.shiftDetails || '',
+      permissions: data.permissions || {},
+      revokedPermissions: data.revokedPermissions || {},
       specialization: data.specialization || '',
-      status: 'ACTIVE',
+      status,
+      isActive,
     });
 
     return newUser;
@@ -241,14 +329,25 @@ export class AuthService {
     if (requestingUser.role !== 'SUPER_ADMIN' && requestingUser.hospitalId) {
       const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
       query.hospitalId = hId;
+    } else if (requestingUser.role === 'SUPER_ADMIN' && requestingUser._hospitalContextApplied && requestingUser.hospitalId) {
+      const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
+      query.hospitalId = hId;
     }
     return await User.find(query).select('-passwordHash').sort({ createdAt: -1 });
   }
 
   static async getMe(userId) {
-    const user = await User.findById(userId).populate('hospitalId').populate('branchId').populate('departmentId');
+    const user = await User.findById(userId).populate('hospitalId').populate('branchId');
     if (!user) {
       throw new ApiError(404, 'User account not found', null, 'USER_NOT_FOUND');
+    }
+
+    if (user.departmentId && mongoose.Types.ObjectId.isValid(user.departmentId)) {
+      try {
+        await user.populate('departmentId');
+      } catch (e) {
+        // preserve string value if population fails
+      }
     }
 
     const roleDoc = await Role.findOne({ code: user.role });
@@ -259,18 +358,110 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      additionalRoles: user.additionalRoles || [],
+      additionalDepartments: user.additionalDepartments || [],
+      status: user.status || (user.isActive ? 'ACTIVE' : 'INACTIVE'),
+      isActive: user.isActive,
       roleName: roleDoc ? roleDoc.name : user.role,
-      permissions: roleDoc ? roleDoc.permissions : [],
+      permissions: permissionsFor(user, user.hospitalId?.enabledModules),
       defaultRoute: roleDoc ? roleDoc.defaultRoute : '/dashboard',
       hospital: user.hospitalId,
       branch: user.branchId,
       department: user.departmentId,
       specialization: user.specialization,
+      employeeId: user.employeeId,
+      designation: user.designation,
+      assignedUnit: user.assignedUnit,
+      shiftDetails: user.shiftDetails,
       isAvailable: user.isAvailable,
       cabinNo: user.cabinNo || 'Cabin 101',
       availabilityUpdatedAt: user.availabilityUpdatedAt,
       avatarUrl: user.avatarUrl,
     };
   }
-}
 
+  static async updateStaffUser(staffId, data, requestingUser) {
+    const staff = await User.findOne({ _id: staffId, hospitalId: requestingUser.hospitalId });
+    if (!staff) throw new ApiError(404, 'Staff user not found in your hospital.', null, 'NOT_FOUND');
+
+    const previousState = {
+      name: staff.name,
+      email: staff.email,
+      role: staff.role,
+      additionalRoles: staff.additionalRoles,
+      status: staff.status,
+      permissions: staff.permissions,
+    };
+
+    if (data.name) staff.name = data.name.trim();
+    if (data.email) staff.email = data.email.toLowerCase().trim();
+    if (data.phone !== undefined) staff.phone = data.phone;
+    if (data.employeeId !== undefined) staff.employeeId = data.employeeId;
+    if (data.designation !== undefined) staff.designation = data.designation;
+    if (data.assignedUnit !== undefined) staff.assignedUnit = data.assignedUnit;
+    if (data.shiftDetails !== undefined) staff.shiftDetails = data.shiftDetails;
+    if (data.specialization !== undefined) staff.specialization = data.specialization;
+    if (data.role) staff.role = data.role;
+    if (data.additionalRoles !== undefined) staff.additionalRoles = Array.isArray(data.additionalRoles) ? data.additionalRoles : [];
+    if (data.departmentId !== undefined) staff.departmentId = data.departmentId || undefined;
+    if (data.additionalDepartments !== undefined) staff.additionalDepartments = Array.isArray(data.additionalDepartments) ? data.additionalDepartments : [];
+    if (data.status) {
+      staff.status = data.status;
+      staff.isActive = data.status === 'ACTIVE';
+    } else if (data.isActive !== undefined) {
+      staff.isActive = Boolean(data.isActive);
+      staff.status = staff.isActive ? 'ACTIVE' : 'INACTIVE';
+    }
+    if (data.permissions) staff.permissions = data.permissions;
+    if (data.revokedPermissions !== undefined) staff.revokedPermissions = data.revokedPermissions;
+    if (data.password && data.password.trim()) {
+      staff.passwordHash = await bcrypt.hash(data.password.trim(), 12);
+      staff.assignedPasswordHint = data.password.trim();
+    }
+
+    staff.permissionUpdatedAt = new Date();
+    staff.permissionUpdatedBy = requestingUser.id;
+    await staff.save();
+
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({
+      hospitalId: staff.hospitalId,
+      userId: requestingUser.id,
+      userRole: requestingUser.role,
+      action: 'STAFF_ACCOUNT_UPDATED',
+      module: 'STAFF_MANAGEMENT',
+      resourceId: String(staff._id),
+      previousState,
+      newState: {
+        name: staff.name,
+        role: staff.role,
+        additionalRoles: staff.additionalRoles,
+        status: staff.status,
+        permissions: staff.permissions,
+      },
+      details: `Staff profile and access configuration updated for ${staff.name}`,
+    });
+
+    return staff;
+  }
+
+  static async updateStaffPermissions(staffId, data, requestingUser) {
+    const staff = await User.findOne({ _id: staffId, hospitalId: requestingUser.hospitalId });
+    if (!staff) throw new ApiError(404, 'Staff user not found in your hospital.', null, 'NOT_FOUND');
+    if (!data.permissions || Object.keys(data.permissions).length === 0) {
+      throw new ApiError(400, 'Select at least one permission before saving.', null, 'VALIDATION_ERROR');
+    }
+    const previousState = staff.permissions || {};
+    staff.permissions = data.permissions;
+    if (data.revokedPermissions !== undefined) staff.revokedPermissions = data.revokedPermissions;
+    if (data.departmentId !== undefined) staff.departmentId = data.departmentId || undefined;
+    if (data.assignedUnit !== undefined) staff.assignedUnit = data.assignedUnit;
+    if (data.shiftDetails !== undefined) staff.shiftDetails = data.shiftDetails;
+    staff.permissionUpdatedAt = new Date();
+    staff.permissionUpdatedBy = requestingUser.id;
+    await staff.save();
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({ hospitalId: staff.hospitalId, userId: requestingUser.id, userRole: requestingUser.role, action: 'PERMISSIONS_UPDATED', module: 'STAFF_MANAGEMENT', resourceId: String(staff._id), previousState, newState: staff.permissions, details: `Permissions updated for ${staff.name}` });
+    return staff;
+  }
+}

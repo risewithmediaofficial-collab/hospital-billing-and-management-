@@ -15,11 +15,18 @@ const colorMap = {
   default: { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200'   },
 };
 
-export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'default', trend }) => {
+export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'default', trend, onClick, className = '' }) => {
   const scheme = colorMap[color] || colorMap.default;
 
   return (
-    <Card interactive>
+    <Card
+      interactive
+      onClick={onClick}
+      className={`${onClick ? 'cursor-pointer' : ''} ${className}`}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); } } : undefined}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">

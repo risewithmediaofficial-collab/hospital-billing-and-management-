@@ -4,11 +4,12 @@ import { useAuthStore } from '../store/authStore';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
-import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error } = useAuthStore();
   const navigate = useNavigate();
 
@@ -84,13 +85,24 @@ export const LoginPage = () => {
 
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               icon={Lock}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               autoComplete="off"
               required
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-slate-400 hover:text-indigo-600 focus:outline-none transition-colors p-1"
+                  tabIndex={-1}
+                  title={showPassword ? 'Hide Password' : 'Show Password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
             />
 
             <Button

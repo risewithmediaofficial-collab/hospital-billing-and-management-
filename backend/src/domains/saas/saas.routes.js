@@ -1,15 +1,38 @@
 import { Router } from 'express';
-import { registerHospital, getAllHospitals, approveHospital, updateHospitalStatus } from './saas.controller.js';
+import {
+  registerHospital,
+  getAllHospitals,
+  approveHospital,
+  updateHospitalStatus,
+  getPlatformMetrics,
+  getHospitalDetail,
+  getHospitalAdminOverview,
+  globalSearch,
+  getAuditLogs,
+  getHospitalsWithStats,
+  updateHospitalConfiguration,
+} from './saas.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
+import { requireRole } from '../../middleware/permissions.js';
+import { ROLES } from '../../config/constants.js';
 
 const router = Router();
+const superAdminOnly = [verifyJwt, requireRole(ROLES.SUPER_ADMIN)];
 
 // Public Endpoint for Hospital Registration
 router.post('/register-hospital', registerHospital);
 
 // Protected Platform Super Admin Endpoints
-router.get('/hospitals', verifyJwt, getAllHospitals);
-router.patch('/hospitals/:id/approve', verifyJwt, approveHospital);
-router.patch('/hospitals/:id/status', verifyJwt, updateHospitalStatus);
+router.get('/platform/metrics', ...superAdminOnly, getPlatformMetrics);
+router.get('/hospitals/stats', ...superAdminOnly, getHospitalsWithStats);
+router.get('/hospitals/overview', ...superAdminOnly, getHospitalAdminOverview);
+router.get('/hospitals/:id/detail', ...superAdminOnly, getHospitalDetail);
+router.patch('/hospitals/:id/configuration', ...superAdminOnly, updateHospitalConfiguration);
+router.get('/search', ...superAdminOnly, globalSearch);
+router.get('/audit-logs', ...superAdminOnly, getAuditLogs);
+
+router.get('/hospitals', ...superAdminOnly, getAllHospitals);
+router.patch('/hospitals/:id/approve', ...superAdminOnly, approveHospital);
+router.patch('/hospitals/:id/status', ...superAdminOnly, updateHospitalStatus);
 
 export default router;

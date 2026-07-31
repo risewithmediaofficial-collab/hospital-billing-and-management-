@@ -11,6 +11,17 @@ export const Navbar = ({ onToggleSidebar }) => {
   const { unreadCount } = useNotificationStore();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
+  const hasNotificationsPermission = (() => {
+    if (!user) return false;
+    if (user.role === 'SUPER_ADMIN' || user.role === 'HOSPITAL_ADMIN') return true;
+    const permissions = user.permissions || {};
+    if (permissions['*']?.includes('*') || permissions['*']?.includes('view')) return true;
+    const notif = permissions.notifications;
+    if (Array.isArray(notif) && notif.length > 0) return true;
+    if (typeof notif === 'object' && notif !== null && (notif.view || notif['*'])) return true;
+    return false;
+  })();
+
   return (
     <header className="h-16 border-b border-slate-200 bg-white sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shadow-sm">
       {/* Left: Hamburger + Hospital Name */}
@@ -41,23 +52,25 @@ export const Navbar = ({ onToggleSidebar }) => {
       {/* Right: Notifications + User Info + Logout */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Notification Bell */}
-        <div className="relative">
-          <button
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-150 flex items-center justify-center"
-            aria-label="Notifications"
-            title="Notifications"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-amber-500 text-white flex items-center justify-center shadow-xs animate-pulse">
-                {unreadCount}
-              </span>
-            )}
-          </button>
+        {hasNotificationsPermission && (
+          <div className="relative">
+            <button
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className="relative p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-150 flex items-center justify-center"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-amber-500 text-white flex items-center justify-center shadow-xs animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
 
-          <NotificationDropdown isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
-        </div>
+            <NotificationDropdown isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+          </div>
+        )}
 
         {/* User Identity */}
         <div className="flex items-center gap-2.5 pl-2.5 border-l border-slate-200">

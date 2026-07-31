@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export const Input = React.forwardRef(
-  ({ label, error, helperText, icon: Icon, className = '', ...props }, ref) => {
+  ({ label, error, helperText, icon: Icon, rightElement, className = '', ...props }, ref) => {
     return (
       <div className="w-full">
         {label && (
@@ -28,12 +28,18 @@ export const Input = React.forwardRef(
                 'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed',
                 'transition-colors duration-150',
                 Icon ? 'pl-9' : '',
+                rightElement ? 'pr-10' : '',
                 error ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : '',
                 className
               )
             )}
             {...props}
           />
+          {rightElement && (
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+              {rightElement}
+            </div>
+          )}
         </div>
         {error && (
           <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>

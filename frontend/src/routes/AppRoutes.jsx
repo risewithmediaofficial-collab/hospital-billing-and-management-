@@ -13,13 +13,25 @@ import { HospitalRegisterPage } from '../pages/HospitalRegisterPage';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
-import { SuperAdminDashboard } from '../pages/Dashboards/SuperAdminDashboard';
+import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
+import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
+
+import { SuperAdminDashboardPage } from '../pages/SuperAdmin/SuperAdminDashboardPage';
+import { SuperAdminHospitalsPage } from '../pages/SuperAdmin/SuperAdminHospitalsPage';
+import { SuperAdminHospitalAdminsPage } from '../pages/SuperAdmin/SuperAdminHospitalAdminsPage';
+import { SuperAdminHospitalDashboard } from '../pages/SuperAdmin/SuperAdminHospitalDashboard';
+import { SuperAdminStaffPage, SuperAdminDoctorsPage } from '../pages/SuperAdmin/SuperAdminStaffPage';
+import { SuperAdminAuditLogsPage } from '../pages/SuperAdmin/SuperAdminAuditLogsPage';
+import { SuperAdminSubscriptionsPage } from '../pages/SuperAdmin/SuperAdminSubscriptionsPage';
+
 import { HospitalAdminDashboard } from '../pages/Dashboards/HospitalAdminDashboard';
+import { HospitalAdminManagementViews } from '../pages/Dashboards/HospitalAdminManagementViews';
 import { DoctorDashboard } from '../pages/Dashboards/DoctorDashboard';
 import { NurseDashboard } from '../pages/Dashboards/NurseDashboard';
 import { NurseInchargeDashboard } from '../pages/Dashboards/NurseInchargeDashboard';
 import { ReceptionDashboard } from '../pages/Dashboards/ReceptionDashboard';
 import { RegisteredPatientsView } from '../pages/Reception/RegisteredPatientsView';
+import { PatientRegistrationPage } from '../pages/Reception/PatientRegistrationPage';
 import { PharmacistDashboard } from '../pages/Dashboards/PharmacistDashboard';
 import { LabTechDashboard } from '../pages/Dashboards/LabTechDashboard';
 import { RadiologistDashboard } from '../pages/Dashboards/RadiologistDashboard';
@@ -60,19 +72,74 @@ export const AppRoutes = () => {
 
       {/* 1. Master Platform Super Admin Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
-        <Route path="/admin/dashboard" element={<MainLayout hideSidebar={true}><SuperAdminDashboard /></MainLayout>} />
-        <Route path="/admin/tenants" element={<MainLayout hideSidebar={true}><SuperAdminDashboard /></MainLayout>} />
-        <Route path="/admin/audit-logs" element={<MainLayout hideSidebar={true}><GenericSubView title="System Audit Logs" subtitle="Immutable HIPAA & Security Mutation Trail" iconName="FileText" /></MainLayout>} />
-        <Route path="/admin/settings" element={<MainLayout hideSidebar={true}><GenericSubView title="Global Platform Settings" subtitle="System Configuration & Backups" iconName="Settings" /></MainLayout>} />
+        {/* Platform overview */}
+        <Route path="/admin/dashboard" element={<SuperAdminLayout><SuperAdminDashboardPage /></SuperAdminLayout>} />
+        <Route path="/admin/hospitals" element={<SuperAdminLayout><SuperAdminHospitalsPage /></SuperAdminLayout>} />
+        <Route path="/admin/hospital-admins" element={<SuperAdminLayout><SuperAdminHospitalAdminsPage /></SuperAdminLayout>} />
+        <Route path="/admin/staff" element={<SuperAdminLayout><SuperAdminStaffPage /></SuperAdminLayout>} />
+        <Route path="/admin/doctors" element={<SuperAdminLayout><SuperAdminDoctorsPage /></SuperAdminLayout>} />
+        <Route path="/admin/patients" element={<SuperAdminLayout><SuperAdminModuleBridge><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/reception" element={<SuperAdminLayout><SuperAdminModuleBridge><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/nursing" element={<SuperAdminLayout><SuperAdminModuleBridge><NurseDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/laboratory" element={<SuperAdminLayout noPadding><SuperAdminModuleBridge><LabTechDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/radiology" element={<SuperAdminLayout noPadding><SuperAdminModuleBridge><RadiologistDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/pharmacy" element={<SuperAdminLayout><SuperAdminModuleBridge><PharmacistDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/billing" element={<SuperAdminLayout><SuperAdminModuleBridge><CashierDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/opd" element={<SuperAdminLayout><SuperAdminModuleBridge><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/ipd" element={<SuperAdminLayout><SuperAdminModuleBridge><NurseInchargeDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/emergency" element={<SuperAdminLayout><SuperAdminModuleBridge><EmergencyConsoleView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/appointments" element={<SuperAdminLayout><SuperAdminModuleBridge><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/reports" element={<SuperAdminLayout><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics Across All Hospitals" iconName="BarChart3" /></SuperAdminLayout>} />
+        <Route path="/admin/notifications" element={<SuperAdminLayout><GenericSubView title="Platform Notifications" subtitle="Cross-Hospital Alerts & System Messages" iconName="Bell" /></SuperAdminLayout>} />
+        <Route path="/admin/audit-logs" element={<SuperAdminLayout><SuperAdminAuditLogsPage /></SuperAdminLayout>} />
+        <Route path="/admin/subscriptions" element={<SuperAdminLayout><SuperAdminSubscriptionsPage /></SuperAdminLayout>} />
+        <Route path="/admin/settings" element={<SuperAdminLayout><GenericSubView title="Global Platform Settings" subtitle="System Configuration & Backups" iconName="Settings" /></SuperAdminLayout>} />
+        <Route path="/admin/tenants" element={<Navigate to="/admin/hospitals" replace />} />
+
+        {/* Hospital drill-down routes */}
+        <Route path="/admin/hospital/:hospitalId/dashboard" element={<SuperAdminLayout><SuperAdminHospitalDashboard /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/info" element={<SuperAdminLayout><SuperAdminHospitalDashboard /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/administrator" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><HospitalAdminDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/departments" element={<SuperAdminLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/staff" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><HospitalAdminDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/doctors" element={<SuperAdminLayout noPadding><SuperAdminModuleBridge requireHospital><DoctorDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/reception" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/nursing" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><NurseDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/laboratory" element={<SuperAdminLayout noPadding><SuperAdminModuleBridge requireHospital><LabTechDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/radiology" element={<SuperAdminLayout noPadding><SuperAdminModuleBridge requireHospital><RadiologistDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/pharmacy" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><PharmacistDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/billing" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><CashierDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/opd" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/ipd" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><NurseInchargeDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/patients" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/emergency" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><EmergencyConsoleView /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/appointments" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/reports" element={<SuperAdminLayout><GenericSubView title="Hospital Reports" subtitle="Operational & Revenue Analytics" iconName="BarChart3" /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/notifications" element={<SuperAdminLayout><GenericSubView title="Hospital Notifications" subtitle="Department Alerts & Messages" iconName="Bell" /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/audit-logs" element={<SuperAdminLayout><SuperAdminAuditLogsPage /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/settings" element={<SuperAdminLayout><GenericSubView title="Hospital Settings" subtitle="Configuration & Preferences" iconName="Settings" /></SuperAdminLayout>} />
       </Route>
 
       {/* 2. Hospital Admin Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
-        <Route path="/hospital-admin/dashboard" element={<MainLayout hideSidebar={true}><HospitalAdminDashboard /></MainLayout>} />
-        <Route path="/hospital-admin/staff" element={<MainLayout hideSidebar={true}><HospitalAdminDashboard /></MainLayout>} />
-        <Route path="/hospital-admin/departments" element={<MainLayout hideSidebar={true}><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
-        <Route path="/hospital-admin/tariffs" element={<MainLayout hideSidebar={true}><GenericSubView title="Tariffs & Price Master" subtitle="Service Tariffs and Room Charges" iconName="Receipt" /></MainLayout>} />
-        <Route path="/hospital-admin/reports" element={<MainLayout hideSidebar={true}><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics" iconName="BarChart3" /></MainLayout>} />
+        <Route path="/hospital-admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/hospital-admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/hospital-admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
+        <Route path="/hospital-admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
+        <Route path="/hospital-admin/nurses-management" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
+        <Route path="/hospital-admin/reception-management" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
+        <Route path="/hospital-admin/billing-management" element={<MainLayout><HospitalAdminManagementViews viewType="billing" /></MainLayout>} />
+        <Route path="/hospital-admin/laboratory-management" element={<MainLayout><HospitalAdminManagementViews viewType="laboratory" /></MainLayout>} />
+        <Route path="/hospital-admin/radiology-management" element={<MainLayout><HospitalAdminManagementViews viewType="radiology" /></MainLayout>} />
+        <Route path="/hospital-admin/pharmacy-management" element={<MainLayout><HospitalAdminManagementViews viewType="pharmacy" /></MainLayout>} />
+        <Route path="/hospital-admin/patients-management" element={<MainLayout><HospitalAdminManagementViews viewType="patients" /></MainLayout>} />
+        <Route path="/hospital-admin/opd-management" element={<MainLayout><HospitalAdminManagementViews viewType="opd" /></MainLayout>} />
+        <Route path="/hospital-admin/ipd-management" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
+        <Route path="/hospital-admin/emergency-management" element={<MainLayout><HospitalAdminManagementViews viewType="emergency" /></MainLayout>} />
+        <Route path="/hospital-admin/tariffs" element={<MainLayout><GenericSubView title="Tariffs & Price Master" subtitle="Service Tariffs and Room Charges" iconName="Receipt" /></MainLayout>} />
+        <Route path="/hospital-admin/reports" element={<MainLayout><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics" iconName="BarChart3" /></MainLayout>} />
+        <Route path="/hospital-admin/plan-details" element={<MainLayout><GenericSubView title="Plan Details" subtitle="Subscription, enabled modules, and staff limits" iconName="BadgeCheck" /></MainLayout>} />
+        <Route path="/hospital-admin/usage-limits" element={<MainLayout><GenericSubView title="Usage and Limits" subtitle="Current plan usage and remaining capacity" iconName="Gauge" /></MainLayout>} />
       </Route>
 
       {/* 3. Doctor Sub-Routes */}
@@ -104,7 +171,7 @@ export const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
-        <Route path="/reception/register-patient" element={<MainLayout><GenericSubView title="Patient Registration Station" subtitle="UHID Auto-Sequencing" iconName="UserPlus" /></MainLayout>} />
+        <Route path="/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
         <Route path="/reception/tokens" element={<MainLayout><GenericSubView title="OPD Token Calling Desk" subtitle="Live Queue Audio Calling" iconName="Ticket" /></MainLayout>} />
         <Route path="/reception/visitors" element={<MainLayout><GenericSubView title="Visitor Pass Printing Desk" subtitle="Inpatient Visitor Badges" iconName="IdCard" /></MainLayout>} />
       </Route>

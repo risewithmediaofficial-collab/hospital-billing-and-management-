@@ -14,6 +14,20 @@ axiosClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    try {
+      const stored = localStorage.getItem('hpmbs_super_admin_context');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const hospitalId = parsed?.state?.selectedHospitalId;
+        if (hospitalId) {
+          config.headers['X-Hospital-Context'] = hospitalId;
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -22,8 +36,10 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || (error.response?.status === 403 && error.response?.data?.error?.message?.includes('Required role'))) {
       localStorage.removeItem('hpmbs_access_token');
+      localStorage.removeItem('hpmbs_user');
+      localStorage.removeItem('hpmbs_super_admin_context');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

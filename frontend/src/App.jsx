@@ -1,9 +1,23 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
 import { SocketProvider } from './providers/SocketProvider';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
+
+const ScrollToTop = () => {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const mainElements = document.querySelectorAll('main, .overflow-y-auto');
+    mainElements.forEach((el) => {
+      el.scrollTop = 0;
+    });
+  }, [pathname, search]);
+
+  return null;
+};
 
 export const App = () => {
   const { fetchProfile } = useAuthStore();
@@ -16,6 +30,7 @@ export const App = () => {
     <QueryProvider>
       <SocketProvider>
         <BrowserRouter>
+          <ScrollToTop />
           <AppRoutes />
         </BrowserRouter>
       </SocketProvider>

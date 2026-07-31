@@ -257,6 +257,18 @@ export const DoctorDashboard = () => {
 
       setIsAvailable(Boolean(updatedAvailable));
       setAvailabilityUpdatedAt(payload.availabilityUpdatedAt || new Date());
+
+      // Sync authStore user state and localStorage
+      if (user) {
+        const updatedUser = { ...user, isAvailable: Boolean(updatedAvailable), cabinNo };
+        useAuthStore.setState({ user: updatedUser });
+        try {
+          localStorage.setItem('hpmbs_user', JSON.stringify(updatedUser));
+        } catch (e) {
+          // ignore storage errors
+        }
+      }
+
       setStatusMessage({
         type: 'success',
         text: `Doctor status updated to ${updatedAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}.`,

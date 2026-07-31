@@ -39,3 +39,68 @@ export const updateHospitalStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getPlatformMetrics = async (req, res, next) => {
+  try {
+    const metrics = await SaasService.getPlatformMetrics();
+    return sendSuccess(res, 200, 'Platform metrics retrieved', metrics);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getHospitalDetail = async (req, res, next) => {
+  try {
+    const result = await SaasService.getHospitalDetail(req.params.id);
+    return sendSuccess(res, 200, 'Hospital detail retrieved', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getHospitalAdminOverview = async (req, res, next) => {
+  try {
+    const overview = await SaasService.getAllHospitalAdminOverview();
+    return sendSuccess(res, 200, 'Hospital administrator overview retrieved', overview);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const globalSearch = async (req, res, next) => {
+  try {
+    const { q, hospitalId, role, status } = req.query;
+    const results = await SaasService.globalSearch(q, { hospitalId, role, status });
+    return sendSuccess(res, 200, 'Search results retrieved', results);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAuditLogs = async (req, res, next) => {
+  try {
+    const { hospitalId, module, limit } = req.query;
+    const logs = await SaasService.getAuditLogs({ hospitalId, module, limit: limit ? Number(limit) : 50 });
+    return sendSuccess(res, 200, 'Audit logs retrieved', logs);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getHospitalsWithStats = async (req, res, next) => {
+  try {
+    const hospitals = await SaasService.getAllHospitalsWithStats();
+    return sendSuccess(res, 200, 'Hospitals with stats retrieved', hospitals);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateHospitalConfiguration = async (req, res, next) => {
+  try {
+    const updated = await SaasService.updateHospitalConfiguration(req.params.id, req.body, req.user, req);
+    return sendSuccess(res, 200, 'Hospital platform configuration updated', updated);
+  } catch (error) {
+    next(error);
+  }
+};

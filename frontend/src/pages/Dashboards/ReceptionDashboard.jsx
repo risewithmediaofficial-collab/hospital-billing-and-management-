@@ -61,7 +61,9 @@ export const ReceptionDashboard = () => {
       setPatients(pRes.data || []);
 
       const sRes = await axiosClient.get('/auth/staff');
-      const docList = sRes.data ? sRes.data.filter((s) => s.role === 'DOCTOR') : [];
+      const docList = (sRes.data || []).filter(
+        (s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
+      );
       setDoctors(docList);
       fetchQueueCounts();
     } catch (err) {

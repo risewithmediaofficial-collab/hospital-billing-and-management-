@@ -1,0 +1,103 @@
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Users, Search } from 'lucide-react';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { axiosClient } from '../../api/axiosClient';
+import { ROLE_NAMES } from '../../utils/constants';
+import { SuperAdminModuleBridge } from '../../components/superadmin/SuperAdminModuleBridge';
+import { formatDateTime } from '../../utils/formatters';
+
+export const SuperAdminStaffPage = ({ roleFilter = null, title = 'All Staff' }) => {
+  const [searchParams] = useSearchParams();
+  const role = roleFilter || searchParams.get('role');
+  const [staff, setStaff] = useState([]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await axiosClient.get('/auth/staff');
+        setStaff(res.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
+
+  const filtered = staff.filter((s) => {
+    if (role && s.role !== role) return false;
+    if (statusFilter === 'ACTIVE' && !s.isActive) return false;
+    if (statusFilter === 'INACTIVE' && s.isActive) return false;
+    if (search) {
+      const term = search.toLowerCase();
+      return s.name?.toLowerCase().includes(term) || s.email?.toLowerCase().includes(term);
+    }
+    return true;
+  });
+
+  return (
+    <SuperAdminModuleBridge requireHospital={false}>
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">{title}</h2>
+          <p className="text-xs text-neutral-500 mt-1">{filtered.length} staff members · Cross-hospital visibility</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input className="pl-9" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white"
+          >
+            <option value="ALL">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-100 text-neutral-600 uppercase tracking-wider text-[10px] border-b">
+                <tr>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3">Role</th>
+                  <th className="p-3">Phone</th>
+                  <th className="p-3">Specialization</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Last Login</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {filtered.map((s) => (
+                  <tr key={s._id} className="hover:bg-neutral-50">
+                    <td className="p-3 font-bold text-neutral-900">{s.name}</td>
+                    <td className="p-3 text-neutral-600">{s.email}</td>
+                    <td className="p-3"><span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">{ROLE_NAMES[s.role] || s.role}</span></td>
+                    <td className="p-3">{s.phone}</td>
+                    <td className="p-3">{s.specialization || '—'}</td>
+                    <td className="p-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{s.isActive ? 'Active' : 'Inactive'}</span></td>
+                    <td className="p-3">{formatDateTime(s.lastLoginAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length === 0 && <p className="text-center text-slate-500 py-8">No staff found</p>}
+        </Card>
+      </div>
+    </SuperAdminModuleBridge>
+  );
+};
+
+export const SuperAdminDoctorsPage = () => (
+  <SuperAdminStaffPage roleFilter="DOCTOR" title="Doctors" />
+);

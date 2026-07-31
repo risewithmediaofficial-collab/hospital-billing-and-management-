@@ -18,10 +18,18 @@ export const useAuthStore = create((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
+      // axiosClient's response interceptor already returns the response body.
+      // Reading response.data here discarded the API payload and made a valid
+      // login fail while trying to access `tokens.accessToken`.
       const response = await axiosClient.post('/auth/login', { email, password });
-      const payload = response.data?.data || response.data;
+      const payload = response?.data || response;
       const { user, tokens } = payload;
 
+      if (!user || !tokens?.accessToken) {
+        throw new Error('The server returned an invalid login response.');
+      }
+
+      localStorage.removeItem('hpmbs_super_admin_context');
       localStorage.setItem('hpmbs_access_token', tokens.accessToken);
       localStorage.setItem('hpmbs_user', JSON.stringify(user));
 
@@ -44,6 +52,7 @@ export const useAuthStore = create((set, get) => ({
   fetchProfile: async () => {
     if (!get().token) {
       localStorage.removeItem('hpmbs_user');
+      localStorage.removeItem('hpmbs_super_admin_context');
       set({ isLoading: false, isAuthenticated: false, user: null });
       return;
     }
@@ -55,6 +64,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       localStorage.removeItem('hpmbs_access_token');
       localStorage.removeItem('hpmbs_user');
+      localStorage.removeItem('hpmbs_super_admin_context');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }
   },
@@ -67,6 +77,7 @@ export const useAuthStore = create((set, get) => ({
     } finally {
       localStorage.removeItem('hpmbs_access_token');
       localStorage.removeItem('hpmbs_user');
+      localStorage.removeItem('hpmbs_super_admin_context');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }
   },

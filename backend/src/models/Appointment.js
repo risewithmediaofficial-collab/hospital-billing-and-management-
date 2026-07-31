@@ -6,7 +6,7 @@ const appointmentSchema = new mongoose.Schema(
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
+    departmentId: { type: mongoose.Schema.Types.Mixed },
     appointmentNo: { type: String, required: true },
     tokenNumber: { type: Number, required: true },
     appointmentDate: { type: String, required: true, index: true }, // YYYY-MM-DD

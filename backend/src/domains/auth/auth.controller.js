@@ -106,4 +106,17 @@ export const updateDoctorAvailability = async (req, res, next) => {
   }
 };
 
+export const updateStaffPermissions = async (req, res, next) => {
+  try {
+    const staff = await AuthService.updateStaffPermissions(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Staff permissions updated successfully.', staff);
+  } catch (error) { next(error); }
+};
+
+export const updateStaffUser = async (req, res, next) => {
+  try {
+    const staff = await AuthService.updateStaffUser(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Staff user updated successfully.', staff);
+  } catch (error) { next(error); }
+};
 

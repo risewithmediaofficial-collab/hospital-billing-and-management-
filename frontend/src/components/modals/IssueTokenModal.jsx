@@ -3,10 +3,12 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
-import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle } from 'lucide-react';
+import { useSocket } from '../../providers/SocketProvider';
+import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info } from 'lucide-react';
 
 export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = null, initialDoctorId = null }) => {
   useScrollLock(isOpen);
+  const { socket } = useSocket();
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,16 +32,40 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
     }
   }, [isOpen, initialPatient, initialDoctorId]);
 
+  // Real-time listener for doctor availability
+  useEffect(() => {
+    if (!socket || !isOpen) return;
+    const handleDoctorAvailability = (data) => {
+      setDoctors((prev) =>
+        prev.map((d) =>
+          String(d._id) === String(data.id || data._id)
+            ? { ...d, isAvailable: data.isAvailable !== undefined ? data.isAvailable : d.isAvailable, cabinNo: data.cabinNo || d.cabinNo }
+            : d
+        )
+      );
+    };
+    socket.on('doctor:availability_changed', handleDoctorAvailability);
+    return () => {
+      socket.off('doctor:availability_changed', handleDoctorAvailability);
+    };
+  }, [socket, isOpen]);
+
   const fetchPatientsAndDoctors = async () => {
     try {
       const pRes = await axiosClient.get('/patients');
       setPatients(pRes.data || []);
       const sRes = await axiosClient.get('/auth/staff');
-      const allDocs = (sRes.data || []).filter((s) => s.role === 'DOCTOR');
+      const allDocs = (sRes.data || []).filter(
+        (s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
+      );
       setDoctors(allDocs);
       const activeDocs = allDocs.filter((d) => d.isAvailable !== false);
-      if (!initialDoctorId && activeDocs.length > 0) {
-        setSelectedDoctorId(activeDocs[0]._id);
+      if (!initialDoctorId) {
+        if (activeDocs.length > 0) {
+          setSelectedDoctorId(activeDocs[0]._id);
+        } else if (allDocs.length > 0) {
+          setSelectedDoctorId(allDocs[0]._id);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch data for token issuance:', err);
@@ -48,7 +74,6 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
   if (!isOpen) return null;
 
-  const activeDoctors = doctors.filter((d) => d.isAvailable !== false);
   const filteredPatients = searchQuery.trim()
     ? patients.filter((p) =>
         p.uhid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -63,7 +88,6 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
     e.preventDefault();
     if (!selectedPatient) { setError('Please search and select a registered patient first.'); return; }
     if (!selectedDoctorId) { setError('Please select a doctor to assign this token to.'); return; }
-    if (selectedDoctor && selectedDoctor.isAvailable === false) { setError('This doctor is currently unavailable. Please select another available doctor.'); return; }
     setIsLoading(true);
     setError(null);
     try {
@@ -219,16 +243,28 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                     onChange={(e) => setSelectedDoctorId(e.target.value)}
                     className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                   >
-                    {activeDoctors.length > 0 ? (
-                      activeDoctors.map((doc) => (
-                        <option key={doc._id} value={doc._id}>
-                          {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD Clinic'}
-                        </option>
-                      ))
+                    {doctors.length > 0 ? (
+                      doctors.map((doc) => {
+                        const isAvail = doc.isAvailable !== false;
+                        const statusTag = isAvail
+                          ? ` (🟢 Available - ${doc.cabinNo || 'Cabin 101'})`
+                          : ' (🔴 Off Duty)';
+                        return (
+                          <option key={doc._id} value={doc._id}>
+                            {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD'}{statusTag}
+                          </option>
+                        );
+                      })
                     ) : (
-                      <option value="">No active/available doctors online</option>
+                      <option value="">No doctors registered in roster</option>
                     )}
                   </select>
+                )}
+                {selectedDoctor && selectedDoctor.isAvailable === false && (
+                  <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center gap-1.5 font-medium">
+                    <Info size={13} className="flex-shrink-0 text-amber-600" />
+                    Doctor is currently marked Off Duty. Token will be queued for when doctor comes on duty.
+                  </div>
                 )}
               </div>
 
