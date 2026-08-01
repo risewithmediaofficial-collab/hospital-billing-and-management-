@@ -73,6 +73,41 @@ export class PatientsService {
         qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${uhid}`,
       });
 
+      // Auto-provision User login account for Patient Portal
+      try {
+        const userEmail = data.email && data.email.trim() ? data.email.toLowerCase().trim() : `${uhid.toLowerCase()}@hospital.local`;
+        const userPassword = data.portalPassword || data.phone || 'Patient123!';
+        const bcrypt = (await import('bcryptjs')).default;
+        const passwordHash = await bcrypt.hash(userPassword, 12);
+        const { User } = await import('../../models/User.js');
+
+        const existingUser = await User.findOne({
+          $or: [
+            { email: userEmail },
+            { phone: data.phone },
+            { uhid },
+          ],
+        });
+
+        if (!existingUser) {
+          await User.create({
+            hospitalId,
+            branchId,
+            name: `${data.firstName} ${data.lastName}`,
+            email: userEmail,
+            phone: data.phone,
+            uhid,
+            passwordHash,
+            assignedPasswordHint: userPassword,
+            role: 'PATIENT',
+            status: 'ACTIVE',
+            isActive: true,
+          });
+        }
+      } catch (userErr) {
+        console.error('[Patient User Auto-Provision Notice]', userErr.message);
+      }
+
       return patient;
     } catch (err) {
       console.error('[Patient Registration Error]', err);

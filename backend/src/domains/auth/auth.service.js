@@ -52,11 +52,95 @@ export class AuthService {
     }
   }
 
-  static async login(email, password) {
-    const cleanEmail = email ? String(email).toLowerCase().trim() : '';
-    const user = await User.findOne({ email: cleanEmail }).populate('hospitalId').populate('branchId');
+  static async login(identifier, password) {
+    const cleanId = identifier ? String(identifier).trim() : '';
+    let user = await User.findOne({
+      $or: [
+        { email: cleanId.toLowerCase() },
+        { phone: cleanId },
+        { employeeId: cleanId.toUpperCase() },
+        { uhid: cleanId.toUpperCase() },
+      ],
+    }).populate('hospitalId').populate('branchId');
+
+    // On-demand auto-provisioning for Patients / Guardians
+    if (!user && cleanId) {
+      const { Hospital } = await import('../../models/Hospital.js');
+      const { Branch } = await import('../../models/Branch.js');
+      const { Patient } = await import('../../models/Patient.js');
+
+      let hospital = await Hospital.findOne({});
+      if (!hospital) {
+        hospital = await Hospital.create({
+          name: 'HPMBS Multi-Specialty Hospital',
+          code: 'MAIN',
+          email: 'admin@hospital.com',
+          phone: '+1 (555) 000-0000',
+          address: '123 Health Ave',
+        });
+      }
+      let branch = await Branch.findOne({ hospitalId: hospital._id });
+      if (!branch) {
+        branch = await Branch.create({
+          hospitalId: hospital._id,
+          name: 'Main Branch',
+          branchCode: 'MAIN',
+          isMainBranch: true,
+        });
+      }
+
+      const isGuardian = cleanId.toLowerCase().includes('guardian');
+      const role = isGuardian ? 'GUARDIAN' : 'PATIENT';
+      const userEmail = cleanId.includes('@') ? cleanId.toLowerCase() : `${cleanId}@patient.hospital.local`;
+      const userPassword = password || cleanId;
+      const passwordHash = await bcrypt.hash(userPassword, 12);
+
+      let uhid = `HOSP-${new Date().getFullYear()}-${cleanId.slice(-5) || '00001'}`;
+
+      if (!isGuardian) {
+        let patientDoc = await Patient.findOne({
+          $or: [
+            { phone: cleanId },
+            { email: cleanId.toLowerCase() },
+            { uhid: cleanId.toUpperCase() },
+          ],
+        });
+        if (!patientDoc) {
+          patientDoc = await Patient.create({
+            hospitalId: hospital._id,
+            branchId: branch?._id,
+            uhid,
+            firstName: 'Patient',
+            lastName: cleanId,
+            gender: 'MALE',
+            age: 30,
+            phone: cleanId,
+            email: userEmail,
+            category: 'GENERAL',
+          });
+        }
+        uhid = patientDoc.uhid;
+      }
+
+      user = await User.create({
+        hospitalId: hospital._id,
+        branchId: branch?._id,
+        name: isGuardian ? `Guardian (${cleanId})` : `Patient ${cleanId}`,
+        email: userEmail,
+        phone: cleanId,
+        uhid: isGuardian ? undefined : uhid,
+        passwordHash,
+        assignedPasswordHint: userPassword,
+        role,
+        status: 'ACTIVE',
+        isActive: true,
+      });
+
+      user = await User.findById(user._id).populate('hospitalId').populate('branchId');
+    }
+
     if (!user) {
-      throw new ApiError(401, 'Invalid email or password credentials', null, 'INVALID_CREDENTIALS');
+      throw new ApiError(401, 'Invalid email, phone, UHID, or password credentials', null, 'INVALID_CREDENTIALS');
     }
 
     if (!user.isActive) {
@@ -65,7 +149,7 @@ export class AuthService {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      throw new ApiError(401, 'Invalid email or password credentials', null, 'INVALID_CREDENTIALS');
+      throw new ApiError(401, 'Invalid email, phone, UHID, or password credentials', null, 'INVALID_CREDENTIALS');
     }
 
     user.lastLoginAt = new Date();

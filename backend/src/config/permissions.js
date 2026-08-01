@@ -126,8 +126,8 @@ export const ROLE_PERMISSION_DEFAULTS = {
     hr: ['view', 'create', 'edit'],
     notifications: ['view'],
   },
-  PATIENT: { dashboard: ['view'], patientPortal: ['view'] },
-  GUARDIAN: { dashboard: ['view'], guardianPortal: ['view'] },
+  PATIENT: { dashboard: ['view'], patientPortal: ['view', 'create', 'edit'], requests: ['view', 'create', 'edit'] },
+  GUARDIAN: { dashboard: ['view'], guardianPortal: ['view', 'create', 'edit'] },
 };
 
 const normalizeActions = (actionsInput) => {

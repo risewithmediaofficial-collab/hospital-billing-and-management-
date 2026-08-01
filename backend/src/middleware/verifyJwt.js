@@ -62,7 +62,9 @@ export const verifyJwt = async (req, res, next) => {
       return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot use hospital operational APIs.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');
     }
     const module = moduleForRequest(req.originalUrl);
-    if (module && decoded.role !== 'SUPER_ADMIN') {
+    // PATIENT and GUARDIAN roles always pass permission check for their own portal routes
+    const isPortalRole = decoded.role === 'PATIENT' || decoded.role === 'GUARDIAN';
+    if (module && decoded.role !== 'SUPER_ADMIN' && !isPortalRole) {
       const currentUser = await User.findById(decoded.id).select('hospitalId role additionalRoles isActive status permissions revokedPermissions departmentId additionalDepartments');
       if (!currentUser || !currentUser.isActive || currentUser.status === 'INACTIVE') return sendError(res, 403, 'Your account is inactive.', null, 'ACCOUNT_INACTIVE');
       if (currentUser.hospitalId && decoded.hospitalId && extractId(currentUser.hospitalId) !== extractId(decoded.hospitalId)) {

@@ -22,6 +22,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Playwright Test Artifacts & Outputs
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+blob-report/
+**/blob-report/
+.cache/
+.auth/
+
 # OS metadata
 .DS_Store
 Thumbs.db
