@@ -57,9 +57,11 @@ export const PatientRegistrationPage = () => {
   const fetchRecentPatients = async () => {
     try {
       const res = await axiosClient.get('/patients');
-      setRecentPatients(res.data || []);
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setRecentPatients(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('Failed to load patients list:', err);
+      setRecentPatients([]);
     }
   };
 

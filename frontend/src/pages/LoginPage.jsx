@@ -73,12 +73,12 @@ export const LoginPage = () => {
             )}
 
             <Input
-              label="Account Email Address"
-              type="email"
+              label="Account Email / Phone / UHID"
+              type="text"
               icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email address"
+              placeholder="Enter your email, phone, or UHID"
               autoComplete="off"
               required
             />

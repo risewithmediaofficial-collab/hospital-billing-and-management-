@@ -1,40 +1,333 @@
-import React from 'react';
-import { StatCard } from '../../components/ui/StatCard';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Eye, CreditCard, Activity, IndianRupee } from 'lucide-react';
+import { StatCard } from '../../components/ui/StatCard';
+import { Input } from '../../components/ui/Input';
+import { axiosClient } from '../../api/axiosClient';
+import { useAuthStore } from '../../store/authStore';
+import {
+  Shield,
+  UserCheck,
+  Activity,
+  CreditCard,
+  Eye,
+  IndianRupee,
+  Stethoscope,
+  Clock,
+  Bell,
+  CheckCircle,
+  PlusCircle,
+  Users,
+  FileText,
+  BedDouble,
+  Heart,
+  AlertCircle,
+  Lock,
+} from 'lucide-react';
 
-export const GuardianDashboard = () => {
+export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
+  const { user } = useAuthStore();
+  const [currentTab, setCurrentTab] = useState(activeTab);
+  const [linkedPatients, setLinkedPatients] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [guardianData, setGuardianData] = useState(null);
+
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkFormData, setLinkFormData] = useState({ patientUhid: '', relationship: 'FATHER', notes: '' });
+  const [linkFeedback, setLinkFeedback] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setCurrentTab(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchLinkedPatients();
+  }, []);
+
+  useEffect(() => {
+    fetchGuardianDashboard();
+  }, [selectedPatientId]);
+
+  const fetchLinkedPatients = async () => {
+    try {
+      const res = await axiosClient.get('/guardian-portal/linked-patients');
+      const list = res.data?.data || res.data || [];
+      setLinkedPatients(list);
+      if (list.length > 0 && !selectedPatientId) {
+        setSelectedPatientId(list[0].patient?._id);
+      }
+    } catch (err) {
+      console.error('Failed to load linked patients:', err);
+    }
+  };
+
+  const fetchGuardianDashboard = async () => {
+    try {
+      const url = selectedPatientId ? `/guardian-portal/dashboard?patientId=${selectedPatientId}` : '/guardian-portal/dashboard';
+      const res = await axiosClient.get(url);
+      setGuardianData(res.data?.data || res.data);
+    } catch (err) {
+      console.error('Failed to load guardian dashboard:', err);
+    }
+  };
+
+  const handleRequestLink = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setLinkFeedback(null);
+    try {
+      await axiosClient.post('/guardian-portal/request-link', linkFormData);
+      setLinkFeedback('Guardian link request submitted! Awaiting Hospital Admin approval.');
+      setLinkFormData({ patientUhid: '', relationship: 'FATHER', notes: '' });
+      setLinkModalOpen(false);
+      fetchLinkedPatients();
+    } catch (err) {
+      setLinkFeedback(err.response?.data?.error?.message || 'Failed to submit link request.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const patientSummary = guardianData?.patientSummary || {};
+  const doctorUpdates = guardianData?.doctorUpdates || [];
+  const permissions = guardianData?.permissions || {
+    patientOverview: true,
+    treatmentHistory: true,
+    doctorUpdates: true,
+    billing: true,
+    patientRequests: true,
+  };
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Guardian Care & Billing Monitor</h2>
-        <p className="text-xs text-slate-500 mt-1">Jane Doe — Guardian for Patient: John Doe (UHID: HOSP-00042)</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Patient Treatment Status" value="STABLE" subtitle="Post-Op Recovery Ward 3B" icon={Activity} color="emerald" />
-        <StatCard title="Total Unbilled IPD Charges" value="₹1,240.00" subtitle="Room + Diagnostics" icon={CreditCard} color="sky" />
-        <StatCard title="Advance Deposit Balance" value="₹2,000.00" subtitle="Remaining Credit" icon={IndianRupee} color="purple" />
-        <StatCard title="Active Care Requests" value="0 Pending" subtitle="Nurse Attended" icon={Eye} color="amber" />
-      </div>
-
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Eye size={18} className="text-indigo-500" />
-            Live Inpatient Progress Summary (Read-Only)
-          </h3>
-          <Button size="sm" variant="success">Pay Outstanding Bill Online</Button>
-        </div>
-
-        <div className="space-y-3 text-xs">
-          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <p className="font-bold text-slate-900">Doctor Visit Summary (09:30 AM)</p>
-            <p className="text-slate-500 mt-1">Dr. House conducted morning rounds. Patient is responding well to medication. Vitals normal.</p>
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0 border border-purple-500">
+            <Shield size={28} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Guardian Care & Monitoring Console</h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                GUARDIAN PORTAL
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Authorized Representative: <strong className="text-slate-800">{user?.name || 'Guardian User'}</strong>
+            </p>
           </div>
         </div>
-      </Card>
+
+        <div className="flex items-center gap-3">
+          {linkedPatients.length > 0 && (
+            <select
+              value={selectedPatientId}
+              onChange={(e) => setSelectedPatientId(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            >
+              {linkedPatients.map((item) => (
+                <option key={item.patient._id} value={item.patient._id}>
+                  Patient: {item.patient.firstName} {item.patient.lastName} ({item.relationship})
+                </option>
+              ))}
+            </select>
+          )}
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setLinkModalOpen(true)}
+            className="font-bold text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-sm"
+          >
+            <PlusCircle size={15} /> Link Patient UHID
+          </Button>
+        </div>
+      </div>
+
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 text-xs font-bold scrollbar-none">
+        {[
+          { key: 'dashboard', label: 'Overview Dashboard', icon: Activity },
+          { key: 'doctor-updates', label: 'Doctor Progress Notes', icon: Stethoscope },
+          { key: 'history', label: 'Treatment History', icon: Clock },
+          { key: 'care-team', label: 'Assigned Care Team', icon: Users },
+          { key: 'requests', label: 'Patient Requests Monitor', icon: Bell },
+          { key: 'billing', label: 'Billing & Ledgers', icon: Receipt },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = currentTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setCurrentTab(tab.key)}
+              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 transition-colors ${
+                isActive
+                  ? 'bg-purple-600 text-white font-bold shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Icon size={14} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Feedback Banner */}
+      {linkFeedback && (
+        <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold flex items-center justify-between">
+          <span>{linkFeedback}</span>
+          <button onClick={() => setLinkFeedback(null)} className="text-purple-700 hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* TAB 1: OVERVIEW DASHBOARD */}
+      {currentTab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              title="Patient Status"
+              value={patientSummary.currentStatus || 'UNDER CARE'}
+              subtitle="Live Clinical Status"
+              icon={Activity}
+              color="emerald"
+            />
+            <StatCard
+              title="Doctor Updates"
+              value={`${doctorUpdates.length} Published`}
+              subtitle="Physician Notes"
+              icon={Stethoscope}
+              color="purple"
+            />
+            <StatCard
+              title="Active Inpatient Location"
+              value={patientSummary.admissionDetails?.bedNumber ? `Bed ${patientSummary.admissionDetails.bedNumber}` : 'OPD Care'}
+              subtitle={patientSummary.admissionDetails?.wardName || 'Outpatient'}
+              icon={BedDouble}
+              color="sky"
+            />
+            <StatCard
+              title="Total Pending Charges"
+              value={`₹${(patientSummary.totalPendingAmount || 0).toLocaleString()}`}
+              subtitle="Outstanding Invoices"
+              icon={IndianRupee}
+              color="amber"
+            />
+          </div>
+
+          {/* Doctor Progress Notes Feed */}
+          <Card>
+            <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Stethoscope size={18} className="text-purple-600" />
+                Latest Approved Physician Progress Notes
+              </span>
+              <span className="text-xs text-slate-500 font-mono">Verified Doctor Updates</span>
+            </h3>
+
+            <div className="space-y-3 text-xs">
+              {permissions.doctorUpdates ? (
+                doctorUpdates.length > 0 ? (
+                  doctorUpdates.map((update) => (
+                    <div key={update._id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-900 text-sm">{update.title}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                          {update.updateType}
+                        </span>
+                      </div>
+                      <p className="text-slate-700">{update.content}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Published by Dr. {update.doctorId?.name} • {new Date(update.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-slate-400">No published doctor progress notes yet.</div>
+                )
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-2">
+                  <Lock size={16} /> Doctor updates access is restricted by hospital configuration.
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* LINK PATIENT MODAL */}
+      {linkModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <PlusCircle size={20} className="text-purple-600" />
+                Link Patient to Guardian Account
+              </h3>
+              <button onClick={() => setLinkModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestLink} className="space-y-4 text-xs">
+              <Input
+                label="Target Patient UHID *"
+                value={linkFormData.patientUhid}
+                onChange={(e) => setLinkFormData({ ...linkFormData, patientUhid: e.target.value })}
+                placeholder="e.g. HOSP-00042"
+                required
+              />
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  Relationship to Patient *
+                </label>
+                <select
+                  value={linkFormData.relationship}
+                  onChange={(e) => setLinkFormData({ ...linkFormData, relationship: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-purple-500"
+                >
+                  <option value="FATHER">Father</option>
+                  <option value="MOTHER">Mother</option>
+                  <option value="SPOUSE">Spouse</option>
+                  <option value="SIBLING">Sibling</option>
+                  <option value="CHILD">Child</option>
+                  <option value="LEGAL_GUARDIAN">Legal Guardian</option>
+                  <option value="CARETAKER">Caretaker / Attendant</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <Input
+                label="Verification Notes / Application Reason"
+                value={linkFormData.notes}
+                onChange={(e) => setLinkFormData({ ...linkFormData, notes: e.target.value })}
+                placeholder="e.g. Primary caretaker for admitted dependent"
+              />
+
+              <div className="pt-2 flex gap-3">
+                <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setLinkModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-1/2 font-bold bg-purple-600 hover:bg-purple-700 text-white"
+                  isLoading={isLoading}
+                >
+                  Submit Link Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+export default GuardianDashboard;

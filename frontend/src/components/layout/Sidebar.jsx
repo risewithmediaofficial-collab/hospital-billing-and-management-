@@ -200,20 +200,69 @@ export const Sidebar = ({ isOpen, onClose }) => {
       });
     };
 
+    const handleDoctorQueueNotification = (data) => {
+      addNotification({
+        id: `doc_q_${Date.now()}_${Math.random()}`,
+        event: 'PATIENT_QUEUED',
+        title: 'New Patient Queued',
+        message: data.patientName ? `Patient ${data.patientName} queued for consultation` : 'New patient registered in OPD Queue',
+        patientName: data.patientName || 'OPD Patient',
+        linkedPath: '/doctor/dashboard',
+        timestamp: new Date(),
+      });
+    };
+
+    const handleNursingRequestNotification = (data) => {
+      addNotification({
+        id: `nurse_req_${Date.now()}_${Math.random()}`,
+        event: 'CARE_REQUEST',
+        title: `Care Request: ${data.requestType || 'In-Bed Alert'}`,
+        message: `Patient requested ${data.requestType || 'assistance'}`,
+        patientName: data.patientName || 'Inpatient',
+        linkedPath: '/nursing/dashboard',
+        timestamp: new Date(),
+      });
+    };
+
     const handleEmergencyAlert = (data) => {
-      addEmergency(data);
+      addEmergency({
+        id: data.id || `emg_${Date.now()}`,
+        event: 'EMERGENCY',
+        title: data.title || '🚨 Emergency Alert',
+        message: data.message || 'Code Blue triggered',
+        patientName: data.patientName || data.payload?.patientName || 'Unknown Patient',
+        linkedPath: '/emergency',
+        timestamp: data.timestamp || new Date(),
+      });
+      addNotification({
+        id: `emg_notif_${Date.now()}`,
+        event: 'EMERGENCY',
+        title: data.title || '🚨 Emergency Alert',
+        message: data.message || 'Code Blue triggered',
+        patientName: data.patientName || data.payload?.patientName || 'Unknown Patient',
+        linkedPath: '/emergency',
+        timestamp: data.timestamp || new Date(),
+      });
     };
 
     socket.on('emergency:alert', handleEmergencyAlert);
     socket.on('emergency:code_blue_triggered', handleEmergencyAlert);
     socket.on('diagnostics:report_ready', handleWorkflowEvent);
     socket.on('investigation:status_updated', handleWorkflowEvent);
+    socket.on('queue:patient_added', handleDoctorQueueNotification);
+    socket.on('token:generated', handleDoctorQueueNotification);
+    socket.on('appointment:created', handleDoctorQueueNotification);
+    socket.on('patient_request:created', handleNursingRequestNotification);
 
     return () => {
       socket.off('emergency:alert', handleEmergencyAlert);
       socket.off('emergency:code_blue_triggered', handleEmergencyAlert);
       socket.off('diagnostics:report_ready', handleWorkflowEvent);
       socket.off('investigation:status_updated', handleWorkflowEvent);
+      socket.off('queue:patient_added', handleDoctorQueueNotification);
+      socket.off('token:generated', handleDoctorQueueNotification);
+      socket.off('appointment:created', handleDoctorQueueNotification);
+      socket.off('patient_request:created', handleNursingRequestNotification);
     };
   }, [socket, addNotification, addEmergency]);
 

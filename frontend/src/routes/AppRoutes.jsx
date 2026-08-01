@@ -234,18 +234,43 @@ export const AppRoutes = () => {
 
       {/* 13. Patient Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PATIENT, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
-        <Route path="/patient-portal/dashboard" element={<MainLayout><PatientDashboard /></MainLayout>} />
-        <Route path="/patient-portal/records" element={<MainLayout><GenericSubView title="My Medical Records & Prescriptions" subtitle="EHR Health History" iconName="FileText" /></MainLayout>} />
-        <Route path="/patient-portal/bills" element={<MainLayout><GenericSubView title="My Invoices & Payments" subtitle="Itemized Hospital Invoices" iconName="Receipt" /></MainLayout>} />
-        <Route path="/patient-portal/request-amenity" element={<MainLayout><GenericSubView title="In-Bed Room Request Console" subtitle="Nurse Notification" iconName="Bell" /></MainLayout>} />
+        <Route path="/patient-portal/dashboard" element={<MainLayout><PatientDashboard activeTab="dashboard" /></MainLayout>} />
+        <Route path="/patient-portal/profile" element={<MainLayout><PatientDashboard activeTab="profile" /></MainLayout>} />
+        <Route path="/patient-portal/tokens" element={<MainLayout><PatientDashboard activeTab="tokens" /></MainLayout>} />
+        <Route path="/patient-portal/treatment" element={<MainLayout><PatientDashboard activeTab="treatment" /></MainLayout>} />
+        <Route path="/patient-portal/history" element={<MainLayout><PatientDashboard activeTab="history" /></MainLayout>} />
+        <Route path="/patient-portal/doctor-instructions" element={<MainLayout><PatientDashboard activeTab="doctor-instructions" /></MainLayout>} />
+        <Route path="/patient-portal/prescriptions" element={<MainLayout><PatientDashboard activeTab="prescriptions" /></MainLayout>} />
+        <Route path="/patient-portal/lab-reports" element={<MainLayout><PatientDashboard activeTab="lab-reports" /></MainLayout>} />
+        <Route path="/patient-portal/radiology-reports" element={<MainLayout><PatientDashboard activeTab="radiology-reports" /></MainLayout>} />
+        <Route path="/patient-portal/admission" element={<MainLayout><PatientDashboard activeTab="admission" /></MainLayout>} />
+        <Route path="/patient-portal/care-team" element={<MainLayout><PatientDashboard activeTab="care-team" /></MainLayout>} />
+        <Route path="/patient-portal/requests" element={<MainLayout><PatientDashboard activeTab="requests" /></MainLayout>} />
+        <Route path="/patient-portal/billing" element={<MainLayout><PatientDashboard activeTab="billing" /></MainLayout>} />
+        <Route path="/patient-portal/discharge" element={<MainLayout><PatientDashboard activeTab="discharge" /></MainLayout>} />
+        <Route path="/patient-portal/records" element={<MainLayout><PatientDashboard activeTab="prescriptions" /></MainLayout>} />
+        <Route path="/patient-portal/bills" element={<MainLayout><PatientDashboard activeTab="billing" /></MainLayout>} />
+        <Route path="/patient-portal/request-amenity" element={<MainLayout><PatientDashboard activeTab="requests" /></MainLayout>} />
       </Route>
 
       {/* 14. Guardian Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.GUARDIAN, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
-        <Route path="/guardian-portal/dashboard" element={<MainLayout><GuardianDashboard /></MainLayout>} />
-        <Route path="/guardian-portal/bills" element={<MainLayout><GenericSubView title="Patient Daily Billing Summary" subtitle="Read-only Ledger Items" iconName="CreditCard" /></MainLayout>} />
-        <Route path="/guardian-portal/updates" element={<MainLayout><GenericSubView title="Doctor & Nursing Progress Updates" subtitle="Live Inpatient Updates" iconName="Activity" /></MainLayout>} />
-        <Route path="/guardian-portal/pay-online" element={<MainLayout><GenericSubView title="Online Bill Payment Gateway" subtitle="Instant Payment Clearance" iconName="IndianRupee" /></MainLayout>} />
+        <Route path="/guardian-portal/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
+        <Route path="/guardian-portal/overview" element={<MainLayout><GuardianDashboard activeTab="overview" /></MainLayout>} />
+        <Route path="/guardian-portal/treatment" element={<MainLayout><GuardianDashboard activeTab="treatment" /></MainLayout>} />
+        <Route path="/guardian-portal/history" element={<MainLayout><GuardianDashboard activeTab="history" /></MainLayout>} />
+        <Route path="/guardian-portal/doctor-updates" element={<MainLayout><GuardianDashboard activeTab="doctor-updates" /></MainLayout>} />
+        <Route path="/guardian-portal/prescriptions" element={<MainLayout><GuardianDashboard activeTab="prescriptions" /></MainLayout>} />
+        <Route path="/guardian-portal/reports" element={<MainLayout><GuardianDashboard activeTab="reports" /></MainLayout>} />
+        <Route path="/guardian-portal/admission" element={<MainLayout><GuardianDashboard activeTab="admission" /></MainLayout>} />
+        <Route path="/guardian-portal/care-team" element={<MainLayout><GuardianDashboard activeTab="care-team" /></MainLayout>} />
+        <Route path="/guardian-portal/requests" element={<MainLayout><GuardianDashboard activeTab="requests" /></MainLayout>} />
+        <Route path="/guardian-portal/billing" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
+        <Route path="/guardian-portal/discharge" element={<MainLayout><GuardianDashboard activeTab="discharge" /></MainLayout>} />
+        <Route path="/guardian-portal/bills" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
+        <Route path="/guardian-portal/updates" element={<MainLayout><GuardianDashboard activeTab="doctor-updates" /></MainLayout>} />
+        <Route path="/guardian-portal/pay-online" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
+        <Route path="/guardian/dashboard" element={<Navigate to="/guardian-portal/dashboard" replace />} />
       </Route>
 
       {/* Global Emergency Route */}
