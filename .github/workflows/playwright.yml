@@ -9,6 +9,9 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: http://localhost:5001/api/v1
+      CI: true
     steps:
     - uses: actions/checkout@v4
 
@@ -16,7 +19,7 @@ jobs:
       with:
         node-version: lts/*
 
-    - name: Install dependencies
+    - name: Install frontend dependencies
       run: |
         cd frontend
         npm ci || npm install
