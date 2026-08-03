@@ -74,12 +74,16 @@ export class PatientsService {
       });
 
       // Auto-provision User login account for Patient Portal
+      let patientUserAccount = null;
+      let guardianUserAccount = null;
+
       try {
         const userEmail = data.email && data.email.trim() ? data.email.toLowerCase().trim() : `${uhid.toLowerCase()}@hospital.local`;
         const userPassword = data.portalPassword || data.phone || 'Patient123!';
         const bcrypt = (await import('bcryptjs')).default;
         const passwordHash = await bcrypt.hash(userPassword, 12);
         const { User } = await import('../../models/User.js');
+        const { GuardianLink } = await import('../../models/GuardianLink.js');
 
         const existingUser = await User.findOne({
           $or: [
@@ -90,7 +94,7 @@ export class PatientsService {
         });
 
         if (!existingUser) {
-          await User.create({
+          patientUserAccount = await User.create({
             hospitalId,
             branchId,
             name: `${data.firstName} ${data.lastName}`,
@@ -104,11 +108,77 @@ export class PatientsService {
             isActive: true,
           });
         }
+
+        // Auto-provision Guardian User & APPROVED GuardianLink if guardian info provided
+        const gPhone = data.guardianPhone || data.emergencyContact?.phone;
+        const gName = data.guardianName || data.emergencyContact?.name || `Guardian of ${data.firstName}`;
+        const gRelation = (data.guardianRelationship || data.emergencyContact?.relation || 'FAMILY').toUpperCase();
+        const validRelations = ['FATHER', 'MOTHER', 'SPOUSE', 'SIBLING', 'CHILD', 'LEGAL_GUARDIAN', 'CARETAKER', 'OTHER'];
+        const relationship = validRelations.includes(gRelation) ? gRelation : 'OTHER';
+
+        if (gPhone && gPhone.trim() && gPhone !== data.phone) {
+          const cleanGPhone = gPhone.trim();
+          const gEmail = data.guardianEmail && data.guardianEmail.trim()
+            ? data.guardianEmail.toLowerCase().trim()
+            : `guardian.${cleanGPhone.replace(/\D/g, '')}@hospital.local`;
+          const gPassword = cleanGPhone;
+          const gPasswordHash = await bcrypt.hash(gPassword, 12);
+
+          let guardianUser = await User.findOne({
+            $or: [{ phone: cleanGPhone }, { email: gEmail }],
+            role: 'GUARDIAN',
+          });
+
+          if (!guardianUser) {
+            guardianUser = await User.create({
+              hospitalId,
+              branchId,
+              name: gName,
+              email: gEmail,
+              phone: cleanGPhone,
+              passwordHash: gPasswordHash,
+              assignedPasswordHint: gPassword,
+              role: 'GUARDIAN',
+              status: 'ACTIVE',
+              isActive: true,
+            });
+          }
+
+          guardianUserAccount = {
+            id: guardianUser._id,
+            name: guardianUser.name,
+            phone: guardianUser.phone,
+            username: guardianUser.phone,
+            password: gPassword,
+            loginUrl: '/login',
+          };
+
+          // Auto-create pre-approved link
+          const existingLink = await GuardianLink.findOne({
+            guardianUserId: guardianUser._id,
+            patientId: patient._id,
+          });
+
+          if (!existingLink) {
+            await GuardianLink.create({
+              hospitalId,
+              branchId,
+              patientId: patient._id,
+              guardianUserId: guardianUser._id,
+              relationship,
+              accessStatus: 'APPROVED',
+              approvedAt: new Date(),
+              notes: 'Auto-linked & approved during patient registration',
+            });
+          }
+        }
       } catch (userErr) {
-        console.error('[Patient User Auto-Provision Notice]', userErr.message);
+        console.error('[Patient/Guardian User Auto-Provision Notice]', userErr.message);
       }
 
-      return patient;
+      const responseData = patient.toObject();
+      responseData.guardianCredentials = guardianUserAccount;
+      return responseData;
     } catch (err) {
       console.error('[Patient Registration Error]', err);
       if (err.name === 'ValidationError') {

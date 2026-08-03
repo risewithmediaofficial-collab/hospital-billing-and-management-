@@ -23,6 +23,7 @@ import {
   Heart,
   AlertCircle,
   Lock,
+  Receipt,
 } from 'lucide-react';
 
 export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
@@ -257,6 +258,90 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* TAB 2: DOCTOR PROGRESS NOTES */}
+      {(currentTab === 'doctor-updates' || currentTab === 'updates') && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Stethoscope size={18} className="text-purple-600" />
+              Latest Approved Physician Progress Notes
+            </span>
+            <span className="text-xs text-slate-500 font-mono">Verified Doctor Updates</span>
+          </h3>
+
+          <div className="space-y-3 text-xs">
+            {permissions.doctorUpdates ? (
+              doctorUpdates.length > 0 ? (
+                doctorUpdates.map((update) => (
+                  <div key={update._id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-900 text-sm">{update.title}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                        {update.updateType}
+                      </span>
+                    </div>
+                    <p className="text-slate-700">{update.content}</p>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      Published by Dr. {update.doctorId?.name} • {new Date(update.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-center text-slate-400">No published doctor progress notes yet.</div>
+              )
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-2">
+                <Lock size={16} /> Doctor updates access is restricted by hospital configuration.
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 3: TREATMENT HISTORY */}
+      {currentTab === 'history' && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Clock size={18} className="text-purple-600" />
+            Patient Treatment & Clinical Progress History
+          </h3>
+          <p className="text-xs text-slate-500">Timeline of approved doctor updates, prescriptions, and lab tests for linked patient.</p>
+        </Card>
+      )}
+
+      {/* TAB 4: CARE TEAM */}
+      {currentTab === 'care-team' && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Users size={18} className="text-purple-600" />
+            Assigned Care Team & Attending Physicians
+          </h3>
+          <p className="text-xs text-slate-500">View contact details and shift availability for assigned clinical staff.</p>
+        </Card>
+      )}
+
+      {/* TAB 5: PATIENT REQUESTS */}
+      {currentTab === 'requests' && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Bell size={18} className="text-purple-600" />
+            Patient Care Requests Dispatch Monitor
+          </h3>
+          <p className="text-xs text-slate-500">Monitor active in-bed care requests and nurse responses for linked patient.</p>
+        </Card>
+      )}
+
+      {/* TAB 6: BILLING & LEDGERS */}
+      {(currentTab === 'billing' || currentTab === 'bills' || currentTab === 'pay-online') && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Receipt size={18} className="text-purple-600" />
+            Patient Billing, Invoices & Online Payments
+          </h3>
+          <p className="text-xs text-slate-500">View itemized hospital invoices, receipts, and payment history.</p>
+        </Card>
       )}
 
       {/* LINK PATIENT MODAL */}

@@ -29,7 +29,7 @@ const patientRequestSchema = new mongoose.Schema(
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     admissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admission', default: null },
-    bedId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bed', required: true },
+    bedId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bed', default: null },
     requestedBy: { type: String, enum: ['PATIENT', 'GUARDIAN', 'NURSE', 'CARETAKER'], default: 'PATIENT' },
     requestType: { type: String, enum: ALL_REQUEST_TYPES, required: true },
     requestCategory: { type: String, enum: ['CARETAKER', 'NURSE', 'DOCTOR', 'EMERGENCY'], default: 'NURSE', index: true },

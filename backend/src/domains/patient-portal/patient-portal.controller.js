@@ -70,16 +70,8 @@ export class PatientPortalController {
 
   static async createMyRequest(req, res, next) {
     try {
-      const { PatientRequest } = await import('../../models/PatientRequest.js');
-      const patient = await PatientPortalService.resolvePatientForUser(req.user);
-      const { requestType, notes, category } = req.body;
-      const newRequest = await PatientRequest.create({
-        patientId: patient?._id,
-        requestType: requestType || 'GENERAL_ASSISTANCE',
-        category: category || 'NURSE',
-        notes: notes || '',
-        status: 'SUBMITTED',
-      });
+      const { RequestsService } = await import('../requests/requests.service.js');
+      const newRequest = await RequestsService.createRequest(req.body, req.user);
       res.status(201).json({ success: true, data: newRequest });
     } catch (err) {
       next(err);

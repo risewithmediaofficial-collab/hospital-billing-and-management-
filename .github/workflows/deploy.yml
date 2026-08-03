@@ -1,38 +1,33 @@
-name: Deploy to Hostinger VPS
+name: Hospital Management Platform Deployment Workflow
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
-  deploy:
+  test-and-build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT || 22 }}
-          timeout: 120s         # ← connection timeout
-          command_timeout: 15m  # ← script execution timeout
-          script: |
-            mkdir -p /docker/hospital-billing
-            cd /docker/hospital-billing
-            if [ ! -d ".git" ]; then
-              git init
-              git remote add origin https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git
-              git fetch origin main
-              git reset --hard origin/main
-              git branch -M main
-            else
-              git pull origin main
-            fi
-            docker compose up -d --build
-            docker compose exec -T backend npm run seed:superadmin
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci || npm install
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          npm ci || npm install
+          npm run build

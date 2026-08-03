@@ -135,11 +135,19 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
         requestType,
         notes: notes || `Patient requested ${requestType} from Patient Portal`,
       });
-      setRequestFeedback(`Request '${requestType}' submitted successfully! Assigned care team notified.`);
+      setRequestFeedback({
+        type: 'success',
+        message: `Request '${requestType}' submitted successfully! Assigned care team notified.`,
+      });
       fetchRequests();
       fetchDashboardData();
     } catch (err) {
-      setRequestFeedback(`Request '${requestType}' submitted! Assigned Nurse / Caretaker notified.`);
+      console.error('Create request error:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Failed to submit request.';
+      setRequestFeedback({
+        type: 'error',
+        message: `Failed to submit request '${requestType}': ${errMsg}`,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -156,10 +164,18 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       setShowEmergencyModal(false);
       fetchDashboardData();
       fetchRequests();
-      setRequestFeedback('🚨 EMERGENCY ALERT BROADCAST TO ALL DUTY STAFF & EMERGENCY CONSOLE!');
+      setRequestFeedback({
+        type: 'success',
+        message: '🚨 EMERGENCY ALERT BROADCAST TO ALL DUTY STAFF & EMERGENCY CONSOLE!',
+      });
     } catch (err) {
+      console.error('Trigger emergency error:', err);
       setShowEmergencyModal(false);
-      setRequestFeedback('🚨 Emergency alert dispatched to Ward Nurse & Duty Doctor!');
+      const errMsg = err.response?.data?.message || err.message || 'Failed to trigger emergency alert.';
+      setRequestFeedback({
+        type: 'error',
+        message: `🚨 Emergency alert failed: ${errMsg}`,
+      });
     } finally {
       setEmergencySubmitting(false);
     }
@@ -245,12 +261,29 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
 
       {/* Feedback Banner */}
       {requestFeedback && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
+        <div
+          className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between gap-3 shadow-xs ${
+            (typeof requestFeedback === 'object' && requestFeedback.type === 'error')
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <CheckCircle size={18} className="text-emerald-600 shrink-0" />
-            <span>{requestFeedback}</span>
+            {(typeof requestFeedback === 'object' && requestFeedback.type === 'error') ? (
+              <AlertCircle size={18} className="text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle size={18} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{typeof requestFeedback === 'string' ? requestFeedback : requestFeedback.message}</span>
           </div>
-          <button onClick={() => setRequestFeedback(null)} className="text-emerald-700 hover:underline text-xs">
+          <button
+            onClick={() => setRequestFeedback(null)}
+            className={
+              (typeof requestFeedback === 'object' && requestFeedback.type === 'error')
+                ? 'text-rose-700 hover:underline text-xs'
+                : 'text-emerald-700 hover:underline text-xs'
+            }
+          >
             Dismiss
           </button>
         </div>

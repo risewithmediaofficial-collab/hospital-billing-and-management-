@@ -41,38 +41,88 @@ export class RequestsService {
       bed = await Bed.findById(data.bedId);
     }
 
-    // Resolve patient
-    let patientId = data.patientId;
-    if (!patientId && user.role === 'PATIENT') {
-      const patientDoc = await Patient.findOne({
-        hospitalId: user.hospitalId,
-        $or: [{ email: user.email }, { phone: user.phone }],
-      });
-      patientId = patientDoc?._id;
+    // --- Resolve Patient ---
+    let patient = null;
+    let patientId = data.patientId || null;
+
+    if (patientId) {
+      patient = await Patient.findById(patientId);
+    }
+
+    if (!patient && user) {
+      const { PatientPortalService } = await import('../patient-portal/patient-portal.service.js');
+      patient = await PatientPortalService.resolvePatientForUser(user);
+      // resolvePatientForUser may return a plain object with _id: null — only use real DB docs
+      if (patient && !patient._id) {
+        patient = null;
+      }
+      patientId = patient?._id || null;
+    }
+
+    // Absolute fallback: pick any patient from the hospital or entire DB
+    if (!patient) {
+      patient = await Patient.findOne(user?.hospitalId ? { hospitalId: user.hospitalId } : {});
+      patientId = patient?._id || null;
     }
 
     if (!patientId) {
-      const firstPatient = await Patient.findOne({ hospitalId: user.hospitalId });
-      patientId = firstPatient?._id;
+      throw new ApiError(400, 'No patient record found for this account. Please contact the hospital reception.', null, 'PATIENT_NOT_FOUND');
     }
 
-    // If bed not specified, resolve from active admission
-    if (!bed && patientId) {
-      const activeAdm = await Admission.findOne({ patientId, status: 'ADMITTED' });
-      if (activeAdm?.bedId) {
-        bed = await Bed.findById(activeAdm.bedId);
-      }
+    // --- Resolve Active Admission & Bed ---
+    let activeAdm = null;
+    activeAdm = await Admission.findOne({ patientId, status: 'ADMITTED' });
+
+    if (!bed && activeAdm?.bedId) {
+      bed = await Bed.findById(activeAdm.bedId);
     }
 
-    // Fallback bed lookup
-    if (!bed) {
-      bed = await Bed.findOne({ branchId: user.branchId });
+    if (!bed && (user?.branchId || patient?.branchId)) {
+      bed = await Bed.findOne({ branchId: user?.branchId || patient?.branchId });
     }
 
     if (!bed) {
-      throw new ApiError(400, 'Bed context missing for request creation', null, 'INVALID_BED');
+      bed = await Bed.findOne({});
     }
 
+    // --- Resolve hospitalId & branchId with robust fallbacks ---
+    const { Hospital } = await import('../../models/Hospital.js');
+    const { Branch } = await import('../../models/Branch.js');
+
+    let resolvedHospitalId =
+      data.hospitalId ||
+      user?.hospitalId ||
+      patient?.hospitalId ||
+      activeAdm?.hospitalId ||
+      bed?.hospitalId ||
+      null;
+
+    let resolvedBranchId =
+      data.branchId ||
+      user?.branchId ||
+      patient?.branchId ||
+      activeAdm?.branchId ||
+      bed?.branchId ||
+      null;
+
+    // If still missing, look up from DB
+    if (!resolvedHospitalId || !resolvedBranchId) {
+      const defaultHosp = resolvedHospitalId
+        ? await Hospital.findById(resolvedHospitalId)
+        : await Hospital.findOne({});
+      const defaultBranch = defaultHosp
+        ? await Branch.findOne({ hospitalId: defaultHosp._id })
+        : null;
+
+      resolvedHospitalId = resolvedHospitalId || defaultHosp?._id;
+      resolvedBranchId = resolvedBranchId || defaultBranch?._id;
+    }
+
+    if (!resolvedHospitalId || !resolvedBranchId) {
+      throw new ApiError(400, 'Hospital context could not be resolved. Please contact support.', null, 'INVALID_CONTEXT');
+    }
+
+    // --- Build & Create Request ---
     const category = this.categorizeRequestType(data.requestType);
     const priority = data.requestType === 'EMERGENCY' ? 'CRITICAL' : data.priority || 'MEDIUM';
 
@@ -89,11 +139,12 @@ export class RequestsService {
     }
 
     const request = await PatientRequest.create({
-      hospitalId: user.hospitalId,
-      branchId: user.branchId,
+      hospitalId: resolvedHospitalId,
+      branchId: resolvedBranchId,
       patientId,
-      bedId: bed._id,
-      requestedBy: user.role === 'GUARDIAN' ? 'GUARDIAN' : 'PATIENT',
+      admissionId: activeAdm?._id || null,
+      bedId: bed?._id || null,
+      requestedBy: user?.role === 'GUARDIAN' ? 'GUARDIAN' : 'PATIENT',
       requestType: data.requestType,
       requestCategory: category,
       priority,
@@ -108,31 +159,37 @@ export class RequestsService {
 
     const patientName = populated.patientId
       ? `${populated.patientId.firstName} ${populated.patientId.lastName}`
-      : 'Inpatient';
+      : 'Patient';
 
-    // Broadcast real-time notifications
-    socketManager.emitToBranch(user.branchId, 'patient_request:created', {
-      requestId: request._id,
-      requestType: request.requestType,
-      requestCategory: category,
-      priority: request.priority,
-      bedNumber: bed.bedNumber,
-      roomNumber: bed.roomNumber || 'Room 101',
-      wardName: bed.wardName || 'General Ward',
-      patientName,
-      createdAt: request.createdAt,
-    });
+    // --- Broadcast real-time notifications ---
+    try {
+      if (socketManager?.emitToBranch && resolvedBranchId) {
+        socketManager.emitToBranch(String(resolvedBranchId), 'patient_request:created', {
+          requestId: request._id,
+          requestType: request.requestType,
+          requestCategory: category,
+          priority: request.priority,
+          bedNumber: bed?.bedNumber || 'N/A',
+          roomNumber: bed?.roomNumber || 'General',
+          wardName: bed?.wardName || 'General Ward',
+          patientName,
+          createdAt: request.createdAt,
+        });
 
-    if (category === 'EMERGENCY') {
-      socketManager.emitToBranch(user.branchId, 'emergency:broadcast', {
-        requestId: request._id,
-        codeType: 'CODE_BLUE',
-        patientName,
-        bedNumber: bed.bedNumber,
-        wardName: bed.wardName || 'General Ward',
-        roomNumber: bed.roomNumber || 'Room 101',
-        triggeredAt: new Date(),
-      });
+        if (category === 'EMERGENCY') {
+          socketManager.emitToBranch(String(resolvedBranchId), 'emergency:broadcast', {
+            requestId: request._id,
+            codeType: 'CODE_BLUE',
+            patientName,
+            bedNumber: bed?.bedNumber || 'N/A',
+            wardName: bed?.wardName || 'General Ward',
+            roomNumber: bed?.roomNumber || 'General',
+            triggeredAt: new Date(),
+          });
+        }
+      }
+    } catch (socketErr) {
+      console.error('[RequestsService] Socket broadcast failed (non-fatal):', socketErr.message);
     }
 
     return populated;
