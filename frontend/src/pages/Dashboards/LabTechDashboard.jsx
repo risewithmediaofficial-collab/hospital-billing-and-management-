@@ -6,11 +6,13 @@ import { Button } from '../../components/ui/Button';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { TestTube, QrCode, FileCheck, CheckCircle2, FlaskConical, AlertCircle, Upload, Check, Printer, FileSpreadsheet } from 'lucide-react';
 
 export const LabTechDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const resolvePending = useDepartmentNotificationStore((state) => state.resolvePending);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -97,6 +99,7 @@ export const LabTechDashboard = () => {
         status: 'COMPLETED',
         notes: 'Pathology Test & Report Completed',
       });
+      resolvePending(selectedOrder._id);
 
       setReportSummary('');
       fetchOrders();

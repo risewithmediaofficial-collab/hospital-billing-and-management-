@@ -176,6 +176,7 @@ export class DiagnosticsService {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED : WORKFLOW_EVENTS.LAB_ACCEPTED;
       WorkflowEventService.emit(evt, {
         orderId: order._id,
+        doctorId: order.doctorId,
         patientName: order.patientName,
         uhid: order.uhid,
         testName: order.testName,
@@ -185,6 +186,7 @@ export class DiagnosticsService {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED;
       WorkflowEventService.emit(evt, {
         orderId: order._id,
+        doctorId: order.doctorId,
         patientName: order.patientName,
         uhid: order.uhid,
         testName: order.testName,
@@ -269,6 +271,19 @@ export class DiagnosticsService {
       socketManager.io.emit('diagnostics:report_ready', reportPayload);
       socketManager.io.emit('investigation:status_updated', reportPayload);
     }
+
+    // A report upload is itself the completed department handoff. Do not make
+    // the doctor's notification depend on a second status request succeeding.
+    const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
+    WorkflowEventService.emit(
+      isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED,
+      {
+        ...reportPayload,
+        doctorId: order.doctorId,
+        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      },
+      order.branchId,
+    );
 
     return order;
   }

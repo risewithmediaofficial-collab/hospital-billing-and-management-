@@ -59,19 +59,21 @@ const TARGET_ROLES = {
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:  ['RECEPTIONIST'],
-  [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:    ['RECEPTIONIST', 'CASHIER', 'PHARMACIST'],
-  [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:        ['LAB_TECH'],
-  [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:  ['RADIOLOGIST'],
+  // Consultation completion means "ready for billing". Reception must not
+  // receive it in Completed & Billed until PAYMENT_COLLECTED is emitted.
+  [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:    ['CASHIER', 'BILLING_STAFF'],
+  [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:        ['LAB_TECH', 'LABORATORY_STAFF'],
+  [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:  ['RADIOLOGIST', 'RADIOLOGY_STAFF'],
   [WORKFLOW_EVENTS.LAB_ACCEPTED]:             ['DOCTOR'],
   [WORKFLOW_EVENTS.LAB_SUBMITTED]:            ['DOCTOR'],
   [WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED]:       ['DOCTOR'],
   [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:      ['DOCTOR'],
-  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:      ['LAB_TECH'],
-  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]:['RADIOLOGIST'],
-  [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]:      ['PHARMACIST'],
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:      ['LAB_TECH', 'LABORATORY_STAFF'],
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]:['RADIOLOGIST', 'RADIOLOGY_STAFF'],
+  [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]:      ['PHARMACIST', 'PHARMACY_STAFF'],
   [WORKFLOW_EVENTS.PHARMACY_ACCEPTED]:        ['DOCTOR'],
   [WORKFLOW_EVENTS.PHARMACY_DISPENSED]:       ['DOCTOR', 'NURSE'],
-  [WORKFLOW_EVENTS.BILL_REQUESTED]:           ['CASHIER'],
+  [WORKFLOW_EVENTS.BILL_REQUESTED]:           ['CASHIER', 'BILLING_STAFF'],
   [WORKFLOW_EVENTS.BILL_READY]:               ['DOCTOR', 'RECEPTIONIST'],
   [WORKFLOW_EVENTS.PAYMENT_COLLECTED]:        ['DOCTOR', 'RECEPTIONIST'],
   [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]:     ['NURSE', 'NURSE_INCHARGE'],
@@ -179,7 +181,15 @@ export class WorkflowEventService {
     }
 
     roles.forEach((role) => {
-      socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, envelope);
+      const targetedEnvelope = { ...envelope, targetRole: role };
+      const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
+      if (targetUserId) {
+        socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+        socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
+      } else {
+        socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+        socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
+      }
     });
 
     // Also emit to branch room for any display boards

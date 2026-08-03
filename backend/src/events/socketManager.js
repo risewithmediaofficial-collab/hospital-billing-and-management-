@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import { User } from '../models/User.js';
 
 class SocketManager {
   constructor() {
@@ -29,16 +30,23 @@ class SocketManager {
       }
     });
 
-    this.io.on('connection', (socket) => {
+    this.io.on('connection', async (socket) => {
       console.log(`[Socket.IO] Client Connected: ${socket.id} (User: ${socket.user.name}, Role: ${socket.user.role})`);
 
       // Auto join user to branch room & role room
       if (socket.user.branchId) {
         socket.join(`branch_${socket.user.branchId}`);
       }
-      if (socket.user.role) {
-        socket.join(`role_${socket.user.role}`);
+      if (socket.user.id) socket.join(`user_${socket.user.id}`);
+      const roles = new Set([socket.user.role].filter(Boolean));
+      try {
+        const currentUser = await User.findById(socket.user.id).select('role additionalRoles');
+        if (currentUser?.role) roles.add(currentUser.role);
+        for (const role of currentUser?.additionalRoles || []) roles.add(role);
+      } catch (error) {
+        console.error(`[Socket.IO] Could not refresh roles for ${socket.user.id}:`, error.message);
       }
+      roles.forEach((role) => socket.join(`role_${role}`));
 
       socket.on('join_ward', (wardId) => {
         socket.join(`ward_${wardId}`);
@@ -63,6 +71,10 @@ class SocketManager {
     if (this.io) {
       this.io.to(`role_${role}`).emit(event, data);
     }
+  }
+
+  emitToUser(userId, event, data) {
+    if (this.io && userId) this.io.to(`user_${userId}`).emit(event, data);
   }
 
   emitToWard(wardId, event, data) {

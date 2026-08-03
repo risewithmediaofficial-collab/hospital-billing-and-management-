@@ -22,6 +22,14 @@ export class PatientsService {
     if (!hospitalId || !branchId) {
       throw new ApiError(400, 'Hospital tenant or Branch context is not initialized. Please run system setup.', null, 'TENANT_NOT_INITIALIZED');
     }
+    const patientPhone = String(data.phone || '').trim();
+    const guardianPhone = String(data.guardianPhone || '').trim();
+    if (!patientPhone || !guardianPhone) {
+      throw new ApiError(422, 'Patient mobile number and guardian mobile number are required.', null, 'VALIDATION_ERROR');
+    }
+    if (patientPhone === guardianPhone) {
+      throw new ApiError(422, 'Guardian mobile number must be different from the patient mobile number.', null, 'VALIDATION_ERROR');
+    }
 
     // Generate unique, collision-free UHID auto-sequence (e.g. HOSP-2026-00001)
     const year = new Date().getFullYear();
@@ -62,8 +70,8 @@ export class PatientsService {
         dob: parsedDob,
         chiefComplaints: data.chiefComplaints || data.chiefComplaint || '',
         bloodGroup: data.bloodGroup || 'O+',
-        phone: data.phone,
-        email: data.email || '',
+        phone: patientPhone,
+        email: '',
         nationalId: data.nationalId || '',
         address: data.address,
         city: data.city || 'Metropolis',
@@ -78,8 +86,8 @@ export class PatientsService {
       let guardianUserAccount = null;
 
       try {
-        const userEmail = data.email && data.email.trim() ? data.email.toLowerCase().trim() : `${uhid.toLowerCase()}@hospital.local`;
-        const userPassword = data.portalPassword || data.phone || 'Patient123!';
+        const userEmail = `${uhid.toLowerCase()}@hospital.local`;
+        const userPassword = patientPhone;
         const bcrypt = (await import('bcryptjs')).default;
         const passwordHash = await bcrypt.hash(userPassword, 12);
         const { User } = await import('../../models/User.js');
@@ -88,7 +96,7 @@ export class PatientsService {
         const existingUser = await User.findOne({
           $or: [
             { email: userEmail },
-            { phone: data.phone },
+            { role: 'PATIENT', loginIds: patientPhone },
             { uhid },
           ],
         });
@@ -99,7 +107,8 @@ export class PatientsService {
             branchId,
             name: `${data.firstName} ${data.lastName}`,
             email: userEmail,
-            phone: data.phone,
+            phone: patientPhone,
+            loginIds: [patientPhone],
             uhid,
             passwordHash,
             assignedPasswordHint: userPassword,
@@ -110,7 +119,7 @@ export class PatientsService {
         }
 
         // Auto-provision Guardian User & APPROVED GuardianLink if guardian info provided
-        const gPhone = data.guardianPhone || data.emergencyContact?.phone;
+        const gPhone = guardianPhone;
         const gName = data.guardianName || data.emergencyContact?.name || `Guardian of ${data.firstName}`;
         const gRelation = (data.guardianRelationship || data.emergencyContact?.relation || 'FAMILY').toUpperCase();
         const validRelations = ['FATHER', 'MOTHER', 'SPOUSE', 'SIBLING', 'CHILD', 'LEGAL_GUARDIAN', 'CARETAKER', 'OTHER'];
@@ -136,19 +145,23 @@ export class PatientsService {
               name: gName,
               email: gEmail,
               phone: cleanGPhone,
+              loginIds: [patientPhone],
               passwordHash: gPasswordHash,
               assignedPasswordHint: gPassword,
               role: 'GUARDIAN',
               status: 'ACTIVE',
               isActive: true,
             });
+          } else if (!guardianUser.loginIds?.includes(patientPhone)) {
+            guardianUser.loginIds = [...(guardianUser.loginIds || []), patientPhone];
+            await guardianUser.save();
           }
 
           guardianUserAccount = {
             id: guardianUser._id,
             name: guardianUser.name,
             phone: guardianUser.phone,
-            username: guardianUser.phone,
+            username: patientPhone,
             password: gPassword,
             loginUrl: '/login',
           };
@@ -177,6 +190,11 @@ export class PatientsService {
       }
 
       const responseData = patient.toObject();
+      responseData.patientCredentials = {
+        username: patientPhone,
+        password: patientPhone,
+        loginUrl: '/login',
+      };
       responseData.guardianCredentials = guardianUserAccount;
       return responseData;
     } catch (err) {

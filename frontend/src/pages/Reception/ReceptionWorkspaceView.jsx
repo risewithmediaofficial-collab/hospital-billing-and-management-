@@ -100,7 +100,7 @@ export const ReceptionWorkspaceView = () => {
           paidAmount: matchingInv ? matchingInv.paidAmount : 0,
           grandTotal: matchingInv ? matchingInv.grandTotal : 0,
         };
-      });
+      }).filter((tok) => tok.billingStatus === 'PAID');
 
       setCompletedPatients(completedWithBilling);
     } catch (err) {
@@ -134,11 +134,13 @@ export const ReceptionWorkspaceView = () => {
     socket.on('opd_queue:updated', handleQueueUpdate);
     socket.on('opd_queue:status_changed', handleQueueUpdate);
     socket.on('billing:invoice_created', handleBillingUpdate);
+    socket.on('billing:payment_collected', handleBillingUpdate);
 
     return () => {
       socket.off('opd_queue:updated', handleQueueUpdate);
       socket.off('opd_queue:status_changed', handleQueueUpdate);
       socket.off('billing:invoice_created', handleBillingUpdate);
+      socket.off('billing:payment_collected', handleBillingUpdate);
     };
   }, [socket, fetchQueuedPatients, fetchCompletedPatients]);
 

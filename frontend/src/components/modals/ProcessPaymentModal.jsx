@@ -5,8 +5,10 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { X, CreditCard, CheckCircle, Printer, AlertCircle, MessageCircle } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 
 export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => {
+  const resolvePending = useDepartmentNotificationStore((state) => state.resolvePending);
   useScrollLock(isOpen);
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentMode, setPaymentMode] = useState('CARD');
@@ -39,6 +41,7 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
         transactionRef,
       });
       setReceipt(response.data.receipt);
+      if (response.data.invoice?.status === 'PAID') resolvePending(invoice._id);
       if (onSuccess) onSuccess(response.data);
     } catch (err) {
       setError(err.response?.data?.error?.message || err.error?.message || 'Failed to process payment');

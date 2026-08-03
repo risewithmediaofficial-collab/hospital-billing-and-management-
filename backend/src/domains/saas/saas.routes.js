@@ -10,6 +10,7 @@ import {
   globalSearch,
   getAuditLogs,
   getHospitalsWithStats,
+  updateHospitalConfiguration,
   deleteHospital,
   restoreHospital,
 } from './saas.controller.js';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { LogOut, Bell, Building2, User, Menu } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -8,7 +8,8 @@ import { NotificationDropdown } from './NotificationDropdown';
 
 export const Navbar = ({ onToggleSidebar }) => {
   const { user, logout } = useAuthStore();
-  const { unreadCount } = useNotificationStore();
+  const { notifications } = useDepartmentNotificationStore();
+  const notificationCount = notifications.filter((notification) => !notification.isRead || notification.isPending).length;
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const hasNotificationsPermission = (() => {
@@ -61,9 +62,9 @@ export const Navbar = ({ onToggleSidebar }) => {
               title="Notifications"
             >
               <Bell size={18} />
-              {unreadCount > 0 && (
+              {notificationCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-amber-500 text-white flex items-center justify-center shadow-xs animate-pulse">
-                  {unreadCount}
+                  {notificationCount}
                 </span>
               )}
             </button>

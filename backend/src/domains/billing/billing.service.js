@@ -4,6 +4,8 @@ import { Patient } from '../../models/Patient.js';
 import { Consultation } from '../../models/Consultation.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
+import { socketManager } from '../../events/socketManager.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 
 export class BillingService {
   /**
@@ -146,6 +148,21 @@ export class BillingService {
     }
 
     await invoice.save();
+
+    if (invoice.status === PAYMENT_STATUS.PAID) {
+      const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';
+      const paymentPayload = {
+        invoiceId: invoice._id,
+        invoiceNo: invoice.invoiceNo,
+        patientId: invoice.patientId?._id || invoice.patientId,
+        patientName,
+        uhid: invoice.patientId?.uhid || 'N/A',
+        receiptNo: receipt.receiptNo,
+        linkedPath: '/reception/registered-patients?tab=COMPLETED',
+      };
+      WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
+      socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
+    }
 
     return {
       receipt,

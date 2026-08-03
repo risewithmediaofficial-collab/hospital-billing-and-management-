@@ -43,10 +43,12 @@ export const useDepartmentNotificationStore = create((set, get) => ({
       patientName: data.patientName || 'Patient',
       uhid: data.uhid || 'N/A',
       orderId: data.orderId || null,
+      resourceId: data.resourceId || null,
       linkedPath: data.linkedPath || null,
       timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
       isRead: isAlreadyRead,
       priority: data.priority || 'NORMAL',
+      isPending: Boolean(data.isPending),
     };
 
     const updated = [newNotif, ...notifications];
@@ -84,6 +86,16 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     set({ notifications: updated, unreadCount: 0 });
   },
 
+  resolvePending: (resourceId) => {
+    const updated = get().notifications.map((notification) => {
+      const matches = notification.id === resourceId ||
+        String(notification.orderId || '') === String(resourceId || '') ||
+        String(notification.resourceId || '') === String(resourceId || '');
+      return matches ? { ...notification, isPending: false, isRead: true } : notification;
+    });
+    set({ notifications: updated, unreadCount: updated.filter((notification) => !notification.isRead).length });
+  },
+
   markAsReadForNav: (navPath) => {
     const { notifications } = get();
     if (!navPath) return;
@@ -93,7 +105,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     let countChanged = false;
 
     const updated = notifications.map((n) => {
-      if (!n.isRead && n.linkedPath) {
+      if (!n.isRead && !n.isPending && n.linkedPath) {
         const [nPathname, nSearch] = n.linkedPath.split('?');
         const match = search && nSearch ? pathname === nPathname && search === nSearch : pathname === nPathname;
         if (match) {
@@ -118,7 +130,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
 
     const [pathname, search] = navPath.split('?');
     return notifications.filter((n) => {
-      if (n.isRead) return false;
+      if (n.isRead && !n.isPending) return false;
       if (!n.linkedPath) return false;
 
       const [nPathname, nSearch] = n.linkedPath.split('?');
@@ -129,37 +141,58 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     }).length;
   },
 
-  fetchInitialNotifications: async () => {
+  fetchInitialNotifications: async (rolesInput = []) => {
     try {
-      const res = await axiosClient.get('/diagnostics/orders');
-      const orders = res.data || [];
-      const completedOrders = orders.filter((o) => o.status === 'REPORT_UPLOADED' || o.status === 'COMPLETED');
-
+      const roles = Array.isArray(rolesInput) ? rolesInput : [rolesInput];
+      const fetchedNotifs = [];
       const existingNotifs = get().notifications;
       const readIds = getSavedReadIds();
 
-      const fetchedNotifs = completedOrders.map((ord) => {
-        const notifId = `ord_${ord._id}_${ord.status}`;
-        const existing = existingNotifs.find((n) => n.id === notifId || n.orderId === ord._id);
-        const isRead = existing ? existing.isRead : (readIds.includes(String(ord._id)) || readIds.includes(notifId));
+      const addOrders = async (category, linkedPath, event) => {
+        const res = await axiosClient.get(`/diagnostics/orders?testCategory=${category}`);
+        for (const ord of res.data || []) {
+          if (['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status)) continue;
+          const id = `pending_${ord._id}`;
+          fetchedNotifs.push({ id, orderId: ord._id, event, patientName: ord.patientName, uhid: ord.uhid,
+            title: `Pending: ${ord.testName}`, message: `${ord.testName} is waiting for department action.`,
+            timestamp: new Date(ord.createdAt), isRead: readIds.includes(id), isPending: true, linkedPath, priority: ord.priority });
+        }
+      };
 
-        return {
-          id: notifId,
-          orderId: ord._id,
-          event: 'LAB_SUBMITTED',
-          patientName: ord.patientName || (ord.patientId ? `${ord.patientId.firstName || ''} ${ord.patientId.lastName || ''}`.trim() : 'Patient'),
-          uhid: ord.uhid || ord.patientId?.uhid || 'N/A',
-          title: `Report Ready: ${ord.testName}`,
-          message: ord.reportSummary || `Diagnostic scan report completed for ${ord.patientName || 'Patient'}.`,
-          timestamp: ord.updatedAt ? new Date(ord.updatedAt) : new Date(),
-          isRead,
-          linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
-          priority: 'HIGH',
-        };
-      });
+      if (roles.some((role) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(role))) {
+        await addOrders('RADIOLOGY', '/radiology/dashboard', 'RADIOLOGY_ORDER_CREATED');
+      }
+      if (roles.some((role) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(role))) {
+        await addOrders('PATHOLOGY', '/laboratory/dashboard', 'LAB_ORDER_CREATED');
+      }
+      if (roles.some((role) => ['CASHIER', 'BILLING_STAFF'].includes(role))) {
+        const res = await axiosClient.get('/billing/unpaid-invoices');
+        for (const invoice of res.data || []) {
+          const id = `pending_invoice_${invoice._id}`;
+          fetchedNotifs.push({ id, resourceId: invoice._id, event: 'CONSULTATION_COMPLETE',
+            patientName: `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient',
+            uhid: invoice.patientId?.uhid || 'N/A', title: `Payment Pending: ${invoice.invoiceNo}`,
+            message: `Balance payment of ${invoice.balanceAmount} is pending.`, timestamp: new Date(invoice.createdAt),
+            isRead: readIds.includes(id), isPending: true, linkedPath: '/billing/dashboard', priority: 'HIGH' });
+        }
+      }
+      if (roles.includes('DOCTOR')) {
+        const res = await axiosClient.get('/diagnostics/orders');
+        for (const ord of res.data || []) {
+          if (!['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status) || ord.chargeStatus === 'APPROVED') continue;
+          const id = `report_${ord._id}_${ord.status}`;
+          const isRadiology = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(ord.testCategory);
+          fetchedNotifs.push({ id, orderId: ord._id, event: isRadiology ? 'RADIOLOGY_SUBMITTED' : 'LAB_SUBMITTED',
+            patientName: ord.patientName, uhid: ord.uhid, title: `Report Ready: ${ord.testName}`,
+            message: ord.reportSummary || `${ord.testName} is ready for doctor review.`, timestamp: new Date(ord.updatedAt),
+            isRead: readIds.includes(id), isPending: true, linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES', priority: 'HIGH' });
+        }
+      }
 
-      const unread = fetchedNotifs.filter((n) => !n.isRead).length;
-      set({ notifications: fetchedNotifs, unreadCount: unread });
+      const merged = [...fetchedNotifs, ...existingNotifs.filter((existing) => !fetchedNotifs.some((item) => item.id === existing.id))];
+
+      const unread = merged.filter((n) => !n.isRead).length;
+      set({ notifications: merged, unreadCount: unread });
     } catch (err) {
       console.error('Failed to fetch initial department notifications:', err);
     }

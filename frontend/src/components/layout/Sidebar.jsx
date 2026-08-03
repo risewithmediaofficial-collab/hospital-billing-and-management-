@@ -181,7 +181,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (user?.role) {
-      fetchInitialNotifications(user.role);
+      fetchInitialNotifications(userRoles);
       fetchActiveEmergencies();
     }
   }, [user, fetchInitialNotifications, fetchActiveEmergencies]);
@@ -201,18 +201,57 @@ export const Sidebar = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (!socket) return;
 
+    const workflowPaths = {
+      PATIENT_QUEUED: '/doctor/dashboard?tab=LIVE',
+      TOKEN_REQUEUED: '/doctor/dashboard?tab=LIVE',
+      DOCTOR_ACCEPTED_PATIENT: '/reception/registered-patients?tab=QUEUED',
+      LAB_ORDER_CREATED: '/laboratory/dashboard',
+      RADIOLOGY_ORDER_CREATED: '/radiology/dashboard',
+      LAB_ACCEPTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      LAB_SUBMITTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      RADIOLOGY_ACCEPTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      RADIOLOGY_SUBMITTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      DOCTOR_REVIEWED_LAB: '/laboratory/dashboard?tab=REPORTS',
+      DOCTOR_REVIEWED_RADIOLOGY: '/radiology/dashboard?tab=REPORTS',
+      PRESCRIPTION_ISSUED: '/pharmacy/dispense-queue',
+      PHARMACY_ACCEPTED: '/doctor/dashboard',
+      PHARMACY_DISPENSED: '/doctor/dashboard',
+      BILL_REQUESTED: '/billing/dashboard',
+      BILL_READY: '/reception/registered-patients?tab=COMPLETED',
+      PAYMENT_COLLECTED: '/reception/registered-patients?tab=COMPLETED',
+      NURSE_REQUEST_RAISED: '/nursing/requests',
+      NURSE_REQUEST_COMPLETED: '/doctor/dashboard',
+    };
+
+    const resolveWorkflowPath = (data) => {
+      if (data.event === 'CONSULTATION_COMPLETE') {
+        return '/billing/dashboard';
+      }
+      if (data.event === 'PAYMENT_COLLECTED' && data.targetRole === 'DOCTOR') return '/doctor/dashboard?tab=COMPLETED';
+      return workflowPaths[data.event] || data.linkedPath || data.payload?.linkedPath || null;
+    };
+
     const handleWorkflowEvent = (data) => {
+      const linkedPath = resolveWorkflowPath(data);
+      const resourceId = data.payload?.orderId || data.payload?.appointmentId || data.payload?.patientId || data.payload?.uhid || 'item';
+      const notificationId = data.id || `wf_${data.event}_${resourceId}`;
       addNotification({
-        id: data.id || `wf_${Date.now()}`,
+        id: notificationId,
         event: data.event,
         title: data.title || 'Department Alert',
         message: data.message || '',
         patientName: data.payload?.patientName || 'Patient',
         uhid: data.payload?.uhid || 'N/A',
         orderId: data.payload?.orderId || null,
-        linkedPath: data.linkedPath || data.payload?.linkedPath || null,
+        linkedPath,
         timestamp: data.timestamp,
+        isPending: ['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED'].includes(data.event),
       });
+
+      const currentPath = location.pathname + (location.search || '');
+      if (!['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED'].includes(data.event) && linkedPath && (currentPath === linkedPath || (!linkedPath.includes('?') && location.pathname === linkedPath))) {
+        useDepartmentNotificationStore.getState().markAsRead(notificationId);
+      }
     };
 
     const handleDoctorQueueNotification = (data) => {
@@ -262,24 +301,22 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
     socket.on('emergency:alert', handleEmergencyAlert);
     socket.on('emergency:code_blue_triggered', handleEmergencyAlert);
-    socket.on('diagnostics:report_ready', handleWorkflowEvent);
-    socket.on('investigation:status_updated', handleWorkflowEvent);
     socket.on('queue:patient_added', handleDoctorQueueNotification);
     socket.on('token:generated', handleDoctorQueueNotification);
     socket.on('appointment:created', handleDoctorQueueNotification);
     socket.on('patient_request:created', handleNursingRequestNotification);
+    socket.on('workflow:notification', handleWorkflowEvent);
 
     return () => {
       socket.off('emergency:alert', handleEmergencyAlert);
       socket.off('emergency:code_blue_triggered', handleEmergencyAlert);
-      socket.off('diagnostics:report_ready', handleWorkflowEvent);
-      socket.off('investigation:status_updated', handleWorkflowEvent);
       socket.off('queue:patient_added', handleDoctorQueueNotification);
       socket.off('token:generated', handleDoctorQueueNotification);
       socket.off('appointment:created', handleDoctorQueueNotification);
       socket.off('patient_request:created', handleNursingRequestNotification);
+      socket.off('workflow:notification', handleWorkflowEvent);
     };
-  }, [socket, addNotification, addEmergency]);
+  }, [socket, addNotification, addEmergency, location.pathname, location.search]);
 
   useEffect(() => {
     if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;

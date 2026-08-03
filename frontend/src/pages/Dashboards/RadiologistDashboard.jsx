@@ -6,11 +6,13 @@ import { Button } from '../../components/ui/Button';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { FileImage, CheckCircle2, Monitor, Activity, FileCheck, Upload, Check, Eye } from 'lucide-react';
 
 export const RadiologistDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const resolvePending = useDepartmentNotificationStore((state) => state.resolvePending);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -97,6 +99,7 @@ export const RadiologistDashboard = () => {
         status: 'COMPLETED',
         notes: 'Scan & Radiologist Report Completed',
       });
+      resolvePending(selectedOrder._id);
 
       setImpression('');
       fetchOrders();

@@ -54,14 +54,31 @@ export class AuthService {
 
   static async login(identifier, password) {
     const cleanId = identifier ? String(identifier).trim() : '';
-    let user = await User.findOne({
+    const candidates = await User.find({
       $or: [
+        { loginIds: cleanId },
         { email: cleanId.toLowerCase() },
         { phone: cleanId },
         { employeeId: cleanId.toUpperCase() },
         { uhid: cleanId.toUpperCase() },
       ],
     }).populate('hospitalId').populate('branchId');
+
+    // Patient and Guardian intentionally share the patient's mobile login ID.
+    // Their different passwords select the correct linked account.
+    let user = null;
+    let passwordAlreadyMatched = false;
+    for (const candidate of candidates) {
+      if (await candidate.comparePassword(password)) {
+        user = candidate;
+        passwordAlreadyMatched = true;
+        break;
+      }
+    }
+
+    if (candidates.length > 0 && !user) {
+      throw new ApiError(401, 'Invalid mobile number or password credentials', null, 'INVALID_CREDENTIALS');
+    }
 
     // On-demand auto-provisioning for Patients / Guardians
     if (!user && cleanId) {
@@ -147,7 +164,7 @@ export class AuthService {
       throw new ApiError(403, 'Account has been deactivated. Please contact your Hospital Administrator.', null, 'ACCOUNT_DEACTIVATED');
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = passwordAlreadyMatched || await user.comparePassword(password);
     if (!isMatch) {
       throw new ApiError(401, 'Invalid email, phone, UHID, or password credentials', null, 'INVALID_CREDENTIALS');
     }

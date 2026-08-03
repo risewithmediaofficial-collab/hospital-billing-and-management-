@@ -5,6 +5,7 @@ import { Patient } from '../../models/Patient.js';
 import { Invoice } from '../../models/Invoice.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
 import { socketManager } from '../../events/socketManager.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 
 export class EmrService {
@@ -77,6 +78,15 @@ export class EmrService {
         prescriptionNo: rxNo,
         medicines: data.prescriptions,
       });
+
+      const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
+      WorkflowEventService.emit(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
+        prescriptionId: prescription._id,
+        patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
+        uhid: patient?.uhid || 'N/A',
+        doctorName: user.name || 'Doctor',
+        linkedPath: '/pharmacy/dispense-queue',
+      }, appointment.branchId);
     }
 
     // AUTOMATED CONSOLIDATED BILLING DISPATCH:

@@ -9,7 +9,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
   useScrollLock(isOpen);
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', age: '', gender: 'MALE',
-    dob: '1995-01-01', phone: '', email: '', address: '',
+    dob: '1995-01-01', phone: '', address: '', guardianPhone: '',
     chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +42,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
 
   const handleReset = () => {
     setCreatedPatient(null);
-    setFormData({ firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01', phone: '', email: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL' });
+    setFormData({ firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01', phone: '', address: '', guardianPhone: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL' });
     onClose();
   };
 
@@ -92,6 +92,14 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Phone:</span>
                   <span className="text-slate-700">{createdPatient.phone}</span>
+                </div>
+                <div className="pt-2 mt-2 border-t border-slate-200 space-y-1">
+                  <p className="font-bold text-indigo-700">Patient login</p>
+                  <p>Username: {createdPatient.patientCredentials?.username}</p>
+                  <p>Password: {createdPatient.patientCredentials?.password}</p>
+                  <p className="font-bold text-purple-700 pt-1">Guardian login</p>
+                  <p>Username: {createdPatient.guardianCredentials?.username}</p>
+                  <p>Password: {createdPatient.guardianCredentials?.password}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
@@ -143,6 +151,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
               </div>
 
               <Input label="Phone Number" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required placeholder="+1 (555) 000-0000" />
+              <Input label="Guardian Mobile Number" value={formData.guardianPhone} onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })} required placeholder="Guardian mobile is used as guardian password" />
               <Input label="Chief Complaint / Reason for Visit" value={formData.chiefComplaints} onChange={(e) => setFormData({ ...formData, chiefComplaints: e.target.value })} placeholder="e.g. Fever, Chest tightness, Routine OPD checkup" />
               <Input label="Residential Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} required placeholder="Street address, city" />
 

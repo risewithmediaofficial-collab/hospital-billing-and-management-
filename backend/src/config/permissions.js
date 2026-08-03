@@ -6,13 +6,14 @@ export const ROLE_PERMISSION_DEFAULTS = {
     doctorConsultation: ['view', 'create', 'edit', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits', '*'],
     doctor: ['view', 'create', 'edit', 'consult', 'diagnose', 'prescribe', 'finalize', '*'],
     emr: ['view', 'create', 'edit', '*'],
+    diagnostics: ['view', 'create', 'edit', 'requestTest', '*'],
     patients: ['view', 'create', 'edit'],
     tokens: ['view', 'create', 'edit'],
     diagnosis: ['view', 'create', 'edit'],
     prescription: ['view', 'create', 'edit'],
     treatment: ['view', 'create', 'edit'],
-    laboratory: ['view', 'requestTest', 'create'],
-    radiology: ['view', 'requestTest', 'create'],
+    laboratory: ['view', 'requestTest', 'create', 'edit', '*'],
+    radiology: ['view', 'requestTest', 'create', 'edit', '*'],
     notifications: ['view'],
   },
   NURSE: {
@@ -53,26 +54,26 @@ export const ROLE_PERMISSION_DEFAULTS = {
   },
   LAB_TECH: {
     dashboard: ['view'],
-    laboratory: ['view', 'accept', 'edit', 'upload', 'print'],
-    diagnostics: ['view', 'edit'],
+    laboratory: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
+    diagnostics: ['view', 'create', 'edit', '*'],
     notifications: ['view'],
   },
   LABORATORY_STAFF: {
     dashboard: ['view'],
-    laboratory: ['view', 'accept', 'edit', 'upload', 'print'],
-    diagnostics: ['view', 'edit'],
+    laboratory: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
+    diagnostics: ['view', 'create', 'edit', '*'],
     notifications: ['view'],
   },
   RADIOLOGIST: {
     dashboard: ['view'],
-    radiology: ['view', 'accept', 'edit', 'upload', 'print'],
-    diagnostics: ['view', 'edit'],
+    radiology: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
+    diagnostics: ['view', 'create', 'edit', '*'],
     notifications: ['view'],
   },
   RADIOLOGY_STAFF: {
     dashboard: ['view'],
-    radiology: ['view', 'accept', 'edit', 'upload', 'print'],
-    diagnostics: ['view', 'edit'],
+    radiology: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
+    diagnostics: ['view', 'create', 'edit', '*'],
     notifications: ['view'],
   },
   PHARMACIST: {
@@ -239,7 +240,20 @@ export const hasPermission = (user, module, action = 'view', hospitalModules = n
       if (values.includes('*') || values.includes(action)) {
         return true;
       }
-      if (action === 'create' && (values.includes('consult') || values.includes('finalize') || values.includes('startConsultation') || values.includes('diagnose') || values.includes('prescribe') || values.includes('create'))) {
+      // API routes use HTTP verbs for their coarse authorization check. A POST
+      // is therefore checked as `create`, even when the permission matrix uses
+      // the more precise workflow action names below.
+      if (action === 'create' && (
+        values.includes('consult') ||
+        values.includes('finalize') ||
+        values.includes('startConsultation') ||
+        values.includes('diagnose') ||
+        values.includes('prescribe') ||
+        values.includes('requestTest') ||
+        values.includes('requestLab') ||
+        values.includes('requestRadiology') ||
+        values.includes('create')
+      )) {
         return true;
       }
       if (action === 'edit' && (values.includes('consult') || values.includes('finalize') || values.includes('diagnose') || values.includes('edit'))) {

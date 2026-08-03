@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   RefreshCw,
   Phone,
-  Mail,
   MapPin,
   Calendar,
   UserCheck,
@@ -35,7 +34,6 @@ export const PatientRegistrationPage = () => {
     gender: 'MALE',
     dob: '1995-01-01',
     phone: '',
-    email: '',
     address: '',
     chiefComplaints: '',
     bloodGroup: 'O+',
@@ -70,8 +68,8 @@ export const PatientRegistrationPage = () => {
 
   const handleInlineSubmit = async (e, issueToken = false) => {
     if (e) e.preventDefault();
-    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim()) {
-      setError('First name, last name, and phone number are required.');
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim() || !formData.guardianPhone.trim()) {
+      setError('First name, last name, patient mobile number, and guardian mobile number are required.');
       return;
     }
     setIsLoading(true);
@@ -81,12 +79,13 @@ export const PatientRegistrationPage = () => {
       const res = await axiosClient.post('/patients', formData);
       const newPat = res.data;
       setLastCreatedPatient(newPat);
-      setSuccessMessage(`Patient '${newPat.firstName} ${newPat.lastName}' registered successfully with UHID: ${newPat.uhid}`);
+      setSuccessMessage(`Patient registered with UHID ${newPat.uhid}. Patient login: ${newPat.patientCredentials?.username}. Guardian login: ${newPat.guardianCredentials?.username}.`);
       
       // Reset form
       setFormData({
         firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01',
-        phone: '', email: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+        phone: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+        guardianName: '', guardianPhone: '', guardianRelationship: 'FATHER',
       });
       fetchRecentPatients();
 
@@ -196,7 +195,7 @@ export const PatientRegistrationPage = () => {
             </div>
 
             <form onSubmit={(e) => handleInlineSubmit(e, false)} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <Input
                   label="First Name *"
                   value={formData.firstName}
@@ -259,14 +258,6 @@ export const PatientRegistrationPage = () => {
                   placeholder="e.g. +91 9876543210"
                   required
                 />
-                <Input
-                  label="Email Address"
-                  type="email"
-                  icon={Mail}
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="e.g. patient@example.com"
-                />
               </div>
 
               <div className="grid grid-cols-1 gap-4">
@@ -293,14 +284,14 @@ export const PatientRegistrationPage = () => {
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-extrabold text-purple-900 flex items-center gap-1.5 uppercase tracking-wider">
                     <UserCheck size={16} className="text-purple-600" />
-                    Guardian / Attendant Account (Optional Auto-Provision)
+                    Guardian / Attendant Account
                   </h4>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">
                     AUTO-LINKED TO GUARDIAN PORTAL
                   </span>
                 </div>
                 <p className="text-[11px] text-purple-700">
-                  Providing a guardian phone number automatically creates a Guardian Portal login account pre-approved for this patient.
+                  Patient login: patient mobile for username and password. Guardian login: patient mobile as username and guardian mobile as password.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -312,11 +303,12 @@ export const PatientRegistrationPage = () => {
                   />
 
                   <Input
-                    label="Guardian Mobile Number"
+                    label="Guardian Mobile Number *"
                     icon={Phone}
                     value={formData.guardianPhone}
                     onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
                     placeholder="e.g. +91 9876543210"
+                    required
                   />
 
                   <div>
@@ -347,7 +339,8 @@ export const PatientRegistrationPage = () => {
                   onClick={() =>
                     setFormData({
                       firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01',
-                      phone: '', email: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+                      phone: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+                      guardianName: '', guardianPhone: '', guardianRelationship: 'FATHER',
                     })
                   }
                   className="w-full sm:w-auto font-medium text-xs"

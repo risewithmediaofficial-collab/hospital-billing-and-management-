@@ -40,6 +40,20 @@ export const updateHospitalStatus = async (req, res, next) => {
   }
 };
 
+export const updateHospitalConfiguration = async (req, res, next) => {
+  try {
+    const updated = await SaasService.updateHospitalConfiguration(
+      req.params.id,
+      req.body,
+      req.user,
+      req,
+    );
+    return sendSuccess(res, 200, 'Hospital configuration updated successfully', updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getPlatformMetrics = async (req, res, next) => {
   try {
     const metrics = await SaasService.getPlatformMetrics();

@@ -38,7 +38,7 @@ export const DoctorDashboard = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const { notifications, markAsRead, addNotification } = useDepartmentNotificationStore();
+  const { notifications, markAsRead, addNotification, resolvePending } = useDepartmentNotificationStore();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
   const [liveQueue, setLiveQueue] = useState([]);
   const [completedQueue, setCompletedQueue] = useState([]);
@@ -810,19 +810,20 @@ export const DoctorDashboard = () => {
                                   markAsRead(ord._id);
                                   try {
                                     await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
+                                    resolvePending(ord._id);
                                     fetchDepartmentOrders();
                                   } catch (e) {
                                     console.error('Failed to approve charge:', e);
                                   }
                                 }}
                                 className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
-                                  ord.chargeStatus === 'APPROVED' || (notifications.find((n) => n.orderId === ord._id || n.id?.includes(ord._id))?.isRead)
+                                  ord.chargeStatus === 'APPROVED'
                                     ? 'bg-slate-100 border border-slate-300 text-slate-700'
                                     : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
                                 }`}
                               >
                                 <CheckCircle2 size={12} />
-                                {ord.chargeStatus === 'APPROVED' || (notifications.find((n) => n.orderId === ord._id || n.id?.includes(ord._id))?.isRead) ? 'Doctor Accepted' : 'Accept Report'}
+                                {ord.chargeStatus === 'APPROVED' ? 'Doctor Accepted' : 'Accept Report'}
                               </button>
                             ) : (
                               <button
