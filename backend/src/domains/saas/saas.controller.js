@@ -96,10 +96,19 @@ export const getHospitalsWithStats = async (req, res, next) => {
   }
 };
 
-export const updateHospitalConfiguration = async (req, res, next) => {
+export const deleteHospital = async (req, res, next) => {
   try {
-    const updated = await SaasService.updateHospitalConfiguration(req.params.id, req.body, req.user, req);
-    return sendSuccess(res, 200, 'Hospital platform configuration updated', updated);
+    const deleted = await SaasService.deleteHospital(req.params.id);
+    return sendSuccess(res, 200, 'Hospital tenant soft-deleted successfully', deleted);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const restoreHospital = async (req, res, next) => {
+  try {
+    const restored = await SaasService.restoreHospital(req.params.id);
+    return sendSuccess(res, 200, 'Hospital tenant restored successfully', restored);
   } catch (error) {
     next(error);
   }

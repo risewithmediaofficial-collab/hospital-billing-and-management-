@@ -1,7 +1,10 @@
 /** Strictly platform-management navigation for the system owner. */
 export const SUPER_ADMIN_NAVIGATION = [
   { title: 'Dashboard', path: '/admin/dashboard', icon: 'LayoutDashboard' },
-  { title: 'Hospitals', path: '/admin/hospitals', icon: 'Building2' },
+  { title: 'All Hospitals', path: '/admin/hospitals', icon: 'Building2' },
+  { title: 'Active Hospitals', path: '/admin/hospitals?tab=ACTIVE', icon: 'CheckCircle2' },
+  { title: 'Expired Hospitals', path: '/admin/hospitals?tab=EXPIRED', icon: 'Clock' },
+  { title: 'Deleted Hospitals', path: '/admin/hospitals?tab=DELETED', icon: 'Trash2' },
   { title: 'Hospital Administrators', path: '/admin/hospital-admins', icon: 'ShieldCheck' },
   { title: 'Reports', path: '/admin/reports', icon: 'BarChart3' },
   { title: 'Notifications', path: '/admin/notifications', icon: 'Bell' },

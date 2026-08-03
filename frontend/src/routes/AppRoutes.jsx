@@ -267,11 +267,15 @@ export const AppRoutes = () => {
         <Route path="/guardian-portal/requests" element={<MainLayout><GuardianDashboard activeTab="requests" /></MainLayout>} />
         <Route path="/guardian-portal/billing" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
         <Route path="/guardian-portal/discharge" element={<MainLayout><GuardianDashboard activeTab="discharge" /></MainLayout>} />
-        <Route path="/guardian-portal/bills" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
         <Route path="/guardian-portal/updates" element={<MainLayout><GuardianDashboard activeTab="doctor-updates" /></MainLayout>} />
         <Route path="/guardian-portal/pay-online" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
         <Route path="/guardian/dashboard" element={<Navigate to="/guardian-portal/dashboard" replace />} />
+        <Route path="/guardian" element={<Navigate to="/guardian-portal/dashboard" replace />} />
       </Route>
+
+      {/* Legacy Redirect Aliases */}
+      <Route path="/guardian/dashboard" element={<Navigate to="/guardian-portal/dashboard" replace />} />
+      <Route path="/patient/dashboard" element={<Navigate to="/patient-portal/dashboard" replace />} />
 
       {/* Global Emergency Route */}
       <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />

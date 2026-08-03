@@ -48,9 +48,11 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
     if (onClose) onClose();
   };
 
-  const menuItems = drilldownHospitalId
+  const rawMenuItems = drilldownHospitalId
     ? HOSPITAL_DRILLDOWN_NAVIGATION(drilldownHospitalId)
     : SUPER_ADMIN_NAVIGATION;
+
+  const menuItems = [...rawMenuItems].sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
   const isItemActive = (itemPath) => {
     const [itemPathname, itemSearch] = itemPath.split('?');

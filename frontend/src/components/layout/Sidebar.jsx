@@ -168,12 +168,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
     const seenPaths = new Set();
     menuItems = rawItems.filter((item) => {
       if (!item?.path) return false;
+      if (seenPaths.has(item.path)) return false;
       seenPaths.add(item.path);
       return checkItemPermission(user, item);
     });
   }
 
-  // Sort main menu items in alphabetical order
+  // Enforce strict alphabetical sorting for all menu items
   menuItems.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);

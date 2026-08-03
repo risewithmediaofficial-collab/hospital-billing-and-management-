@@ -3,32 +3,33 @@ export const ROLE_PERMISSION_DEFAULTS = {
   SUPER_ADMIN: { '*': ['*'] },
   DOCTOR: {
     dashboard: ['view'],
-    doctorConsultation: ['view', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits'],
-    doctor: ['view', 'consult', 'diagnose', 'prescribe', 'finalize'],
-    patients: ['view'],
-    tokens: ['view'],
+    doctorConsultation: ['view', 'create', 'edit', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits', '*'],
+    doctor: ['view', 'create', 'edit', 'consult', 'diagnose', 'prescribe', 'finalize', '*'],
+    emr: ['view', 'create', 'edit', '*'],
+    patients: ['view', 'create', 'edit'],
+    tokens: ['view', 'create', 'edit'],
     diagnosis: ['view', 'create', 'edit'],
     prescription: ['view', 'create', 'edit'],
     treatment: ['view', 'create', 'edit'],
-    laboratory: ['view', 'requestTest'],
-    radiology: ['view', 'requestTest'],
+    laboratory: ['view', 'requestTest', 'create'],
+    radiology: ['view', 'requestTest', 'create'],
     notifications: ['view'],
   },
   NURSE: {
     dashboard: ['view'],
-    nursing: ['view', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency'],
-    patients: ['view'],
-    requests: ['view', 'edit', 'handleRequests'],
-    emergency: ['view', 'respond'],
+    nursing: ['view', 'create', 'edit', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency', '*'],
+    patients: ['view', 'create', 'edit'],
+    requests: ['view', 'create', 'edit', 'handleRequests'],
+    emergency: ['view', 'create', 'respond'],
     notifications: ['view'],
   },
   NURSE_INCHARGE: {
     dashboard: ['view'],
-    nursing: ['view', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency', 'manageWardAssignments'],
-    ipd: ['view', 'manage', 'edit'],
-    beds: ['view', 'edit', 'manage'],
-    requests: ['view', 'edit'],
-    emergency: ['view', 'respond'],
+    nursing: ['view', 'create', 'edit', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency', 'manageWardAssignments', '*'],
+    ipd: ['view', 'create', 'manage', 'edit'],
+    beds: ['view', 'create', 'edit', 'manage'],
+    requests: ['view', 'create', 'edit'],
+    emergency: ['view', 'create', 'respond'],
     notifications: ['view'],
   },
   RECEPTIONIST: {
@@ -234,8 +235,16 @@ export const hasPermission = (user, module, action = 'view', hospitalModules = n
 
   for (const mod of aliases) {
     const values = permissions[mod] || [];
-    if (Array.isArray(values) && (values.includes('*') || values.includes(action))) {
-      return true;
+    if (Array.isArray(values)) {
+      if (values.includes('*') || values.includes(action)) {
+        return true;
+      }
+      if (action === 'create' && (values.includes('consult') || values.includes('finalize') || values.includes('startConsultation') || values.includes('diagnose') || values.includes('prescribe') || values.includes('create'))) {
+        return true;
+      }
+      if (action === 'edit' && (values.includes('consult') || values.includes('finalize') || values.includes('diagnose') || values.includes('edit'))) {
+        return true;
+      }
     }
   }
 

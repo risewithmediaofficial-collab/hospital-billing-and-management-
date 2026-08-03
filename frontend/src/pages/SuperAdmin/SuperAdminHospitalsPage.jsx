@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, ShieldCheck, CheckCircle, XCircle, PlusCircle, Key, Eye, MapPin, Mail, Phone } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, MapPin, Mail, Phone, Trash2, RotateCcw, Clock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -10,8 +10,9 @@ import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatte
 
 export const SuperAdminHospitalsPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
+  const tabFilter = searchParams.get('tab') || (statusFilter === 'APPROVED' ? 'ACTIVE' : statusFilter === 'inactive' ? 'EXPIRED' : 'ALL');
 
   const [hospitals, setHospitals] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,11 +45,25 @@ export const SuperAdminHospitalsPage = () => {
   };
 
   const filteredHospitals = hospitals.filter((h) => {
-    if (!statusFilter) return true;
-    if (statusFilter === 'APPROVED') return h.status === 'APPROVED';
-    if (statusFilter === 'inactive') return h.status !== 'APPROVED';
-    return h.status === statusFilter;
+    const isDel = h.isDeleted === true || h.status === 'DELETED';
+    const isExp = h.isExpired === true || h.status === 'EXPIRED';
+
+    if (tabFilter === 'ACTIVE') {
+      return !isDel && !isExp && (h.status === 'APPROVED' || h.isActive);
+    }
+    if (tabFilter === 'EXPIRED') {
+      return !isDel && isExp;
+    }
+    if (tabFilter === 'DELETED') {
+      return isDel;
+    }
+    // Default 'ALL': Show non-deleted hospitals
+    return !isDel;
   });
+
+  const activeCount = hospitals.filter((h) => !h.isDeleted && h.status !== 'DELETED' && !h.isExpired && h.status === 'APPROVED').length;
+  const expiredCount = hospitals.filter((h) => (h.isExpired || h.status === 'EXPIRED') && !h.isDeleted).length;
+  const deletedCount = hospitals.filter((h) => h.isDeleted || h.status === 'DELETED').length;
 
   const handleApprove = async (hospitalId, name) => {
     setIsLoading(true);
@@ -86,6 +101,33 @@ export const SuperAdminHospitalsPage = () => {
     }
   };
 
+  const handleDeleteHospital = async (hospitalId, name) => {
+    if (!window.confirm(`Are you sure you want to delete hospital '${name}'? It can be restored anytime from Deleted Hospitals.`)) return;
+    setIsLoading(true);
+    try {
+      await axiosClient.patch(`/saas/hospitals/${hospitalId}/delete`);
+      setActionMessage(`Hospital '${name}' moved to Deleted Hospitals.`);
+      fetchHospitals();
+    } catch (err) {
+      setActionMessage(`Failed to delete: ${err.error?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRestoreHospital = async (hospitalId, name) => {
+    setIsLoading(true);
+    try {
+      await axiosClient.patch(`/saas/hospitals/${hospitalId}/restore`);
+      setActionMessage(`Hospital '${name}' restored to Active Hospitals successfully!`);
+      fetchHospitals();
+    } catch (err) {
+      setActionMessage(`Failed to restore: ${err.error?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDirectCreate = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -114,7 +156,7 @@ export const SuperAdminHospitalsPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Hospital Management</h2>
-          <p className="text-xs text-neutral-500 mt-1">{filteredHospitals.length} hospitals · Full platform visibility</p>
+          <p className="text-xs text-neutral-500 mt-1">{filteredHospitals.length} hospitals displayed · Platform tenant overview</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'cards' ? 'table' : 'cards')}>
@@ -126,9 +168,46 @@ export const SuperAdminHospitalsPage = () => {
         </div>
       </div>
 
+      {/* Tabs Navigation Bar */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setSearchParams({ tab: 'ALL' })}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            tabFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Building2 size={14} /> All Hospitals ({hospitals.filter((h) => !h.isDeleted && h.status !== 'DELETED').length})
+        </button>
+        <button
+          onClick={() => setSearchParams({ tab: 'ACTIVE' })}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            tabFilter === 'ACTIVE' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <CheckCircle2 size={14} /> Active Hospitals ({activeCount})
+        </button>
+        <button
+          onClick={() => setSearchParams({ tab: 'EXPIRED' })}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            tabFilter === 'EXPIRED' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Clock size={14} /> Expired Hospitals ({expiredCount})
+        </button>
+        <button
+          onClick={() => setSearchParams({ tab: 'DELETED' })}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            tabFilter === 'DELETED' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Trash2 size={14} /> Deleted Hospitals ({deletedCount})
+        </button>
+      </div>
+
       {actionMessage && (
-        <div className="p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-700 text-xs font-bold flex items-center gap-2">
-          <CheckCircle size={16} /> {actionMessage}
+        <div className="p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-700 text-xs font-bold flex items-center justify-between">
+          <span className="flex items-center gap-2"><CheckCircle size={16} /> {actionMessage}</span>
+          <button onClick={() => setActionMessage(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
         </div>
       )}
 
@@ -145,8 +224,14 @@ export const SuperAdminHospitalsPage = () => {
                   <p className="text-[10px] font-mono text-slate-500">{hosp.code} · ID: {hosp._id?.slice(-6)}</p>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 ${
-                  hosp.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}>{hosp.status}</span>
+                  hosp.isDeleted || hosp.status === 'DELETED'
+                    ? 'bg-red-50 text-red-700 border-red-200'
+                    : hosp.isExpired || hosp.status === 'EXPIRED'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : hosp.status === 'APPROVED'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                }`}>{hosp.isDeleted || hosp.status === 'DELETED' ? 'DELETED' : hosp.isExpired || hosp.status === 'EXPIRED' ? 'EXPIRED' : hosp.status}</span>
               </div>
 
               <div className="mt-4 space-y-1.5 text-xs text-slate-600">
@@ -162,21 +247,33 @@ export const SuperAdminHospitalsPage = () => {
                 <div className="p-2 rounded-lg bg-slate-50"><p className="text-lg font-black text-emerald-700">{formatCurrency(hosp.todayRevenue || 0)}</p><p className="text-[10px] text-slate-500">Today</p></div>
               </div>
 
-              <div className="mt-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-4 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                 <Button size="sm" variant="primary" className="flex-1" onClick={() => navigate(`/admin/hospital/${hosp._id}/dashboard`)}>
-                  <Eye size={14} /> View Hospital
+                  <Eye size={14} /> View
                 </Button>
-                {hosp.status === 'PENDING_APPROVAL' && (
+
+                {hosp.isDeleted || hosp.status === 'DELETED' ? (
+                  <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 font-bold gap-1" isLoading={isLoading} onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>
+                    <RotateCcw size={13} /> Restore
+                  </Button>
+                ) : (
                   <>
-                    <Button size="sm" variant="primary" isLoading={isLoading} onClick={() => handleApprove(hosp._id, hosp.name)}><CheckCircle size={14} /></Button>
-                    <Button size="sm" variant="outline" isLoading={isLoading} onClick={() => handleReject(hosp._id, hosp.name)}><XCircle size={14} /></Button>
+                    {hosp.status === 'PENDING_APPROVAL' && (
+                      <>
+                        <Button size="sm" variant="primary" isLoading={isLoading} onClick={() => handleApprove(hosp._id, hosp.name)}><CheckCircle size={14} /></Button>
+                        <Button size="sm" variant="outline" isLoading={isLoading} onClick={() => handleReject(hosp._id, hosp.name)}><XCircle size={14} /></Button>
+                      </>
+                    )}
+                    {hosp.status === 'APPROVED' && (
+                      <Button size="sm" variant="outline" onClick={() => handleStatusToggle(hosp._id, hosp.status)}>Suspend</Button>
+                    )}
+                    {hosp.status === 'SUSPENDED' && (
+                      <Button size="sm" variant="outline" onClick={() => handleStatusToggle(hosp._id, hosp.status)}>Re-Activate</Button>
+                    )}
+                    <Button size="sm" variant="outline" className="text-red-700 bg-red-50 border-red-200 hover:bg-red-100 font-bold px-2.5" isLoading={isLoading} onClick={() => handleDeleteHospital(hosp._id, hosp.name)}>
+                      <Trash2 size={13} /> Delete
+                    </Button>
                   </>
-                )}
-                {hosp.status === 'APPROVED' && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(hosp._id, hosp.status)}>Suspend</Button>
-                )}
-                {hosp.status === 'SUSPENDED' && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(hosp._id, hosp.status)}>Re-Activate</Button>
                 )}
               </div>
             </Card>
@@ -208,10 +305,21 @@ export const SuperAdminHospitalsPage = () => {
                     <td className="p-3">{hosp.totalStaff || 0}</td>
                     <td className="p-3">{hosp.totalPatients || 0}</td>
                     <td className="p-3">{formatCurrency(hosp.todayRevenue || 0)}</td>
-                    <td className="p-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-200">{hosp.status}</span></td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        hosp.isDeleted || hosp.status === 'DELETED' ? 'bg-red-100 text-red-800' : hosp.isExpired ? 'bg-amber-100 text-amber-800' : 'bg-neutral-200 text-neutral-800'
+                      }`}>
+                        {hosp.isDeleted || hosp.status === 'DELETED' ? 'DELETED' : hosp.isExpired ? 'EXPIRED' : hosp.status}
+                      </span>
+                    </td>
                     <td className="p-3">{formatDateTime(hosp.lastLogin)}</td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right flex items-center justify-end gap-1.5">
                       <Button size="sm" variant="primary" onClick={() => navigate(`/admin/hospital/${hosp._id}/dashboard`)}>View</Button>
+                      {hosp.isDeleted || hosp.status === 'DELETED' ? (
+                        <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200" onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>Restore</Button>
+                      ) : (
+                        <Button size="sm" variant="outline" className="text-red-700 bg-red-50 border-red-200" onClick={() => handleDeleteHospital(hosp._id, hosp.name)}>Delete</Button>
+                      )}
                     </td>
                   </tr>
                 ))}

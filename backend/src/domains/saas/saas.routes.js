@@ -10,7 +10,8 @@ import {
   globalSearch,
   getAuditLogs,
   getHospitalsWithStats,
-  updateHospitalConfiguration,
+  deleteHospital,
+  restoreHospital,
 } from './saas.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { requireRole } from '../../middleware/permissions.js';
@@ -34,5 +35,8 @@ router.get('/audit-logs', ...superAdminOnly, getAuditLogs);
 router.get('/hospitals', ...superAdminOnly, getAllHospitals);
 router.patch('/hospitals/:id/approve', ...superAdminOnly, approveHospital);
 router.patch('/hospitals/:id/status', ...superAdminOnly, updateHospitalStatus);
+router.delete('/hospitals/:id', ...superAdminOnly, deleteHospital);
+router.patch('/hospitals/:id/delete', ...superAdminOnly, deleteHospital);
+router.patch('/hospitals/:id/restore', ...superAdminOnly, restoreHospital);
 
 export default router;

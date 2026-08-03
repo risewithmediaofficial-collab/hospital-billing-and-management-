@@ -414,12 +414,16 @@ export class SaasService {
           { $group: { _id: null, total: { $sum: '$paidAmount' } } },
         ]);
 
+        const now = new Date();
+        const isExpired = hospital.status === 'EXPIRED' || (hospital.subscriptionEndDate && new Date(hospital.subscriptionEndDate) < now);
+
         return {
           ...hospital.toObject(),
+          isExpired,
           administrator: admin ? { name: admin.name, email: admin.email } : null,
           registrationDate: hospital.createdAt,
           subscriptionPlan: hospital.plan,
-          subscriptionExpiry: null,
+          subscriptionExpiry: hospital.subscriptionEndDate || null,
           lastLogin: admin?.lastLoginAt || null,
           totalStaff,
           totalPatients,
@@ -427,6 +431,34 @@ export class SaasService {
         };
       })
     );
+  }
+
+  static async deleteHospital(hospitalId) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital tenant record not found');
+    }
+    hospital.status = 'DELETED';
+    hospital.isDeleted = true;
+    hospital.isActive = false;
+    await hospital.save();
+
+    await User.updateMany({ hospitalId: hospital._id }, { isActive: false });
+    return hospital;
+  }
+
+  static async restoreHospital(hospitalId) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital tenant record not found');
+    }
+    hospital.status = 'APPROVED';
+    hospital.isDeleted = false;
+    hospital.isActive = true;
+    await hospital.save();
+
+    await User.updateMany({ hospitalId: hospital._id }, { isActive: true });
+    return hospital;
   }
 
   static async approveHospital(hospitalId, user) {
