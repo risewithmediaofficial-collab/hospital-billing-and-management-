@@ -17,7 +17,7 @@ services:
     container_name: hpmbs_frontend
     restart: always
     ports:
-      - "80:80"
+      - "86:80"
     depends_on:
       - backend
 
