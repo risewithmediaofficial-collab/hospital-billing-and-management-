@@ -12,7 +12,7 @@ test.describe('Login & Core Application Load', () => {
     await expect(page.getByRole('heading', { name: /Sign in to your workstation/i })).toBeVisible();
 
     // Fill credentials
-    await page.locator('input[type="email"]').fill('admin@citygeneral.com');
+    await page.locator('input[placeholder*="email"]').fill('admin@citygeneral.com');
     await page.locator('input[type="password"]').fill('1234');
 
     // Verify Submit Button exists and is enabled

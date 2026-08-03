@@ -7,7 +7,7 @@ test.describe('Authentication & Registration Suite', () => {
 
   test('should render login page with all inputs and controls', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'HPMBS Enterprise' })).toBeVisible();
-    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expect(page.locator('input[placeholder*="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
     await expect(page.getByRole('button', { name: /Sign In to Workstation/i })).toBeVisible();
   });
