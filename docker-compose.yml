@@ -10,6 +10,17 @@ services:
     ports:
       - "27021:27017"
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hpmbs_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
   backend:
     build:
       context: ./backend
@@ -29,17 +40,6 @@ services:
       - "5003:5003"
     depends_on:
       - mongo
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: hpmbs_frontend
-    restart: always
-    ports:
-      - "86:80"
-    depends_on:
-      - backend
 
 volumes:
   mongo_data:

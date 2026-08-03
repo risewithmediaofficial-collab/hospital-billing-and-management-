@@ -84,6 +84,34 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     set({ notifications: updated, unreadCount: 0 });
   },
 
+  markAsReadForNav: (navPath) => {
+    const { notifications } = get();
+    if (!navPath) return;
+
+    const [pathname, search] = navPath.split('?');
+    const readIds = getSavedReadIds();
+    let countChanged = false;
+
+    const updated = notifications.map((n) => {
+      if (!n.isRead && n.linkedPath) {
+        const [nPathname, nSearch] = n.linkedPath.split('?');
+        const match = search && nSearch ? pathname === nPathname && search === nSearch : pathname === nPathname;
+        if (match) {
+          countChanged = true;
+          if (n.id) saveReadIdToStorage(n.id);
+          if (n.orderId) saveReadIdToStorage(n.orderId);
+          return { ...n, isRead: true };
+        }
+      }
+      return n;
+    });
+
+    if (countChanged) {
+      const unread = updated.filter((n) => !n.isRead).length;
+      set({ notifications: updated, unreadCount: unread });
+    }
+  },
+
   getUnreadCountForNav: (navPath) => {
     const { notifications } = get();
     if (!navPath) return 0;

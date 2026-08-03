@@ -103,12 +103,28 @@ export class AppointmentsService {
       cabinNo: doctor.cabinNo || 'Cabin 102',
     });
 
-    // Notify connected Doctor & Queue TV displays
-    socketManager.emitToBranch(branchId || doctor.branchId, 'opd_queue:updated', {
+    // Notify connected Doctor Workstations & Queue TV displays
+    const queuePayload = {
       doctorId: doctor._id,
+      doctorName: doctor.name,
       tokenNumber,
       patientName: `${patient.firstName} ${patient.lastName}`,
-    });
+      uhid: patient.uhid,
+      linkedPath: '/doctor/dashboard?tab=LIVE',
+      timestamp: new Date(),
+    };
+
+    const targetBranch = String(branchId || doctor.branchId || '');
+    if (targetBranch) {
+      socketManager.emitToBranch(targetBranch, 'opd_queue:updated', queuePayload);
+      socketManager.emitToBranch(targetBranch, 'queue:patient_added', queuePayload);
+      socketManager.emitToBranch(targetBranch, 'token:generated', queuePayload);
+    }
+    if (socketManager.io) {
+      socketManager.io.emit('opd_queue:updated', queuePayload);
+      socketManager.io.emit('queue:patient_added', queuePayload);
+      socketManager.io.emit('token:generated', queuePayload);
+    }
 
     WorkflowEventService.emit(WORKFLOW_EVENTS.PATIENT_QUEUED, {
       patientName: `${patient.firstName} ${patient.lastName}`,

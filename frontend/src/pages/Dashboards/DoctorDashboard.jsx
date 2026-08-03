@@ -132,6 +132,8 @@ export const DoctorDashboard = () => {
 
     socket.on('opd_queue:updated', handleQueueUpdate);
     socket.on('opd_queue:status_changed', handleQueueUpdate);
+    socket.on('queue:patient_added', handleQueueUpdate);
+    socket.on('token:generated', handleQueueUpdate);
     socket.on('investigation:new_request', handleInvestigationUpdate);
     socket.on('investigation:status_updated', handleInvestigationUpdate);
     socket.on('diagnostics:report_ready', handleInvestigationUpdate);
@@ -140,6 +142,8 @@ export const DoctorDashboard = () => {
     return () => {
       socket.off('opd_queue:updated', handleQueueUpdate);
       socket.off('opd_queue:status_changed', handleQueueUpdate);
+      socket.off('queue:patient_added', handleQueueUpdate);
+      socket.off('token:generated', handleQueueUpdate);
       socket.off('investigation:new_request', handleInvestigationUpdate);
       socket.off('investigation:status_updated', handleInvestigationUpdate);
       socket.off('diagnostics:report_ready', handleInvestigationUpdate);

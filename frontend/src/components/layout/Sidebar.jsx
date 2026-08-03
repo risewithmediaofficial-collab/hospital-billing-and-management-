@@ -168,11 +168,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
     const seenPaths = new Set();
     menuItems = rawItems.filter((item) => {
       if (!item?.path) return false;
-      if (seenPaths.has(item.path)) return false;
       seenPaths.add(item.path);
       return checkItemPermission(user, item);
     });
   }
+
+  // Sort main menu items in alphabetical order
+  menuItems.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
 
@@ -182,6 +184,18 @@ export const Sidebar = ({ isOpen, onClose }) => {
       fetchActiveEmergencies();
     }
   }, [user, fetchInitialNotifications, fetchActiveEmergencies]);
+
+  // Automatically mark department notifications read when user views that navigation route
+  useEffect(() => {
+    const fullPath = location.pathname + (location.search || '');
+    if (fullPath) {
+      const store = useDepartmentNotificationStore.getState();
+      if (store.markAsReadForNav) {
+        store.markAsReadForNav(fullPath);
+        store.markAsReadForNav(location.pathname);
+      }
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!socket) return;

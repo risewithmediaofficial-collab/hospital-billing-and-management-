@@ -23,9 +23,15 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
   useEffect(() => {
     if (isOpen) {
-      if (initialPatient) { setSelectedPatient(initialPatient); } else { setSelectedPatient(null); setSearchQuery(''); }
+      if (initialPatient) {
+        setSelectedPatient(initialPatient);
+        setSearchQuery(initialPatient.uhid || initialPatient.phone || `${initialPatient.firstName} ${initialPatient.lastName}`);
+      } else {
+        setSelectedPatient(null);
+        setSearchQuery('');
+      }
       setSelectedDoctorId(initialDoctorId || '');
-      setChiefComplaints('');
+      setChiefComplaints(initialPatient?.chiefComplaints || '');
       setIssuedToken(null);
       setError(null);
       fetchPatientsAndDoctors();
@@ -53,7 +59,19 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
   const fetchPatientsAndDoctors = async () => {
     try {
       const pRes = await axiosClient.get('/patients');
-      setPatients(pRes.data || []);
+      const allPatients = pRes.data || [];
+      setPatients(allPatients);
+
+      if (initialPatient) {
+        const found = allPatients.find(
+          (p) => String(p._id) === String(initialPatient._id) || p.uhid === initialPatient.uhid
+        );
+        if (found) {
+          setSelectedPatient(found);
+          if (found.uhid) setSearchQuery(found.uhid);
+        }
+      }
+
       const sRes = await axiosClient.get('/auth/staff');
       const allDocs = (sRes.data || []).filter(
         (s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
@@ -163,26 +181,76 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                 </div>
               )}
 
-              {/* Patient Search / Selection */}
+              {/* Patient Selection / Recently Registered Dropdown & Search */}
               {!selectedPatient ? (
-                <div className="space-y-2 relative">
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Search Patient</label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Type UHID, Mobile Number, or Name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      icon={Search}
-                      autoFocus
-                    />
+                <div className="space-y-3">
+                  {/* Recently Registered Roster Dropdown */}
+                  {patients.length > 0 && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                        <span>Select Recently Registered Patient</span>
+                        <span className="text-[10px] text-indigo-600 font-bold">Quick Select Dropdown</span>
+                      </label>
+                      <select
+                        value={selectedPatient?._id || ''}
+                        onChange={(e) => {
+                          const chosen = patients.find((p) => String(p._id) === String(e.target.value));
+                          if (chosen) {
+                            setSelectedPatient(chosen);
+                            setChiefComplaints(chosen.chiefComplaints || '');
+                            setSearchQuery(chosen.uhid);
+                          }
+                        }}
+                        className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 bg-white border border-slate-200"
+                      >
+                        <option value="">-- Choose from Recently Registered Patients --</option>
+                        {patients.slice(0, 15).map((pat) => (
+                          <option key={pat._id} value={pat._id}>
+                            {pat.firstName} {pat.lastName} ({pat.uhid}) — {pat.phone}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Search Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                      Search Patient by UHID / Phone / Name
+                    </label>
+                    <div className="relative">
+                      <Input
+                        placeholder="Type UHID (e.g. HOSP-2026-00001), Mobile, or Name..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSearchQuery(val);
+                          const exactMatch = patients.find(
+                            (p) => p.uhid?.toLowerCase() === val.trim().toLowerCase()
+                          );
+                          if (exactMatch) {
+                            setSelectedPatient(exactMatch);
+                            setChiefComplaints(exactMatch.chiefComplaints || '');
+                          }
+                        }}
+                        icon={Search}
+                        autoFocus
+                      />
+                    </div>
                   </div>
+
+                  {/* Search Results Dropdown List */}
                   {searchQuery.trim() !== '' && (
-                    <div className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-lg z-10">
+                    <div className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-lg">
                       {filteredPatients.length > 0 ? (
                         filteredPatients.map((pat) => (
                           <div
                             key={pat._id}
-                            onClick={() => { setSelectedPatient(pat); setChiefComplaints(pat.chiefComplaints || ''); setSearchQuery(''); }}
+                            onClick={() => {
+                              setSelectedPatient(pat);
+                              setChiefComplaints(pat.chiefComplaints || '');
+                              setSearchQuery(pat.uhid);
+                            }}
                             className="p-3 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
                           >
                             <div>
@@ -203,26 +271,59 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                   )}
                 </div>
               ) : (
-                /* Selected Patient Card */
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-600 flex-shrink-0">
-                      <UserCheck size={18} />
+                /* Selected Patient Card & Quick Switcher Dropdown */
+                <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-xs">
+                        <UserCheck size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {selectedPatient.firstName} {selectedPatient.lastName}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          UHID: <span className="font-mono text-indigo-700 font-bold">{selectedPatient.uhid}</span> &bull; Mobile: {selectedPatient.phone}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-900 text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
-                      <p className="text-xs text-slate-500">
-                        <span className="font-mono text-indigo-600 font-bold">{selectedPatient.uhid}</span> &bull; {selectedPatient.phone}
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPatient(null);
+                        setSearchQuery('');
+                      }}
+                      className="text-xs text-slate-600 hover:text-indigo-700 flex items-center gap-1 font-semibold bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 transition-colors shadow-2xs"
+                    >
+                      <RefreshCw size={11} /> Change
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPatient(null)}
-                    className="text-xs text-slate-500 hover:text-indigo-600 flex items-center gap-1 font-medium bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors"
-                  >
-                    <RefreshCw size={11} /> Change
-                  </button>
+
+                  {patients.length > 0 && (
+                    <div className="pt-2 border-t border-indigo-100/80">
+                      <label className="block text-[10px] text-slate-500 mb-1 font-semibold">
+                        Switch patient from Recently Registered Roster:
+                      </label>
+                      <select
+                        value={selectedPatient?._id || ''}
+                        onChange={(e) => {
+                          const chosen = patients.find((p) => String(p._id) === String(e.target.value));
+                          if (chosen) {
+                            setSelectedPatient(chosen);
+                            setChiefComplaints(chosen.chiefComplaints || '');
+                            setSearchQuery(chosen.uhid);
+                          }
+                        }}
+                        className="w-full text-xs bg-white text-slate-800 rounded-lg px-2.5 py-1.5 border border-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {patients.slice(0, 15).map((pat) => (
+                          <option key={pat._id} value={pat._id}>
+                            {pat.firstName} {pat.lastName} ({pat.uhid}) — {pat.phone}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
