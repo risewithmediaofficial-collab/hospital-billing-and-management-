@@ -71,6 +71,7 @@ export const LabTechDashboard = () => {
         status: newStatus,
         notes: `Department updated status to ${newStatus}`,
       });
+      if (['ACCEPTED', 'IN_PROGRESS'].includes(newStatus)) setActiveTab('PROGRESS');
       fetchOrders();
     } catch (err) {
       console.error('Failed to update status:', err);
@@ -94,11 +95,6 @@ export const LabTechDashboard = () => {
         ],
       });
 
-      // Mark as COMPLETED directly
-      await axiosClient.patch(`/diagnostics/orders/${selectedOrder._id}/status`, {
-        status: 'COMPLETED',
-        notes: 'Pathology Test & Report Completed',
-      });
       resolvePending(selectedOrder._id);
 
       setReportSummary('');
@@ -110,14 +106,20 @@ export const LabTechDashboard = () => {
     }
   };
 
-  const activeOrders = orders.filter((o) => o.status !== 'COMPLETED' && o.status !== 'REPORT_UPLOADED');
-  const completedOrders = orders.filter((o) => o.status === 'COMPLETED' || o.status === 'REPORT_UPLOADED');
+  const incomingOrders = orders.filter((o) => ['REQUESTED', 'DEPARTMENT_RECEIVED'].includes(o.status));
+  const progressOrders = orders.filter((o) => ['ACCEPTED', 'IN_PROGRESS'].includes(o.status));
+  const activeOrders = [...incomingOrders, ...progressOrders];
+  const completedOrders = orders.filter((o) => ['COMPLETED', 'REPORT_UPLOADED', 'REVIEWED'].includes(o.status));
 
   const pendingCount = orders.filter((o) => o.status === 'REQUESTED').length;
   const inProgressCount = orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ACCEPTED').length;
   const emergencyCount = orders.filter((o) => o.priority === 'EMERGENCY').length;
 
-  const currentQueue = (activeTab === 'COMPLETED' || activeTab === 'REPORTS') ? completedOrders : activeOrders;
+  const currentQueue = (activeTab === 'COMPLETED' || activeTab === 'REPORTS')
+    ? completedOrders
+    : activeTab === 'PROGRESS'
+      ? progressOrders
+      : incomingOrders;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -153,7 +155,15 @@ export const LabTechDashboard = () => {
                   activeTab === 'ACTIVE' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                Active Tests ({activeOrders.length})
+                Incoming ({incomingOrders.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('PROGRESS')}
+                className={`px-3 py-1 rounded font-bold transition-all ${
+                  activeTab === 'PROGRESS' ? 'bg-violet-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Accepted / In Progress ({progressOrders.length})
               </button>
               <button
                 onClick={() => setActiveTab('COMPLETED')}
@@ -161,7 +171,7 @@ export const LabTechDashboard = () => {
                   activeTab === 'COMPLETED' ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                Completed ({completedOrders.length})
+                Completed & Sent ({completedOrders.length})
               </button>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 font-bold border border-indigo-200">
@@ -231,7 +241,12 @@ export const LabTechDashboard = () => {
                     <FlaskConical size={14} /> ACCEPTED — PROCESSING TEST
                   </span>
                 )}
-                {(selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED') && (
+                {selectedOrder.status === 'ACCEPTED' && (
+                  <Button size="sm" variant="primary" className="bg-violet-600 hover:bg-violet-700 font-bold text-xs" onClick={() => handleUpdateStatus(selectedOrder._id, 'IN_PROGRESS')}>
+                    <FlaskConical size={14} /> Start Processing
+                  </Button>
+                )}
+                {['COMPLETED', 'REPORT_UPLOADED', 'REVIEWED'].includes(selectedOrder.status) && (
                   <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center gap-1">
                     <CheckCircle2 size={14} /> REPORT SUBMITTED TO DOCTOR
                   </span>
@@ -270,7 +285,7 @@ export const LabTechDashboard = () => {
                 <p className="text-slate-600 italic">"{selectedOrder.clinicalNotes || 'No specific notes provided.'}"</p>
               </div>
 
-              {selectedOrder.status === 'COMPLETED' || selectedOrder.status === 'REPORT_UPLOADED' ? (
+              {['COMPLETED', 'REPORT_UPLOADED', 'REVIEWED'].includes(selectedOrder.status) ? (
                 <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-emerald-600 text-sm flex items-center gap-1.5">

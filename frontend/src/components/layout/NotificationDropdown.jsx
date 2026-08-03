@@ -1,14 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, Check, CheckCheck, Clock, FileCheck2, X, ChevronRight, Inbox
+  Bell, Clock, FileCheck2, ChevronRight, Inbox
 } from 'lucide-react';
 
 export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useDepartmentNotificationStore();
-  const [activeTab, setActiveTab] = useState('UNREAD'); // 'UNREAD' | 'READ'
+  const { notifications, unreadCount } = useDepartmentNotificationStore();
   const dropdownRef = useRef(null);
 
   // Close when clicking outside dropdown container
@@ -26,12 +25,9 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const unreadNotifs = notifications.filter((n) => !n.isRead);
-  const readNotifs = notifications.filter((n) => n.isRead);
-  const currentNotifs = activeTab === 'UNREAD' ? unreadNotifs : readNotifs;
+  const currentNotifs = notifications;
 
   const handleNotificationClick = (notif) => {
-    markAsRead(notif.id);
     onClose();
     if (notif.linkedPath) {
       navigate(notif.linkedPath);
@@ -63,40 +59,12 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Tabs & Mark All as Read */}
+      {/* Pending work summary */}
       <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setActiveTab('UNREAD')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'UNREAD'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Unread ({unreadNotifs.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('READ')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'READ'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Read History ({readNotifs.length})
-          </button>
-        </div>
-
-        {unreadCount > 0 && (
-          <button
-            onClick={markAllAsRead}
-            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-indigo-50"
-            title="Mark all as read"
-          >
-            <CheckCheck size={14} /> Clear All
-          </button>
-        )}
+        <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
+          Pending work ({notifications.length})
+        </span>
+        <span className="text-[10px] text-slate-500 font-medium">Clears only when work is processed</span>
       </div>
 
       {/* Notification List */}
@@ -143,12 +111,10 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
           <div className="p-8 text-center text-slate-400 space-y-2">
             <Inbox size={28} className="mx-auto text-slate-300" />
             <p className="font-bold text-xs text-slate-600">
-              {activeTab === 'UNREAD' ? 'No Unread Notifications' : 'No Read History'}
+              No Pending Work
             </p>
             <p className="text-[10px]">
-              {activeTab === 'UNREAD'
-                ? 'All department response alerts have been read.'
-                : 'Viewed notifications will be archived here.'}
+              All assigned work has been processed.
             </p>
           </div>
         )}

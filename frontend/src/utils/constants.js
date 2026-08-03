@@ -196,9 +196,8 @@ export const ROLE_NAVIGATION = {
   ],
   DOCTOR: [
     { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
-    { title: 'Queued Patients', path: '/doctor/dashboard?tab=LIVE', icon: 'Hourglass', module: 'doctorConsultation' },
     { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation' },
-    { title: 'Department Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation' },
+    { title: 'Department Request & Response Tracker', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   NURSE: [
@@ -217,7 +216,6 @@ export const ROLE_NAVIGATION = {
   ],
   RECEPTIONIST: [
     { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments' },
-    { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
     { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
     { title: 'Registered Patients', path: '/reception/registered-patients?tab=REGISTERED', icon: 'UserCheck', module: 'patients' },
     { title: 'Queued / Active OPD', path: '/reception/registered-patients?tab=QUEUED', icon: 'Hourglass', module: 'opd' },

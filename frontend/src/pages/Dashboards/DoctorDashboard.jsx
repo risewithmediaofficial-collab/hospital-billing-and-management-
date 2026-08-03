@@ -32,6 +32,7 @@ import {
   X,
   Search,
   Clock,
+  Lock,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
@@ -42,6 +43,7 @@ export const DoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
   const [liveQueue, setLiveQueue] = useState([]);
   const [completedQueue, setCompletedQueue] = useState([]);
+  const [departmentHoldQueue, setDepartmentHoldQueue] = useState([]);
   const [departmentOrders, setDepartmentOrders] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
   const [selectedDeptOrder, setSelectedDeptOrder] = useState(null);
@@ -68,8 +70,8 @@ export const DoctorDashboard = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['LIVE', 'COMPLETED', 'DEPT_RESPONSES'].includes(tabParam.toUpperCase())) {
-      setActiveTab(tabParam.toUpperCase());
+    if (tabParam && ['LIVE', 'COMPLETED', 'SENT_DEPARTMENTS', 'DEPT_RESPONSES'].includes(tabParam.toUpperCase())) {
+      setActiveTab(tabParam.toUpperCase() === 'SENT_DEPARTMENTS' ? 'DEPT_RESPONSES' : tabParam.toUpperCase());
     } else {
       setActiveTab('OVERVIEW');
     }
@@ -79,16 +81,6 @@ export const DoctorDashboard = () => {
     fetchOpdQueue();
     fetchDepartmentOrders();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'DEPT_RESPONSES' && departmentOrders.length > 0) {
-      departmentOrders.forEach((ord) => {
-        if (ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED') {
-          markAsRead(ord._id);
-        }
-      });
-    }
-  }, [activeTab, departmentOrders, markAsRead]);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
   useEffect(() => {
@@ -165,11 +157,13 @@ export const DoctorDashboard = () => {
     try {
       const res = await axiosClient.get('/appointments/queue');
       const allTokens = res.data || [];
-      const waiting = allTokens.filter((t) => t.status !== 'COMPLETED');
+      const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION'].includes(t.status));
       const done = allTokens.filter((t) => t.status === 'COMPLETED');
+      const held = allTokens.filter((t) => t.status === 'WAITING_DEPARTMENT');
 
       setLiveQueue(waiting);
       setCompletedQueue(done);
+      setDepartmentHoldQueue(held);
 
       if (waiting.length > 0) {
         setSelectedToken((prev) => {
@@ -234,7 +228,13 @@ export const DoctorDashboard = () => {
     return name.includes(search) || uhid.includes(search) || tokenNo.includes(search);
   });
 
-  const filteredDeptOrders = departmentOrders.filter((ord) => {
+  const doctorUserId = String(user?.id || user?._id || '');
+  const departmentResponses = departmentOrders.filter((ord) =>
+    (!doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId)
+  );
+  const sentPatientInvestigations = patientInvestigations.filter((ord) => !['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status));
+
+  const filteredDeptOrders = departmentResponses.filter((ord) => {
     const pName = (ord.patientName || '').toLowerCase();
     const uhid = (ord.uhid || '').toLowerCase();
     const tName = (ord.testName || '').toLowerCase();
@@ -242,7 +242,31 @@ export const DoctorDashboard = () => {
     return pName.includes(search) || uhid.includes(search) || tName.includes(search);
   });
 
-  const pendingReportsCount = departmentOrders.filter((ord) => ord.status === 'REPORT_UPLOADED').length;
+  const pendingReportsCount = departmentResponses.filter((ord) =>
+    ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'CANCELLED'
+  ).length;
+
+  const departmentLabel = (category) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(category)
+    ? 'Radiology / X-Ray'
+    : ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'].includes(category)
+      ? 'Laboratory'
+      : category?.replaceAll('_', ' ') || 'Department';
+
+  const displayWorkflowStatus = (order) => {
+    if (order.reviewedAt || order.status === 'REVIEWED') return 'VIEWED BY DOCTOR';
+    if (['REPORT_UPLOADED', 'COMPLETED'].includes(order.status)) return 'COMPLETED';
+    if (order.status === 'IN_PROGRESS') return 'IN PROGRESS';
+    if (order.status === 'ACCEPTED') return 'ACCEPTED';
+    return 'PENDING';
+  };
+
+  const statusClass = (status) => ({
+    PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
+    ACCEPTED: 'bg-blue-50 text-blue-700 border-blue-200',
+    'IN PROGRESS': 'bg-violet-50 text-violet-700 border-violet-200',
+    COMPLETED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'VIEWED BY DOCTOR': 'bg-slate-100 text-slate-700 border-slate-300',
+  }[status] || 'bg-slate-50 text-slate-700 border-slate-200');
 
   // Toggle Doctor Availability (Online / Offline)
   const handleToggleAvailability = async () => {
@@ -591,18 +615,18 @@ export const DoctorDashboard = () => {
                 </Button>
               </div>
 
-              {/* Live Requested Department Investigation Tracking */}
-              <div className="pt-2">
+              {/* Department requests are tracked exclusively from the dedicated sidebar module. */}
+              {false && (<div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-extrabold text-black flex items-center gap-1.5 text-xs">
                     <FileCheck2 className="text-sky-600" size={16} />
-                    Live Requested Department Investigations ({patientInvestigations.length})
+                    Sent to Departments ({sentPatientInvestigations.length})
                   </h4>
                 </div>
 
                 <div className="space-y-2">
-                  {patientInvestigations.length > 0 ? (
-                    patientInvestigations.map((inv) => (
+                  {sentPatientInvestigations.length > 0 ? (
+                    sentPatientInvestigations.map((inv) => (
                       <div key={inv._id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-2 text-black">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
@@ -661,10 +685,10 @@ export const DoctorDashboard = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="p-4 text-center text-slate-500 text-xs">No investigations requested for this patient yet. Click 'Request Investigation' to dispatch a test to X-Ray, Lab, MRI, ECG, etc.</div>
+                    <div className="p-4 text-center text-slate-500 text-xs">No department requests are currently pending. Completed results move to Department Responses.</div>
                   )}
                 </div>
-              </div>
+              </div>)}
             </div>
           ) : (
             <div className="p-8 text-center text-slate-500 text-sm">
@@ -736,10 +760,10 @@ export const DoctorDashboard = () => {
             <div>
               <h3 className="text-base font-extrabold text-black flex items-center gap-2">
                 <FileCheck2 size={18} className="text-amber-600" />
-                Department Reports & Charges Inbox ({filteredDeptOrders.length})
+                Department Request & Response Tracker ({filteredDeptOrders.length})
               </h3>
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                Incoming diagnostic lab test results, radiology X-Ray/MRI/CT scans, and department charges submitted to Doctor.
+                Track each request from dispatch through processing, report submission, and doctor review.
               </p>
             </div>
           </div>
@@ -748,47 +772,30 @@ export const DoctorDashboard = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
                 <tr>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Test / Service Name</th>
                   <th className="p-3">Patient Name</th>
-                  <th className="p-3">UHID</th>
-                  <th className="p-3">Department Charge</th>
-                  <th className="p-3">Report Findings</th>
+                  <th className="p-3">Token / Patient ID</th>
+                  <th className="p-3">Department</th>
+                  <th className="p-3">Requested Service</th>
+                  <th className="p-3">Sent Time</th>
                   <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Scans & Actions</th>
+                  <th className="p-3">Response Time</th>
+                  <th className="p-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-black">
                 {filteredDeptOrders.length > 0 ? (
                   filteredDeptOrders.map((ord) => {
-                    const isReady = ord.status === 'REPORT_UPLOADED';
+                    const workflowStatus = displayWorkflowStatus(ord);
+                    const isDepartmentLocked = !['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status);
                     return (
-                      <tr key={ord._id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-mono font-bold text-indigo-700">{ord.testCategory}</td>
-                        <td className="p-3 font-extrabold text-black">{ord.testName}</td>
+                      <tr key={ord._id} className={`transition-colors ${isDepartmentLocked ? 'bg-slate-50/80 text-slate-500' : 'hover:bg-slate-50'}`}>
                         <td className="p-3 font-bold text-black">{ord.patientName}</td>
-                        <td className="p-3 font-mono font-bold text-indigo-700">{ord.uhid}</td>
-                        <td className="p-3 font-mono font-black text-emerald-700">
-                          ₹{ord.totalDepartmentCharge || ord.price || 0}
-                        </td>
-                        <td className="p-3 text-black max-w-xs truncate font-medium">
-                          {ord.reportSummary ? `"${ord.reportSummary}"` : 'Awaiting technician entry'}
-                        </td>
-                        <td className="p-3">
-                          {ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED' ? (
-                            <span className="text-xs font-bold text-slate-900">
-                              Report Ready
-                            </span>
-                          ) : ord.status === 'ACCEPTED' ? (
-                            <span className="text-xs font-medium text-slate-600">
-                              Accepted & Processing by Dept
-                            </span>
-                          ) : (
-                            <span className="text-xs font-normal text-slate-500">
-                              Pending Dept Acceptance
-                            </span>
-                          )}
-                        </td>
+                        <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
+                        <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
+                        <td className="p-3 font-extrabold text-black">{ord.testName}</td>
+                        <td className="p-3 text-slate-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleString()}</td>
+                        <td className="p-3"><span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${statusClass(workflowStatus)}`}>{workflowStatus}</span></td>
+                        <td className="p-3 text-slate-600 whitespace-nowrap">{ord.responseSubmittedAt || ord.completedAt ? new Date(ord.responseSubmittedAt || ord.completedAt).toLocaleString() : '—'}</td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {ord.attachments?.length > 0 && (
@@ -796,14 +803,13 @@ export const DoctorDashboard = () => {
                                 href={ord.attachments[0].fileUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                onClick={() => markAsRead(ord._id)}
                                 className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
                               >
                                 <Eye size={12} /> View Scan
                               </a>
                             )}
 
-                            {ord.status === 'REPORT_UPLOADED' || ord.status === 'COMPLETED' ? (
+                            {['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) ? (
                               <button
                                 type="button"
                                 onClick={async () => {
@@ -823,7 +829,7 @@ export const DoctorDashboard = () => {
                                 }`}
                               >
                                 <CheckCircle2 size={12} />
-                                {ord.chargeStatus === 'APPROVED' ? 'Doctor Accepted' : 'Accept Report'}
+                                {ord.chargeStatus === 'APPROVED' ? 'Reviewed' : 'View & Mark Reviewed'}
                               </button>
                             ) : (
                               <button
@@ -832,7 +838,22 @@ export const DoctorDashboard = () => {
                                 className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
                                 title="Report is being processed by department. You will be unlocked when department submits final report."
                               >
-                                <Clock size={12} /> {ord.status === 'ACCEPTED' ? 'Dept Processing...' : 'Pending Dept'}
+                                <Lock size={12} /> {ord.status === 'IN_PROGRESS' ? 'Locked: In Progress' : ord.status === 'ACCEPTED' ? 'Locked: Accepted' : 'Locked: Pending'}
+                              </button>
+                            )}
+                            {ord.chargeStatus === 'APPROVED' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const heldToken = departmentHoldQueue.find((token) => String(token._id) === String(ord.appointmentId?._id || ord.appointmentId));
+                                  if (!heldToken) return;
+                                  setSelectedToken(heldToken);
+                                  fetchPatientInvestigations(heldToken.patientId?._id || heldToken.patientId);
+                                  setIsConsultationModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs"
+                              >
+                                Continue Consultation
                               </button>
                             )}
                           </div>
@@ -866,10 +887,18 @@ export const DoctorDashboard = () => {
         isOpen={isRequestModalOpen}
         onClose={() => setIsRequestModalOpen(false)}
         patient={currentPatient}
+        appointmentId={selectedToken?._id}
         tokenNumber={selectedToken?.tokenNumber || 1}
         doctorId={selectedToken?.doctorId?._id || selectedToken?.doctorId || user?.id || user?._id}
         doctorName={selectedToken?.doctorId?.name ? `Dr. ${selectedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (user?.name ? `Dr. ${user.name.replace(/^Dr\.\s*/i, '')}` : 'Dr. Madhu Narayan')}
-        onSuccess={() => fetchPatientInvestigations(currentPatient?._id || currentPatient?.id)}
+        onSuccess={() => {
+          const dispatchedAppointmentId = selectedToken?._id;
+          setLiveQueue((queue) => queue.filter((token) => String(token._id) !== String(dispatchedAppointmentId)));
+          fetchPatientInvestigations(currentPatient?._id || currentPatient?.id);
+          setSelectedToken(null);
+          fetchOpdQueue();
+          fetchDepartmentOrders();
+        }}
       />
 
       <AdmitPatientModal

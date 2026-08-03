@@ -6,6 +6,7 @@ import { AuditLog } from '../../models/AuditLog.js';
 import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
+import { Appointment } from '../../models/Appointment.js';
 
 export class DiagnosticsService {
   static async requestInvestigation(data, user) {
@@ -39,6 +40,24 @@ export class DiagnosticsService {
     const doctorId = data.doctorId || user?.id || user?._id;
     const doctorName = data.doctorName || user?.name || 'Doctor Consultant';
 
+    if (!data.appointmentId) {
+      throw new ApiError(400, 'An active appointment is required before sending a department request', null, 'APPOINTMENT_REQUIRED');
+    }
+
+    const appointment = await Appointment.findById(data.appointmentId);
+    if (!appointment) {
+      throw new ApiError(404, 'The active appointment could not be found', null, 'APPOINTMENT_NOT_FOUND');
+    }
+    if (String(appointment.doctorId) !== String(doctorId)) {
+      throw new ApiError(403, 'This appointment is assigned to another doctor', null, 'FORBIDDEN');
+    }
+    if (String(appointment.patientId) !== String(patient._id)) {
+      throw new ApiError(409, 'The selected patient does not match the active appointment', null, 'APPOINTMENT_PATIENT_MISMATCH');
+    }
+    if (['COMPLETED', 'CANCELLED'].includes(appointment.status)) {
+      throw new ApiError(409, 'A department request cannot be sent for a closed appointment', null, 'APPOINTMENT_CLOSED');
+    }
+
     const newOrder = await DiagnosticOrder.create({
       hospitalId,
       branchId,
@@ -51,6 +70,7 @@ export class DiagnosticsService {
       tokenNumber: data.tokenNumber || 1,
       doctorId,
       doctorName,
+      appointmentId: data.appointmentId || undefined,
       testCategory,
       testName,
       clinicalNotes: data.clinicalNotes || '',
@@ -65,6 +85,15 @@ export class DiagnosticsService {
           notes: `Investigation '${testName}' requested by ${doctorName} (Priority: ${priority})`,
         },
       ],
+    });
+
+    appointment.status = 'WAITING_DEPARTMENT';
+    appointment.departmentReturnedAt = null;
+    await appointment.save();
+    socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+      appointmentId: appointment._id,
+      status: appointment.status,
+      tokenNumber: appointment.tokenNumber,
     });
 
     // Create Audit Log
@@ -121,7 +150,14 @@ export class DiagnosticsService {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
 
+    const allowedStatuses = ['DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'];
+    if (!allowedStatuses.includes(status)) {
+      throw new ApiError(400, 'Invalid diagnostic workflow status', null, 'INVALID_STATUS');
+    }
+
     order.status = status;
+    if (status === 'ACCEPTED' && !order.acceptedAt) order.acceptedAt = new Date();
+    if (status === 'IN_PROGRESS' && !order.startedAt) order.startedAt = new Date();
     order.timeline.push({
       status,
       timestamp: new Date(),
@@ -131,6 +167,7 @@ export class DiagnosticsService {
 
     if (status === 'COMPLETED') {
       order.completedAt = new Date();
+      order.responseSubmittedAt = order.responseSubmittedAt || new Date();
     }
 
     await order.save();
@@ -205,6 +242,8 @@ export class DiagnosticsService {
     }
 
     order.status = 'REPORT_UPLOADED';
+    order.completedAt = new Date();
+    order.responseSubmittedAt = new Date();
     order.reportSummary = data.reportSummary || 'Investigation scan analyzed and report uploaded.';
     order.technicianName = user?.name || 'Diagnostic Technician';
 
@@ -425,14 +464,37 @@ export class DiagnosticsService {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
 
+    if (!['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(order.status)) {
+      throw new ApiError(409, 'The department response is not ready for doctor review', null, 'RESPONSE_NOT_READY');
+    }
+
     order.chargeStatus = 'APPROVED';
+    order.status = 'REVIEWED';
+    order.reviewedAt = new Date();
+    order.reviewedBy = user?.id || user?._id;
+    order.timeline.push({
+      status: 'REVIEWED',
+      timestamp: order.reviewedAt,
+      updatedBy: user?.name || 'Doctor',
+      notes: 'Department response reviewed and accepted by doctor',
+    });
     await order.save();
+    socketManager.emitToBranch(order.branchId, 'workflow:pending_changed', { resourceId: order._id, chargeStatus: order.chargeStatus });
 
     socketManager.emitToBranch(order.branchId, 'investigation:status_updated', {
       orderId: order._id,
       patientId: order.patientId,
       chargeStatus: order.chargeStatus,
+      status: order.status,
+      reviewedAt: order.reviewedAt,
     });
+
+    const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
+    WorkflowEventService.emit(
+      isRadio ? WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY : WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB,
+      { orderId: order._id, doctorName: user?.name || 'Doctor', patientName: order.patientName, testName: order.testName },
+      order.branchId,
+    );
 
     return order;
   }

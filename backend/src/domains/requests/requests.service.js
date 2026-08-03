@@ -192,6 +192,7 @@ export class RequestsService {
       console.error('[RequestsService] Socket broadcast failed (non-fatal):', socketErr.message);
     }
 
+    socketManager.emitToBranch(user.branchId, 'workflow:pending_changed', { resourceId: request._id, status: request.status });
     return populated;
   }
 

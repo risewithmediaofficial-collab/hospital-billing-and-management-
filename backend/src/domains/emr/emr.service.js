@@ -14,11 +14,17 @@ export class EmrService {
     if (!appointment) {
       throw new ApiError(404, 'Appointment not found for consultation', null, 'NOT_FOUND');
     }
+    if (String(appointment.doctorId) !== String(user.id || user._id)) {
+      throw new ApiError(403, 'This appointment is assigned to another doctor', null, 'FORBIDDEN');
+    }
 
     // 1. Check for any pending department requests for this patient/appointment
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const departmentOrders = await DiagnosticOrder.find({
-      patientId: appointment.patientId,
+      $or: [
+        { appointmentId: appointment._id },
+        { appointmentId: null, patientId: appointment.patientId },
+      ],
       chargeStatus: { $ne: 'CANCELLED' },
     });
 

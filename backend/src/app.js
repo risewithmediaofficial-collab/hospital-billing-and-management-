@@ -22,6 +22,8 @@ import emergencyRoutes from './domains/emergency/emergency.routes.js';
 import patientPortalRoutes from './domains/patient-portal/patient-portal.routes.js';
 import guardianPortalRoutes from './domains/guardian-portal/guardian-portal.routes.js';
 import doctorUpdatesRoutes from './domains/doctor-updates/doctor-updates.routes.js';
+import workflowRoutes from './domains/workflow/workflow.routes.js';
+import pharmacyRoutes from './domains/pharmacy/pharmacy.routes.js';
 
 const app = express();
 
@@ -65,6 +67,8 @@ app.use('/api/v1/emergency', emergencyRoutes);
 app.use('/api/v1/patient-portal', patientPortalRoutes);
 app.use('/api/v1/guardian-portal', guardianPortalRoutes);
 app.use('/api/v1/doctor-updates', doctorUpdatesRoutes);
+app.use('/api/v1/workflow', workflowRoutes);
+app.use('/api/v1/pharmacy', pharmacyRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

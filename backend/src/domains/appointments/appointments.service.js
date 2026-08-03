@@ -7,6 +7,8 @@ import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 
+export const FIFO_QUEUE_SORT = { appointmentDate: 1, tokenNumber: 1, createdAt: 1, _id: 1 };
+
 export class AppointmentsService {
   static async issueToken(data, user) {
     let hospitalId = user?.hospitalId;
@@ -167,7 +169,9 @@ export class AppointmentsService {
     return await Appointment.find(filter)
       .populate('patientId')
       .populate('doctorId')
-      .sort({ tokenNumber: 1 });
+      // FIFO: the earliest token is always at the top and newly issued tokens
+      // are appended at the bottom. createdAt resolves any legacy duplicates.
+      .sort(FIFO_QUEUE_SORT);
   }
 
   static async updateTokenStatus(appointmentId, status, user) {

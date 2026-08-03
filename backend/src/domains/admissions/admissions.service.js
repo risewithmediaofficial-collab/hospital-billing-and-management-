@@ -50,6 +50,7 @@ export class AdmissionsService {
       wardType: admission.wardType,
     });
 
+    socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
     return admission;
   }
 
@@ -134,6 +135,7 @@ export class AdmissionsService {
       bedNumber: bed.bedNumber,
       wardName: bed.wardName,
     });
+    socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
 
     return admission;
   }
@@ -147,6 +149,7 @@ export class AdmissionsService {
     admission.status = 'DISCHARGED';
     admission.dischargedAt = new Date();
     await admission.save();
+    socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
 
     if (admission.bedId) {
       const bed = await Bed.findById(admission.bedId);

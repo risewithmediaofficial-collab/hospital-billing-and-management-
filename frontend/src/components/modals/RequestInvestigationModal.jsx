@@ -24,7 +24,7 @@ export const INVESTIGATION_OPTIONS = [
   { id: 'OTHER', name: 'Other Custom Investigation', category: 'OTHER' },
 ];
 
-export const RequestInvestigationModal = ({ isOpen, onClose, patient, tokenNumber, doctorId, doctorName, onSuccess }) => {
+export const RequestInvestigationModal = ({ isOpen, onClose, patient, appointmentId, tokenNumber, doctorId, doctorName, onSuccess }) => {
   useScrollLock(isOpen);
   const [selectedType, setSelectedType] = useState('XRAY');
   const [customTestName, setCustomTestName] = useState('');
@@ -54,6 +54,7 @@ export const RequestInvestigationModal = ({ isOpen, onClose, patient, tokenNumbe
     try {
       const res = await axiosClient.post('/diagnostics/request', {
         patientId: patient._id || patient.id,
+        appointmentId,
         testCategory: foundObj?.category || 'PATHOLOGY',
         testName,
         priority,

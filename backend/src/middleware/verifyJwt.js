@@ -57,6 +57,7 @@ export const verifyJwt = async (req, res, next) => {
     if (
       decoded.role === 'SUPER_ADMIN' &&
       !req.originalUrl.startsWith('/api/v1/saas') &&
+      !req.originalUrl.startsWith('/api/v1/workflow') &&
       !req.originalUrl.startsWith('/api/v1/auth')
     ) {
       return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot use hospital operational APIs.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');

@@ -70,7 +70,7 @@ const diagnosticOrderSchema = new mongoose.Schema(
     correctionNote: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS', 'REPORT_UPLOADED', 'DOCTOR_REVIEW', 'COMPLETED'],
+      enum: ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS', 'REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'],
       default: 'REQUESTED',
       index: true,
     },
@@ -94,6 +94,11 @@ const diagnosticOrderSchema = new mongoose.Schema(
       },
     ],
     completedAt: { type: Date },
+    acceptedAt: { type: Date, default: null },
+    startedAt: { type: Date, default: null },
+    responseSubmittedAt: { type: Date, default: null },
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );

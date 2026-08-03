@@ -148,6 +148,7 @@ export class BillingService {
     }
 
     await invoice.save();
+    socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { resourceId: invoice._id, status: invoice.status });
 
     if (invoice.status === PAYMENT_STATUS.PAID) {
       const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';

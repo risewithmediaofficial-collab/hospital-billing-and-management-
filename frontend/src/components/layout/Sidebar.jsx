@@ -96,7 +96,7 @@ const checkItemPermission = (user, item) => {
 export const Sidebar = ({ isOpen, onClose }) => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
-  const { addNotification, fetchInitialNotifications, getUnreadCountForNav } = useDepartmentNotificationStore();
+  const { addNotification, fetchInitialNotifications, fetchPendingWork, getUnreadCountForNav } = useDepartmentNotificationStore();
   const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
   const location = useLocation();
   const navRef = useRef(null);
@@ -160,6 +160,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
     });
 
     ALL_MODULE_NAVIGATION.forEach((navItem) => {
+      // Reception Desk already contains the patient-registration workflow.
+      if (userRoles.includes('RECEPTIONIST') && navItem.path === '/reception/register-patient') return;
       if (checkItemPermission(user, navItem)) {
         rawItems.push(navItem);
       }
@@ -183,20 +185,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
     if (user?.role) {
       fetchInitialNotifications(userRoles);
       fetchActiveEmergencies();
+      const refreshTimer = setInterval(fetchPendingWork, 10000);
+      return () => clearInterval(refreshTimer);
     }
-  }, [user, fetchInitialNotifications, fetchActiveEmergencies]);
-
-  // Automatically mark department notifications read when user views that navigation route
-  useEffect(() => {
-    const fullPath = location.pathname + (location.search || '');
-    if (fullPath) {
-      const store = useDepartmentNotificationStore.getState();
-      if (store.markAsReadForNav) {
-        store.markAsReadForNav(fullPath);
-        store.markAsReadForNav(location.pathname);
-      }
-    }
-  }, [location.pathname, location.search]);
+  }, [user, fetchInitialNotifications, fetchPendingWork, fetchActiveEmergencies]);
 
   useEffect(() => {
     if (!socket) return;
@@ -306,6 +298,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
     socket.on('appointment:created', handleDoctorQueueNotification);
     socket.on('patient_request:created', handleNursingRequestNotification);
     socket.on('workflow:notification', handleWorkflowEvent);
+    socket.on('workflow:pending_changed', fetchPendingWork);
 
     return () => {
       socket.off('emergency:alert', handleEmergencyAlert);
@@ -315,8 +308,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('appointment:created', handleDoctorQueueNotification);
       socket.off('patient_request:created', handleNursingRequestNotification);
       socket.off('workflow:notification', handleWorkflowEvent);
+      socket.off('workflow:pending_changed', fetchPendingWork);
     };
-  }, [socket, addNotification, addEmergency, location.pathname, location.search]);
+  }, [socket, addNotification, addEmergency, fetchPendingWork, location.pathname, location.search]);
 
   useEffect(() => {
     if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;

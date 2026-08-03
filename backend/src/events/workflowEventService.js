@@ -104,16 +104,16 @@ const MESSAGE_TEMPLATES = {
     (p) => ({ title: 'New Radiology Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}).` }),
 
   [WORKFLOW_EVENTS.LAB_ACCEPTED]:
-    (p) => ({ title: 'Lab Accepted Request', message: `Lab has accepted the request for ${p.testName} (${p.patientName}) and is processing it. Report not available yet.` }),
+    (p) => ({ title: 'Request Accepted', message: `Laboratory accepted your request for ${p.testName} (${p.patientName}).` }),
 
   [WORKFLOW_EVENTS.LAB_SUBMITTED]:
-    (p) => ({ title: '✅ Lab Report Ready', message: `Lab report for ${p.testName} (${p.patientName}, ${p.uhid}) is ready for your review.` }),
+    (p) => ({ title: 'Laboratory Response Received', message: `Response received from Laboratory for ${p.testName} (${p.patientName}).` }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED]:
-    (p) => ({ title: 'Radiology Accepted Request', message: `Radiology has accepted the ${p.testName} scan for ${p.patientName} and is processing it.` }),
+    (p) => ({ title: 'Request Accepted', message: `X-Ray department accepted your request for ${p.testName} (${p.patientName}).` }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:
-    (p) => ({ title: '✅ Radiology Report Ready', message: `Radiology scan report for ${p.testName} (${p.patientName}, ${p.uhid}) is ready for your review.` }),
+    (p) => ({ title: 'X-Ray Response Received', message: `Response received from X-Ray Department for ${p.testName} (${p.patientName}).` }),
 
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:
     (p) => ({ title: 'Doctor Reviewed Report', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} report for ${p.patientName}.` }),
@@ -177,6 +177,7 @@ export class WorkflowEventService {
     if (roles.includes('ALL')) {
       // Emergency broadcast — goes to everyone
       socketManager.emitEmergency(event, envelope);
+      if (branchId) socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
       return;
     }
 
@@ -195,6 +196,7 @@ export class WorkflowEventService {
     // Also emit to branch room for any display boards
     if (branchId) {
       socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
+      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
     }
   }
 

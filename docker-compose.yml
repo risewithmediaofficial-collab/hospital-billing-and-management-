@@ -1,15 +1,6 @@
 services:
-  mongo:
-    image: mongo:7.0
-    container_name: hpmbs_mongo
-    restart: always
-    environment:
-      MONGO_INITDB_DATABASE: hpmbs_db
-    volumes:
-      - mongo_data:/data/db
-    ports:
-      - "27021:27017"
-
+  # Keep the user-facing service first for Docker managers that select the
+  # first declared Compose service when opening a project.
   frontend:
     build:
       context: ./frontend
@@ -20,6 +11,17 @@ services:
       - "86:80"
     depends_on:
       - backend
+
+  mongo:
+    image: mongo:7.0
+    container_name: hpmbs_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: hpmbs_db
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27021:27017"
 
   backend:
     build:
