@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const doctorUpdateSchema = new mongoose.Schema(
   {
@@ -38,5 +39,7 @@ const doctorUpdateSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+doctorUpdateSchema.plugin(encryptedFieldsPlugin, { fields: ['content'] });
 
 export const DoctorUpdate = mongoose.model('DoctorUpdate', doctorUpdateSchema);

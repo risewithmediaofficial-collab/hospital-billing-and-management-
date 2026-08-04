@@ -14,6 +14,8 @@ jobs:
       CI: true
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - uses: actions/setup-node@v4
       with:
@@ -29,12 +31,53 @@ jobs:
         cd frontend
         npx playwright install --with-deps
 
+    - name: Restore previous Playwright failures
+      uses: actions/cache@v4
+      with:
+        path: frontend/test-results/.last-run.json
+        key: playwright-last-run-${{ github.ref_name }}-${{ github.run_id }}
+        restore-keys: |
+          playwright-last-run-${{ github.ref_name }}-
+
     - name: Run Playwright tests
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
       run: |
         cd frontend
-        echo "Discovered Playwright tests (includes newly added *.spec.js files):"
-        npx playwright test tests --list
-        npx playwright test tests
+        FAILED_STATUS=0
+        NEW_STATUS=0
+
+        if [ -f test-results/.last-run.json ]; then
+          echo "Running previously failed tests..."
+          npx playwright test --last-failed || FAILED_STATUS=$?
+          cp test-results/.last-run.json test-results/.failed-rerun.json
+        else
+          echo "No previous Playwright result was found; skipping failed-test rerun."
+        fi
+
+        if [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+          mapfile -t NEW_TEST_FILES < <(
+            git diff --diff-filter=A --name-only "$BASE_SHA" "$GITHUB_SHA" -- 'tests/*.spec.js' \
+              | sed 's#^frontend/##'
+          )
+        else
+          NEW_TEST_FILES=()
+        fi
+
+        if [ ${#NEW_TEST_FILES[@]} -gt 0 ]; then
+          echo "Running newly created Playwright test files:"
+          printf '  %s\n' "${NEW_TEST_FILES[@]}"
+          npx playwright test "${NEW_TEST_FILES[@]}" || NEW_STATUS=$?
+          cp test-results/.last-run.json test-results/.new-tests-run.json
+        else
+          echo "No newly created Playwright test files were found."
+        fi
+
+        node -e "const fs=require('fs'); const files=['test-results/.failed-rerun.json','test-results/.new-tests-run.json'].filter(fs.existsSync); if(files.length){const failed=[...new Set(files.flatMap(f=>JSON.parse(fs.readFileSync(f,'utf8')).failedTests||[]))]; fs.writeFileSync('test-results/.last-run.json',JSON.stringify({status:failed.length?'failed':'passed',failedTests:failed},null,2));}"
+
+        if [ "$FAILED_STATUS" -ne 0 ] || [ "$NEW_STATUS" -ne 0 ]; then
+          exit 1
+        fi
 
     - name: Upload Playwright Report
       uses: actions/upload-artifact@v4

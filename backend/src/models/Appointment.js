@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const appointmentSchema = new mongoose.Schema(
   {
@@ -20,5 +21,6 @@ const appointmentSchema = new mongoose.Schema(
 );
 
 appointmentSchema.index({ branchId: 1, doctorId: 1, appointmentDate: 1, tokenNumber: 1 });
+appointmentSchema.plugin(encryptedFieldsPlugin, { fields: ['chiefComplaints'] });
 
 export const Appointment = mongoose.model('Appointment', appointmentSchema);

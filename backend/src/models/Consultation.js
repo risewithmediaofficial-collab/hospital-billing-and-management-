@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const consultationSchema = new mongoose.Schema(
   {
@@ -46,5 +47,18 @@ const consultationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+consultationSchema.plugin(encryptedFieldsPlugin, {
+  fields: [
+    'chiefComplaints',
+    'historyOfPresentIllness',
+    'clinicalExamination',
+    'provisionalDiagnosis',
+    'finalDiagnosis',
+    'treatmentPlan',
+    'doctorsNotes',
+    'adviceToPatient',
+  ],
+});
 
 export const Consultation = mongoose.model('Consultation', consultationSchema);

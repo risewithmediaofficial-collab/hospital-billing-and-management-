@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const ALL_REQUEST_TYPES = [
   'WATER',
@@ -55,5 +56,7 @@ const patientRequestSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+patientRequestSchema.plugin(encryptedFieldsPlugin, { fields: ['notes', 'rejectedReason'] });
 
 export const PatientRequest = mongoose.model('PatientRequest', patientRequestSchema);

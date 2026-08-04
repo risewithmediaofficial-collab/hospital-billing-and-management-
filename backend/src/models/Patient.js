@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { PATIENT_CATEGORIES } from '../config/constants.js';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const patientSchema = new mongoose.Schema(
   {
@@ -32,5 +33,8 @@ const patientSchema = new mongoose.Schema(
 );
 
 patientSchema.index({ hospitalId: 1, uhid: 1 }, { unique: true });
+patientSchema.plugin(encryptedFieldsPlugin, {
+  fields: ['chiefComplaints', 'nationalId', 'address', 'emergencyContact.name', 'emergencyContact.phone'],
+});
 
 export const Patient = mongoose.model('Patient', patientSchema);

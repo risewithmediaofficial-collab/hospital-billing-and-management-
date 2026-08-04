@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const admissionSchema = new mongoose.Schema(
   {
@@ -29,5 +30,7 @@ const admissionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+admissionSchema.plugin(encryptedFieldsPlugin, { fields: ['admissionReason'] });
 
 export const Admission = mongoose.model('Admission', admissionSchema);

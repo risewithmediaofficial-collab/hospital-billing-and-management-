@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const diagnosticOrderSchema = new mongoose.Schema(
   {
@@ -102,5 +103,9 @@ const diagnosticOrderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+diagnosticOrderSchema.plugin(encryptedFieldsPlugin, {
+  fields: ['clinicalNotes', 'cancellationReason', 'correctionNote', 'reportSummary'],
+});
 
 export const DiagnosticOrder = mongoose.model('DiagnosticOrder', diagnosticOrderSchema);

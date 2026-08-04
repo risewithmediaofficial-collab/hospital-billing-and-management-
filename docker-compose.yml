@@ -33,10 +33,12 @@ services:
       PORT: 5003
       NODE_ENV: production
       MONGO_URI: mongodb://mongo:27017/hpmbs_db
-      JWT_SECRET: hpmbs_super_secret_jwt_key_2026_production_grade
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: 7d
-      REFRESH_TOKEN_SECRET: hpmbs_super_secret_refresh_key_2026_production_grade
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET is required}
       REFRESH_TOKEN_EXPIRES_IN: 30d
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+      SEARCH_HASH_KEY: ${SEARCH_HASH_KEY:?SEARCH_HASH_KEY is required}
       CORS_ORIGIN: "*"
     ports:
       - "5003:5003"
