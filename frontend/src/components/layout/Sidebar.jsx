@@ -54,9 +54,9 @@ const checkItemPermission = (user, item) => {
   if (!targetModule) return false;
 
   const aliases = {
-    dashboard: ['dashboard', 'doctorConsultation', 'doctor'],
+    dashboard: ['dashboard'],
     doctor: ['doctor', 'doctorConsultation', 'emr'],
-    doctorConsultation: ['doctorConsultation', 'doctor', 'emr', 'dashboard'],
+    doctorConsultation: ['doctorConsultation', 'doctor', 'emr'],
     patients: ['patients', 'patientRegistration'],
     patientRegistration: ['patientRegistration', 'patients'],
     appointments: ['appointments', 'reception', 'tokens'],
@@ -159,13 +159,18 @@ export const Sidebar = ({ isOpen, onClose }) => {
       rawItems.push(...navs);
     });
 
-    ALL_MODULE_NAVIGATION.forEach((navItem) => {
-      // Reception Desk already contains the patient-registration workflow.
-      if (userRoles.includes('RECEPTIONIST') && navItem.path === '/reception/register-patient') return;
-      if (checkItemPermission(user, navItem)) {
-        rawItems.push(navItem);
-      }
-    });
+    // Patient and Guardian accounts only receive their dedicated portal links.
+    // Hospital workstation links contain protected clinical data and must never
+    // be inferred from broad or legacy permissions on a portal account.
+    if (!['PATIENT', 'GUARDIAN'].includes(user?.role)) {
+      ALL_MODULE_NAVIGATION.forEach((navItem) => {
+        // Reception Desk already contains the patient-registration workflow.
+        if (userRoles.includes('RECEPTIONIST') && navItem.path === '/reception/register-patient') return;
+        if (checkItemPermission(user, navItem)) {
+          rawItems.push(navItem);
+        }
+      });
+    }
 
     const seenPaths = new Set();
     menuItems = rawItems.filter((item) => {

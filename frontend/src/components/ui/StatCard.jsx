@@ -32,7 +32,7 @@ export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'default'
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
             {title}
           </p>
-          <h3 className="text-2xl font-black text-slate-900 mt-1 tracking-tight leading-none tabular-nums">
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1 tracking-tight leading-tight tabular-nums [overflow-wrap:anywhere]">
             {value}
           </h3>
           {subtitle && (

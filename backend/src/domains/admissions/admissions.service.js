@@ -3,6 +3,7 @@ import { Bed } from '../../models/Bed.js';
 import { Patient } from '../../models/Patient.js';
 import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
+import { User } from '../../models/User.js';
 import { socketManager } from '../../events/socketManager.js';
 import { BED_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
@@ -60,7 +61,13 @@ export class AdmissionsService {
       const defaultHosp = await Hospital.findOne({});
       hospitalId = defaultHosp?._id;
     }
-    return await Admission.find({ hospitalId }).populate('patientId').populate('bedId').sort({ createdAt: -1 });
+    return await Admission.find({ hospitalId })
+      .populate('patientId')
+      .populate('doctorId', 'name specialization cabinNo phone')
+      .populate('assignedNurseId', 'name role assignedUnit shiftDetails phone')
+      .populate('assignedCaretakerId', 'name role assignedUnit shiftDetails phone')
+      .populate({ path: 'bedId', populate: { path: 'assignedNurseId', select: 'name role assignedUnit shiftDetails phone' } })
+      .sort({ createdAt: -1 });
   }
 
   static async allocateBed(admissionId, data, user) {
@@ -69,11 +76,64 @@ export class AdmissionsService {
       throw new ApiError(404, 'Admission requisition record not found', null, 'NOT_FOUND');
     }
 
+    const { wardName, bedNumber, dailyTariff } = data;
+    let assignedDoctorId = data.assignedDoctorId || admission.doctorId;
+    let assignedNurseId = data.assignedNurseId || null;
+    let assignedCaretakerId = data.assignedCaretakerId || null;
+    if (!assignedNurseId && ['NURSE', 'NURSE_INCHARGE'].includes(user.role)) {
+      assignedNurseId = user.id || user._id;
+    }
+    if (assignedNurseId) {
+      const assignedNurse = await User.findOne({
+        _id: assignedNurseId,
+        hospitalId: admission.hospitalId,
+        isActive: true,
+        role: { $in: ['NURSE', 'NURSE_INCHARGE'] },
+      });
+      if (!assignedNurse) {
+        throw new ApiError(400, 'Selected nurse is unavailable or belongs to another hospital.', null, 'INVALID_NURSE_ASSIGNMENT');
+      }
+    }
+    const assignedDoctor = await User.findOne({
+      _id: assignedDoctorId,
+      hospitalId: admission.hospitalId,
+      isActive: true,
+      role: 'DOCTOR',
+    });
+    if (!assignedDoctor) {
+      throw new ApiError(400, 'Select an active doctor from this hospital.', null, 'INVALID_DOCTOR_ASSIGNMENT');
+    }
+    if (assignedCaretakerId) {
+      const assignedCaretaker = await User.findOne({
+        _id: assignedCaretakerId,
+        hospitalId: admission.hospitalId,
+        isActive: true,
+        role: { $in: ['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'] },
+      });
+      if (!assignedCaretaker) {
+        throw new ApiError(400, 'Select an active caretaker or ward-support staff member.', null, 'INVALID_CARETAKER_ASSIGNMENT');
+      }
+    }
+    if (admission.status === 'ADMITTED' && data.reassignOnly) {
+      admission.doctorId = assignedDoctor._id;
+      admission.doctorName = assignedDoctor.name;
+      admission.assignedNurseId = assignedNurseId;
+      admission.assignedCaretakerId = assignedCaretakerId;
+      admission.assignedAt = new Date();
+      await admission.save();
+      if (admission.bedId) {
+        await Bed.findByIdAndUpdate(admission.bedId, { assignedNurseId: assignedNurseId || null });
+      }
+      return Admission.findById(admission._id)
+        .populate('patientId')
+        .populate('doctorId', 'name specialization cabinNo phone')
+        .populate('assignedNurseId', 'name role assignedUnit shiftDetails phone')
+        .populate('assignedCaretakerId', 'name role assignedUnit shiftDetails phone');
+    }
+
     if (admission.status === 'ADMITTED') {
       throw new ApiError(400, `Patient ${admission.patientName} is already admitted to Bed ${admission.bedNumber}.`, null, 'ALREADY_ADMITTED');
     }
-
-    const { wardName, bedNumber, dailyTariff } = data;
 
     let bed = null;
     if (data.bedId) {
@@ -110,16 +170,23 @@ export class AdmissionsService {
         dailyTariff: selectedTariff,
         status: BED_STATUS.OCCUPIED,
         currentPatientId: admission.patientId,
+        assignedNurseId,
       });
     } else {
       bed.status = BED_STATUS.OCCUPIED;
       bed.currentPatientId = admission.patientId;
+      if (assignedNurseId) bed.assignedNurseId = assignedNurseId;
       bed.wardName = selectedWard;
       bed.dailyTariff = selectedTariff;
       await bed.save();
     }
 
     admission.status = 'ADMITTED';
+    admission.doctorId = assignedDoctor._id;
+    admission.doctorName = assignedDoctor.name;
+    admission.assignedNurseId = assignedNurseId;
+    admission.assignedCaretakerId = assignedCaretakerId;
+    admission.assignedAt = new Date();
     admission.bedId = bed._id;
     admission.bedNumber = bed.bedNumber;
     admission.targetWardName = bed.wardName;
@@ -137,7 +204,11 @@ export class AdmissionsService {
     });
     socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
 
-    return admission;
+    return Admission.findById(admission._id)
+      .populate('patientId')
+      .populate('doctorId', 'name specialization cabinNo phone')
+      .populate('assignedNurseId', 'name role assignedUnit shiftDetails phone')
+      .populate('assignedCaretakerId', 'name role assignedUnit shiftDetails phone');
   }
 
   static async dischargePatient(admissionId, user) {
@@ -156,6 +227,7 @@ export class AdmissionsService {
       if (bed) {
         bed.status = BED_STATUS.AVAILABLE;
         bed.currentPatientId = null;
+        bed.assignedNurseId = null;
         await bed.save();
       }
     } else if (admission.bedNumber) {
@@ -163,6 +235,7 @@ export class AdmissionsService {
       if (bed) {
         bed.status = BED_STATUS.AVAILABLE;
         bed.currentPatientId = null;
+        bed.assignedNurseId = null;
         await bed.save();
       }
     }

@@ -17,6 +17,8 @@ const ROLE_DEFAULT_PATHS = {
   CASHIER: '/billing/dashboard',
   INVENTORY_MANAGER: '/inventory/dashboard',
   HR_MANAGER: '/hr/dashboard',
+  PATIENT: '/patient-portal/dashboard',
+  GUARDIAN: '/guardian-portal/dashboard',
 };
 
 export const ForbiddenPage = () => {
@@ -24,7 +26,7 @@ export const ForbiddenPage = () => {
   const { user } = useAuthStore();
 
   const handleReturn = () => {
-    const path = user?.role ? ROLE_DEFAULT_PATHS[user.role] || '/login' : '/login';
+    const path = (user?.role ? ROLE_DEFAULT_PATHS[user.role] : null) || user?.defaultRoute || '/login';
     navigate(path, { replace: true });
   };
 

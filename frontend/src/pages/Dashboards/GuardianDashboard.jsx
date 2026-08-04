@@ -91,6 +91,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
   };
 
   const patientSummary = guardianData?.patientSummary || {};
+  const careTeam = patientSummary.careTeam || {};
   const doctorUpdates = guardianData?.doctorUpdates || [];
   const permissions = guardianData?.permissions || {
     patientOverview: true,
@@ -313,13 +314,34 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
 
       {/* TAB 4: CARE TEAM */}
       {currentTab === 'care-team' && (
-        <Card>
+        <div className="space-y-4">
           <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
             <Users size={18} className="text-purple-600" />
             Assigned Care Team & Attending Physicians
           </h3>
-          <p className="text-xs text-slate-500">View contact details and shift availability for assigned clinical staff.</p>
-        </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <Card className="border-l-4 border-l-purple-600">
+              <h4 className="font-bold text-slate-900 text-sm">
+                {careTeam.doctor?.name ? `Dr. ${careTeam.doctor.name.replace(/^Dr\.\s*/i, '')}` : 'Not assigned'}
+              </h4>
+              <p className="text-slate-500 mt-1">Attending Physician</p>
+              <p className="text-slate-600 mt-3">Specialization: <strong>{careTeam.doctor?.specialization || 'Not available'}</strong></p>
+              <p className="text-slate-600">OPD Cabin: <strong>{careTeam.doctor?.cabinNo || 'Not assigned'}</strong></p>
+            </Card>
+            <Card className="border-l-4 border-l-emerald-600">
+              <h4 className="font-bold text-slate-900 text-sm">{careTeam.nurse?.name || 'Not assigned'}</h4>
+              <p className="text-slate-500 mt-1">Assigned Nurse</p>
+              <p className="text-slate-600 mt-3">Station: <strong>{careTeam.nurse?.assignedUnit || 'Not assigned'}</strong></p>
+              <p className="text-slate-600">Shift: <strong>{careTeam.nurse?.shiftDetails || 'Not available'}</strong></p>
+            </Card>
+            <Card className="border-l-4 border-l-amber-600">
+              <h4 className="font-bold text-slate-900 text-sm">{careTeam.caretaker?.name || 'Not assigned'}</h4>
+              <p className="text-slate-500 mt-1">Assigned Caretaker</p>
+              <p className="text-slate-600 mt-3">Unit: <strong>{careTeam.caretaker?.assignedUnit || 'Not assigned'}</strong></p>
+              <p className="text-slate-600">Shift: <strong>{careTeam.caretaker?.shiftDetails || 'Not available'}</strong></p>
+            </Card>
+          </div>
+        </div>
       )}
 
       {/* TAB 5: PATIENT REQUESTS */}

@@ -9,6 +9,8 @@ const admissionSchema = new mongoose.Schema(
     patientName: { type: String, required: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     doctorName: { type: String, required: true, default: 'Dr. Gregory House' },
+    assignedNurseId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedCaretakerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     wardType: { type: String, enum: ['GENERAL', 'SEMI_PRIVATE', 'PRIVATE', 'ICU'], default: 'GENERAL' },
     targetWardName: { type: String, default: 'Ward 3B - Inpatient' },
     bedId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bed' },
@@ -22,6 +24,7 @@ const admissionSchema = new mongoose.Schema(
       index: true,
     },
     admittedAt: { type: Date },
+    assignedAt: { type: Date },
     dischargedAt: { type: Date },
   },
   { timestamps: true }

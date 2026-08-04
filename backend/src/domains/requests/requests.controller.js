@@ -12,7 +12,7 @@ export const createRequest = async (req, res, next) => {
 
 export const getActiveRequests = async (req, res, next) => {
   try {
-    const requests = await RequestsService.getActiveRequests(req.user);
+    const requests = await RequestsService.getActiveRequests(req.user, req.query.category || null);
     return sendSuccess(res, 200, 'Active patient requests retrieved', requests);
   } catch (error) {
     next(error);
@@ -22,9 +22,8 @@ export const getActiveRequests = async (req, res, next) => {
 export const updateRequestStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    const updated = await RequestsService.updateRequestStatus(id, status, req.user);
-    return sendSuccess(res, 200, `Request status updated to ${status}`, updated);
+    const updated = await RequestsService.updateRequestStatus(id, req.body, req.user);
+    return sendSuccess(res, 200, `Request status updated to ${req.body.status}`, updated);
   } catch (error) {
     next(error);
   }

@@ -104,22 +104,18 @@ export const NurseInchargeDashboard = () => {
   const availableBedsCount = beds.filter((b) => b.status === 'AVAILABLE').length;
 
   // Filtered lists
-  const filteredRequisitions = admissions.filter((a) => {
+  const matchesPatientSearch = (a) => {
     const search = searchTerm.toLowerCase();
-    const pName = (a.patientName || '').toLowerCase();
-    const uhid = (a.uhid || '').toLowerCase();
-    const bed = (a.bedNumber || '').toLowerCase();
-    return pName.includes(search) || uhid.includes(search) || bed.includes(search);
-  });
+    const patient = a.patientId || {};
+    return [
+      a.patientName, a.uhid, a.bedNumber, a.targetWardName, a.doctorName,
+      patient.phone, patient.email, patient.bloodGroup, patient.category,
+    ].some((value) => String(value || '').toLowerCase().includes(search));
+  };
 
-  const filteredAdmitted = admittedInpatients.filter((a) => {
-    const search = searchTerm.toLowerCase();
-    const pName = (a.patientName || '').toLowerCase();
-    const uhid = (a.uhid || '').toLowerCase();
-    const bed = (a.bedNumber || '').toLowerCase();
-    const ward = (a.targetWardName || '').toLowerCase();
-    return pName.includes(search) || uhid.includes(search) || bed.includes(search) || ward.includes(search);
-  });
+  const filteredRequisitions = pendingRequisitions.filter(matchesPatientSearch);
+
+  const filteredAdmitted = admittedInpatients.filter(matchesPatientSearch);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -209,7 +205,7 @@ export const NurseInchargeDashboard = () => {
                 IPD Inpatient Requisitions & Bed Allocations ({filteredRequisitions.length})
               </h3>
               <p className="text-xs text-slate-500">
-                Doctor-dispatched admission requests awaiting nurse bed allocation & ward locking.
+                Every doctor-recommended IPD patient awaiting care-team and bed assignment.
               </p>
             </div>
           </div>
@@ -217,30 +213,33 @@ export const NurseInchargeDashboard = () => {
           <div className="space-y-3 text-xs">
             {filteredRequisitions.length > 0 ? (
               filteredRequisitions.map((adm) => {
-                const isAdmitted = adm.status === 'ADMITTED';
+                const patient = adm.patientId || {};
                 return (
                   <div
                     key={adm._id}
-                    className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isAdmitted
-                        ? 'bg-slate-50 border-slate-200 opacity-90'
-                        : 'bg-amber-50/50 border-amber-200 shadow-2xs'
-                    }`}
+                    className="p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/50 border-amber-200 shadow-2xs"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            isAdmitted
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-amber-600 text-white'
-                          }`}
+                          className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-600 text-white"
                         >
-                          {isAdmitted ? '✓ ADMITTED & LOCKED' : 'ADMISSION REQUISITION'}
+                          ADMISSION REQUISITION
                         </span>
                         <span className="font-mono font-bold text-indigo-700 text-xs">{adm.uhid}</span>
                       </div>
                       <p className="font-extrabold text-slate-900 text-sm">{adm.patientName}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                        <span>Age/Gender: <strong className="text-slate-900">{patient.age || 'N/A'} / {patient.gender || 'N/A'}</strong></span>
+                        <span>Blood Group: <strong className="text-rose-700">{patient.bloodGroup || 'N/A'}</strong></span>
+                        <span>Phone: <strong className="text-slate-900">{patient.phone || 'N/A'}</strong></span>
+                        <span>Category: <strong className="text-slate-900">{patient.category || 'GENERAL'}</strong></span>
+                      </div>
+                      {(patient.allergies?.length > 0 || patient.chiefComplaints) && (
+                        <p className="text-[11px] text-rose-700">
+                          Clinical alerts: <strong>{patient.allergies?.length ? `Allergies: ${patient.allergies.join(', ')}` : patient.chiefComplaints}</strong>
+                        </p>
+                      )}
                       <p className="text-slate-600 text-[11px]">
                         Target Ward: <span className="text-slate-900 font-bold">{adm.targetWardName} ({adm.wardType})</span>
                         {' • '}
@@ -253,21 +252,14 @@ export const NurseInchargeDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {isAdmitted ? (
-                        <div className="px-3.5 py-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-800 font-extrabold text-xs flex items-center gap-1.5 shadow-2xs">
-                          <CheckCircle2 size={16} className="text-emerald-700" />
-                          <span>ALLOCATED: {adm.targetWardName} — {adm.bedNumber}</span>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="success"
-                          className="font-bold shadow-2xs gap-1.5"
-                          onClick={() => handleOpenAllocateModal(adm)}
-                        >
-                          <BedDouble size={16} /> Allocate Bed & Confirm Admission
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="success"
+                        className="font-bold shadow-2xs gap-1.5"
+                        onClick={() => handleOpenAllocateModal(adm)}
+                      >
+                        <BedDouble size={16} /> Assign Team & Allocate Bed
+                      </Button>
                     </div>
                   </div>
                 );
@@ -302,7 +294,7 @@ export const NurseInchargeDashboard = () => {
                 <tr>
                   <th className="p-3">UHID & Patient Name</th>
                   <th className="p-3">Assigned Ward & Bed #</th>
-                  <th className="p-3">Requisition Doctor</th>
+                  <th className="p-3">Assigned Care Team</th>
                   <th className="p-3">Admitted Date</th>
                   <th className="p-3 text-right">Daily Tariff</th>
                   <th className="p-3 text-center">Status</th>
@@ -324,8 +316,9 @@ export const NurseInchargeDashboard = () => {
                         <p className="text-[11px] text-slate-600 mt-0.5 font-medium">{adm.targetWardName}</p>
                       </td>
                       <td className="p-3">
-                        <span className="font-bold text-slate-900">{adm.doctorName}</span>
-                        <p className="text-[10px] text-slate-500">{adm.admissionReason}</p>
+                        <p className="font-bold text-slate-900">Doctor: {adm.doctorId?.name || adm.doctorName}</p>
+                        <p className="text-[10px] text-slate-600">Nurse: <strong>{adm.assignedNurseId?.name || adm.bedId?.assignedNurseId?.name || 'Not assigned'}</strong></p>
+                        <p className="text-[10px] text-slate-600">Caretaker: <strong>{adm.assignedCaretakerId?.name || 'Not assigned'}</strong></p>
                       </td>
                       <td className="p-3 text-slate-600 font-medium">
                         {adm.admittedAt ? new Date(adm.admittedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recently'}
@@ -339,15 +332,20 @@ export const NurseInchargeDashboard = () => {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="font-bold text-xs gap-1 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
-                          isLoading={isDischargingId === adm._id}
-                          onClick={() => handleDischargePatient(adm._id)}
-                        >
-                          <LogOut size={13} /> Discharge & Free Bed
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" className="font-bold text-xs" onClick={() => handleOpenAllocateModal(adm)}>
+                            <UserCheck size={13} /> Edit Care Team
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="font-bold text-xs gap-1 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                            isLoading={isDischargingId === adm._id}
+                            onClick={() => handleDischargePatient(adm._id)}
+                          >
+                            <LogOut size={13} /> Discharge & Free Bed
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))

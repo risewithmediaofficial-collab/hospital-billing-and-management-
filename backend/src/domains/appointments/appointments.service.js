@@ -25,7 +25,10 @@ export class AppointmentsService {
 
     // Bulletproof Doctor Resolution & Availability Check
     let doctor = null;
-    if (data.doctorId) {
+    if (user?.role === 'DOCTOR') {
+      doctor = await User.findById(user.id || user._id);
+    }
+    if (!doctor && data.doctorId) {
       doctor = await User.findById(data.doctorId);
       if (doctor && doctor.isAvailable === false) {
         throw new ApiError(400, 'This doctor is currently unavailable. Please select another available doctor.', null, 'DOCTOR_UNAVAILABLE');

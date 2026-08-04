@@ -14,10 +14,13 @@ export const NurseDashboard = () => {
   const [beds, setBeds] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filterCategory, setFilterCategory] = useState('ALL');
+  const [staff, setStaff] = useState([]);
+  const [selectedAssignees, setSelectedAssignees] = useState({});
 
   useEffect(() => {
     fetchRequests();
     fetchBeds();
+    fetchStaff();
   }, [filterCategory]);
 
   const fetchRequests = async () => {
@@ -39,10 +42,34 @@ export const NurseDashboard = () => {
     }
   };
 
+  const fetchStaff = async () => {
+    try {
+      const res = await axiosClient.get('/auth/staff');
+      setStaff((res.data?.data || res.data || []).filter((member) => member.isActive !== false));
+    } catch (err) {
+      console.error('Failed to load assignable staff:', err);
+    }
+  };
+
+  const assigneesFor = (category) => staff.filter((member) => {
+    if (category === 'DOCTOR') return member.role === 'DOCTOR';
+    if (category === 'CARETAKER') return ['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'].includes(member.role);
+    return ['NURSE', 'NURSE_INCHARGE'].includes(member.role);
+  });
+
+  const currentUserCanHandle = (category) => {
+    if (category === 'DOCTOR') return user?.role === 'DOCTOR';
+    if (category === 'CARETAKER') return ['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'].includes(user?.role);
+    return ['NURSE', 'NURSE_INCHARGE'].includes(user?.role);
+  };
+
   const handleUpdateStatus = async (requestId, newStatus) => {
     setIsLoading(true);
     try {
-      await axiosClient.put(`/requests/${requestId}/status`, { status: newStatus });
+      await axiosClient.patch(`/requests/${requestId}/status`, {
+        status: newStatus,
+        assignedUserId: newStatus === 'ACCEPTED' ? selectedAssignees[requestId] || undefined : undefined,
+      });
       fetchRequests();
     } catch (err) {
       console.error(`Failed to update request status to ${newStatus}:`, err);
@@ -146,15 +173,32 @@ export const NurseDashboard = () => {
 
                 <div className="flex items-center gap-2 shrink-0">
                   {req.status === 'SUBMITTED' || req.status === 'PENDING' ? (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                      isLoading={isLoading}
-                      onClick={() => handleUpdateStatus(req._id, 'ACCEPTED')}
-                    >
-                      Accept Request
-                    </Button>
+                    <>
+                      <select
+                        value={selectedAssignees[req._id] || ''}
+                        onChange={(e) => setSelectedAssignees((current) => ({ ...current, [req._id]: e.target.value }))}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700"
+                      >
+                        <option value="">
+                          {currentUserCanHandle(req.requestCategory)
+                            ? `Assign to me (${user?.name || 'logged-in staff'})`
+                            : 'Select an assignee'}
+                        </option>
+                        {assigneesFor(req.requestCategory).map((member) => (
+                          <option key={member._id || member.id} value={member._id || member.id}>{member.name}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                        isLoading={isLoading}
+                        disabled={!currentUserCanHandle(req.requestCategory) && !selectedAssignees[req._id]}
+                        onClick={() => handleUpdateStatus(req._id, 'ACCEPTED')}
+                      >
+                        Accept & Assign
+                      </Button>
+                    </>
                   ) : req.status === 'ACCEPTED' ? (
                     <Button
                       size="sm"

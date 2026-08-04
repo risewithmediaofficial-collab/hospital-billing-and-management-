@@ -450,13 +450,13 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">
-                    {careTeam.doctor ? `Dr. ${careTeam.doctor.name}` : 'Attending Physician'}
+                    {careTeam.doctor ? `Dr. ${careTeam.doctor.name.replace(/^Dr\.\s*/i, '')}` : 'Not assigned'}
                   </h4>
                   <p className="text-[11px] text-slate-500">{careTeam.doctor?.specialization || 'General Medicine'}</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Assigned OPD Cabin: <strong>{careTeam.doctor?.cabinNo || 'Cabin 101'}</strong></p>
-              <p className="text-slate-600">Duty Shift: <strong>{careTeam.doctor?.shiftPattern || 'ROTATIONAL'}</strong></p>
+              <p className="text-slate-600 mt-2">Assigned OPD Cabin: <strong>{careTeam.doctor?.cabinNo || 'Not assigned'}</strong></p>
+              <p className="text-slate-600">Duty Shift: <strong>{careTeam.doctor?.shiftPattern || 'Not available'}</strong></p>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-600">
@@ -466,13 +466,13 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">
-                    {careTeam.nurse ? careTeam.nurse.name : 'Ward Nurse In-Charge'}
+                    {careTeam.nurse?.name || 'Not assigned'}
                   </h4>
                   <p className="text-[11px] text-slate-500">Registered Ward Nurse</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Station: <strong>Ward Nursing Desk</strong></p>
-              <p className="text-slate-600">Shift Availability: <strong>ON DUTY</strong></p>
+              <p className="text-slate-600 mt-2">Station: <strong>{careTeam.nurse?.assignedUnit || 'Not assigned'}</strong></p>
+              <p className="text-slate-600">Shift: <strong>{careTeam.nurse?.shiftDetails || 'Not available'}</strong></p>
             </Card>
 
             <Card className="border-l-4 border-l-amber-600">
@@ -481,12 +481,12 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                   <User size={20} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Support Caretaker Desk</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">{careTeam.caretaker?.name || 'Not assigned'}</h4>
                   <p className="text-[11px] text-slate-500">Patient Caretaker Staff</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Services: <strong>Water, Food, Room Hygiene</strong></p>
-              <p className="text-slate-600">Status: <strong>AVAILABLE</strong></p>
+              <p className="text-slate-600 mt-2">Assigned Unit: <strong>{careTeam.caretaker?.assignedUnit || 'Not assigned'}</strong></p>
+              <p className="text-slate-600">Shift: <strong>{careTeam.caretaker?.shiftDetails || 'Not available'}</strong></p>
             </Card>
           </div>
         </div>

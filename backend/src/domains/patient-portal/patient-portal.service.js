@@ -108,14 +108,20 @@ export class PatientPortalService {
     let pendingRadiology = 0;
     let unpaidInvoices = [];
     let activeEmergencyRequest = null;
+    let assignedNurse = null;
+    let assignedCaretaker = null;
 
     if (patientId) {
       try {
         activeAdmission = await Admission.findOne({ patientId, status: 'ADMITTED' })
           .populate('doctorId', 'name specialization cabinNo phone shiftPattern')
+          .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails')
+          .populate('assignedCaretakerId', 'name role phone assignedUnit shiftDetails')
           .populate('bedId');
         if (activeAdmission?.bedId) {
-          bedInfo = await Bed.findById(activeAdmission.bedId._id || activeAdmission.bedId);
+          bedInfo = await Bed.findById(activeAdmission.bedId._id || activeAdmission.bedId)
+            .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails');
+          assignedNurse = bedInfo?.assignedNurseId || null;
         }
       } catch (_) {}
 
@@ -146,6 +152,24 @@ export class PatientPortalService {
           status: { $in: ['SUBMITTED', 'PENDING', 'ACCEPTED', 'IN_PROGRESS'] },
         }).populate('acceptedBy', 'name role');
       } catch (_) {}
+
+      try {
+        const activeAssignment = {
+          patientId,
+          status: { $in: ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'] },
+        };
+        const [nurseRequest, caretakerRequest] = await Promise.all([
+          PatientRequest.findOne({ ...activeAssignment, assignedNurseId: { $ne: null } })
+            .sort({ updatedAt: -1 })
+            .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails'),
+          PatientRequest.findOne({ ...activeAssignment, assignedCaretakerId: { $ne: null } })
+            .sort({ updatedAt: -1 })
+            .populate('assignedCaretakerId', 'name role phone assignedUnit shiftDetails'),
+        ]);
+
+        assignedNurse ||= nurseRequest?.assignedNurseId || null;
+        assignedCaretaker = caretakerRequest?.assignedCaretakerId || null;
+      } catch (_) {}
     }
 
     const totalPendingAmount = unpaidInvoices.reduce((sum, inv) => sum + (inv.pendingAmount || 0), 0);
@@ -165,8 +189,8 @@ export class PatientPortalService {
         : null,
       careTeam: {
         doctor: activeAdmission?.doctorId || activeAppointment?.doctorId || null,
-        nurse: null,
-        caretaker: { name: 'Support Caretaker Desk', role: 'CARETAKER', phone: 'Ward Support' },
+        nurse: activeAdmission?.assignedNurseId || assignedNurse,
+        caretaker: activeAdmission?.assignedCaretakerId || assignedCaretaker,
       },
       queuePosition: activeAppointment?.tokenNumber ? `#${activeAppointment.tokenNumber}` : 'N/A',
       latestPrescription,

@@ -3,14 +3,22 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import { useAuthStore } from '../../store/authStore';
 import { X, BedDouble, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
 
 export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
   useScrollLock(isOpen);
+  const { user } = useAuthStore();
   const [wardName, setWardName] = useState('');
   const [bedNumber, setBedNumber] = useState('');
   const [dailyTariff, setDailyTariff] = useState(150);
   const [availableBeds, setAvailableBeds] = useState([]);
+  const [nurses, setNurses] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [caretakers, setCaretakers] = useState([]);
+  const [assignedDoctorId, setAssignedDoctorId] = useState('');
+  const [assignedNurseId, setAssignedNurseId] = useState('');
+  const [assignedCaretakerId, setAssignedCaretakerId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,6 +29,10 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
       setDailyTariff(admission.dailyTariff || 150);
       setError(null);
       fetchBeds();
+      fetchNurses();
+      setAssignedDoctorId(admission.doctorId?._id || admission.doctorId || '');
+      setAssignedNurseId(admission.assignedNurseId?._id || admission.assignedNurseId || (['NURSE', 'NURSE_INCHARGE'].includes(user?.role) ? (user.id || user._id || '') : ''));
+      setAssignedCaretakerId(admission.assignedCaretakerId?._id || admission.assignedCaretakerId || '');
     }
   }, [isOpen, admission]);
 
@@ -31,6 +43,18 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
       setAvailableBeds(allBeds.filter((b) => b.status === 'AVAILABLE'));
     } catch (err) {
       console.error('Failed to fetch available beds:', err);
+    }
+  };
+
+  const fetchNurses = async () => {
+    try {
+      const res = await axiosClient.get('/auth/staff');
+      const staff = res.data?.data || res.data || [];
+      setNurses(staff.filter((member) => ['NURSE', 'NURSE_INCHARGE'].includes(member.role) && member.isActive !== false));
+      setDoctors(staff.filter((member) => member.role === 'DOCTOR' && member.isActive !== false));
+      setCaretakers(staff.filter((member) => ['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'].includes(member.role) && member.isActive !== false));
+    } catch (err) {
+      console.error('Failed to fetch nurses:', err);
     }
   };
 
@@ -51,6 +75,10 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
         wardName: wardName.trim(),
         bedNumber: bedNumber.trim().toUpperCase(),
         dailyTariff: Number(dailyTariff),
+        assignedDoctorId,
+        assignedNurseId: assignedNurseId || undefined,
+        assignedCaretakerId: assignedCaretakerId || undefined,
+        reassignOnly: admission.status === 'ADMITTED',
       });
 
       if (onSuccess) onSuccess();
@@ -132,6 +160,7 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
                 }}
                 className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
                 required
+                disabled={admission.status === 'ADMITTED'}
               >
                 {WARD_OPTIONS.map((w, idx) => (
                   <option key={idx} value={w.name}>
@@ -142,7 +171,7 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
             </div>
 
             {/* Available Unassigned Beds Quick Pick */}
-            {availableBeds.length > 0 && (
+            {admission.status !== 'ADMITTED' && availableBeds.length > 0 && (
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
                   Quick Pick Available Bed ({availableBeds.length} Unassigned):
@@ -181,6 +210,7 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
                 onChange={(e) => setBedNumber(e.target.value.toUpperCase())}
                 className="font-mono font-bold text-xs uppercase"
                 required
+                disabled={admission.status === 'ADMITTED'}
               />
               <p className="text-[10px] text-slate-500 mt-1">
                 If the bed is currently OCCUPIED by another active patient, system will prevent duplicate assignment.
@@ -198,7 +228,66 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
                 onChange={(e) => setDailyTariff(e.target.value)}
                 className="font-mono font-bold text-xs"
                 required
+                disabled={admission.status === 'ADMITTED'}
               />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                4. Assign Attending Doctor *
+              </label>
+              <select
+                value={assignedDoctorId}
+                onChange={(e) => setAssignedDoctorId(e.target.value)}
+                className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
+                required
+              >
+                <option value="">Select doctor</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor._id || doctor.id} value={doctor._id || doctor.id}>
+                    Dr. {doctor.name}{doctor.specialization ? ` — ${doctor.specialization}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                5. Assign Ward Nurse
+              </label>
+              <select
+                value={assignedNurseId}
+                onChange={(e) => setAssignedNurseId(e.target.value)}
+                className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
+              >
+                <option value="">No nurse assigned yet</option>
+                {nurses.map((nurse) => (
+                  <option key={nurse._id || nurse.id} value={nurse._id || nurse.id}>
+                    {nurse.name} — {nurse.role === 'NURSE_INCHARGE' ? 'Nurse In-Charge' : 'Nurse'}{nurse.assignedUnit ? ` (${nurse.assignedUnit})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Defaults to the logged-in nurse. You can select another active nurse before allocation.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                6. Assign Caretaker / Ward Support
+              </label>
+              <select
+                value={assignedCaretakerId}
+                onChange={(e) => setAssignedCaretakerId(e.target.value)}
+                className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
+              >
+                <option value="">No caretaker assigned yet</option>
+                {caretakers.map((member) => (
+                  <option key={member._id || member.id} value={member._id || member.id}>
+                    {member.name} — {member.role.replaceAll('_', ' ')}{member.assignedUnit ? ` (${member.assignedUnit})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Buttons */}
@@ -207,7 +296,7 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
                 Cancel
               </Button>
               <Button type="submit" variant="success" size="sm" className="font-bold gap-1.5" isLoading={isLoading}>
-                <CheckCircle size={15} /> Confirm Allocation & Lock Bed
+                <CheckCircle size={15} /> {admission.status === 'ADMITTED' ? 'Save Care Team' : 'Confirm Allocation & Lock Bed'}
               </Button>
             </div>
           </form>

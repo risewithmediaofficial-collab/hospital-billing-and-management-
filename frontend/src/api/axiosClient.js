@@ -36,7 +36,9 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    if (error.response?.status === 401 || (error.response?.status === 403 && error.response?.data?.error?.message?.includes('Required role'))) {
+    // A 403 means the authenticated user lacks permission for one resource; it
+    // must not destroy a valid session. Only authentication failures log out.
+    if (error.response?.status === 401) {
       localStorage.removeItem('hpmbs_access_token');
       localStorage.removeItem('hpmbs_user');
       localStorage.removeItem('hpmbs_super_admin_context');

@@ -2,6 +2,7 @@ import { PatientRequest } from '../../models/PatientRequest.js';
 import { Bed } from '../../models/Bed.js';
 import { Patient } from '../../models/Patient.js';
 import { Admission } from '../../models/Admission.js';
+import { User } from '../../models/User.js';
 import { socketManager } from '../../events/socketManager.js';
 import { ApiError } from '../../utils/apiError.js';
 
@@ -219,7 +220,7 @@ export class RequestsService {
    * Update request status (Accept, Start, Complete, Reject, Escalate).
    */
   static async updateRequestStatus(requestId, updateData, user) {
-    const { status, notes, rejectedReason } = typeof updateData === 'string' ? { status: updateData } : updateData;
+    const { status, notes, rejectedReason, assignedUserId } = typeof updateData === 'string' ? { status: updateData } : updateData;
 
     const request = await PatientRequest.findById(requestId).populate('patientId').populate('bedId');
     if (!request) {
@@ -231,12 +232,29 @@ export class RequestsService {
     if (rejectedReason) request.rejectedReason = rejectedReason;
 
     if (status === 'ACCEPTED' || status === 'ACKNOWLEDGED') {
+      let handler = user;
+      if (assignedUserId) {
+        handler = await User.findOne({ _id: assignedUserId, hospitalId: request.hospitalId, isActive: true });
+        if (!handler) {
+          throw new ApiError(400, 'Selected care-team member is unavailable or belongs to another hospital.', null, 'INVALID_ASSIGNEE');
+        }
+      }
+
       request.acceptedAt = new Date();
-      request.acceptedBy = user.id;
-      if (user.role === 'NURSE' || user.role === 'NURSE_INCHARGE') {
-        request.assignedNurseId = user.id;
+      request.acceptedBy = handler.id || handler._id;
+      if (request.requestCategory === 'DOCTOR') {
+        if (handler.role !== 'DOCTOR') throw new ApiError(400, 'Doctor requests must be assigned to a doctor.', null, 'INVALID_ASSIGNEE_ROLE');
+        request.assignedDoctorId = handler.id || handler._id;
+      } else if (request.requestCategory === 'CARETAKER') {
+        if (!['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'].includes(handler.role)) {
+          throw new ApiError(400, 'Caretaker requests must be assigned to support or ward staff.', null, 'INVALID_ASSIGNEE_ROLE');
+        }
+        request.assignedCaretakerId = handler.id || handler._id;
       } else {
-        request.assignedCaretakerId = user.id;
+        if (!['NURSE', 'NURSE_INCHARGE'].includes(handler.role)) {
+          throw new ApiError(400, 'Nursing requests must be assigned to a nurse.', null, 'INVALID_ASSIGNEE_ROLE');
+        }
+        request.assignedNurseId = handler.id || handler._id;
       }
     } else if (status === 'COMPLETED') {
       request.completedAt = new Date();
@@ -251,6 +269,9 @@ export class RequestsService {
     const populated = await PatientRequest.findById(request._id)
       .populate('patientId')
       .populate('bedId')
+      .populate('assignedNurseId', 'name role assignedUnit shiftDetails')
+      .populate('assignedCaretakerId', 'name role assignedUnit shiftDetails')
+      .populate('assignedDoctorId', 'name role specialization cabinNo')
       .populate('acceptedBy', 'name role')
       .populate('completedBy', 'name role');
 
