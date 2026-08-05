@@ -37,7 +37,7 @@ export const SuperAdminHospitalDashboard = () => {
 
   // Active Tab & Role Filter State
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'patients' | 'revenue'
-  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState('DOCTOR'); // Default to DOCTOR as requested
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState({});
 
@@ -112,7 +112,6 @@ export const SuperAdminHospitalDashboard = () => {
         newPassword: newPasswordInput.trim()
       });
 
-      // Update state locally for real-time reflection
       setDetail((prev) => {
         if (!prev) return prev;
         const updatedStaffList = (prev.staffList || []).map((s) => {
@@ -146,7 +145,8 @@ export const SuperAdminHospitalDashboard = () => {
       return (
         staff.name?.toLowerCase().includes(term) ||
         staff.email?.toLowerCase().includes(term) ||
-        staff.role?.toLowerCase().includes(term)
+        staff.role?.toLowerCase().includes(term) ||
+        staff.specialization?.toLowerCase().includes(term)
       );
     }
     return true;
@@ -166,6 +166,21 @@ export const SuperAdminHospitalDashboard = () => {
   });
 
   const totalRevenue = stats.totalHospitalRevenue || hospital.totalHospitalRevenue || 0;
+
+  // Header Title Generator based on Selected Role Filter
+  const getTableTitle = () => {
+    if (roleFilter === 'DOCTOR') return { title: `Doctor Performance & Consultation Reports (${filteredStaff.length})`, icon: Stethoscope, color: 'text-emerald-600' };
+    if (roleFilter === 'RECEPTIONIST') return { title: `Receptionist Staff Credentials & Duty Reports (${filteredStaff.length})`, icon: ConciergeBell, color: 'text-blue-600' };
+    if (roleFilter === 'NURSE') return { title: `Nursing Staff Credentials & Ward Reports (${filteredStaff.length})`, icon: Activity, color: 'text-teal-600' };
+    if (roleFilter === 'LAB_TECH') return { title: `Laboratory Staff Credentials & Pathology Reports (${filteredStaff.length})`, icon: TestTube, color: 'text-indigo-600' };
+    if (roleFilter === 'RADIOLOGIST') return { title: `Radiology Staff Credentials & RIS Reports (${filteredStaff.length})`, icon: Scan, color: 'text-purple-600' };
+    if (roleFilter === 'PHARMACIST') return { title: `Pharmacy Staff Credentials & Inventory Reports (${filteredStaff.length})`, icon: Pill, color: 'text-rose-600' };
+    if (roleFilter === 'CASHIER') return { title: `Billing Cashier Credentials & Invoice Reports (${filteredStaff.length})`, icon: CreditCard, color: 'text-amber-600' };
+    return { title: `Hospital Staff Credentials & Access Control (${filteredStaff.length})`, icon: Users, color: 'text-indigo-600' };
+  };
+
+  const tableHeader = getTableTitle();
+  const TableHeaderIcon = tableHeader.icon;
 
   return (
     <SuperAdminHospitalContext hospitalId={hospitalId}>
@@ -199,7 +214,7 @@ export const SuperAdminHospitalDashboard = () => {
           </div>
         </Card>
 
-        {/* Interactive Dashboard Cards (Click any box to view credentials & details below) */}
+        {/* Interactive Dashboard Cards */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -233,7 +248,7 @@ export const SuperAdminHospitalDashboard = () => {
           </div>
         </div>
 
-        {/* Dynamic Staff Credentials & Patient Details Section */}
+        {/* Dynamic Staff Credentials Table Matching User Screenshot */}
         <div ref={detailsTableRef}>
           <Card className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
@@ -264,7 +279,7 @@ export const SuperAdminHospitalDashboard = () => {
                   <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search staff, email, UHID..."
+                    placeholder="Search doctor, email, specialization..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-8 pr-3 py-1.5 border rounded-lg text-xs w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -293,79 +308,86 @@ export const SuperAdminHospitalDashboard = () => {
               </div>
             </div>
 
-            {/* TAB 1: STAFF CREDENTIALS, EMAIL & PASSWORD TABLE */}
+            {/* Header matched to user's screenshot */}
             {activeTab === 'staff' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="p-3">Staff Name</th>
-                      <th className="p-3">Role</th>
-                      <th className="p-3">Login Email / Username</th>
-                      <th className="p-3">Assigned Password / Credential</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Patients Handled</th>
-                      <th className="p-3">Revenue Generated</th>
-                      <th className="p-3 text-right">Super Admin Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredStaff.map((staff) => {
-                      const isShown = showPasswords[staff._id];
-                      return (
-                        <tr key={staff._id} className="hover:bg-slate-50">
-                          <td className="p-3">
-                            <p className="font-bold text-slate-900">{staff.name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{staff.phone || 'No Phone'}</p>
-                          </td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              {staff.role}
-                            </span>
-                          </td>
-                          <td className="p-3 font-mono font-bold text-slate-700">{staff.email}</td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
-                              <Key size={13} className="text-amber-500 shrink-0" />
-                              <span className="font-mono font-bold text-slate-900">
-                                {isShown ? staff.credentialHint : '••••••••••••'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => toggleShowPassword(staff._id)}
-                                className="text-slate-400 hover:text-slate-700 ml-1"
-                                title="Toggle Password Visibility"
-                              >
-                                {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${staff.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                              {staff.isActive ? 'ACTIVE' : 'INACTIVE'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-bold text-indigo-700">{staff.patientsHandled || 0} Patients</td>
-                          <td className="p-3 font-bold text-emerald-700">{formatCurrency(staff.revenueGenerated || 0)}</td>
-                          <td className="p-3 text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                              onClick={() => handleOpenPasswordModal(staff)}
-                            >
-                              <Edit size={12} className="mr-1" /> Change Password
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="pt-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-3">
+                  <TableHeaderIcon size={20} className={tableHeader.color} />
+                  {tableHeader.title}
+                </h3>
 
-                {filteredStaff.length === 0 && (
-                  <div className="p-8 text-center text-slate-500 text-xs">No staff members found matching criteria.</div>
-                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">{roleFilter === 'DOCTOR' ? 'DOCTOR NAME' : 'STAFF NAME'}</th>
+                        <th className="p-3">SPECIALIZATION</th>
+                        <th className="p-3">LOGIN EMAIL</th>
+                        <th className="p-3">ASSIGNED PASSWORD / CREDENTIAL</th>
+                        <th className="p-3">OPD CABIN / WARD</th>
+                        <th className="p-3">DUTY STATUS</th>
+                        <th className="p-3 text-right">SUPER ADMIN ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredStaff.map((staff) => {
+                        const isShown = showPasswords[staff._id];
+                        const pwdHint = staff.credentialHint || staff.assignedPasswordHint || `${staff.role.charAt(0) + staff.role.slice(1).toLowerCase()}123!`;
+
+                        return (
+                          <tr key={staff._id} className="hover:bg-slate-50">
+                            <td className="p-3">
+                              <p className="font-bold text-slate-900">{staff.name}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{staff.phone || 'No Phone'}</p>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-700">
+                              {staff.specialization || (staff.role === 'DOCTOR' ? 'General Physician' : staff.role)}
+                            </td>
+                            <td className="p-3 font-mono font-bold text-slate-700">{staff.email}</td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
+                                <Key size={13} className="text-amber-500 shrink-0" />
+                                <span className="font-mono font-bold text-slate-900">
+                                  {isShown ? pwdHint : '••••••••••••'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleShowPassword(staff._id)}
+                                  className="text-slate-400 hover:text-slate-700 ml-1"
+                                  title="Toggle Password Visibility"
+                                >
+                                  {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-3 font-mono font-bold text-indigo-700">
+                              {staff.cabinNo || 'Cabin 101'}
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2.5 py-0.5 rounded font-bold text-[10px] ${staff.isAvailable !== false && staff.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {staff.isAvailable !== false && staff.isActive ? 'ON DUTY' : 'OFF DUTY'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                                onClick={() => handleOpenPasswordModal(staff)}
+                              >
+                                <Edit size={12} className="mr-1" /> Change Password
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {filteredStaff.length === 0 && (
+                    <div className="p-8 text-center text-slate-500 text-xs">No staff members found matching criteria.</div>
+                  )}
+                </div>
               </div>
             )}
 
