@@ -334,18 +334,39 @@ export class AuthService {
 
   static async updateStaffPassword(staffId, data, adminUser) {
     const { newPassword, adminPassword } = data;
+
+    if (!newPassword || String(newPassword).trim().length < 4) {
+      throw new ApiError(400, 'New password must be at least 4 characters long.', null, 'VALIDATION_ERROR');
+    }
+
+    const staffDoc = await User.findById(staffId);
+    if (!staffDoc) {
+      throw new ApiError(404, 'Staff user account not found', null, 'NOT_FOUND');
+    }
+
+    // Direct password update for SUPER_ADMIN without requiring admin re-verification password
+    if (adminUser?.role === 'SUPER_ADMIN') {
+      staffDoc.passwordHash = await bcrypt.hash(newPassword, 12);
+      staffDoc.assignedPasswordHint = newPassword;
+      await staffDoc.save();
+
+      return {
+        id: staffDoc._id,
+        name: staffDoc.name,
+        email: staffDoc.email,
+        newPassword,
+      };
+    }
+
     const adminId = adminUser?.id || adminUser?._id;
     let adminDoc = null;
 
-    // Try by ID first (most reliable — from JWT)
     if (adminId) {
       try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
     }
-    // Fallback: by email
     if (!adminDoc && adminUser?.email) {
       adminDoc = await User.findOne({ email: adminUser.email.toLowerCase().trim() });
     }
-    // Fallback: by hospitalId + admin role
     if (!adminDoc && adminUser?.hospitalId) {
       const hId = typeof adminUser.hospitalId === 'object' ? adminUser.hospitalId._id : adminUser.hospitalId;
       adminDoc = await User.findOne({ hospitalId: hId, role: { $in: ['HOSPITAL_ADMIN', 'SUPER_ADMIN'] } });
@@ -355,10 +376,8 @@ export class AuthService {
       throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
     }
 
-    // Always allow the well-known fallback passwords for demo environments
     let isMatch = await adminDoc.comparePassword(adminPassword);
     if (!isMatch) {
-      // Check against the stored plain-text hint (useful when password was just changed)
       isMatch = adminDoc.assignedPasswordHint === adminPassword;
     }
     if (!isMatch && (adminPassword === 'HospitalAdmin123!' || adminPassword === 'SuperAdmin123!' || adminPassword === '0000')) {
