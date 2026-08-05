@@ -258,12 +258,16 @@ export class SaasService {
     const patientCounts = await buildPatientCounts(hospital._id);
     const todayMetrics = await buildTodayMetrics(hospital._id);
 
-    const totalStaffCount = await User.countDocuments({ hospitalId: hospital._id });
-    const activeStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: true });
-    const inactiveStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: false });
+    const hospitalObjId = hospital._id;
+    const hospitalStrId = String(hospital._id);
+    const hospitalFilter = { hospitalId: { $in: [hospitalObjId, hospitalStrId] } };
+
+    const totalStaffCount = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' } });
+    const activeStaff = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' }, isActive: true });
+    const inactiveStaff = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' }, isActive: false });
 
     // Fetch all staff members created for this hospital
-    const rawStaff = await User.find({ hospitalId: hospital._id })
+    const rawStaff = await User.find({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' } })
       .select('-passwordHash')
       .sort({ createdAt: -1 })
       .lean();

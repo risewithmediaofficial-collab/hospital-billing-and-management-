@@ -136,9 +136,22 @@ export const SuperAdminHospitalDashboard = () => {
   };
 
   const filteredStaff = staffList.filter((staff) => {
-    if (roleFilter === 'ALL_ACTIVE' && !staff.isActive) return false;
-    if (roleFilter === 'ALL_INACTIVE' && staff.isActive) return false;
-    if (roleFilter !== 'ALL' && roleFilter !== 'ALL_ACTIVE' && roleFilter !== 'ALL_INACTIVE' && staff.role !== roleFilter) return false;
+    if (roleFilter === 'ALL_ACTIVE' && !staff.isActive && staff.status !== 'ACTIVE') return false;
+    if (roleFilter === 'ALL_INACTIVE' && (staff.isActive || staff.status === 'ACTIVE')) return false;
+
+    if (roleFilter !== 'ALL' && roleFilter !== 'ALL_ACTIVE' && roleFilter !== 'ALL_INACTIVE') {
+      const sRole = String(staff.role || '').toUpperCase();
+      const targetRole = String(roleFilter).toUpperCase();
+
+      if (targetRole === 'DOCTOR' && sRole !== 'DOCTOR') return false;
+      if (targetRole === 'NURSE' && sRole !== 'NURSE' && sRole !== 'NURSE_INCHARGE') return false;
+      if (targetRole === 'RECEPTIONIST' && sRole !== 'RECEPTIONIST') return false;
+      if (targetRole === 'LAB_TECH' && sRole !== 'LAB_TECH' && sRole !== 'LABORATORY_STAFF') return false;
+      if (targetRole === 'RADIOLOGIST' && sRole !== 'RADIOLOGIST' && sRole !== 'RADIOLOGY_STAFF') return false;
+      if (targetRole === 'PHARMACIST' && sRole !== 'PHARMACIST' && sRole !== 'PHARMACY_STAFF') return false;
+      if (targetRole === 'CASHIER' && sRole !== 'CASHIER' && sRole !== 'BILLING_STAFF') return false;
+      if (targetRole === 'HOSPITAL_ADMIN' && sRole !== 'HOSPITAL_ADMIN') return false;
+    }
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
