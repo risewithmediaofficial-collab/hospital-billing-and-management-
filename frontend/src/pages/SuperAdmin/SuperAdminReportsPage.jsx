@@ -313,26 +313,59 @@ export const SuperAdminReportsPage = () => {
                     <th className="p-3">Doctor Name</th>
                     <th className="p-3">Specialization</th>
                     <th className="p-3">Login Email</th>
+                    <th className="p-3">Assigned Password / Credential</th>
                     <th className="p-3">OPD Cabin</th>
                     <th className="p-3">Duty Status</th>
+                    <th className="p-3 text-right">Super Admin Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {doctorsData.map((d) => (
-                    <tr key={d._id} className="hover:bg-slate-50">
-                      <td className="p-3 font-bold text-slate-900">{d.name}</td>
-                      <td className="p-3 font-semibold text-slate-700">{d.specialization || 'General Physician'}</td>
-                      <td className="p-3 font-mono text-slate-600">{d.email}</td>
-                      <td className="p-3 font-mono font-bold text-indigo-700">{d.cabinNo || 'Cabin 101'}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded font-bold ${d.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                          {d.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {doctorsData.map((d) => {
+                    const isShown = showPasswords[d._id];
+                    const pwdHint = d.assignedPasswordHint || d.credentialHint || `${d.role ? d.role.charAt(0) + d.role.slice(1).toLowerCase() : 'Doctor'}123!`;
+
+                    return (
+                      <tr key={d._id} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-slate-900">{d.name}</td>
+                        <td className="p-3 font-semibold text-slate-700">{d.specialization || 'General Physician'}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-900">{d.email}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
+                            <Key size={13} className="text-amber-500 shrink-0" />
+                            <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
+                              {isShown === false ? '••••••••••••' : pwdHint}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleShowPassword(d._id)}
+                              className="text-slate-400 hover:text-slate-700 ml-1"
+                              title="Toggle Mask"
+                            >
+                              {isShown === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">{d.cabinNo || 'Cabin 101'}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded font-bold ${d.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {d.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                            onClick={() => handleOpenPasswordModal(d)}
+                          >
+                            <Edit size={12} className="mr-1" /> Change Password
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {doctorsData.length === 0 && (
-                    <tr><td colSpan={5} className="p-8 text-center text-slate-500">No doctors registered.</td></tr>
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">No doctors registered.</td></tr>
                   )}
                 </tbody>
               </table>
