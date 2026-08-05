@@ -3,33 +3,45 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Stethoscope, ConciergeBell, Activity, TestTube, Scan, Pill, CreditCard,
   UserCircle, BedDouble, Users, Calendar, IndianRupee, ShieldAlert, ClipboardList,
-  Eye, EyeOff, Search, Key, ShieldCheck, Lock, CheckCircle2, DollarSign, Filter
+  Eye, EyeOff, Search, Key, ArrowRight, ExternalLink
 } from 'lucide-react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { axiosClient } from '../../api/axiosClient';
 import { SuperAdminHospitalContext } from '../../components/superadmin/SuperAdminModuleBridge';
+import { useSuperAdminContextStore } from '../../store/superAdminContextStore';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 
 const HOSPITAL_DASHBOARD_CARDS = [
-  { key: 'doctors', title: 'TOTAL DOCTORS', icon: Stethoscope, color: 'emerald', roleFilter: 'DOCTOR' },
-  { key: 'receptionists', title: 'TOTAL RECEPTIONISTS', icon: ConciergeBell, color: 'blue', roleFilter: 'RECEPTIONIST' },
-  { key: 'nurses', title: 'TOTAL NURSES', icon: Activity, color: 'teal', roleFilter: 'NURSE' },
-  { key: 'labStaff', title: 'TOTAL LABORATORY STAFF', icon: TestTube, color: 'indigo', roleFilter: 'LAB_TECH' },
-  { key: 'radiologyStaff', title: 'TOTAL RADIOLOGY STAFF', icon: Scan, color: 'purple', roleFilter: 'RADIOLOGIST' },
-  { key: 'pharmacyStaff', title: 'TOTAL PHARMACY STAFF', icon: Pill, color: 'rose', roleFilter: 'PHARMACIST' },
-  { key: 'billingStaff', title: 'TOTAL BILLING STAFF', icon: CreditCard, color: 'amber', roleFilter: 'CASHIER' },
-  { key: 'totalPatients', title: 'TOTAL PATIENTS', icon: UserCircle, color: 'sky', viewTab: 'patients' },
-  { key: 'opdPatients', title: 'TOTAL OPD PATIENTS', icon: ClipboardList, color: 'blue', viewTab: 'patients' },
-  { key: 'ipdPatients', title: 'TOTAL IPD PATIENTS', icon: BedDouble, color: 'indigo', viewTab: 'patients' },
-  { key: 'activeStaff', title: 'ACTIVE STAFF', icon: Users, color: 'emerald', roleFilter: 'ALL_ACTIVE' },
-  { key: 'inactiveStaff', title: 'INACTIVE STAFF', icon: Users, color: 'amber', roleFilter: 'ALL_INACTIVE' },
+  { key: 'doctors', title: 'TOTAL DOCTORS', icon: Stethoscope, color: 'emerald', route: 'doctors', roleFilter: 'DOCTOR' },
+  { key: 'receptionists', title: 'TOTAL RECEPTIONISTS', icon: ConciergeBell, color: 'blue', route: 'reception', roleFilter: 'RECEPTIONIST' },
+  { key: 'nurses', title: 'TOTAL NURSES', icon: Activity, color: 'teal', route: 'nursing', roleFilter: 'NURSE' },
+  { key: 'labStaff', title: 'TOTAL LABORATORY STAFF', icon: TestTube, color: 'indigo', route: 'laboratory', roleFilter: 'LAB_TECH' },
+  { key: 'radiologyStaff', title: 'TOTAL RADIOLOGY STAFF', icon: Scan, color: 'purple', route: 'radiology', roleFilter: 'RADIOLOGIST' },
+  { key: 'pharmacyStaff', title: 'TOTAL PHARMACY STAFF', icon: Pill, color: 'rose', route: 'pharmacy', roleFilter: 'PHARMACIST' },
+  { key: 'billingStaff', title: 'TOTAL BILLING STAFF', icon: CreditCard, color: 'amber', route: 'billing', roleFilter: 'CASHIER' },
+  { key: 'totalPatients', title: 'TOTAL PATIENTS', icon: UserCircle, color: 'sky', route: 'patients', viewTab: 'patients' },
+  { key: 'opdPatients', title: 'TOTAL OPD PATIENTS', icon: ClipboardList, color: 'blue', route: 'opd', viewTab: 'patients' },
+  { key: 'ipdPatients', title: 'TOTAL IPD PATIENTS', icon: BedDouble, color: 'indigo', route: 'ipd', viewTab: 'patients' },
+  { key: 'activeStaff', title: 'ACTIVE STAFF', icon: Users, color: 'emerald', route: 'staff', roleFilter: 'ALL_ACTIVE' },
+  { key: 'inactiveStaff', title: 'INACTIVE STAFF', icon: Users, color: 'amber', route: 'staff', roleFilter: 'ALL_INACTIVE' },
+  { key: 'todayAppointments', title: "TODAY'S APPOINTMENTS", icon: Calendar, color: 'sky', route: 'appointments' },
+  { key: 'todayConsultations', title: "TODAY'S CONSULTATIONS", icon: Stethoscope, color: 'teal', route: 'doctors' },
+  { key: 'todayAdmissions', title: "TODAY'S ADMISSIONS", icon: BedDouble, color: 'indigo', route: 'ipd' },
+  { key: 'todayDischarges', title: "TODAY'S DISCHARGES", icon: BedDouble, color: 'blue', route: 'ipd' },
+  { key: 'todayBills', title: "TODAY'S BILLS", icon: CreditCard, color: 'purple', route: 'billing' },
+  { key: 'todayRevenue', title: "TODAY'S REVENUE", icon: IndianRupee, color: 'emerald', route: 'billing', format: (v) => formatCurrency(v) },
+  { key: 'pendingLabReports', title: 'PENDING LAB REPORTS', icon: TestTube, color: 'amber', route: 'laboratory' },
+  { key: 'pendingRadiologyReports', title: 'PENDING RADIOLOGY REPORTS', icon: Scan, color: 'amber', route: 'radiology' },
+  { key: 'pendingBilling', title: 'PENDING BILLING', icon: CreditCard, color: 'red', route: 'billing' },
+  { key: 'emergencyCases', title: 'EMERGENCY CASES', icon: ShieldAlert, color: 'red', route: 'emergency' },
 ];
 
 export const SuperAdminHospitalDashboard = () => {
   const { hospitalId } = useParams();
   const navigate = useNavigate();
+  const { setSelectedHospital } = useSuperAdminContextStore();
   const [detail, setDetail] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,6 +55,9 @@ export const SuperAdminHospitalDashboard = () => {
     try {
       const res = await axiosClient.get(`/saas/hospitals/${hospitalId}/detail`);
       setDetail(res.data);
+      if (res.data?.hospital) {
+        setSelectedHospital(hospitalId, res.data.hospital.name);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -61,6 +76,21 @@ export const SuperAdminHospitalDashboard = () => {
 
   const toggleShowPassword = (id) => {
     setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // When clicking a stat card box -> takes inside to the specific module page
+  const handleCardClick = (card) => {
+    if (hospitalId && hospital) {
+      setSelectedHospital(hospitalId, hospital.name);
+    }
+    if (card.route) {
+      navigate(`/admin/hospital/${hospitalId}/${card.route}`);
+    } else if (card.viewTab) {
+      setActiveTab(card.viewTab);
+    } else if (card.roleFilter) {
+      setActiveTab('staff');
+      setRoleFilter(card.roleFilter);
+    }
   };
 
   const filteredStaff = staffList.filter((staff) => {
@@ -98,7 +128,7 @@ export const SuperAdminHospitalDashboard = () => {
     <SuperAdminHospitalContext hospitalId={hospitalId}>
       <div className="space-y-6 animate-fade-in pb-12">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">{hospital.name}</h2>
@@ -107,7 +137,7 @@ export const SuperAdminHospitalDashboard = () => {
               </span>
             </div>
             <p className="text-xs text-neutral-500 mt-1">
-              Super Admin Console · Hospital ID: {hospital._id} · Primary Admin: <strong>{hospital.administrator?.email || hospital.contactEmail}</strong>
+              Super Admin Control Console · Hospital ID: {hospital._id} · Primary Admin: <strong>{hospital.administrator?.email || hospital.contactEmail}</strong>
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/admin/hospitals')}>
@@ -126,33 +156,41 @@ export const SuperAdminHospitalDashboard = () => {
           </div>
         </Card>
 
-        {/* Stat Cards Grid (Clickable Filters) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {HOSPITAL_DASHBOARD_CARDS.map(({ key, title, icon, color, roleFilter: cardRoleFilter, viewTab }) => (
-            <div
-              key={key}
-              onClick={() => {
-                if (viewTab) {
-                  setActiveTab(viewTab);
-                } else if (cardRoleFilter) {
-                  setActiveTab('staff');
-                  setRoleFilter(cardRoleFilter);
-                }
-              }}
-              className="cursor-pointer transition-transform hover:scale-[1.02]"
-            >
-              <StatCard
-                title={title}
-                value={stats[key] ?? 0}
-                subtitle="Click to view details & credentials"
-                icon={icon}
-                color={color}
-              />
-            </div>
-          ))}
+        {/* Stat Cards Grid (Interactive - Click to Open Module Page) */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <ExternalLink size={18} className="text-indigo-600" />
+              Hospital Overview Dashboard Cards (Click any box to open detail module)
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {HOSPITAL_DASHBOARD_CARDS.map((card) => {
+              const { key, title, icon, color, format } = card;
+              return (
+                <div
+                  key={key}
+                  onClick={() => handleCardClick(card)}
+                  className="cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md group relative"
+                  title={`Click to open ${title} page for ${hospital.name}`}
+                >
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-600 text-white p-1 rounded-full text-[10px] shadow-sm">
+                    <ArrowRight size={12} />
+                  </div>
+                  <StatCard
+                    title={title}
+                    value={format ? format(stats[key]) : (stats[key] ?? 0)}
+                    subtitle="Click to view module page & details"
+                    icon={icon}
+                    color={color}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Main Content Tabs & Filter Section */}
+        {/* Inline Staff Credentials, Patients Directory, and Revenue Audit Table */}
         <Card className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
             <div className="flex items-center gap-3">
@@ -224,12 +262,28 @@ export const SuperAdminHospitalDashboard = () => {
                     <th className="p-3">Status</th>
                     <th className="p-3">Patients Handled</th>
                     <th className="p-3">Revenue Generated</th>
-                    <th className="p-3">Last Login</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredStaff.map((staff) => {
                     const isShown = showPasswords[staff._id];
+                    const roleRouteMap = {
+                      DOCTOR: 'doctors',
+                      RECEPTIONIST: 'reception',
+                      NURSE: 'nursing',
+                      NURSE_INCHARGE: 'nursing',
+                      LAB_TECH: 'laboratory',
+                      LABORATORY_STAFF: 'laboratory',
+                      RADIOLOGIST: 'radiology',
+                      RADIOLOGY_STAFF: 'radiology',
+                      PHARMACIST: 'pharmacy',
+                      PHARMACY_STAFF: 'pharmacy',
+                      CASHIER: 'billing',
+                      BILLING_STAFF: 'billing',
+                    };
+                    const route = roleRouteMap[staff.role] || 'staff';
+
                     return (
                       <tr key={staff._id} className="hover:bg-slate-50">
                         <td className="p-3">
@@ -265,7 +319,19 @@ export const SuperAdminHospitalDashboard = () => {
                         </td>
                         <td className="p-3 font-bold text-indigo-700">{staff.patientsHandled || 0} Patients</td>
                         <td className="p-3 font-bold text-emerald-700">{formatCurrency(staff.revenueGenerated || 0)}</td>
-                        <td className="p-3 text-slate-500 font-mono">{staff.lastLoginAt ? formatDateTime(staff.lastLoginAt) : 'Never'}</td>
+                        <td className="p-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-[11px] font-bold"
+                            onClick={() => {
+                              setSelectedHospital(hospitalId, hospital.name);
+                              navigate(`/admin/hospital/${hospitalId}/${route}`);
+                            }}
+                          >
+                            Open Module <ArrowRight size={12} className="ml-1" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -290,6 +356,7 @@ export const SuperAdminHospitalDashboard = () => {
                     <th className="p-3">Category</th>
                     <th className="p-3">Gender & Age</th>
                     <th className="p-3">Registration Date</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -301,6 +368,19 @@ export const SuperAdminHospitalDashboard = () => {
                       <td className="p-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">{pat.category || 'GENERAL'}</span></td>
                       <td className="p-3 text-slate-600">{pat.gender || 'M'} • {pat.age ? `${pat.age} Yrs` : 'Adult'}</td>
                       <td className="p-3 text-slate-500 font-mono">{formatDate(pat.createdAt)}</td>
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[11px] font-bold"
+                          onClick={() => {
+                            setSelectedHospital(hospitalId, hospital.name);
+                            navigate(`/admin/hospital/${hospitalId}/patients`);
+                          }}
+                        >
+                          View EHR Record <ArrowRight size={12} className="ml-1" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
