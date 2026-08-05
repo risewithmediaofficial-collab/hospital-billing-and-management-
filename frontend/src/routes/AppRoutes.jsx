@@ -23,6 +23,7 @@ import { SuperAdminHospitalDashboard } from '../pages/SuperAdmin/SuperAdminHospi
 import { SuperAdminStaffPage, SuperAdminDoctorsPage } from '../pages/SuperAdmin/SuperAdminStaffPage';
 import { SuperAdminAuditLogsPage } from '../pages/SuperAdmin/SuperAdminAuditLogsPage';
 import { SuperAdminSubscriptionsPage } from '../pages/SuperAdmin/SuperAdminSubscriptionsPage';
+import { SuperAdminReportsPage } from '../pages/SuperAdmin/SuperAdminReportsPage';
 
 import { HospitalAdminDashboard } from '../pages/Dashboards/HospitalAdminDashboard';
 import { HospitalAdminManagementViews } from '../pages/Dashboards/HospitalAdminManagementViews';
@@ -98,7 +99,7 @@ export const AppRoutes = () => {
         <Route path="/admin/ipd" element={<SuperAdminLayout><SuperAdminModuleBridge><NurseInchargeDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/emergency" element={<SuperAdminLayout><SuperAdminModuleBridge><EmergencyConsoleView /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/appointments" element={<SuperAdminLayout><SuperAdminModuleBridge><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
-        <Route path="/admin/reports" element={<SuperAdminLayout><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics Across All Hospitals" iconName="BarChart3" /></SuperAdminLayout>} />
+        <Route path="/admin/reports" element={<SuperAdminLayout><SuperAdminReportsPage /></SuperAdminLayout>} />
         <Route path="/admin/notifications" element={<SuperAdminLayout><GenericSubView title="Platform Notifications" subtitle="Cross-Hospital Alerts & System Messages" iconName="Bell" /></SuperAdminLayout>} />
         <Route path="/admin/audit-logs" element={<SuperAdminLayout><SuperAdminAuditLogsPage /></SuperAdminLayout>} />
         <Route path="/admin/subscriptions" element={<SuperAdminLayout><SuperAdminSubscriptionsPage /></SuperAdminLayout>} />
@@ -123,7 +124,7 @@ export const AppRoutes = () => {
         <Route path="/admin/hospital/:hospitalId/patients" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/hospital/:hospitalId/emergency" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><EmergencyConsoleView /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/hospital/:hospitalId/appointments" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
-        <Route path="/admin/hospital/:hospitalId/reports" element={<SuperAdminLayout><GenericSubView title="Hospital Reports" subtitle="Operational & Revenue Analytics" iconName="BarChart3" /></SuperAdminLayout>} />
+        <Route path="/admin/hospital/:hospitalId/reports" element={<SuperAdminLayout><SuperAdminModuleBridge requireHospital><SuperAdminReportsPage /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/hospital/:hospitalId/notifications" element={<SuperAdminLayout><GenericSubView title="Hospital Notifications" subtitle="Department Alerts & Messages" iconName="Bell" /></SuperAdminLayout>} />
         <Route path="/admin/hospital/:hospitalId/audit-logs" element={<SuperAdminLayout><SuperAdminAuditLogsPage /></SuperAdminLayout>} />
         <Route path="/admin/hospital/:hospitalId/settings" element={<SuperAdminLayout><GenericSubView title="Hospital Settings" subtitle="Configuration & Preferences" iconName="Settings" /></SuperAdminLayout>} />

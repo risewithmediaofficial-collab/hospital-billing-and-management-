@@ -78,9 +78,8 @@ export const ProtectedRoute = ({ allowedRoles = [] }) => {
     return <Navigate to="/403" replace />;
   }
 
-  const isReadOnlySuperAdminRoute = /^\/admin(?:\/(dashboard|hospitals|hospital-admins|reports|notifications|audit-logs|subscriptions|settings)|\/hospital\/[^/]+\/(dashboard|info|reports|audit-logs))/.test(location.pathname);
-  if (user?.role === 'SUPER_ADMIN' && !isReadOnlySuperAdminRoute) {
-    return <Navigate to="/403" replace />;
+  if (user?.role === 'SUPER_ADMIN') {
+    return <Outlet />;
   }
 
   if (currentModule && user?.role === 'HOSPITAL_ADMIN' && user.enabledModules?.[currentModule] === false) {
