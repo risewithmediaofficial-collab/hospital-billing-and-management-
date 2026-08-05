@@ -3,6 +3,7 @@ import { Prescription } from '../../models/Prescription.js';
 import { Appointment } from '../../models/Appointment.js';
 import { Patient } from '../../models/Patient.js';
 import { Invoice } from '../../models/Invoice.js';
+import { NurseTasksService } from '../pharmacy/nurse-tasks.service.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
 import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
@@ -18,7 +19,7 @@ export class EmrService {
       throw new ApiError(403, 'This appointment is assigned to another doctor', null, 'FORBIDDEN');
     }
 
-    // 1. Check for any pending department requests for this patient/appointment
+    // Check for any pending department requests for this patient/appointment
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const departmentOrders = await DiagnosticOrder.find({
       $or: [
@@ -65,12 +66,13 @@ export class EmrService {
       status: 'FINALIZED',
     });
 
-    // Mark appointment status as COMPLETED / READY_FOR_BILLING
+    // Mark appointment status as COMPLETED
     appointment.status = 'COMPLETED';
     await appointment.save();
 
     // Create prescription if medicines provided
     let prescription = null;
+    let nurseTasks = [];
     if (data.prescriptions && data.prescriptions.length > 0) {
       const rxCount = await Prescription.countDocuments({ hospitalId: user.hospitalId || appointment.hospitalId });
       const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
@@ -85,6 +87,9 @@ export class EmrService {
         medicines: data.prescriptions,
       });
 
+      // Automatically extract nurse-administered treatments (injections, IV fluids, dressings) into Nurse Tasks
+      nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user);
+
       const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
       WorkflowEventService.emit(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
         prescriptionId: prescription._id,
@@ -95,8 +100,7 @@ export class EmrService {
       }, appointment.branchId);
     }
 
-    // AUTOMATED CONSOLIDATED BILLING DISPATCH:
-    // Gather charges from Doctor Consultation, Doctor Procedures, Prescribed Medicines, and all Department Orders!
+    // Consolidated Invoice logic
     const hospId = user.hospitalId || appointment.hospitalId;
     const brId = user.branchId || appointment.branchId;
     const year = new Date().getFullYear();
@@ -109,7 +113,6 @@ export class EmrService {
       existing = await Invoice.findOne({ hospitalId: hospId, invoiceNo });
     }
 
-    // Consolidated Items
     const items = [
       {
         description: `OPD Consultation — Dr. ${user.name || 'Doctor'} (${data.chiefComplaints || 'OPD Check-up'})`,
@@ -120,7 +123,6 @@ export class EmrService {
       },
     ];
 
-    // Add Doctor Procedure Charges
     if (doctorProcedureCharges.length > 0) {
       doctorProcedureCharges.forEach((proc) => {
         if (proc.description && proc.amount) {
@@ -135,7 +137,6 @@ export class EmrService {
       });
     }
 
-    // Add Completed Department Charges (X-Ray, Laboratory, MRI, CT, ECG, etc.)
     const completedDeptOrders = departmentOrders.filter(
       (ord) => ['REPORT_UPLOADED', 'COMPLETED', 'DOCTOR_REVIEW'].includes(ord.status) && ord.chargeStatus !== 'CANCELLED'
     );
@@ -162,24 +163,8 @@ export class EmrService {
         totalPrice: chgAmount,
       });
 
-      // Mark order charge status as INCLUDED_IN_FINAL_BILL
       ord.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
       await ord.save();
-    }
-
-    // Add Prescribed Medicines
-    if (data.prescriptions && data.prescriptions.length > 0) {
-      data.prescriptions.forEach((med) => {
-        if (med.medicineName && med.medicineName.trim()) {
-          items.push({
-            description: `${med.medicineName} — ${med.dosage || '1 Tab'} × ${med.durationDays || 5} days (${med.frequency || ''})`,
-            category: 'PHARMACY',
-            qty: Number(med.durationDays) || 1,
-            unitPrice: 20.0,
-            totalPrice: (Number(med.durationDays) || 1) * 20.0,
-          });
-        }
-      });
     }
 
     const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
@@ -200,7 +185,6 @@ export class EmrService {
       status: PAYMENT_STATUS.UNPAID,
     });
 
-    // Notify Cashier / Billing Desk via Socket
     socketManager.emitToBranch(brId, 'billing:invoice_created', {
       invoiceId: invoice._id,
       invoiceNo,
@@ -208,7 +192,6 @@ export class EmrService {
       grandTotal: subtotal,
     });
 
-    // Return consultation populated with doctor and patient for billing desk
     const populatedConsultation = await Consultation.findById(consultation._id)
       .populate('patientId')
       .populate('doctorId', 'name specialization');
@@ -216,6 +199,7 @@ export class EmrService {
     return {
       consultation: populatedConsultation,
       prescription,
+      nurseTasks,
       invoice,
     };
   }

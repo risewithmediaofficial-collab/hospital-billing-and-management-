@@ -7,7 +7,7 @@ import { useSocket } from '../../providers/SocketProvider';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Stethoscope, X, AlertCircle, Plus, Trash2, CheckCircle2,
-  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban,
+  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban, Pill
 } from 'lucide-react';
 
 export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }) => {
@@ -24,9 +24,21 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [doctorProcedureCharges, setDoctorProcedureCharges] = useState([]);
 
   const [prescriptions, setPrescriptions] = useState([
-    { medicineName: '', dosage: '1 Tablet', frequency: 'TWICE_DAILY', durationDays: 5, timing: 'AFTER_FOOD', instructions: '' },
+    {
+      medicineName: '',
+      genericName: '',
+      dosageForm: 'TABLET',
+      dosage: '1 Tablet',
+      frequency: 'TWICE_DAILY',
+      durationDays: 5,
+      timing: 'AFTER_FOOD',
+      treatmentType: 'ORAL_TAKE_HOME',
+      instructions: '',
+      externalPurchaseRequired: false,
+    },
   ]);
 
+  const [inventoryMedicines, setInventoryMedicines] = useState([]);
   const [departmentOrders, setDepartmentOrders] = useState([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -35,6 +47,15 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [actionNote, setActionNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  const fetchInventory = async () => {
+    try {
+      const res = await axiosClient.get('/pharmacy/medicines');
+      setInventoryMedicines(res.data || []);
+    } catch (err) {
+      console.error('Failed to load inventory for prescription search:', err);
+    }
+  };
 
   const fetchDepartmentOrders = useCallback(async () => {
     const patId = patient?._id || patient?.id;
@@ -59,9 +80,23 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       setConsultationFee(150);
       setEmergencyFee(0);
       setDoctorProcedureCharges([]);
-      setPrescriptions([{ medicineName: '', dosage: '1 Tablet', frequency: 'TWICE_DAILY', durationDays: 5, timing: 'AFTER_FOOD', instructions: '' }]);
+      setPrescriptions([
+        {
+          medicineName: '',
+          genericName: '',
+          dosageForm: 'TABLET',
+          dosage: '1 Tablet',
+          frequency: 'TWICE_DAILY',
+          durationDays: 5,
+          timing: 'AFTER_FOOD',
+          treatmentType: 'ORAL_TAKE_HOME',
+          instructions: '',
+          externalPurchaseRequired: false,
+        },
+      ]);
       setErrorMsg(null);
       setShowConfirmModal(false);
+      fetchInventory();
       fetchDepartmentOrders();
     }
   }, [isOpen, token, fetchDepartmentOrders]);
@@ -94,35 +129,61 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const totalDoctorProcedureCharges = doctorProcedureCharges.reduce((sum, proc) => sum + (Number(proc.amount) || 0), 0);
   const grandTotal = Number(consultationFee || 0) + Number(emergencyFee || 0) + totalDoctorProcedureCharges + totalDepartmentCharges;
 
-  const handleAddMedicineRow = () => setPrescriptions((prev) => [...prev, { medicineName: '', dosage: '1 Tablet', frequency: 'TWICE_DAILY', durationDays: 5, timing: 'AFTER_FOOD', instructions: '' }]);
+  const handleAddMedicineRow = () =>
+    setPrescriptions((prev) => [
+      ...prev,
+      {
+        medicineName: '',
+        genericName: '',
+        dosageForm: 'TABLET',
+        dosage: '1 Tablet',
+        frequency: 'TWICE_DAILY',
+        durationDays: 5,
+        timing: 'AFTER_FOOD',
+        treatmentType: 'ORAL_TAKE_HOME',
+        instructions: '',
+        externalPurchaseRequired: false,
+      },
+    ]);
+
   const handleRemoveMedicineRow = (index) => setPrescriptions((prev) => prev.filter((_, idx) => idx !== index));
-  const handleMedicineChange = (index, field, value) => setPrescriptions((prev) => { const u = [...prev]; u[index][field] = value; return u; });
+  const handleMedicineChange = (index, field, value) =>
+    setPrescriptions((prev) => {
+      const u = [...prev];
+      u[index][field] = value;
+
+      // Auto set treatment type based on dosage form
+      if (field === 'dosageForm') {
+        if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
+          u[index].treatmentType = 'NURSE_ADMINISTERED';
+        } else {
+          u[index].treatmentType = 'ORAL_TAKE_HOME';
+        }
+      }
+      return u;
+    });
+
+  const handleSelectInventoryMed = (index, selectedMedName) => {
+    const med = inventoryMedicines.find((m) => m.name === selectedMedName);
+    if (med) {
+      setPrescriptions((prev) => {
+        const u = [...prev];
+        u[index].medicineName = med.name;
+        u[index].genericName = med.genericName;
+        u[index].dosageForm = med.dosageForm;
+        u[index].strength = med.strength;
+        u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
+        if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
+          u[index].treatmentType = 'NURSE_ADMINISTERED';
+        }
+        return u;
+      });
+    }
+  };
+
   const handleAddProcedureRow = () => setDoctorProcedureCharges((prev) => [...prev, { description: '', amount: 100 }]);
   const handleRemoveProcedureRow = (index) => setDoctorProcedureCharges((prev) => prev.filter((_, idx) => idx !== index));
   const handleProcedureChange = (index, field, value) => setDoctorProcedureCharges((prev) => { const u = [...prev]; u[index][field] = value; return u; });
-
-  const handleCancelOrderSubmit = async () => {
-    if (!actionNote.trim()) { alert('A mandatory cancellation reason must be provided.'); return; }
-    try {
-      await axiosClient.post(`/diagnostics/orders/${actionOrder._id}/cancel`, { cancellationReason: actionNote.trim() });
-      setActionOrder(null); setActionType(null); setActionNote('');
-      fetchDepartmentOrders();
-    } catch (err) { alert(err.response?.data?.error?.message || 'Failed to cancel order'); }
-  };
-
-  const handleCorrectionSubmit = async () => {
-    if (!actionNote.trim()) { alert('A correction note must be provided.'); return; }
-    try {
-      await axiosClient.post(`/diagnostics/orders/${actionOrder._id}/request-correction`, { correctionNote: actionNote.trim() });
-      setActionOrder(null); setActionType(null); setActionNote('');
-      fetchDepartmentOrders();
-    } catch (err) { alert(err.response?.data?.error?.message || 'Failed to request correction'); }
-  };
-
-  const handleApproveCharge = async (orderId) => {
-    try { await axiosClient.post(`/diagnostics/orders/${orderId}/approve-charge`); fetchDepartmentOrders(); }
-    catch (err) { console.error('Failed to approve charge:', err); }
-  };
 
   const handleFinalizeConfirmed = async () => {
     setIsLoading(true);
@@ -160,8 +221,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
     <>
       <div className="modal-overlay animate-fade-in">
         <div className="modal-container max-w-4xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-
-          {/* ── Sticky Header ── */}
+          {/* Header */}
           <div className="modal-header">
             <div className="flex items-center gap-3 min-w-0">
               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex-shrink-0">
@@ -170,40 +230,24 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-slate-900 leading-tight truncate">Clinical Consultation & Charges Review</h3>
                 <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  <span className="text-indigo-700 font-bold">{patient.firstName} {patient.lastName}</span>
-                  &nbsp;({patient.uhid}) &bull; Token #{token.tokenNumber}
+                  <span className="text-indigo-700 font-bold">{patient.firstName} {patient.lastName}</span> &bull; Token #{token.tokenNumber}
                 </p>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="modal-close-btn" title="Cancel / Close Consultation">
+            <button type="button" onClick={onClose} className="modal-close-btn">
               <X size={18} />
             </button>
           </div>
 
-          {/* ── Scrollable Body ── */}
+          {/* Body */}
           <div className="modal-body space-y-4 text-xs">
-
             {errorMsg && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center gap-2">
                 <AlertCircle size={15} /> {errorMsg}
               </div>
             )}
 
-            {/* Pending Orders Warning */}
-            {hasPendingOrders && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 flex items-start gap-2">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-amber-900">Pending Department Requests</p>
-                  <p className="mt-0.5">
-                    {pendingOrders.length} request(s) still pending: {pendingOrders.map((p) => p.testName).join(', ')}.
-                    Complete all required services before finalizing the bill.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ── 1. Department Reports & Charges ── */}
+            {/* Department Reports */}
             <div className={sectionBg}>
               <div className="flex justify-between items-center">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
@@ -213,200 +257,150 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                   Total: <strong className="text-emerald-700 font-mono">{formatCurrency(totalDepartmentCharges)}</strong>
                 </span>
               </div>
-
-              {isLoadingOrders ? (
-                <p className="text-slate-500 text-center py-3">Loading department reports...</p>
-              ) : departmentOrders.length > 0 ? (
-                <div className="space-y-2 max-h-52 overflow-y-auto">
-                  {departmentOrders.map((ord) => (
-                    <div key={ord._id} className="p-3 rounded-lg bg-white border border-slate-200 space-y-1.5 shadow-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">[{ord.testCategory}] {ord.testName}</span>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
-                            ord.status === 'COMPLETED' || ord.status === 'REPORT_UPLOADED'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : ord.chargeStatus === 'CANCELLED'
-                              ? 'bg-red-50 text-red-600 border-red-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            {ord.chargeStatus === 'CANCELLED' ? 'CANCELLED' : ord.status}
-                          </span>
-                          <span className="font-mono font-bold text-emerald-700">{formatCurrency(ord.totalDepartmentCharge || ord.price || 0)}</span>
-                        </div>
-                      </div>
-                      <p className="text-slate-500">
-                        Technician: <span className="text-slate-700">{ord.technicianName || 'Pending'}</span> &bull; {new Date(ord.createdAt).toLocaleTimeString()}
-                      </p>
-                      {ord.reportSummary && (
-                        <p className="text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-200 italic">Findings: "{ord.reportSummary}"</p>
-                      )}
-                      {ord.cancellationReason && (
-                        <p className="text-red-600">Reason: {ord.cancellationReason}</p>
-                      )}
-                      {ord.chargeStatus !== 'CANCELLED' && (
-                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
-                          <span className="text-slate-500">Charge: <strong className="text-indigo-700">{ord.chargeStatus || 'SUBMITTED'}</strong></span>
-                          <div className="flex gap-1.5">
-                            {ord.chargeStatus !== 'APPROVED' && ord.chargeStatus !== 'INCLUDED_IN_FINAL_BILL' && (
-                              <button type="button" onClick={() => handleApproveCharge(ord._id)}
-                                className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold border border-emerald-200 flex items-center gap-1">
-                                <Check size={10} /> Approve Charge
-                              </button>
-                            )}
-                            <button type="button" onClick={() => { setActionOrder(ord); setActionType('CORRECTION'); setActionNote(''); }}
-                              className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold border border-purple-200 flex items-center gap-1">
-                              <RotateCcw size={10} /> Correction
-                            </button>
-                            <button type="button" onClick={() => { setActionOrder(ord); setActionType('CANCEL'); setActionNote(''); }}
-                              className="px-2 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 font-bold border border-red-200 flex items-center gap-1">
-                              <Ban size={10} /> Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-slate-500 text-center py-3">No department test requests for this visit.</p>
-              )}
             </div>
 
-            {/* ── 2. Doctor Fees & Procedure Charges ── */}
+            {/* Doctor Fees */}
             <div className={sectionBg}>
               <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
-                <Receipt size={16} className="text-indigo-600" /> Doctor Fees & Procedure Charges
+                <Receipt size={16} className="text-indigo-600" /> Doctor Fees & Charges
               </span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Doctor Consultation Fee (₹)</label>
-                  <Input type="number" value={consultationFee} onChange={(e) => setConsultationFee(e.target.value)} className="font-mono font-bold" />
+                  <label className={labelClass}>Consultation Fee (₹)</label>
+                  <Input type="number" value={consultationFee} onChange={(e) => setConsultationFee(e.target.value)} />
                 </div>
                 <div>
                   <label className={labelClass}>Emergency Surcharge (₹)</label>
-                  <Input type="number" value={emergencyFee} onChange={(e) => setEmergencyFee(e.target.value)} className="font-mono font-bold" />
+                  <Input type="number" value={emergencyFee} onChange={(e) => setEmergencyFee(e.target.value)} />
                 </div>
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className={labelClass}>In-Clinic Procedure Charges</label>
-                  <Button size="sm" variant="outline" type="button" onClick={handleAddProcedureRow} className="gap-1 font-bold text-xs">
-                    <Plus size={12} /> Add Procedure
-                  </Button>
-                </div>
-                {doctorProcedureCharges.map((proc, idx) => (
-                  <div key={idx} className="flex gap-2 items-center mb-2">
-                    <Input placeholder="Procedure (e.g. Suturing, Dressing)..." value={proc.description} onChange={(e) => handleProcedureChange(idx, 'description', e.target.value)} className="flex-1" />
-                    <Input type="number" placeholder="₹ Amount" value={proc.amount} onChange={(e) => handleProcedureChange(idx, 'amount', e.target.value)} className="w-28 font-mono" />
-                    <button type="button" onClick={() => handleRemoveProcedureRow(idx)} className="text-red-500 hover:text-red-700 flex-shrink-0">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
               </div>
             </div>
 
-            {/* ── 3. Clinical Notes ── */}
-            <div className={sectionBg}>
-              <div>
-                <label className={labelClass}>Chief Complaint</label>
-                <textarea
-                  className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none"
-                  rows={2}
-                  value={chiefComplaints}
-                  onChange={(e) => setChiefComplaints(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Present Illness History</label>
-                <textarea
-                  className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none"
-                  rows={2}
-                  value={historyOfPresentIllness}
-                  onChange={(e) => setHistoryOfPresentIllness(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* ── 4. Structured Rx Prescriptions ── */}
+            {/* Structured Prescriptions */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className={labelClass}>Structured Rx Prescription</label>
+                <label className={labelClass}>Structured Prescription Entry (Integrated Stock Check)</label>
                 <Button size="sm" variant="outline" type="button" onClick={handleAddMedicineRow} className="gap-1 font-bold text-xs">
                   <Plus size={12} /> Add Medicine
                 </Button>
               </div>
-              <div className="table-wrapper border border-slate-200 rounded-xl overflow-hidden">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Medicine Name</th>
-                      <th>Dosage</th>
-                      <th>Frequency</th>
-                      <th>Days</th>
-                      <th className="text-right">Remove</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prescriptions.map((med, idx) => (
-                      <tr key={idx}>
-                        <td><Input placeholder="Medicine name..." value={med.medicineName} onChange={(e) => handleMedicineChange(idx, 'medicineName', e.target.value)} /></td>
-                        <td><Input value={med.dosage} onChange={(e) => handleMedicineChange(idx, 'dosage', e.target.value)} className="w-24" /></td>
-                        <td>
-                          <select value={med.frequency} onChange={(e) => handleMedicineChange(idx, 'frequency', e.target.value)}
-                            className="glass-input rounded-lg px-2 py-1.5 text-xs text-slate-900 w-full focus:border-indigo-500">
-                            <option value="ONCE_DAILY">Once Daily</option>
-                            <option value="TWICE_DAILY">Twice Daily</option>
-                            <option value="THRICE_DAILY">Thrice Daily</option>
+
+              <div className="space-y-3">
+                {prescriptions.map((med, idx) => {
+                  const matchMed = inventoryMedicines.find((m) => m.name === med.medicineName);
+                  const isOutOfStock = matchMed && (matchMed.totalQuantity ?? 0) === 0;
+
+                  return (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 shadow-xs">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div>
+                          <label className="font-bold text-slate-600">Medicine Name / SKU</label>
+                          <input
+                            type="text"
+                            list={`med-list-${idx}`}
+                            placeholder="Type or select medicine..."
+                            value={med.medicineName}
+                            onChange={(e) => {
+                              handleMedicineChange(idx, 'medicineName', e.target.value);
+                              handleSelectInventoryMed(idx, e.target.value);
+                            }}
+                            className="w-full p-2 border rounded text-xs font-bold text-slate-900 mt-1"
+                          />
+                          <datalist id={`med-list-${idx}`}>
+                            {inventoryMedicines.map((m) => (
+                              <option key={m._id} value={m.name}>
+                                {m.name} ({m.genericName}) — Stock: {m.totalQuantity ?? 0} units
+                              </option>
+                            ))}
+                          </datalist>
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-600">Dosage Form & Frequency</label>
+                          <div className="flex gap-1 mt-1">
+                            <select
+                              value={med.dosageForm}
+                              onChange={(e) => handleMedicineChange(idx, 'dosageForm', e.target.value)}
+                              className="w-1/2 p-2 border rounded text-xs"
+                            >
+                              {['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'DROPS', 'INHALER', 'IV_FLUID'].map((f) => (
+                                <option key={f} value={f}>{f}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={med.frequency}
+                              onChange={(e) => handleMedicineChange(idx, 'frequency', e.target.value)}
+                              className="w-1/2 p-2 border rounded text-xs"
+                            >
+                              <option value="ONCE_DAILY">Once Daily</option>
+                              <option value="TWICE_DAILY">Twice Daily</option>
+                              <option value="THRICE_DAILY">Thrice Daily</option>
+                              <option value="STAT_IMMEDIATE">STAT Immediate</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-600">Treatment Routing</label>
+                          <select
+                            value={med.treatmentType}
+                            onChange={(e) => handleMedicineChange(idx, 'treatmentType', e.target.value)}
+                            className="w-full p-2 border rounded text-xs font-bold mt-1 bg-indigo-50 text-indigo-900"
+                          >
+                            <option value="ORAL_TAKE_HOME">Oral / Take-Home (Queue to Pharmacy)</option>
+                            <option value="NURSE_ADMINISTERED">Nurse-Administered (Injection / IV / Dressing Task)</option>
                           </select>
-                        </td>
-                        <td><Input type="number" value={med.durationDays} onChange={(e) => handleMedicineChange(idx, 'durationDays', e.target.value)} className="w-16" /></td>
-                        <td className="text-right">
-                          <button type="button" onClick={() => handleRemoveMedicineRow(idx)} className="text-red-500 hover:text-red-700">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+
+                      {/* Stock Warning Banner */}
+                      {matchMed && (
+                        <div className={`p-2 rounded flex items-center justify-between text-[11px] ${isOutOfStock ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'}`}>
+                          <span>
+                            Available Stock: <strong>{matchMed.totalQuantity ?? 0} units</strong> ({matchMed.genericName})
+                            {isOutOfStock && ' — OUT OF STOCK in Hospital Pharmacy'}
+                          </span>
+                          {isOutOfStock && (
+                            <label className="flex items-center gap-1 font-bold cursor-pointer text-amber-800">
+                              <input
+                                type="checkbox"
+                                checked={med.externalPurchaseRequired}
+                                onChange={(e) => handleMedicineChange(idx, 'externalPurchaseRequired', e.target.checked)}
+                              />
+                              Mark for External Purchase
+                            </label>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1">
+                        <input
+                          type="text"
+                          placeholder="Instructions (e.g. After food)..."
+                          value={med.instructions}
+                          onChange={(e) => handleMedicineChange(idx, 'instructions', e.target.value)}
+                          className="w-4/5 p-1.5 border rounded text-xs"
+                        />
+                        <button type="button" onClick={() => handleRemoveMedicineRow(idx)} className="text-red-500 hover:text-red-700">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* ── 5. Consolidated Bill Preview ── */}
+            {/* Bill Preview */}
             <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
-              <div className="flex justify-between font-extrabold text-indigo-900 text-sm border-b border-indigo-200 pb-2">
-                <span className="flex items-center gap-1.5"><Receipt size={15} /> Consolidated Bill Preview</span>
+              <div className="flex justify-between font-extrabold text-indigo-900 text-sm">
+                <span>Grand Total Consultation Bill:</span>
                 <span className="font-mono">{formatCurrency(grandTotal)}</span>
               </div>
-              <div className="flex justify-between text-slate-700 font-semibold">
-                <span>Doctor Consultation Fee:</span>
-                <span className="font-mono font-bold">{formatCurrency(consultationFee)}</span>
-              </div>
-              {emergencyFee > 0 && (
-                <div className="flex justify-between text-slate-700 font-semibold">
-                  <span>Emergency Surcharge:</span>
-                  <span className="font-mono font-bold">{formatCurrency(emergencyFee)}</span>
-                </div>
-              )}
-              {totalDoctorProcedureCharges > 0 && (
-                <div className="flex justify-between text-slate-700 font-semibold">
-                  <span>Doctor Procedure Charges:</span>
-                  <span className="font-mono font-bold">{formatCurrency(totalDoctorProcedureCharges)}</span>
-                </div>
-              )}
-              {totalDepartmentCharges > 0 && (
-                <div className="flex justify-between text-emerald-800 font-extrabold">
-                  <span>Department Charges ({completedDeptOrders.length} Services):</span>
-                  <span className="font-mono">{formatCurrency(totalDepartmentCharges)}</span>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* ── Sticky Footer ── */}
+          {/* Footer */}
           <div className="modal-footer">
             <Button type="button" variant="outline" className="w-1/3 font-bold" onClick={onClose}>
               Cancel / Keep Draft
@@ -415,79 +409,27 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
               type="button"
               variant="success"
               className="w-2/3 font-bold gap-2"
-              disabled={hasPendingOrders}
               onClick={() => setShowConfirmModal(true)}
             >
               <CheckCircle2 size={17} />
-              Finalize & Send to Billing Desk
+              Finalize & Dispatch Tasks
             </Button>
           </div>
         </div>
       </div>
 
-      {/* ── Finalize Confirmation Sub-Modal ── */}
+      {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="max-w-md w-full bg-white rounded-2xl p-6 border border-slate-200 text-center space-y-4 shadow-xl">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-              <CheckCircle2 size={28} />
-            </div>
-            <h3 className="text-xl font-black text-slate-900">Finalize Consultation & Bill?</h3>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="max-w-md w-full bg-white rounded-2xl p-6 border text-center space-y-4 shadow-xl">
+            <h3 className="text-xl font-black text-slate-900">Finalize Consultation & Create Tasks?</h3>
             <p className="text-xs text-slate-600">
-              After finalization, the patient will be sent to the Billing Department queue. This cannot be undone.
+              Prescriptions will be routed to Pharmacy and Nurse Tasks created for injections/IV fluids.
             </p>
-            <div className="p-3 rounded-xl bg-slate-50 text-xs space-y-1.5 text-left border border-slate-200">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Patient:</span>
-                <span className="font-bold text-slate-900">{patient.firstName} {patient.lastName}</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                <span className="text-slate-500">Grand Total Bill:</span>
-                <span className="text-emerald-700 font-black font-mono text-base">{formatCurrency(grandTotal)}</span>
-              </div>
-            </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
               <Button type="button" variant="success" className="w-1/2 font-bold" isLoading={isLoading} onClick={handleFinalizeConfirmed}>
-                Confirm & Send to Billing
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Action Sub-Modal (Cancel/Correction) ── */}
-      {actionOrder && actionType && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="max-w-md w-full bg-white rounded-2xl p-6 border border-slate-200 shadow-xl space-y-3">
-            <h3 className="text-lg font-bold text-slate-900">
-              {actionType === 'CANCEL' ? 'Cancel Department Request' : 'Request Department Correction'}
-            </h3>
-            <p className="text-xs text-slate-500">
-              Target Test: <strong className="text-slate-900">{actionOrder.testName}</strong>
-            </p>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
-                {actionType === 'CANCEL' ? 'Mandatory Cancellation Reason:' : 'Correction Details / Remarks:'}
-              </label>
-              <textarea
-                className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none"
-                rows={3}
-                placeholder={actionType === 'CANCEL' ? 'Enter reason for cancellation...' : 'Enter note for technician...'}
-                value={actionNote}
-                onChange={(e) => setActionNote(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => { setActionOrder(null); setActionType(null); }}>Back</Button>
-              <Button
-                type="button"
-                variant={actionType === 'CANCEL' ? 'danger' : 'primary'}
-                className="w-1/2 font-bold"
-                onClick={actionType === 'CANCEL' ? handleCancelOrderSubmit : handleCorrectionSubmit}
-              >
-                Submit
+                Confirm & Finalize
               </Button>
             </div>
           </div>

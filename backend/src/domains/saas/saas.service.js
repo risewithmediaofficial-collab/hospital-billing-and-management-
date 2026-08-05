@@ -258,9 +258,54 @@ export class SaasService {
     const patientCounts = await buildPatientCounts(hospital._id);
     const todayMetrics = await buildTodayMetrics(hospital._id);
 
-    const totalStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: true });
+    const totalStaffCount = await User.countDocuments({ hospitalId: hospital._id });
     const activeStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: true });
     const inactiveStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: false });
+
+    // Fetch all staff members created for this hospital
+    const rawStaff = await User.find({ hospitalId: hospital._id })
+      .select('-passwordHash')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Fetch invoices for revenue calculations
+    const invoices = await Invoice.find({ hospitalId: hospital._id }).lean();
+    const totalHospitalRevenue = invoices.reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+
+    const consultations = await Consultation.find({ hospitalId: hospital._id }).lean();
+    const appointments = await Appointment.find({ hospitalId: hospital._id }).lean();
+
+    const staffList = rawStaff.map((s) => {
+      let patientsHandled = 0;
+      let revenueGenerated = 0;
+
+      if (s.role === ROLES.DOCTOR) {
+        patientsHandled = consultations.filter((c) => String(c.doctorId) === String(s._id)).length;
+        revenueGenerated = invoices
+          .filter((inv) => String(inv.doctorId) === String(s._id))
+          .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+      } else if (s.role === ROLES.RECEPTIONIST) {
+        patientsHandled = appointments.filter((a) => String(a.createdBy || a.receptionistId) === String(s._id)).length;
+      } else {
+        revenueGenerated = invoices
+          .filter((inv) => String(inv.createdBy || inv.cashierId) === String(s._id))
+          .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+      }
+
+      const credentialHint = s.assignedPasswordHint || hospital.initialAdminPassword || `${s.role.charAt(0) + s.role.slice(1).toLowerCase()}123!`;
+
+      return {
+        ...s,
+        credentialHint,
+        patientsHandled,
+        revenueGenerated,
+      };
+    });
+
+    const patientList = await Patient.find({ hospitalId: hospital._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
 
     const adminLastLogin = admin?.lastLoginAt || null;
 
@@ -274,9 +319,10 @@ export class SaasService {
         subscriptionPlan: hospital.plan,
         subscriptionExpiry: null,
         lastLogin: adminLastLogin,
-        totalStaff,
+        totalStaff: totalStaffCount,
         totalPatients: patientCounts.totalPatients,
         todayRevenue: todayMetrics.todayRevenue,
+        totalHospitalRevenue,
       },
       stats: {
         ...staffCounts,
@@ -285,7 +331,10 @@ export class SaasService {
         inactiveStaff,
         ...todayMetrics,
         todayBills: todayMetrics.pendingBilling,
+        totalHospitalRevenue,
       },
+      staffList,
+      patientList,
     };
   }
 
