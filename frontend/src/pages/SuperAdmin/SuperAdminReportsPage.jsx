@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   BarChart3, Scan, TestTube, Pill, Stethoscope, CreditCard, Users,
   Activity, Search, Download, Filter, FileText, CheckCircle2, Clock,
-  Calendar, ShieldAlert, IndianRupee, Eye, EyeOff, Key, Edit, Lock, X, ChevronRight
+  Calendar, ShieldAlert, IndianRupee, Eye, ChevronRight
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
@@ -18,14 +18,8 @@ export const SuperAdminReportsPage = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [hospitals, setHospitals] = useState([]);
-  const [showPasswords, setShowPasswords] = useState({});
-
-  // Password Change Modal State
-  const [selectedStaffForPassword, setSelectedStaffForPassword] = useState(null);
-  const [newPasswordInput, setNewPasswordInput] = useState('');
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-  const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState('');
-  const [passwordUpdateError, setPasswordUpdateError] = useState('');
+  const [selectedHospitalId, setSelectedHospitalId] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Domain Datasets
   const [radiologyOrders, setRadiologyOrders] = useState([]);
@@ -70,55 +64,8 @@ export const SuperAdminReportsPage = () => {
     fetchReportsData();
   }, []);
 
-  const toggleShowPassword = (id) => {
-    setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const handleMetricChange = (newMetric) => {
     setSearchParams({ metric: newMetric });
-  };
-
-  const handleOpenPasswordModal = (staff) => {
-    setSelectedStaffForPassword(staff);
-    setNewPasswordInput('');
-    setPasswordUpdateSuccess('');
-    setPasswordUpdateError('');
-  };
-
-  const handleSavePassword = async () => {
-    if (!newPasswordInput || newPasswordInput.trim().length < 4) {
-      setPasswordUpdateError('Password must be at least 4 characters long');
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    setPasswordUpdateError('');
-    setPasswordUpdateSuccess('');
-
-    try {
-      await axiosClient.patch(`/auth/staff/${selectedStaffForPassword._id}/password`, {
-        newPassword: newPasswordInput.trim()
-      });
-
-      setDoctorsData((prev) =>
-        prev.map((d) => {
-          if (d._id === selectedStaffForPassword._id) {
-            return { ...d, assignedPasswordHint: newPasswordInput.trim() };
-          }
-          return d;
-        })
-      );
-
-      setPasswordUpdateSuccess(`Password updated successfully for ${selectedStaffForPassword.name}`);
-      setTimeout(() => {
-        setSelectedStaffForPassword(null);
-      }, 1200);
-    } catch (err) {
-      console.error(err);
-      setPasswordUpdateError(err.response?.data?.message || 'Failed to update password');
-    } finally {
-      setIsUpdatingPassword(false);
-    }
   };
 
   const METRIC_TABS = [
@@ -126,7 +73,7 @@ export const SuperAdminReportsPage = () => {
     { id: 'radiology', label: 'Radiology & Imaging', icon: Scan },
     { id: 'laboratory', label: 'Pathology & Lab', icon: TestTube },
     { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill },
-    { id: 'doctors', label: 'Doctors & Credentials', icon: Stethoscope },
+    { id: 'doctors', label: 'Doctors & Consults', icon: Stethoscope },
     { id: 'billing', label: 'Billing & Revenue', icon: CreditCard },
     { id: 'patients', label: 'Patients & Admissions', icon: Users },
     { id: 'nursing', label: 'Nursing & Ward Tasks', icon: Activity },
@@ -344,7 +291,7 @@ export const SuperAdminReportsPage = () => {
         </div>
       )}
 
-      {/* ── METRIC 4: DOCTORS & CREDENTIALS ── */}
+      {/* ── METRIC 4: DOCTORS & CONSULTS ── */}
       {metric === 'doctors' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -355,11 +302,9 @@ export const SuperAdminReportsPage = () => {
           </div>
 
           <Card>
-            <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Stethoscope size={18} className="text-emerald-600" />
-                Doctor Credentials, OPD Cabins & Access Control ({doctorsData.length})
-              </span>
+            <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <Stethoscope size={18} className="text-emerald-600" />
+              Doctor Performance & Consultation Reports ({doctorsData.length})
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -368,58 +313,26 @@ export const SuperAdminReportsPage = () => {
                     <th className="p-3">Doctor Name</th>
                     <th className="p-3">Specialization</th>
                     <th className="p-3">Login Email</th>
-                    <th className="p-3">Assigned Password / Credential</th>
                     <th className="p-3">OPD Cabin</th>
                     <th className="p-3">Duty Status</th>
-                    <th className="p-3 text-right">Super Admin Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {doctorsData.map((d) => {
-                    const isShown = showPasswords[d._id];
-                    const pwdHint = d.assignedPasswordHint || d.credentialHint || 'Doctor123!';
-                    return (
-                      <tr key={d._id} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-slate-900">{d.name}</td>
-                        <td className="p-3 font-semibold text-slate-700">{d.specialization || 'General Physician'}</td>
-                        <td className="p-3 font-mono font-bold text-indigo-900">{d.email}</td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
-                            <Key size={13} className="text-amber-500 shrink-0" />
-                            <span className="font-mono font-bold text-slate-900">
-                              {isShown ? pwdHint : '••••••••••••'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => toggleShowPassword(d._id)}
-                              className="text-slate-400 hover:text-slate-700 ml-1"
-                              title="Toggle Password Visibility"
-                            >
-                              {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-indigo-700">{d.cabinNo || 'Cabin 101'}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded font-bold ${d.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                            {d.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                            onClick={() => handleOpenPasswordModal(d)}
-                          >
-                            <Edit size={12} className="mr-1" /> Change Password
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {doctorsData.map((d) => (
+                    <tr key={d._id} className="hover:bg-slate-50">
+                      <td className="p-3 font-bold text-slate-900">{d.name}</td>
+                      <td className="p-3 font-semibold text-slate-700">{d.specialization || 'General Physician'}</td>
+                      <td className="p-3 font-mono text-slate-600">{d.email}</td>
+                      <td className="p-3 font-mono font-bold text-indigo-700">{d.cabinNo || 'Cabin 101'}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded font-bold ${d.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                          {d.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                   {doctorsData.length === 0 && (
-                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">No doctors registered.</td></tr>
+                    <tr><td colSpan={5} className="p-8 text-center text-slate-500">No doctors registered.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -629,70 +542,6 @@ export const SuperAdminReportsPage = () => {
               </div>
             </div>
           </Card>
-        </div>
-      )}
-
-      {/* Change Password Modal for Super Admin */}
-      {selectedStaffForPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div className="flex items-center gap-2">
-                <Lock size={20} className="text-indigo-600" />
-                <h3 className="font-bold text-slate-900">Change Doctor Password</h3>
-              </div>
-              <button
-                onClick={() => setSelectedStaffForPassword(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-500">Updating credentials for:</p>
-              <p className="font-bold text-slate-900 text-sm mt-0.5">{selectedStaffForPassword.name}</p>
-              <p className="text-xs font-mono text-indigo-700">{selectedStaffForPassword.email} ({selectedStaffForPassword.role})</p>
-            </div>
-
-            {passwordUpdateError && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-                {passwordUpdateError}
-              </div>
-            )}
-
-            {passwordUpdateSuccess && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
-                <CheckCircle2 size={16} />
-                {passwordUpdateSuccess}
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">New Password</label>
-              <input
-                type="text"
-                placeholder="Enter new password (e.g. Doctor123!)"
-                value={newPasswordInput}
-                onChange={(e) => setNewPasswordInput(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedStaffForPassword(null)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="bg-indigo-600 text-white font-bold"
-                disabled={isUpdatingPassword}
-                onClick={handleSavePassword}
-              >
-                {isUpdatingPassword ? 'Saving Password...' : 'Save Password'}
-              </Button>
-            </div>
-          </div>
         </div>
       )}
     </div>
