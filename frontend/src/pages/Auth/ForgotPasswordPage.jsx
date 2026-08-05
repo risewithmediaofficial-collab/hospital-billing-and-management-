@@ -72,7 +72,7 @@ export const ForgotPasswordPage = () => {
               <Mail size={16} className="absolute left-3 top-3 text-slate-400" />
               <input
                 type="email"
-                placeholder="name@hospital.com"
+                placeholder="email@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"

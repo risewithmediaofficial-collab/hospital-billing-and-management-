@@ -24,10 +24,10 @@ export const env = {
   MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/hpmbs_db',
 
   JWT_SECRET: process.env.JWT_SECRET,
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
 
   REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
-  REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
+  REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d',
 
   FIELD_ENCRYPTION_KEY: process.env.FIELD_ENCRYPTION_KEY,
   SEARCH_HASH_KEY: process.env.SEARCH_HASH_KEY,

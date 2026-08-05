@@ -1,8 +1,9 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import * as Icons from 'lucide-react';
 import { SUPER_ADMIN_NAVIGATION, HOSPITAL_DRILLDOWN_NAVIGATION } from '../../utils/superAdminNavigation';
 import { useSuperAdminContextStore } from '../../store/superAdminContextStore';
+import { axiosClient } from '../../api/axiosClient';
 
 let savedSuperAdminSidebarScrollTop = 0;
 
@@ -48,11 +49,25 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
     if (onClose) onClose();
   };
 
-  const rawMenuItems = drilldownHospitalId
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const res = await axiosClient.get('/saas/hospitals');
+        const list = res.data || [];
+        const pending = list.filter((h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')).length;
+        setPendingCount(pending);
+      } catch (err) {
+        // Ignore fetch errors
+      }
+    };
+    fetchPending();
+  }, [location.pathname]);
+
+  const menuItems = drilldownHospitalId
     ? HOSPITAL_DRILLDOWN_NAVIGATION(drilldownHospitalId)
     : SUPER_ADMIN_NAVIGATION;
-
-  const menuItems = [...rawMenuItems].sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
   const isItemActive = (itemPath) => {
     const [itemPathname, itemSearch] = itemPath.split('?');
@@ -133,7 +148,12 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
                 }`}
               >
                 <IconComponent size={16} className={`shrink-0 ${active ? 'text-violet-500' : 'text-slate-400'}`} />
-                <span className="truncate">{item.title}</span>
+                <span className="truncate flex-1">{item.title}</span>
+                {item.badgeKey === 'PENDING_HOSPITALS' && pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs shrink-0">
+                    {pendingCount}
+                  </span>
+                )}
               </Link>
             );
           })}

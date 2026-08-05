@@ -25,7 +25,7 @@ export const SuperAdminHospitalsPage = () => {
 
   const [directForm, setDirectForm] = useState({
     hospitalName: '', subdomain: '', plan: 'ENTERPRISE',
-    contactName: '', contactEmail: '', contactPhone: '', adminPassword: '',
+    contactName: '', contactEmail: '', contactPhone: '', adminPassword: '', confirmAdminPassword: '',
   });
 
   useEffect(() => { fetchHospitals(); }, []);
@@ -48,6 +48,9 @@ export const SuperAdminHospitalsPage = () => {
     const isDel = h.isDeleted === true || h.status === 'DELETED';
     const isExp = h.isExpired === true || h.status === 'EXPIRED';
 
+    if (tabFilter === 'PENDING') {
+      return !isDel && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING');
+    }
     if (tabFilter === 'ACTIVE') {
       return !isDel && !isExp && (h.status === 'APPROVED' || h.isActive);
     }
@@ -61,6 +64,7 @@ export const SuperAdminHospitalsPage = () => {
     return !isDel;
   });
 
+  const pendingCount = hospitals.filter((h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')).length;
   const activeCount = hospitals.filter((h) => !h.isDeleted && h.status !== 'DELETED' && !h.isExpired && h.status === 'APPROVED').length;
   const expiredCount = hospitals.filter((h) => (h.isExpired || h.status === 'EXPIRED') && !h.isDeleted).length;
   const deletedCount = hospitals.filter((h) => h.isDeleted || h.status === 'DELETED').length;
@@ -69,7 +73,7 @@ export const SuperAdminHospitalsPage = () => {
     setIsLoading(true);
     try {
       await axiosClient.patch(`/saas/hospitals/${hospitalId}/approve`);
-      setActionMessage(`Hospital '${name}' approved successfully!`);
+      setActionMessage(`Hospital '${name}' approved successfully! Initial Admin password generated.`);
       fetchHospitals();
     } catch (err) {
       setActionMessage(`Failed: ${err.error?.message || err.message}`);
@@ -130,6 +134,12 @@ export const SuperAdminHospitalsPage = () => {
 
   const handleDirectCreate = async (e) => {
     e.preventDefault();
+    const pass = (directForm.adminPassword || '').trim();
+    const confirm = (directForm.confirmAdminPassword || '').trim();
+    if (pass !== confirm) {
+      setActionMessage('Admin Password and Confirm Admin Password do not match.');
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await axiosClient.post('/saas/register-hospital', {
@@ -169,18 +179,29 @@ export const SuperAdminHospitalsPage = () => {
       </div>
 
       {/* Tabs Navigation Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <button
           onClick={() => setSearchParams({ tab: 'ALL' })}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
             tabFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
           <Building2 size={14} /> All Hospitals ({hospitals.filter((h) => !h.isDeleted && h.status !== 'DELETED').length})
         </button>
         <button
+          onClick={() => setSearchParams({ tab: 'PENDING' })}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
+            tabFilter === 'PENDING' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+          }`}
+        >
+          <Clock size={14} /> Hospitals Requests ({pendingCount})
+          {pendingCount > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          )}
+        </button>
+        <button
           onClick={() => setSearchParams({ tab: 'ACTIVE' })}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
             tabFilter === 'ACTIVE' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
@@ -188,7 +209,7 @@ export const SuperAdminHospitalsPage = () => {
         </button>
         <button
           onClick={() => setSearchParams({ tab: 'EXPIRED' })}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
             tabFilter === 'EXPIRED' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
@@ -196,7 +217,7 @@ export const SuperAdminHospitalsPage = () => {
         </button>
         <button
           onClick={() => setSearchParams({ tab: 'DELETED' })}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
             tabFilter === 'DELETED' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
@@ -355,11 +376,12 @@ export const SuperAdminHospitalsPage = () => {
                 </div>
               ) : (
                 <form onSubmit={handleDirectCreate} className="space-y-3 text-xs">
-                  <Input label="Hospital Name" value={directForm.hospitalName} onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })} required />
-                  <Input label="Subdomain" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} required />
-                  <Input label="Contact Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} required />
-                  <Input label="Admin Email" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} required />
-                  <Input label="Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} />
+                  <Input label="Hospital Name" value={directForm.hospitalName} onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })} placeholder="Enter hospital name" required />
+                  <Input label="Subdomain" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="hospitalcode" required />
+                  <Input label="Contact Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="Your Name" required />
+                  <Input label="Admin Email" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="email@gmail.com" required />
+                  <Input label="Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="••••••••" />
+                  <Input label="Confirm Admin Password" type="password" value={directForm.confirmAdminPassword} onChange={(e) => setDirectForm({ ...directForm, confirmAdminPassword: e.target.value })} placeholder="••••••••" />
                   <div className="flex gap-2 pt-2">
                     <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsDirectCreateOpen(false)}>Cancel</Button>
                     <Button type="submit" variant="primary" className="w-1/2" isLoading={isLoading}>Provision</Button>

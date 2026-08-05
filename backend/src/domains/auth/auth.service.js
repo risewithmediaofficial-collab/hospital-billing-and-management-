@@ -92,10 +92,6 @@ export class AuthService {
       throw new ApiError(401, 'Invalid mobile number or password credentials', null, 'INVALID_CREDENTIALS');
     }
 
-    if (user && user.isEmailVerified === false && user.role === 'HOSPITAL_ADMIN') {
-      throw new ApiError(403, 'Your email address has not been verified yet. Please check your email for the verification link.', null, 'EMAIL_NOT_VERIFIED');
-    }
-
     if (user) {
       user.failedLoginAttempts = 0;
       user.lockUntil = null;

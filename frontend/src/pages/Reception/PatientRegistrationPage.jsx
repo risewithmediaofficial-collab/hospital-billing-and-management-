@@ -200,14 +200,14 @@ export const PatientRegistrationPage = () => {
                   label="First Name *"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  placeholder="e.g. John"
+                  placeholder="Your Name"
                   required
                 />
                 <Input
                   label="Last Name *"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  placeholder="e.g. Smith"
+                  placeholder="Enter last name"
                   required
                 />
               </div>
@@ -231,7 +231,7 @@ export const PatientRegistrationPage = () => {
                   type="number"
                   value={formData.age}
                   onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  placeholder="e.g. 35"
+                  placeholder="35"
                   required
                 />
 
@@ -255,7 +255,7 @@ export const PatientRegistrationPage = () => {
                   icon={Phone}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="e.g. +91 9876543210"
+                  placeholder="+91 98765 43210"
                   required
                 />
               </div>
@@ -266,7 +266,7 @@ export const PatientRegistrationPage = () => {
                   icon={MapPin}
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="e.g. 123 Health Ave, Block B"
+                  placeholder="Enter residential address"
                 />
               </div>
 
@@ -275,7 +275,7 @@ export const PatientRegistrationPage = () => {
                   label="Chief Complaints / Reason for Visit"
                   value={formData.chiefComplaints}
                   onChange={(e) => setFormData({ ...formData, chiefComplaints: e.target.value })}
-                  placeholder="e.g. Fever, Cough, High Blood Pressure, Consultation..."
+                  placeholder="Enter chief complaints"
                 />
               </div>
 
@@ -299,16 +299,14 @@ export const PatientRegistrationPage = () => {
                     label="Guardian / Relative Name"
                     value={formData.guardianName}
                     onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
-                    placeholder="e.g. Robert Smith"
+                    placeholder="Your Name"
                   />
-
                   <Input
-                    label="Guardian Mobile Number *"
+                    label="Guardian Mobile Number"
                     icon={Phone}
                     value={formData.guardianPhone}
                     onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
-                    placeholder="e.g. +91 9876543210"
-                    required
+                    placeholder="+91 98765 43210"
                   />
 
                   <div>

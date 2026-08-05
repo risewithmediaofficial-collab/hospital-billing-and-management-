@@ -93,7 +93,7 @@ export const ResetPasswordPage = () => {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="At least 4 characters"
+                  placeholder="••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium pr-10"
@@ -113,7 +113,7 @@ export const ResetPasswordPage = () => {
               <label className="text-xs font-bold text-slate-300">Confirm New Password</label>
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Re-enter new password"
+                placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"

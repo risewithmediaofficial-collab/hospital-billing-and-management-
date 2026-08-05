@@ -10,6 +10,9 @@ import { useAuthStore } from '../store/authStore';
 
 import { LoginPage } from '../pages/LoginPage';
 import { HospitalRegisterPage } from '../pages/HospitalRegisterPage';
+import { VerifyEmailPage } from '../pages/Auth/VerifyEmailPage';
+import { ForgotPasswordPage } from '../pages/Auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '../pages/Auth/ResetPasswordPage';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 

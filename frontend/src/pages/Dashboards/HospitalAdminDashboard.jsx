@@ -184,6 +184,7 @@ export const HospitalAdminDashboard = () => {
     email: '',
     phone: '',
     password: '',
+    confirmPassword: '',
     employeeId: '',
     designation: '',
     shiftDetails: 'MORNING (08:00 AM - 04:00 PM)',
@@ -411,6 +412,10 @@ export const HospitalAdminDashboard = () => {
     }
     if (!staffForm.id && (!staffForm.password || !staffForm.password.trim())) {
       setErrorMsg('Password is required for creating a new staff account.');
+      return;
+    }
+    if (!staffForm.id && staffForm.password !== staffForm.confirmPassword) {
+      setErrorMsg('Assign Password and Confirm Password do not match. Please re-enter.');
       return;
     }
 
@@ -751,23 +756,34 @@ export const HospitalAdminDashboard = () => {
                     </div>
 
                     {!staffForm.id && (
-                      <div className="relative">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="relative">
+                          <Input
+                            label="Assign Password"
+                            type={showCreatePassword ? 'text' : 'password'}
+                            value={staffForm.password}
+                            onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                            placeholder="••••••••"
+                            required={!staffForm.id}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCreatePassword(!showCreatePassword)}
+                            className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
+                            aria-label="Toggle Password Visibility"
+                          >
+                            {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+
                         <Input
-                          label="Assign Password or Temporary Password"
+                          label="Confirm Password"
                           type={showCreatePassword ? 'text' : 'password'}
-                          value={staffForm.password}
-                          onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                          placeholder="e.g. HospitalDoctor123!"
+                          value={staffForm.confirmPassword}
+                          onChange={(e) => setStaffForm({ ...staffForm, confirmPassword: e.target.value })}
+                          placeholder="••••••••"
                           required={!staffForm.id}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowCreatePassword(!showCreatePassword)}
-                          className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
-                          aria-label="Toggle Password Visibility"
-                        >
-                          {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
                       </div>
                     )}
 
@@ -1090,7 +1106,7 @@ export const HospitalAdminDashboard = () => {
                     type={showNewPassword ? 'text' : 'password'}
                     value={changeForm.newPassword}
                     onChange={(e) => setChangeForm({ ...changeForm, newPassword: e.target.value })}
-                    placeholder="Enter new password"
+                    placeholder="••••••••"
                     required
                   />
                   <button
@@ -1109,7 +1125,7 @@ export const HospitalAdminDashboard = () => {
                     type={showAdminPasswordChange ? 'text' : 'password'}
                     value={changeForm.adminPassword}
                     onChange={(e) => setChangeForm({ ...changeForm, adminPassword: e.target.value })}
-                    placeholder="Enter your admin password"
+                    placeholder="••••••••"
                     required
                   />
                   <button

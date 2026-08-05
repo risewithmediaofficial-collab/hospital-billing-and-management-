@@ -1,6 +1,7 @@
 /** Strictly platform-management navigation for the system owner. */
 export const SUPER_ADMIN_NAVIGATION = [
   { title: 'Dashboard', path: '/admin/dashboard', icon: 'LayoutDashboard' },
+  { title: 'Hospitals Requests', path: '/admin/hospitals?tab=PENDING', icon: 'FileClock', badgeKey: 'PENDING_HOSPITALS' },
   { title: 'All Hospitals', path: '/admin/hospitals', icon: 'Building2' },
   { title: 'Active Hospitals', path: '/admin/hospitals?tab=ACTIVE', icon: 'CheckCircle2' },
   { title: 'Expired Hospitals', path: '/admin/hospitals?tab=EXPIRED', icon: 'Clock' },

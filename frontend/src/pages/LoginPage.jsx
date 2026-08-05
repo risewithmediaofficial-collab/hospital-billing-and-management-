@@ -78,7 +78,7 @@ export const LoginPage = () => {
               icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email, phone, or UHID"
+              placeholder="email@gmail.com or +91 98765 43210"
               autoComplete="off"
               required
             />
@@ -89,7 +89,7 @@ export const LoginPage = () => {
               icon={Lock}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="••••••••"
               autoComplete="off"
               required
               rightElement={
@@ -104,6 +104,12 @@ export const LoginPage = () => {
                 </button>
               }
             />
+
+            <div className="flex items-center justify-end pt-0.5">
+              <Link to="/forgot-password" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
 
             <Button
               type="submit"

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { axiosClient } from '../api/axiosClient';
-import { Building2, ShieldCheck, CheckCircle, ArrowRight, Activity, Lock, Globe } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, ArrowRight, Activity, Lock, Globe, Eye, EyeOff } from 'lucide-react';
 
 export const HospitalRegisterPage = () => {
   const navigate = useNavigate();
@@ -17,14 +17,21 @@ export const HospitalRegisterPage = () => {
     licenseNumber: '',
     city: 'Metropolis',
     adminPassword: '',
+    confirmAdminPassword: '',
   });
 
+  const [showAdminPass, setShowAdminPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [registeredResult, setRegisteredResult] = useState(null);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.adminPassword !== formData.confirmAdminPassword) {
+      setError('Desired Admin Password and Confirm Password do not match. Please re-enter.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -96,7 +103,7 @@ export const HospitalRegisterPage = () => {
                   label="Hospital Name"
                   value={formData.hospitalName}
                   onChange={(e) => setFormData({ ...formData, hospitalName: e.target.value })}
-                  placeholder="Metro City General Hospital"
+                  placeholder="Enter hospital name"
                   required
                 />
 
@@ -104,7 +111,7 @@ export const HospitalRegisterPage = () => {
                   label="Target Subdomain / Code"
                   value={formData.subdomain}
                   onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })}
-                  placeholder="metrocity"
+                  placeholder="hospitalcode"
                   required
                 />
               </div>
@@ -127,7 +134,7 @@ export const HospitalRegisterPage = () => {
                   label="Medical License Number"
                   value={formData.licenseNumber}
                   onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-                  placeholder="HOSP-LIC-88402"
+                  placeholder="LIC-12345"
                   required
                 />
               </div>
@@ -137,7 +144,7 @@ export const HospitalRegisterPage = () => {
                   label="Contact Officer Name"
                   value={formData.contactName}
                   onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                  placeholder="Dr. Sarah Jenkins"
+                  placeholder="Your Name"
                   required
                 />
 
@@ -146,7 +153,7 @@ export const HospitalRegisterPage = () => {
                   type="email"
                   value={formData.contactEmail}
                   onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                  placeholder="admin@metrocityhospital.org"
+                  placeholder="email@gmail.com"
                   required
                 />
               </div>
@@ -156,18 +163,47 @@ export const HospitalRegisterPage = () => {
                   label="Contact Phone Number"
                   value={formData.contactPhone}
                   onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                  placeholder="+1 (555) 000-8844"
+                  placeholder="+91 98765 43210"
                   required
                 />
+              </div>
 
-                <Input
-                  label="Desired Hospital Admin Password"
-                  type="password"
-                  value={formData.adminPassword}
-                  onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
-                  placeholder="Create secure password"
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Input
+                    label="Desired Hospital Admin Password"
+                    type={showAdminPass ? 'text' : 'password'}
+                    value={formData.adminPassword}
+                    onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPass(!showAdminPass)}
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-700 p-0.5"
+                  >
+                    {showAdminPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    label="Confirm Admin Password"
+                    type={showConfirmPass ? 'text' : 'password'}
+                    value={formData.confirmAdminPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmAdminPassword: e.target.value })}
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-700 p-0.5"
+                  >
+                    {showConfirmPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-between">
