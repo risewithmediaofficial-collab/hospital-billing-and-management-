@@ -8,6 +8,8 @@ import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
 import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../utils/constants';
 import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog } from 'lucide-react';
+import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
+import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
 
 const ROLE_OPTIONS = [
   { code: 'DOCTOR', label: 'Doctor / Consultant' },
@@ -201,13 +203,31 @@ export const HospitalAdminDashboard = () => {
 
   const { socket } = useSocket();
   const [staffList, setStaffList] = useState([]);
+  const [hospitalData, setHospitalData] = useState(null);
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
   useEffect(() => {
     fetchStaff();
+    fetchHospitalInfo();
   }, []);
+
+  const fetchHospitalInfo = async () => {
+    try {
+      const meRes = await axiosClient.get('/auth/me');
+      if (meRes.data?.data?.hospitalId) {
+        const hId = meRes.data.data.hospitalId._id || meRes.data.data.hospitalId;
+        const hospRes = await axiosClient.get(`/saas/hospitals/${hId}/detail`).catch(() => null);
+        if (hospRes?.data?.hospital) {
+          setHospitalData(hospRes.data.hospital);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load hospital subscription detail:', err);
+    }
+  };
 
   useEffect(() => {
     if (!socket) return;
@@ -491,6 +511,23 @@ export const HospitalAdminDashboard = () => {
           <span className="hidden sm:inline">Create Staff Account & Access Configuration</span>
         </Button>
       </div>
+
+      {/* SaaS Subscription & 7-Day Trial Dashboard Widget */}
+      {hospitalData && (
+        <SubscriptionDashboardWidget
+          hospital={hospitalData}
+          stats={{ totalStaff: staffList.length, doctors: doctorsCount }}
+          onOpenRenewalModal={() => setIsRenewalModalOpen(true)}
+        />
+      )}
+
+      {/* Subscription Lockout & Plan Renewal Modal */}
+      <SubscriptionRenewalModal
+        isOpen={isRenewalModalOpen || hospitalData?.trialStatus === 'TRIAL_EXPIRED' || hospitalData?.status === 'EXPIRED'}
+        onClose={() => setIsRenewalModalOpen(false)}
+        hospital={hospitalData}
+        isLocked={hospitalData?.trialStatus === 'TRIAL_EXPIRED' || hospitalData?.status === 'EXPIRED'}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Hospital Roster" value={`${staffList.length} Staff`} subtitle="Flexible Access Accounts" icon={Users} color="sky" />

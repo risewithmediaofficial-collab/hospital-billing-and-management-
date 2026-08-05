@@ -171,6 +171,9 @@ export class SaasService {
       code = subdomain.toUpperCase();
     }
 
+    const trialStartDate = new Date();
+    const trialEndDate = new Date(trialStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     const hospital = await Hospital.create({
       name: data.hospitalName.trim(),
       code,
@@ -188,12 +191,45 @@ export class SaasService {
         country: data.country || 'USA',
       },
       initialAdminPassword: data.adminPassword || 'HospitalAdmin123!',
+      isTrial: true,
+      trialStartDate,
+      trialEndDate,
+      trialStatus: 'TRIAL_ACTIVE',
       isActive: true,
+    });
+
+    // Create Notification for Super Admin
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientRole: 'SUPER_ADMIN',
+      hospitalId: hospital._id,
+      title: `New Hospital Registration: ${hospital.name}`,
+      message: `Hospital ${hospital.name} (Code: ${hospital.code}) registered by ${hospital.contactName} (${hospital.contactEmail}, ${hospital.contactPhone}) on ${trialStartDate.toLocaleString()}. 7-Day Free Trial ends on ${trialEndDate.toLocaleDateString()}.`,
+      type: 'REGISTRATION',
+      link: `/admin/hospital/${hospital._id}/dashboard`,
+      metadata: {
+        hospitalId: hospital._id,
+        hospitalName: hospital.name,
+        contactName: hospital.contactName,
+        contactEmail: hospital.contactEmail,
+        contactPhone: hospital.contactPhone,
+        trialStatus: 'TRIAL_ACTIVE',
+        trialExpiryDate: trialEndDate,
+      },
+    });
+
+    // Audit Log Entry
+    await AuditLog.create({
+      hospitalId: hospital._id,
+      action: 'HOSPITAL_REGISTRATION',
+      module: 'SAAS',
+      details: `New hospital '${hospital.name}' registered with 7-day free trial ending ${trialEndDate.toLocaleDateString()}`,
     });
 
     return {
       hospital,
       adminInitialPassword: hospital.initialAdminPassword,
+      trialEndDate,
     };
   }
 
@@ -615,4 +651,236 @@ export class SaasService {
     });
     return hospital;
   }
+
+  // ── SUBSCRIPTION PLAN MANAGEMENT ──
+  static async createSubscriptionPlan(data, user) {
+    const { SubscriptionPlan } = await import('../../models/SubscriptionPlan.js');
+    if (!data.name || !data.code) {
+      throw new ApiError(400, 'Plan name and unique plan code are required.', null, 'VALIDATION_ERROR');
+    }
+    const code = String(data.code).toUpperCase().trim();
+    const existing = await SubscriptionPlan.findOne({ code });
+    if (existing) {
+      throw new ApiError(400, `Subscription plan with code '${code}' already exists.`, null, 'DUPLICATE_CODE');
+    }
+    const plan = await SubscriptionPlan.create({ ...data, code });
+    return plan;
+  }
+
+  static async getAllSubscriptionPlans() {
+    const { SubscriptionPlan } = await import('../../models/SubscriptionPlan.js');
+    let plans = await SubscriptionPlan.find({}).sort({ monthlyPrice: 1 });
+    if (plans.length === 0) {
+      // Seed default plans if none exist
+      plans = await SubscriptionPlan.insertMany([
+        {
+          name: 'STARTER PLAN',
+          code: 'STARTER',
+          description: 'Ideal for small clinics and single-specialty centers',
+          monthlyPrice: 2999,
+          yearlyPrice: 29990,
+          trialDays: 7,
+          staffLimits: { hospitalAdmins: 1, doctors: 5, receptionists: 2, nurses: 5, laboratoryStaff: 2, radiologyStaff: 2, pharmacyStaff: 2, billingStaff: 2, totalStaff: 20 },
+          usageLimits: { monthlyPatients: 2000, storageInGB: 10, branches: 1, departments: 10, notifications: 2000 },
+          supportLevel: 'BASIC',
+          backupFrequency: 'WEEKLY',
+          apiAccess: false,
+          isDefault: false,
+        },
+        {
+          name: 'PROFESSIONAL PLAN',
+          code: 'PROFESSIONAL',
+          description: 'Full-featured SaaS solution for multi-specialty hospitals',
+          monthlyPrice: 6999,
+          yearlyPrice: 69990,
+          trialDays: 7,
+          staffLimits: { hospitalAdmins: 2, doctors: 15, receptionists: 5, nurses: 15, laboratoryStaff: 5, radiologyStaff: 5, pharmacyStaff: 5, billingStaff: 5, totalStaff: 50 },
+          usageLimits: { monthlyPatients: 10000, storageInGB: 50, branches: 2, departments: 25, notifications: 10000 },
+          supportLevel: 'PRIORITY',
+          backupFrequency: 'DAILY',
+          apiAccess: true,
+          isDefault: true,
+        },
+        {
+          name: 'ENTERPRISE PLAN',
+          code: 'ENTERPRISE',
+          description: 'Unlimited capacity for multi-branch hospital networks',
+          monthlyPrice: 14999,
+          yearlyPrice: 149990,
+          trialDays: 7,
+          staffLimits: { hospitalAdmins: 5, doctors: 50, receptionists: 20, nurses: 50, laboratoryStaff: 20, radiologyStaff: 20, pharmacyStaff: 20, billingStaff: 20, totalStaff: 200 },
+          usageLimits: { monthlyPatients: 50000, storageInGB: 200, branches: 10, departments: 100, notifications: 50000 },
+          supportLevel: '24_7_DEDICATED',
+          backupFrequency: 'HOURLY',
+          apiAccess: true,
+          isDefault: false,
+        },
+      ]);
+    }
+    return plans;
+  }
+
+  static async updateSubscriptionPlan(planId, data, user) {
+    const { SubscriptionPlan } = await import('../../models/SubscriptionPlan.js');
+    const plan = await SubscriptionPlan.findByIdAndUpdate(planId, data, { new: true });
+    if (!plan) throw new ApiError(404, 'Subscription plan not found', null, 'NOT_FOUND');
+    return plan;
+  }
+
+  static async extendHospitalTrial(hospitalId, extraDays = 7, user) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) throw new ApiError(404, 'Hospital tenant not found', null, 'NOT_FOUND');
+
+    const currentEnd = hospital.trialEndDate && new Date(hospital.trialEndDate) > new Date()
+      ? new Date(hospital.trialEndDate)
+      : new Date();
+    
+    hospital.trialEndDate = new Date(currentEnd.getTime() + Number(extraDays) * 24 * 60 * 60 * 1000);
+    hospital.trialStatus = 'TRIAL_ACTIVE';
+    hospital.isTrial = true;
+    hospital.status = 'APPROVED';
+    await hospital.save();
+
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientRole: 'HOSPITAL_ADMIN',
+      hospitalId: hospital._id,
+      title: 'Free Trial Extended!',
+      message: `Your hospital free trial has been extended by ${extraDays} days. New trial expiry date: ${hospital.trialEndDate.toLocaleDateString()}.`,
+      type: 'TRIAL_STARTED',
+    });
+
+    await AuditLog.create({
+      hospitalId: hospital._id,
+      userId: user.id,
+      userRole: user.role,
+      action: 'TRIAL_EXTENDED',
+      module: 'SAAS',
+      details: `Super Admin extended trial for ${hospital.name} by ${extraDays} days until ${hospital.trialEndDate.toLocaleDateString()}`,
+    });
+
+    return hospital;
+  }
+
+  static async assignPlanToHospital(hospitalId, { planCode, billingCycle = 'MONTHLY' }, user) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) throw new ApiError(404, 'Hospital tenant not found', null, 'NOT_FOUND');
+
+    const { SubscriptionPlan } = await import('../../models/SubscriptionPlan.js');
+    const plan = await SubscriptionPlan.findOne({ code: String(planCode).toUpperCase() });
+    if (!plan) throw new ApiError(404, `Subscription plan '${planCode}' not found`, null, 'NOT_FOUND');
+
+    const months = billingCycle === 'YEARLY' ? 12 : 1;
+    hospital.plan = plan.code;
+    hospital.subscriptionPlanId = plan._id;
+    hospital.isTrial = false;
+    hospital.trialStatus = 'SUBSCRIPTION_ACTIVE';
+    hospital.status = 'APPROVED';
+    hospital.subscriptionStartDate = new Date();
+    hospital.subscriptionEndDate = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000);
+    hospital.staffLimits = plan.staffLimits;
+    hospital.usageLimits = plan.usageLimits;
+    hospital.enabledModules = plan.availableModules;
+    await hospital.save();
+
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientRole: 'HOSPITAL_ADMIN',
+      hospitalId: hospital._id,
+      title: 'Subscription Activated!',
+      message: `Your hospital is now subscribed to the ${plan.name} (${billingCycle}). Active until ${hospital.subscriptionEndDate.toLocaleDateString()}.`,
+      type: 'SUBSCRIPTION_ACTIVATED',
+    });
+
+    await AuditLog.create({
+      hospitalId: hospital._id,
+      userId: user.id,
+      userRole: user.role,
+      action: 'SUBSCRIPTION_PURCHASED',
+      module: 'SAAS',
+      details: `Plan '${plan.name}' assigned to ${hospital.name} until ${hospital.subscriptionEndDate.toLocaleDateString()}`,
+    });
+
+    return hospital;
+  }
+
+  // ── AUTOMATED TRIAL EXPIRY & REMINDERS EVALUATOR ──
+  static async evaluateHospitalTrials() {
+    const hospitals = await Hospital.find({ isDeleted: false });
+    const now = new Date();
+    const { NotificationService } = await import('../notifications/notification.service.js');
+
+    for (const hosp of hospitals) {
+      if (!hosp.isTrial || !hosp.trialEndDate) continue;
+
+      const diffTime = hosp.trialEndDate - now;
+      const remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const reminders = hosp.trialRemindersSent || { '3_days': false, '2_days': false, '1_day': false, '0_days': false };
+
+      if (remainingDays <= 0 && hosp.trialStatus !== 'TRIAL_EXPIRED') {
+        hosp.trialStatus = 'TRIAL_EXPIRED';
+        hosp.status = 'EXPIRED';
+        reminders['0_days'] = true;
+        hosp.trialRemindersSent = reminders;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Free Trial Expired',
+          message: `Your free trial has ended. Please renew your subscription to continue using the Hospital Billing & Management System. All your hospital data is safe.`,
+          type: 'TRIAL_EXPIRED',
+        });
+
+        await NotificationService.createNotification({
+          recipientRole: 'SUPER_ADMIN',
+          hospitalId: hosp._id,
+          title: `Trial Expired: ${hosp.name}`,
+          message: `Free trial for ${hosp.name} (Admin: ${hosp.contactEmail}) has expired today.`,
+          type: 'TRIAL_EXPIRED',
+          link: `/admin/hospital/${hosp._id}/dashboard`,
+        });
+      } else if (remainingDays === 1 && !reminders['1_day']) {
+        hosp.trialStatus = 'TRIAL_EXPIRING_SOON';
+        reminders['1_day'] = true;
+        hosp.trialRemindersSent = reminders;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Trial Expires Tomorrow!',
+          message: `Your hospital free trial will expire in 1 day. Subscribe now to continue uninterrupted access.`,
+          type: 'TRIAL_EXPIRING',
+        });
+      } else if (remainingDays === 2 && !reminders['2_days']) {
+        hosp.trialStatus = 'TRIAL_EXPIRING_SOON';
+        reminders['2_days'] = true;
+        hosp.trialRemindersSent = reminders;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Trial Expiring in 2 Days',
+          message: `Your hospital free trial will expire in 2 days. Subscribe now to continue uninterrupted access.`,
+          type: 'TRIAL_EXPIRING',
+        });
+      } else if (remainingDays === 3 && !reminders['3_days']) {
+        hosp.trialStatus = 'TRIAL_EXPIRING_SOON';
+        reminders['3_days'] = true;
+        hosp.trialRemindersSent = reminders;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Trial Expiring in 3 Days',
+          message: `Your hospital free trial will expire in 3 days. Subscribe now to continue uninterrupted access.`,
+          type: 'TRIAL_EXPIRING',
+        });
+      }
+    }
+  }
 }
+

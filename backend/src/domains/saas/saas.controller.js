@@ -127,3 +127,40 @@ export const restoreHospital = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getAllSubscriptionPlans = async (req, res, next) => {
+  try {
+    const plans = await SaasService.getAllSubscriptionPlans();
+    return sendSuccess(res, 200, 'Subscription plans retrieved', plans);
+  } catch (error) { next(error); }
+};
+
+export const createSubscriptionPlan = async (req, res, next) => {
+  try {
+    const plan = await SaasService.createSubscriptionPlan(req.body, req.user);
+    return sendSuccess(res, 201, 'Subscription plan created successfully', plan);
+  } catch (error) { next(error); }
+};
+
+export const updateSubscriptionPlan = async (req, res, next) => {
+  try {
+    const plan = await SaasService.updateSubscriptionPlan(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Subscription plan updated successfully', plan);
+  } catch (error) { next(error); }
+};
+
+export const extendHospitalTrial = async (req, res, next) => {
+  try {
+    const { extraDays } = req.body;
+    const hospital = await SaasService.extendHospitalTrial(req.params.id, extraDays || 7, req.user);
+    return sendSuccess(res, 200, `Hospital free trial extended by ${extraDays || 7} days.`, hospital);
+  } catch (error) { next(error); }
+};
+
+export const assignPlanToHospital = async (req, res, next) => {
+  try {
+    const hospital = await SaasService.assignPlanToHospital(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Subscription plan assigned to hospital successfully', hospital);
+  } catch (error) { next(error); }
+};
+

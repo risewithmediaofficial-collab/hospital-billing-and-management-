@@ -1,5 +1,20 @@
 import { Router } from 'express';
-import { login, getMe, logout, createStaffUser, updateStaffUser, getHospitalStaff, getStaffPassword, updateStaffPassword, updateDoctorAvailability, updateStaffPermissions } from './auth.controller.js';
+import {
+  login,
+  getMe,
+  logout,
+  createStaffUser,
+  updateStaffUser,
+  getHospitalStaff,
+  getStaffPassword,
+  updateStaffPassword,
+  updateDoctorAvailability,
+  updateStaffPermissions,
+  verifyEmail,
+  resendVerification,
+  forgotPassword,
+  resetPassword,
+} from './auth.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { authRateLimiter } from '../../middleware/rateLimiter.js';
 import { requireRole } from '../../middleware/permissions.js';
@@ -7,9 +22,15 @@ import { ROLES } from '../../config/constants.js';
 
 const router = Router();
 
+// Public Authentication Endpoints
 router.post('/login', authRateLimiter, login);
-router.get('/me', verifyJwt, getMe);
 router.post('/logout', verifyJwt, logout);
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification', resendVerification);
+router.post('/forgot-password', authRateLimiter, forgotPassword);
+router.post('/reset-password', authRateLimiter, resetPassword);
+
+router.get('/me', verifyJwt, getMe);
 
 // Protected Staff Management Endpoints
 router.post('/staff', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), createStaffUser);

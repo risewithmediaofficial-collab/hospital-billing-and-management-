@@ -120,3 +120,36 @@ export const updateStaffUser = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    const result = await AuthService.verifyEmail(token);
+    return sendSuccess(res, 200, result.message, result);
+  } catch (error) { next(error); }
+};
+
+export const resendVerification = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const result = await AuthService.resendVerification(email);
+    return sendSuccess(res, 200, result.message, result);
+  } catch (error) { next(error); }
+};
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const result = await AuthService.forgotPassword(email);
+    return sendSuccess(res, 200, result.message, result);
+  } catch (error) { next(error); }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body;
+    const result = await AuthService.resetPassword(token, newPassword);
+    return sendSuccess(res, 200, result.message, result);
+  } catch (error) { next(error); }
+};
+
+

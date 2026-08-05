@@ -64,8 +64,14 @@ export class AuthService {
       ],
     }).populate('hospitalId').populate('branchId');
 
-    // Patient and Guardian intentionally share the patient's mobile login ID.
-    // Their different passwords select the correct linked account.
+    if (candidates.length > 0) {
+      const lockCandidate = candidates[0];
+      if (lockCandidate.lockUntil && lockCandidate.lockUntil > new Date()) {
+        const remainingMins = Math.ceil((lockCandidate.lockUntil - Date.now()) / 60000);
+        throw new ApiError(403, `Account is temporarily locked due to repeated failed login attempts. Please try again in ${remainingMins} minutes.`, null, 'ACCOUNT_LOCKED');
+      }
+    }
+
     let user = null;
     let passwordAlreadyMatched = false;
     for (const candidate of candidates) {
@@ -73,11 +79,28 @@ export class AuthService {
         user = candidate;
         passwordAlreadyMatched = true;
         break;
+      } else {
+        candidate.failedLoginAttempts = (candidate.failedLoginAttempts || 0) + 1;
+        if (candidate.failedLoginAttempts >= 5) {
+          candidate.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // Lock for 15 minutes
+        }
+        await candidate.save().catch(() => {});
       }
     }
 
     if (candidates.length > 0 && !user) {
       throw new ApiError(401, 'Invalid mobile number or password credentials', null, 'INVALID_CREDENTIALS');
+    }
+
+    if (user && user.isEmailVerified === false && user.role === 'HOSPITAL_ADMIN') {
+      throw new ApiError(403, 'Your email address has not been verified yet. Please check your email for the verification link.', null, 'EMAIL_NOT_VERIFIED');
+    }
+
+    if (user) {
+      user.failedLoginAttempts = 0;
+      user.lockUntil = null;
+      user.lastLoginAt = new Date();
+      await user.save().catch(() => {});
     }
 
     // On-demand auto-provisioning for Patients / Guardians
@@ -564,5 +587,144 @@ export class AuthService {
     const { AuditLog } = await import('../../models/AuditLog.js');
     await AuditLog.create({ hospitalId: staff.hospitalId, userId: requestingUser.id, userRole: requestingUser.role, action: 'PERMISSIONS_UPDATED', module: 'STAFF_MANAGEMENT', resourceId: String(staff._id), previousState, newState: staff.permissions, details: `Permissions updated for ${staff.name}` });
     return staff;
+  }
+
+  static async verifyEmail(token) {
+    if (!token) throw new ApiError(400, 'Verification token is required.', null, 'VALIDATION_ERROR');
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      throw new ApiError(400, 'Invalid or expired email verification token.', null, 'INVALID_TOKEN');
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    user.status = 'ACTIVE';
+    user.isActive = true;
+    await user.save();
+
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientUserId: user._id,
+      recipientRole: user.role,
+      hospitalId: user.hospitalId,
+      title: 'Email Verified Successfully',
+      message: `Your email address (${user.email}) has been verified. You may now log in.`,
+      type: 'EMAIL_VERIFIED',
+    });
+
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({
+      hospitalId: user.hospitalId,
+      userId: user._id,
+      userRole: user.role,
+      action: 'EMAIL_VERIFIED',
+      module: 'AUTH',
+      details: `User ${user.email} successfully verified email address.`,
+    });
+
+    return { message: 'Email address verified successfully. You may now log in.' };
+  }
+
+  static async resendVerification(email) {
+    if (!email) throw new ApiError(400, 'Email address is required.', null, 'VALIDATION_ERROR');
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+    if (!user) {
+      return { message: 'If an unverified account exists with that email, a new verification link has been sent.' };
+    }
+
+    const { default: crypto } = await import('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationToken = token;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
+
+    return { message: 'Verification email sent successfully.', verificationToken: token };
+  }
+
+  static async forgotPassword(email) {
+    if (!email) throw new ApiError(400, 'Email address is required.', null, 'VALIDATION_ERROR');
+    const cleanEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      return { message: 'If an account exists with that email address, a password reset link has been sent.' };
+    }
+
+    const { default: crypto } = await import('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = token;
+    user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    await user.save();
+
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientUserId: user._id,
+      recipientRole: user.role,
+      hospitalId: user.hospitalId,
+      title: 'Password Reset Request',
+      message: `A password reset link was requested for ${user.email}. Token valid for 30 minutes.`,
+      type: 'PASSWORD_RESET_REQUEST',
+    });
+
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({
+      hospitalId: user.hospitalId,
+      userId: user._id,
+      userRole: user.role,
+      action: 'PASSWORD_RESET_REQUESTED',
+      module: 'AUTH',
+      details: `Password reset token generated for ${user.email}`,
+    });
+
+    return { message: 'Password reset link sent successfully.', resetToken: token };
+  }
+
+  static async resetPassword(token, newPassword) {
+    if (!token || !newPassword || newPassword.trim().length < 4) {
+      throw new ApiError(400, 'Token and a valid new password (at least 4 characters) are required.', null, 'VALIDATION_ERROR');
+    }
+
+    const user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      throw new ApiError(400, 'Invalid or expired password reset token.', null, 'INVALID_TOKEN');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword.trim(), 12);
+    user.assignedPasswordHint = newPassword.trim();
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
+    await user.save();
+
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.createNotification({
+      recipientUserId: user._id,
+      recipientRole: user.role,
+      hospitalId: user.hospitalId,
+      title: 'Password Changed Successfully',
+      message: `Your account password was updated successfully. If you did not make this change, contact support immediately.`,
+      type: 'PASSWORD_CHANGED',
+    });
+
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({
+      hospitalId: user.hospitalId,
+      userId: user._id,
+      userRole: user.role,
+      action: 'PASSWORD_RESET_COMPLETED',
+      module: 'AUTH',
+      details: `Password successfully updated via reset token for ${user.email}`,
+    });
+
+    return { message: 'Password reset successfully. You can now log in with your new password.' };
   }
 }

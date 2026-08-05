@@ -24,6 +24,9 @@ import guardianPortalRoutes from './domains/guardian-portal/guardian-portal.rout
 import doctorUpdatesRoutes from './domains/doctor-updates/doctor-updates.routes.js';
 import workflowRoutes from './domains/workflow/workflow.routes.js';
 import pharmacyRoutes from './domains/pharmacy/pharmacy.routes.js';
+import notificationRoutes from './domains/notifications/notification.routes.js';
+
+import { SaasService } from './domains/saas/saas.service.js';
 
 const app = express();
 
@@ -81,6 +84,19 @@ app.use('/api/v1/guardian-portal', guardianPortalRoutes);
 app.use('/api/v1/doctor-updates', doctorUpdatesRoutes);
 app.use('/api/v1/workflow', workflowRoutes);
 app.use('/api/v1/pharmacy', pharmacyRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+
+// Automated Trial Expiry & Reminders Background Evaluator (Runs every 10 minutes)
+setInterval(() => {
+  SaasService.evaluateHospitalTrials().catch((err) =>
+    console.error('Error running trial evaluator task:', err)
+  );
+}, 10 * 60 * 1000);
+
+// Run initial trial check on server boot after 10s delay
+setTimeout(() => {
+  SaasService.evaluateHospitalTrials().catch(() => {});
+}, 10000);
 
 // Global Error Handler
 app.use(errorHandler);

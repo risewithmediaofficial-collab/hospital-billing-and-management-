@@ -38,6 +38,15 @@ const userSchema = new mongoose.Schema(
     permissionUpdatedAt: { type: Date, default: null },
     permissionUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     lastLoginAt: { type: Date },
+
+    // Email Verification & Password Reset Security
+    isEmailVerified: { type: Boolean, default: true }, // Default true for seed/admin users, updated dynamically for registrations
+    emailVerificationToken: { type: String, default: null },
+    emailVerificationExpires: { type: Date, default: null },
+    passwordResetToken: { type: String, default: null },
+    passwordResetExpires: { type: Date, default: null },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );
