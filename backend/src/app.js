@@ -42,6 +42,18 @@ app.use(cookieParser());
 // Global Rate Limiter
 app.use('/api/', apiRateLimiter);
 
+// Root Endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'UP',
+    name: 'Hospital Billing and Management System (HPMBS) Backend API',
+    version: '1.0.0',
+    documentation: 'All API routes are mounted under /api/v1/',
+    healthCheck: '/api/v1/health',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health Check Endpoint
 app.get('/api/v1/health', (req, res) => {
   res.status(200).json({
