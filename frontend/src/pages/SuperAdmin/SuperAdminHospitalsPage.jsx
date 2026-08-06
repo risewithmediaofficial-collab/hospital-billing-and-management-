@@ -19,6 +19,7 @@ export const SuperAdminHospitalsPage = () => {
   const [isDirectCreateOpen, setIsDirectCreateOpen] = useState(false);
   const [isEditCredentialsOpen, setIsEditCredentialsOpen] = useState(false);
   const [editingHospital, setEditingHospital] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [credentialsForm, setCredentialsForm] = useState({
     name: '', email: '', password: '',
   });
@@ -153,6 +154,7 @@ export const SuperAdminHospitalsPage = () => {
 
   const openEditCredentialsModal = (hosp) => {
     setEditingHospital(hosp);
+    setShowPassword(false);
     setCredentialsForm({
       name: hosp.contactName || '',
       email: hosp.contactEmail || '',
@@ -485,8 +487,26 @@ export const SuperAdminHospitalsPage = () => {
                   placeholder="email@example.com"
                   required
                 />
+                <div className="relative">
+                  <Input
+                    label="Current Password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={editingHospital.initialAdminPassword || 'HospitalAdmin123!'}
+                    disabled
+                    className="pr-10 bg-slate-50 border-slate-200 select-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
                 <Input
-                  label="New Password (Leave blank to keep current)"
+                  label="New/Change Password (Leave blank to keep current)"
                   type="password"
                   value={credentialsForm.password}
                   onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
