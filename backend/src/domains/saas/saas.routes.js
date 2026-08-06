@@ -18,6 +18,7 @@ import {
   createSubscriptionPlan,
   updateSubscriptionPlan,
   extendHospitalTrial,
+  assignPlanToHospital,
   getPendingApprovals,
   getSubscriptionAlerts,
   updateHospitalAdminCredentials,
