@@ -54,7 +54,7 @@ export class AuthService {
 
   static async login(identifier, password) {
     const cleanId = identifier ? String(identifier).trim() : '';
-    const candidates = await User.find({
+    let candidates = await User.find({
       $or: [
         { loginIds: cleanId },
         { email: cleanId.toLowerCase() },
@@ -63,6 +63,14 @@ export class AuthService {
         { uhid: cleanId.toUpperCase() },
       ],
     }).populate('hospitalId').populate('branchId');
+
+    // Filter out users belonging to deleted/soft-deleted hospitals
+    candidates = candidates.filter((candidate) => {
+      if (candidate.hospitalId && (candidate.hospitalId.isDeleted === true || candidate.hospitalId.status === 'DELETED')) {
+        return false;
+      }
+      return true;
+    });
 
     if (candidates.length > 0) {
       const lockCandidate = candidates[0];

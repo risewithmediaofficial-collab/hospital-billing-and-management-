@@ -18,9 +18,9 @@ import {
   createSubscriptionPlan,
   updateSubscriptionPlan,
   extendHospitalTrial,
-  assignPlanToHospital,
   getPendingApprovals,
   getSubscriptionAlerts,
+  updateHospitalAdminCredentials,
 } from './saas.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { requireRole } from '../../middleware/permissions.js';
@@ -57,5 +57,6 @@ router.delete('/hospitals/:id', ...superAdminOnly, deleteHospital);
 router.patch('/hospitals/:id/delete', ...superAdminOnly, deleteHospital);
 router.patch('/hospitals/:id/restore', ...superAdminOnly, restoreHospital);
 router.delete('/hospitals/:id/permanent', ...superAdminOnly, permanentlyDeleteHospital);
+router.patch('/hospitals/:id/admin-credentials', ...superAdminOnly, updateHospitalAdminCredentials);
 
 export default router;

@@ -17,11 +17,16 @@ export const SuperAdminHospitalsPage = () => {
   const [hospitals, setHospitals] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDirectCreateOpen, setIsDirectCreateOpen] = useState(false);
+  const [isEditCredentialsOpen, setIsEditCredentialsOpen] = useState(false);
+  const [editingHospital, setEditingHospital] = useState(null);
+  const [credentialsForm, setCredentialsForm] = useState({
+    name: '', email: '', password: '',
+  });
   const [actionMessage, setActionMessage] = useState(null);
   const [provisionedCreds, setProvisionedCreds] = useState(null);
   const [viewMode, setViewMode] = useState('cards');
 
-  useScrollLock(isDirectCreateOpen || Boolean(provisionedCreds));
+  useScrollLock(isDirectCreateOpen || isEditCredentialsOpen || Boolean(provisionedCreds));
 
   const [directForm, setDirectForm] = useState({
     hospitalName: '', subdomain: '', plan: 'ENTERPRISE',
@@ -141,6 +146,32 @@ export const SuperAdminHospitalsPage = () => {
       fetchHospitals();
     } catch (err) {
       setActionMessage(`Failed to permanently delete: ${err.error?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openEditCredentialsModal = (hosp) => {
+    setEditingHospital(hosp);
+    setCredentialsForm({
+      name: hosp.contactName || '',
+      email: hosp.contactEmail || '',
+      password: '',
+    });
+    setIsEditCredentialsOpen(true);
+  };
+
+  const handleUpdateCredentials = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await axiosClient.patch(`/saas/hospitals/${editingHospital._id}/admin-credentials`, credentialsForm);
+      setActionMessage(`Admin credentials for '${editingHospital.name}' updated successfully!`);
+      setIsEditCredentialsOpen(false);
+      setEditingHospital(null);
+      fetchHospitals();
+    } catch (err) {
+      setActionMessage(`Failed to update credentials: ${err.response?.data?.message || err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -286,6 +317,12 @@ export const SuperAdminHospitalsPage = () => {
                 <Button size="sm" variant="primary" className="flex-1" onClick={() => navigate(`/admin/hospital/${hosp._id}/dashboard`)}>
                   <Eye size={14} /> View
                 </Button>
+                
+                {!hosp.isDeleted && hosp.status !== 'DELETED' && (
+                  <Button size="sm" variant="outline" className="flex-1 text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100 font-bold gap-1" onClick={() => openEditCredentialsModal(hosp)}>
+                    <Key size={13} /> Admin
+                  </Button>
+                )}
 
                 {hosp.isDeleted || hosp.status === 'DELETED' ? (
                   <>
@@ -355,6 +392,9 @@ export const SuperAdminHospitalsPage = () => {
                     <td className="p-3">{formatDateTime(hosp.lastLogin)}</td>
                     <td className="p-3 text-right flex items-center justify-end gap-1.5">
                       <Button size="sm" variant="primary" onClick={() => navigate(`/admin/hospital/${hosp._id}/dashboard`)}>View</Button>
+                      {!hosp.isDeleted && hosp.status !== 'DELETED' && (
+                        <Button size="sm" variant="outline" onClick={() => openEditCredentialsModal(hosp)}>Admin</Button>
+                      )}
                       {hosp.isDeleted || hosp.status === 'DELETED' ? (
                         <>
                           <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200" onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>Restore</Button>
@@ -410,6 +450,61 @@ export const SuperAdminHospitalsPage = () => {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditCredentialsOpen && editingHospital && (
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100"><Key size={18} /></div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Hospital Admin Credentials</h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{editingHospital.name} ({editingHospital.code})</p>
+                </div>
+              </div>
+              <button onClick={() => { setIsEditCredentialsOpen(false); setEditingHospital(null); }} className="modal-close-btn">×</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleUpdateCredentials} className="space-y-4 text-xs">
+                <Input
+                  label="Hospital Admin Name"
+                  value={credentialsForm.name}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, name: e.target.value })}
+                  placeholder="Enter name"
+                  required
+                />
+                <Input
+                  label="Hospital Admin Email"
+                  type="email"
+                  value={credentialsForm.email}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, email: e.target.value })}
+                  placeholder="email@example.com"
+                  required
+                />
+                <Input
+                  label="New Password (Leave blank to keep current)"
+                  type="password"
+                  value={credentialsForm.password}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
+                  placeholder="••••••••"
+                />
+
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl space-y-1">
+                  <p className="font-bold flex items-center gap-1"><span className="text-sm">💡</span> Password Reminder</p>
+                  <p className="text-[10px]">
+                    If you change the password here, the administrator will need to use the new password on their next login attempt.
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button type="button" variant="outline" className="w-1/2" onClick={() => { setIsEditCredentialsOpen(false); setEditingHospital(null); }}>Cancel</Button>
+                  <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Update Credentials</Button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

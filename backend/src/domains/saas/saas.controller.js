@@ -186,3 +186,10 @@ export const getSubscriptionAlerts = async (req, res, next) => {
     return sendSuccess(res, 200, 'Subscription alerts retrieved', alerts);
   } catch (error) { next(error); }
 };
+
+export const updateHospitalAdminCredentials = async (req, res, next) => {
+  try {
+    const result = await SaasService.updateHospitalAdminCredentials(req.params.id, req.body);
+    return sendSuccess(res, 200, 'Hospital admin credentials updated successfully', result);
+  } catch (error) { next(error); }
+};

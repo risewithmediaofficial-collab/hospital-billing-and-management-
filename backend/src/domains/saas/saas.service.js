@@ -158,6 +158,16 @@ export class SaasService {
       throw new ApiError(400, `A hospital application with email '${cleanEmail}' already exists`, null, 'DUPLICATE_EMAIL');
     }
 
+    const existingUser = await User.findOne({ email: cleanEmail });
+    if (existingUser) {
+      throw new ApiError(
+        400,
+        `A user with email '${cleanEmail}' already exists in the system. If this email belongs to a deleted hospital, please permanently delete it first to free up the email.`,
+        null,
+        'DUPLICATE_EMAIL'
+      );
+    }
+
     let rawSubdomain = data.subdomain || data.hospitalName;
     let subdomain = String(rawSubdomain).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     if (!subdomain) {
@@ -1101,6 +1111,61 @@ export class SaasService {
         });
       }
     }
+  }
+
+  static async updateHospitalAdminCredentials(hospitalId, data) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital not found');
+    }
+
+    const { name, email, password } = data;
+    const cleanEmail = email ? email.toLowerCase().trim() : '';
+
+    if (cleanEmail && cleanEmail !== hospital.contactEmail.toLowerCase()) {
+      const existingUser = await User.findOne({ email: cleanEmail });
+      if (existingUser) {
+        throw new ApiError(400, `A user with email '${cleanEmail}' already exists in the system.`);
+      }
+    }
+
+    let adminUser = await User.findOne({ hospitalId, role: 'HOSPITAL_ADMIN' });
+    if (!adminUser) {
+      const passwordHash = await bcrypt.hash(password || 'HospitalAdmin123!', 12);
+      adminUser = await User.create({
+        hospitalId: hospital._id,
+        name: name || hospital.contactName || 'Hospital Admin',
+        email: cleanEmail || hospital.contactEmail,
+        passwordHash,
+        assignedPasswordHint: password || 'HospitalAdmin123!',
+        role: 'HOSPITAL_ADMIN',
+        phone: hospital.contactPhone || '+1 (555) 000-0000',
+        status: 'ACTIVE',
+      });
+    } else {
+      if (name) adminUser.name = name;
+      if (cleanEmail) adminUser.email = cleanEmail;
+      if (password) {
+        adminUser.passwordHash = password;
+        adminUser.assignedPasswordHint = password;
+      }
+      await adminUser.save();
+    }
+
+    if (name) hospital.contactName = name;
+    if (cleanEmail) hospital.contactEmail = cleanEmail;
+    if (password) hospital.initialAdminPassword = password;
+    await hospital.save();
+
+    return {
+      hospital,
+      adminUser: {
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role,
+        assignedPasswordHint: adminUser.assignedPasswordHint
+      }
+    };
   }
 }
 
