@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, CheckCircle2, XCircle, Eye, Building2, Mail, Phone,
-  MapPin, Calendar, Clock, RefreshCw, ShieldCheck, AlertTriangle, User
+  MapPin, Calendar, Clock, RefreshCw, ShieldCheck, AlertTriangle, User, Trash2
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -73,6 +73,20 @@ export const SuperAdminPendingApprovalsPage = () => {
       setHospitals((prev) => prev.filter((h) => h._id !== hospital._id));
     } catch (err) {
       showMsg(`Failed to reject: ${err?.response?.data?.message || err.message}`, 'error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (hospital) => {
+    if (!window.confirm(`Permanently delete "${hospital.name}"? This will completely wipe all its branches, departments, users, and transactions from the database immediately.`)) return;
+    setProcessingId(hospital._id);
+    try {
+      await axiosClient.delete(`/saas/hospitals/${hospital._id}/permanent`);
+      showMsg(`🗑️ "${hospital.name}" and all its records permanently deleted.`, 'success');
+      setHospitals((prev) => prev.filter((h) => h._id !== hospital._id));
+    } catch (err) {
+      showMsg(`Failed to delete: ${err?.response?.data?.message || err.message}`, 'error');
     } finally {
       setProcessingId(null);
     }
@@ -222,18 +236,26 @@ export const SuperAdminPendingApprovalsPage = () => {
                     <button
                       onClick={() => handleApprove(hospital)}
                       disabled={isProcessing}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
-                      <CheckCircle2 size={15} />
-                      {isProcessing ? 'Processing...' : 'Approve & Provision'}
+                      <CheckCircle2 size={13} />
+                      {isProcessing ? '...' : 'Approve'}
                     </button>
                     <button
                       onClick={() => handleReject(hospital)}
                       disabled={isProcessing}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <XCircle size={15} />
+                      <XCircle size={13} />
                       Reject
+                    </button>
+                    <button
+                      onClick={() => handleDelete(hospital)}
+                      disabled={isProcessing}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={13} />
+                      Delete
                     </button>
                   </div>
                   <button

@@ -12,6 +12,7 @@ import {
   getHospitalsWithStats,
   updateHospitalConfiguration,
   deleteHospital,
+  permanentlyDeleteHospital,
   restoreHospital,
   getAllSubscriptionPlans,
   createSubscriptionPlan,
@@ -55,5 +56,6 @@ router.patch('/hospitals/:id/status', ...superAdminOnly, updateHospitalStatus);
 router.delete('/hospitals/:id', ...superAdminOnly, deleteHospital);
 router.patch('/hospitals/:id/delete', ...superAdminOnly, deleteHospital);
 router.patch('/hospitals/:id/restore', ...superAdminOnly, restoreHospital);
+router.delete('/hospitals/:id/permanent', ...superAdminOnly, permanentlyDeleteHospital);
 
 export default router;

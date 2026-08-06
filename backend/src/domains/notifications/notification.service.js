@@ -36,8 +36,10 @@ export class NotificationService {
         { hospitalId, recipientRole: role },
         { hospitalId, recipientRole: 'ALL' },
       ];
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     } else {
       query.recipientUserId = userId;
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     }
     return await Notification.countDocuments(query);
   }
@@ -55,8 +57,10 @@ export class NotificationService {
         { hospitalId, recipientRole: role },
         { hospitalId, recipientRole: 'ALL' },
       ];
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     } else {
       query.recipientUserId = userId;
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     }
 
     const notifications = await Notification.find(query)
@@ -93,11 +97,14 @@ export class NotificationService {
         { hospitalId, recipientRole: role },
         { hospitalId, recipientRole: 'ALL' },
       ];
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     } else {
       query.recipientUserId = userId;
+      query.recipientRole = { $ne: 'SUPER_ADMIN' };
     }
 
     await Notification.updateMany(query, { isRead: true, readAt: new Date() });
     return { success: true };
   }
 }
+

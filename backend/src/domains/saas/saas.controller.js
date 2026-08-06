@@ -119,6 +119,15 @@ export const deleteHospital = async (req, res, next) => {
   }
 };
 
+export const permanentlyDeleteHospital = async (req, res, next) => {
+  try {
+    const deleted = await SaasService.permanentlyDeleteHospital(req.params.id);
+    return sendSuccess(res, 200, 'Hospital tenant permanently deleted successfully', deleted);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const restoreHospital = async (req, res, next) => {
   try {
     const restored = await SaasService.restoreHospital(req.params.id);

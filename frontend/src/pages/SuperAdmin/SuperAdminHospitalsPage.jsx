@@ -132,6 +132,20 @@ export const SuperAdminHospitalsPage = () => {
     }
   };
 
+  const handlePermanentDelete = async (hospitalId, name) => {
+    if (!window.confirm(`⚠️ WARNING: Are you absolutely sure you want to PERMANENTLY delete hospital '${name}'? This will completely wipe all of its branches, departments, users, and transactions from the database immediately. This action CANNOT be undone.`)) return;
+    setIsLoading(true);
+    try {
+      await axiosClient.delete(`/saas/hospitals/${hospitalId}/permanent`);
+      setActionMessage(`Hospital '${name}' and all associated database records permanently deleted.`);
+      fetchHospitals();
+    } catch (err) {
+      setActionMessage(`Failed to permanently delete: ${err.error?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDirectCreate = async (e) => {
     e.preventDefault();
     const pass = (directForm.adminPassword || '').trim();
@@ -274,9 +288,14 @@ export const SuperAdminHospitalsPage = () => {
                 </Button>
 
                 {hosp.isDeleted || hosp.status === 'DELETED' ? (
-                  <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 font-bold gap-1" isLoading={isLoading} onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>
-                    <RotateCcw size={13} /> Restore
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 font-bold gap-1" isLoading={isLoading} onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>
+                      <RotateCcw size={13} /> Restore
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-red-700 bg-red-50 border-red-200 hover:bg-red-100 font-bold gap-1" isLoading={isLoading} onClick={() => handlePermanentDelete(hosp._id, hosp.name)}>
+                      <Trash2 size={13} /> Permanent Delete
+                    </Button>
+                  </>
                 ) : (
                   <>
                     {hosp.status === 'PENDING_APPROVAL' && (
@@ -337,7 +356,10 @@ export const SuperAdminHospitalsPage = () => {
                     <td className="p-3 text-right flex items-center justify-end gap-1.5">
                       <Button size="sm" variant="primary" onClick={() => navigate(`/admin/hospital/${hosp._id}/dashboard`)}>View</Button>
                       {hosp.isDeleted || hosp.status === 'DELETED' ? (
-                        <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200" onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>Restore</Button>
+                        <>
+                          <Button size="sm" variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200" onClick={() => handleRestoreHospital(hosp._id, hosp.name)}>Restore</Button>
+                          <Button size="sm" variant="outline" className="text-red-700 bg-red-50 border-red-200" onClick={() => handlePermanentDelete(hosp._id, hosp.name)}>Permanent Delete</Button>
+                        </>
                       ) : (
                         <Button size="sm" variant="outline" className="text-red-700 bg-red-50 border-red-200" onClick={() => handleDeleteHospital(hosp._id, hosp.name)}>Delete</Button>
                       )}

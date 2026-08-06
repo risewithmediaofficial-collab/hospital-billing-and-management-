@@ -153,7 +153,7 @@ export class SaasService {
     }
 
     const cleanEmail = data.contactEmail.toLowerCase().trim();
-    const existingEmail = await Hospital.findOne({ contactEmail: cleanEmail });
+    const existingEmail = await Hospital.findOne({ contactEmail: cleanEmail, isDeleted: { $ne: true } });
     if (existingEmail) {
       throw new ApiError(400, `A hospital application with email '${cleanEmail}' already exists`, null, 'DUPLICATE_EMAIL');
     }
@@ -165,7 +165,7 @@ export class SaasService {
     }
     let code = subdomain.toUpperCase();
 
-    const existingSubdomain = await Hospital.findOne({ subdomain });
+    const existingSubdomain = await Hospital.findOne({ subdomain, isDeleted: { $ne: true } });
     if (existingSubdomain) {
       subdomain = `${subdomain}${Math.floor(100 + Math.random() * 900)}`;
       code = subdomain.toUpperCase();
@@ -596,6 +596,51 @@ export class SaasService {
 
     await User.updateMany({ hospitalId: hospital._id }, { isActive: false });
     return hospital;
+  }
+
+  static async permanentlyDeleteHospital(hospitalId) {
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital tenant record not found');
+    }
+
+    await Hospital.findByIdAndDelete(hospitalId);
+
+    const collections = [
+      'Branch',
+      'Department',
+      'User',
+      'Patient',
+      'Appointment',
+      'Consultation',
+      'Prescription',
+      'Invoice',
+      'Receipt',
+      'DiagnosticOrder',
+      'Bed',
+      'Emergency',
+      'NurseTask',
+      'PatientRequest',
+      'AuditLog',
+      'Notification',
+      'Medicine',
+      'MedicineBatch',
+      'GuardianLink',
+      'DoctorUpdate'
+    ];
+
+    const mongoose = (await import('mongoose')).default;
+    for (const colName of collections) {
+      try {
+        if (mongoose.models[colName]) {
+          await mongoose.models[colName].deleteMany({ hospitalId });
+        }
+      } catch (err) {
+        console.error(`Failed to delete records in ${colName} for hospital ${hospitalId}:`, err.message);
+      }
+    }
+
+    return { success: true, hospitalId };
   }
 
   static async restoreHospital(hospitalId) {
