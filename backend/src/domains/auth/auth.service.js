@@ -131,7 +131,9 @@ export class AuthService {
       const userPassword = password || cleanId;
       const passwordHash = await bcrypt.hash(userPassword, 12);
 
-      let uhid = `HOSP-${new Date().getFullYear()}-${cleanId.slice(-5) || '00001'}`;
+      const prefix = cleanId.includes('@') ? cleanId.split('@')[0] : cleanId;
+      const cleanPrefix = prefix.replace(/[^a-zA-Z0-9]/g, '');
+      let uhid = `HOSP-${new Date().getFullYear()}-${cleanPrefix.slice(-5).toUpperCase() || '00001'}-${Math.floor(100 + Math.random() * 900)}`;
 
       if (!isGuardian) {
         let patientDoc = await Patient.findOne({
