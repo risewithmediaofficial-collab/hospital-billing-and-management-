@@ -3,7 +3,8 @@ import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import {
   BarChart3, Scan, TestTube, Pill, Stethoscope, CreditCard, Users,
   Activity, Search, Download, Filter, FileText, CheckCircle2, Clock,
-  Calendar, ShieldAlert, IndianRupee, Eye, EyeOff, Key, Edit, Lock, X, ChevronRight
+  Calendar, ShieldAlert, IndianRupee, Eye, EyeOff, Key, Edit, Lock, X,
+  ConciergeBell, Building2, ShieldCheck, UserCheck, Check, ChevronRight
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
@@ -15,7 +16,8 @@ export const SuperAdminReportsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hospitalId } = useParams();
   const navigate = useNavigate();
-  const metric = searchParams.get('metric') || 'overview';
+  const rawMetric = searchParams.get('metric') || 'overview';
+  const metric = rawMetric.toLowerCase();
 
   const [isLoading, setIsLoading] = useState(true);
   const [hospitals, setHospitals] = useState([]);
@@ -31,10 +33,18 @@ export const SuperAdminReportsPage = () => {
   const [passwordUpdateError, setPasswordUpdateError] = useState('');
 
   // Domain Datasets
+  const [allStaff, setAllStaff] = useState([]);
+  const [doctorsData, setDoctorsData] = useState([]);
+  const [receptionData, setReceptionData] = useState([]);
+  const [nursingData, setNursingData] = useState([]);
+  const [labStaffData, setLabStaffData] = useState([]);
+  const [radiologyStaffData, setRadiologyStaffData] = useState([]);
+  const [pharmacyStaffData, setPharmacyStaffData] = useState([]);
+  const [billingStaffData, setBillingStaffData] = useState([]);
+
   const [radiologyOrders, setRadiologyOrders] = useState([]);
   const [labOrders, setLabOrders] = useState([]);
   const [pharmacyData, setPharmacyData] = useState({ medicines: [], alerts: { lowStock: [], expired: [] } });
-  const [doctorsData, setDoctorsData] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [patients, setPatients] = useState([]);
   const [nurseTasks, setNurseTasks] = useState([]);
@@ -61,26 +71,35 @@ export const SuperAdminReportsPage = () => {
         axiosClient.get(`/pharmacy/nurse-tasks${queryParams}`).catch(() => ({ data: [] })),
       ]);
 
-      setHospitals(hospRes.data || []);
+      const hospList = hospRes.data || [];
+      setHospitals(hospList);
       const allOrders = diagRes.data || [];
 
-      // Filter data for target hospital if hospitalId is present
+      // Filter helper
       const filterByHosp = (list) => {
         if (!targetHospId) return list || [];
         return (list || []).filter(
-          (item) => String(item.hospitalId) === String(targetHospId) || String(item.hospital) === String(targetHospId)
+          (item) => String(item.hospitalId?._id || item.hospitalId || item.hospital) === String(targetHospId)
         );
       };
 
       const rawStaff = staffRes.data || [];
       const hospStaff = targetHospId
-        ? rawStaff.filter((s) => String(s.hospitalId) === String(targetHospId))
+        ? rawStaff.filter((s) => String(s.hospitalId?._id || s.hospitalId) === String(targetHospId))
         : rawStaff;
+
+      setAllStaff(hospStaff);
+      setDoctorsData(hospStaff.filter((s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))));
+      setReceptionData(hospStaff.filter((s) => s.role === 'RECEPTIONIST' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('RECEPTIONIST'))));
+      setNursingData(hospStaff.filter((s) => ['NURSE', 'NURSE_INCHARGE'].includes(s.role)));
+      setLabStaffData(hospStaff.filter((s) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(s.role)));
+      setRadiologyStaffData(hospStaff.filter((s) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(s.role)));
+      setPharmacyStaffData(hospStaff.filter((s) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(s.role)));
+      setBillingStaffData(hospStaff.filter((s) => ['CASHIER', 'BILLING_STAFF'].includes(s.role)));
 
       setRadiologyOrders(filterByHosp(allOrders).filter((o) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(o.testCategory)));
       setLabOrders(filterByHosp(allOrders).filter((o) => ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'].includes(o.testCategory)));
       setPharmacyData({ medicines: filterByHosp(pharmRes.data || []), alerts: { lowStock: [], expired: [] } });
-      setDoctorsData(hospStaff.filter((s) => s.role === 'DOCTOR'));
       setInvoices(filterByHosp(invRes.data || []));
       setPatients(filterByHosp(patRes.data || []));
       setNurseTasks(filterByHosp(nurseRes.data || []));
@@ -125,13 +144,21 @@ export const SuperAdminReportsPage = () => {
         newPassword: newPasswordInput.trim()
       });
 
-      setDoctorsData((prev) =>
+      const updateList = (prev) =>
         prev.map((d) =>
           d._id === selectedStaffForPassword._id
             ? { ...d, assignedPasswordHint: newPasswordInput.trim(), credentialHint: newPasswordInput.trim() }
             : d
-        )
-      );
+        );
+
+      setAllStaff(updateList);
+      setDoctorsData(updateList);
+      setReceptionData(updateList);
+      setNursingData(updateList);
+      setLabStaffData(updateList);
+      setRadiologyStaffData(updateList);
+      setPharmacyStaffData(updateList);
+      setBillingStaffData(updateList);
 
       setPasswordUpdateSuccess(`Password updated successfully for ${selectedStaffForPassword.name}`);
       setTimeout(() => {
@@ -145,16 +172,140 @@ export const SuperAdminReportsPage = () => {
     }
   };
 
+  const hospMap = Object.fromEntries(hospitals.map((h) => [String(h._id), h.name]));
+
   const METRIC_TABS = [
     { id: 'overview', label: 'Executive Overview', icon: BarChart3 },
-    { id: 'radiology', label: 'Radiology & Imaging', icon: Scan },
-    { id: 'laboratory', label: 'Pathology & Lab', icon: TestTube },
-    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill },
-    { id: 'doctors', label: 'Doctors & Consults', icon: Stethoscope },
-    { id: 'billing', label: 'Billing & Revenue', icon: CreditCard },
-    { id: 'patients', label: 'Patients & Admissions', icon: Users },
-    { id: 'nursing', label: 'Nursing & Ward Tasks', icon: Activity },
+    { id: 'staff', label: 'All Staff Roster', icon: Users, count: allStaff.length },
+    { id: 'reception', label: 'Reception & Front Desk', icon: ConciergeBell, count: receptionData.length },
+    { id: 'doctors', label: 'Doctors & Consults', icon: Stethoscope, count: doctorsData.length },
+    { id: 'nursing', label: 'Nursing & Ward Tasks', icon: Activity, count: nursingData.length },
+    { id: 'laboratory', label: 'Pathology & Lab', icon: TestTube, count: labOrders.length },
+    { id: 'radiology', label: 'Radiology & Imaging', icon: Scan, count: radiologyOrders.length },
+    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill, count: pharmacyData.medicines.length },
+    { id: 'billing', label: 'Billing & Revenue', icon: CreditCard, count: invoices.length },
+    { id: 'patients', label: 'Patients & Admissions', icon: Users, count: patients.length },
   ];
+
+  // Route alias resolution
+  const activeTabId =
+    ['reception', 'receptionists'].includes(metric) ? 'reception' :
+    ['staff', 'all-staff'].includes(metric) ? 'staff' :
+    ['doctors', 'physicians'].includes(metric) ? 'doctors' :
+    ['nursing', 'nurses'].includes(metric) ? 'nursing' :
+    ['laboratory', 'lab', 'labstaff'].includes(metric) ? 'laboratory' :
+    ['radiology', 'imaging', 'radiologystaff'].includes(metric) ? 'radiology' :
+    ['pharmacy', 'inventory', 'pharmacystaff'].includes(metric) ? 'pharmacy' :
+    ['billing', 'finance', 'billingstaff'].includes(metric) ? 'billing' :
+    ['patients', 'opd', 'ipd'].includes(metric) ? 'patients' :
+    'overview';
+
+  // Render Staff Roster Table (Reusable)
+  const renderStaffTable = (staffList, title, icon) => {
+    const Icon = icon || Users;
+    const filtered = staffList.filter((s) => {
+      const search = searchTerm.toLowerCase();
+      const name = (s.name || '').toLowerCase();
+      const email = (s.email || '').toLowerCase();
+      const role = (s.role || '').toLowerCase();
+      const hosp = (hospMap[String(s.hospitalId?._id || s.hospitalId)] || '').toLowerCase();
+      return name.includes(search) || email.includes(search) || role.includes(search) || hosp.includes(search);
+    });
+
+    return (
+      <Card>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Icon size={18} className="text-indigo-600" />
+            {title} ({filtered.length} of {staffList.length})
+          </h3>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 pr-3 py-1.5 border rounded-lg text-xs w-full sm:w-64"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="p-3">Staff Name & Title</th>
+                <th className="p-3">Role</th>
+                <th className="p-3">Hospital</th>
+                <th className="p-3">Login Email</th>
+                <th className="p-3">Assigned Password / Credential</th>
+                <th className="p-3">Duty Status</th>
+                <th className="p-3 text-right">Super Admin Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((s) => {
+                const isShown = showPasswords[s._id];
+                const pwdHint = s.assignedPasswordHint || s.credentialHint || `${s.role ? s.role.charAt(0) + s.role.slice(1).toLowerCase() : 'Staff'}123!`;
+                const hospName = hospMap[String(s.hospitalId?._id || s.hospitalId)] || 'Platform Hospital';
+
+                return (
+                  <tr key={s._id} className="hover:bg-slate-50">
+                    <td className="p-3">
+                      <p className="font-bold text-slate-900">{s.name}</p>
+                      {s.specialization && <p className="text-[10px] text-slate-500">{s.specialization}</p>}
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        {s.role}
+                      </span>
+                    </td>
+                    <td className="p-3 font-semibold text-slate-700">{hospName}</td>
+                    <td className="p-3 font-mono font-bold text-indigo-900">{s.email}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
+                        <Key size={13} className="text-amber-500 shrink-0" />
+                        <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
+                          {isShown === false ? '••••••••••••' : pwdHint}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleShowPassword(s._id)}
+                          className="text-slate-400 hover:text-slate-700 ml-1"
+                          title="Toggle Mask"
+                        >
+                          {isShown === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${s.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {s.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                        onClick={() => handleOpenPasswordModal(s)}
+                      >
+                        <Edit size={12} className="mr-1" /> Change Password
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="p-8 text-center text-slate-500">No staff members found in this category.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -163,10 +314,10 @@ export const SuperAdminReportsPage = () => {
         <div>
           <div className="flex items-center gap-2">
             <BarChart3 size={24} className="text-indigo-600" />
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Executive Platform Analytics & Reports</h2>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Executive Platform Analytics & Staff Roster</h2>
           </div>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            Live Clinical, Financial, Diagnostic & Multi-Hospital Operational Reporting Console
+            Live Clinical, Financial, Diagnostic & Multi-Hospital Staff Credential Management Console
           </p>
         </div>
 
@@ -185,7 +336,7 @@ export const SuperAdminReportsPage = () => {
           )}
 
           <Button variant="outline" size="sm" onClick={() => window.print()} className="font-bold text-xs">
-            <Download size={14} className="mr-1" /> Export PDF / Print Report
+            <Download size={14} className="mr-1" /> Export PDF / Print
           </Button>
         </div>
       </div>
@@ -194,7 +345,7 @@ export const SuperAdminReportsPage = () => {
       <div className="flex border-b border-slate-200 gap-2 overflow-x-auto text-xs font-bold scrollbar-none">
         {METRIC_TABS.map((tab) => {
           const Icon = tab.icon;
-          const isActive = metric === tab.id;
+          const isActive = activeTabId === tab.id;
           return (
             <button
               key={tab.id}
@@ -207,199 +358,66 @@ export const SuperAdminReportsPage = () => {
             >
               <Icon size={16} />
               {tab.label}
+              {tab.count !== undefined && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
       {isLoading ? (
-        <div className="p-16 text-center text-slate-500 text-sm font-semibold">Loading analytics & report data...</div>
+        <div className="p-16 text-center text-slate-500 text-sm font-semibold">Loading analytics & staff roster data...</div>
       ) : (
         <>
           {/* ── METRIC: EXECUTIVE OVERVIEW ── */}
-          {metric === 'overview' && (
+          {activeTabId === 'overview' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Platform Doctors" value={`${doctorsData.length} Doctors`} subtitle="Active OPD Consultants" icon={Stethoscope} color="emerald" />
-                <StatCard title="Registered Patients" value={`${patients.length} Patients`} subtitle="OPD & IPD Records" icon={Users} color="indigo" />
-                <StatCard title="Radiology & Lab Orders" value={`${radiologyOrders.length + labOrders.length} Diagnostics`} subtitle="Scans & Pathology" icon={Activity} color="purple" />
+                <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Across All Roles" icon={Users} color="purple" />
+                <StatCard title="Appointed Doctors" value={`${doctorsData.length} Physicians`} subtitle="Active Consultants" icon={Stethoscope} color="emerald" />
+                <StatCard title="Receptionists & Front Desk" value={`${receptionData.length} Staff`} subtitle="Counter Desk" icon={ConciergeBell} color="blue" />
                 <StatCard title="Total Invoices Revenue" value={formatCurrency(invoices.reduce((acc, i) => acc + (i.paidAmount || i.grandTotal || 0), 0))} subtitle="All-Time Payments" icon={IndianRupee} color="emerald" />
               </div>
+
+              {renderStaffTable(allStaff, 'All Hospital Staff & Credentials Roster', Users)}
             </div>
           )}
 
-          {/* ── METRIC 1: RADIOLOGY REPORTS ── */}
-          {metric === 'radiology' && (
+          {/* ── METRIC: ALL STAFF ROSTER ── */}
+          {activeTabId === 'staff' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Radiology Orders" value={`${radiologyOrders.length} Scans`} subtitle="X-Ray, MRI, CT & USG" icon={Scan} color="purple" />
-                <StatCard title="Completed Reports" value={`${radiologyOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Uploaded`} subtitle="PACS DICOM Scans" icon={CheckCircle2} color="emerald" />
-                <StatCard title="Pending Review" value={`${radiologyOrders.filter(o => ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS'].includes(o.status)).length} Pending`} subtitle="In Processing Queue" icon={Clock} color="amber" />
-                <StatCard title="Radiology Revenue" value={formatCurrency(radiologyOrders.reduce((sum, o) => sum + (o.totalDepartmentCharge || o.price || 0), 0))} subtitle="Billing Charges Logged" icon={IndianRupee} color="sky" />
+                <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Cross-Department Roster" icon={Users} color="purple" />
+                <StatCard title="On Duty Available" value={`${allStaff.filter(s => s.isAvailable !== false).length} Active`} subtitle="Working Shift" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Reception & Front Desk" value={`${receptionData.length} Receptionists`} subtitle="Registration Desk" icon={ConciergeBell} color="blue" />
+                <StatCard title="Doctors & Specialists" value={`${doctorsData.length} Doctors`} subtitle="OPD Clinics" icon={Stethoscope} color="sky" />
               </div>
 
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Scan size={18} className="text-purple-600" />
-                    Radiology & PACS Imaging Diagnostic Reports ({radiologyOrders.length})
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">Live PACS RIS Feed</span>
-                </h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Modality / Test</th>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">UHID / Token</th>
-                        <th className="p-3">Technician / Radiologist</th>
-                        <th className="p-3">Findings / Summary</th>
-                        <th className="p-3">Charge</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
-                      {radiologyOrders.map((ord) => (
-                        <tr key={ord._id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-900">{ord.testCategory}: {ord.testName}</td>
-                          <td className="p-3 font-bold text-indigo-900">{ord.patientName}</td>
-                          <td className="p-3 font-mono font-bold text-indigo-700">{ord.uhid} (#{ord.tokenNumber || '—'})</td>
-                          <td className="p-3 text-slate-600">{ord.technicianName || 'Pending Assignment'}</td>
-                          <td className="p-3 text-slate-700 italic max-w-xs truncate">{ord.reportSummary || 'Awaiting report upload'}</td>
-                          <td className="p-3 font-bold text-emerald-700">{formatCurrency(ord.totalDepartmentCharge || ord.price || 50)}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {ord.status}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right text-slate-500 font-mono">{formatDateTime(ord.createdAt)}</td>
-                        </tr>
-                      ))}
-                      {radiologyOrders.length === 0 && (
-                        <tr><td colSpan={8} className="p-8 text-center text-slate-500">No radiology orders recorded.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+              {renderStaffTable(allStaff, 'Complete Platform Staff & Credentials Directory', Users)}
             </div>
           )}
 
-          {/* ── METRIC 2: LABORATORY REPORTS ── */}
-          {metric === 'laboratory' && (
+          {/* ── METRIC: RECEPTION & FRONT DESK ── */}
+          {activeTabId === 'reception' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Lab Tests" value={`${labOrders.length} Tests`} subtitle="Pathology & CBC" icon={TestTube} color="indigo" />
-                <StatCard title="Completed Reports" value={`${labOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Uploaded`} subtitle="Verified Pathology" icon={CheckCircle2} color="emerald" />
-                <StatCard title="Pending Lab Intake" value={`${labOrders.filter(o => ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS'].includes(o.status)).length} Pending`} subtitle="In Processing Queue" icon={Clock} color="amber" />
-                <StatCard title="Laboratory Revenue" value={formatCurrency(labOrders.reduce((sum, o) => sum + (o.totalDepartmentCharge || o.price || 0), 0))} subtitle="Billing Charges Logged" icon={IndianRupee} color="sky" />
+                <StatCard title="Reception Staff" value={`${receptionData.length} Receptionists`} subtitle="Front Counter Desk" icon={ConciergeBell} color="blue" />
+                <StatCard title="Active On Duty" value={`${receptionData.filter(r => r.isAvailable !== false).length} On Duty`} subtitle="Active Shift" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Registered Patients" value={`${patients.length} Patients`} subtitle="Auto-Sequenced UHID" icon={Users} color="indigo" />
+                <StatCard title="OPD Queue Today" value={`${nurseTasks.length + radiologyOrders.length + labOrders.length} Visits`} subtitle="Hospital Footfall" icon={Activity} color="amber" />
               </div>
 
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <TestTube size={18} className="text-indigo-600" />
-                  Pathology & Laboratory Diagnostic Reports ({labOrders.length})
-                </h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Test Category & Name</th>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">UHID / Sample ID</th>
-                        <th className="p-3">Lab Technician</th>
-                        <th className="p-3">Lab Result Value</th>
-                        <th className="p-3">Charge</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
-                      {labOrders.map((ord) => (
-                        <tr key={ord._id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-900">{ord.testCategory}: {ord.testName}</td>
-                          <td className="p-3 font-bold text-indigo-900">{ord.patientName}</td>
-                          <td className="p-3 font-mono font-bold text-indigo-700">{ord.uhid} (#{ord.tokenNumber || '—'})</td>
-                          <td className="p-3 text-slate-600">{ord.technicianName || 'Lab Staff'}</td>
-                          <td className="p-3 text-slate-700 font-semibold">{ord.resultValue || ord.reportSummary || 'Normal'}</td>
-                          <td className="p-3 font-bold text-emerald-700">{formatCurrency(ord.totalDepartmentCharge || ord.price || 30)}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {ord.status}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right text-slate-500 font-mono">{formatDateTime(ord.createdAt)}</td>
-                        </tr>
-                      ))}
-                      {labOrders.length === 0 && (
-                        <tr><td colSpan={8} className="p-8 text-center text-slate-500">No laboratory orders recorded.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+              {renderStaffTable(receptionData, 'Reception & Front Desk Staff Roster', ConciergeBell)}
             </div>
           )}
 
-          {/* ── METRIC 3: PHARMACY REPORTS ── */}
-          {metric === 'pharmacy' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Medicine SKUs" value={`${pharmacyData.medicines.length} SKUs`} subtitle="Inventory Stock" icon={Pill} color="rose" />
-                <StatCard title="Low Stock Items" value={`${pharmacyData.medicines.filter(m => (m.availableQuantity || m.stock || 0) < 20).length} Reorders`} subtitle="Below Safety Stock" icon={ShieldAlert} color="rose" />
-                <StatCard title="Expired SKUs" value={`${pharmacyData.medicines.filter(m => m.expiryDate && new Date(m.expiryDate) < new Date()).length} Expired`} subtitle="FEFO Quarantined" icon={Clock} color="amber" />
-                <StatCard title="Total Inventory Value" value={formatCurrency(pharmacyData.medicines.reduce((sum, m) => sum + ((m.availableQuantity || m.stock || 0) * (m.unitPrice || m.sellingPrice || 10)), 0))} subtitle="Stock Valuation" icon={IndianRupee} color="emerald" />
-              </div>
-
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <Pill size={18} className="text-rose-600" />
-                  Pharmacy Inventory & Stock Valuation Audit ({pharmacyData.medicines.length})
-                </h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Medicine Name & Generic</th>
-                        <th className="p-3">Category</th>
-                        <th className="p-3">Available Quantity</th>
-                        <th className="p-3">Unit Price</th>
-                        <th className="p-3">Batch & Expiry</th>
-                        <th className="p-3">Stock Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
-                      {pharmacyData.medicines.map((m) => (
-                        <tr key={m._id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-900">{m.name || m.medicineName} <span className="text-[10px] text-slate-400 font-normal">({m.genericName || '—'})</span></td>
-                          <td className="p-3 font-semibold text-slate-700">{m.category || 'Tablet'}</td>
-                          <td className="p-3 font-bold text-indigo-700">{m.availableQuantity ?? m.stock ?? 0} Units</td>
-                          <td className="p-3 font-bold text-emerald-700">{formatCurrency(m.unitPrice || m.sellingPrice || 10)}</td>
-                          <td className="p-3 font-mono text-slate-600">{m.batchNumber || 'BATCH-101'} • {m.expiryDate ? formatDate(m.expiryDate) : '—'}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${(m.availableQuantity ?? m.stock ?? 0) > 10 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                              {(m.availableQuantity ?? m.stock ?? 0) > 10 ? 'IN STOCK' : 'LOW STOCK'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {pharmacyData.medicines.length === 0 && (
-                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No pharmacy medicines configured.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* ── METRIC 4: DOCTORS & CONSULTS ── */}
-          {metric === 'doctors' && (
+          {/* ── METRIC: DOCTORS & CONSULTS ── */}
+          {activeTabId === 'doctors' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title="Appointed Doctors" value={`${doctorsData.length} Physicians`} subtitle="Cross-Department OPD" icon={Stethoscope} color="emerald" />
@@ -408,192 +426,21 @@ export const SuperAdminReportsPage = () => {
                 <StatCard title="Consultation Revenue" value={formatCurrency(doctorsData.reduce((acc, d) => acc + (d.revenueGenerated || 0), 0))} subtitle="Fees Logged" icon={IndianRupee} color="sky" />
               </div>
 
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <Stethoscope size={18} className="text-emerald-600" />
-                  Doctor Performance & Consultation Reports ({doctorsData.length})
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Doctor Name</th>
-                        <th className="p-3">Specialization</th>
-                        <th className="p-3">Login Email</th>
-                        <th className="p-3">Assigned Password / Credential</th>
-                        <th className="p-3">OPD Cabin</th>
-                        <th className="p-3">Duty Status</th>
-                        <th className="p-3 text-right">Super Admin Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {doctorsData.map((d) => {
-                        const isShown = showPasswords[d._id];
-                        const pwdHint = d.assignedPasswordHint || d.credentialHint || `${d.role ? d.role.charAt(0) + d.role.slice(1).toLowerCase() : 'Doctor'}123!`;
-
-                        return (
-                          <tr key={d._id} className="hover:bg-slate-50">
-                            <td className="p-3 font-bold text-slate-900">{d.name}</td>
-                            <td className="p-3 font-semibold text-slate-700">{d.specialization || 'General Physician'}</td>
-                            <td className="p-3 font-mono font-bold text-indigo-900">{d.email}</td>
-                            <td className="p-3">
-                              <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
-                                <Key size={13} className="text-amber-500 shrink-0" />
-                                <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
-                                  {isShown === false ? '••••••••••••' : pwdHint}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleShowPassword(d._id)}
-                                  className="text-slate-400 hover:text-slate-700 ml-1"
-                                  title="Toggle Mask"
-                                >
-                                  {isShown === false ? <Eye size={14} /> : <EyeOff size={14} />}
-                                </button>
-                              </div>
-                            </td>
-                            <td className="p-3 font-mono font-bold text-indigo-700">{d.cabinNo || 'Cabin 101'}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded font-bold ${d.isAvailable !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                {d.isAvailable !== false ? 'ON DUTY' : 'OFF DUTY'}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                                onClick={() => handleOpenPasswordModal(d)}
-                              >
-                                <Edit size={12} className="mr-1" /> Change Password
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {doctorsData.length === 0 && (
-                        <tr><td colSpan={7} className="p-8 text-center text-slate-500">No doctors registered.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+              {renderStaffTable(doctorsData, 'Doctor & Physician Roster & Credentials', Stethoscope)}
             </div>
           )}
 
-          {/* ── METRIC 5: BILLING & REVENUE ── */}
-          {metric === 'billing' && (
+          {/* ── METRIC: NURSING & WARD TASKS ── */}
+          {activeTabId === 'nursing' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Revenue Collected" value={formatCurrency(invoices.reduce((acc, i) => acc + (i.paidAmount || i.grandTotal || 0), 0))} subtitle="All Invoices" icon={IndianRupee} color="emerald" />
-                <StatCard title="Total Invoices Issued" value={`${invoices.length} Bills`} subtitle="OPD & IPD Bills" icon={CreditCard} color="purple" />
-                <StatCard title="Paid Invoices" value={`${invoices.filter(i => i.status === 'PAID').length} Paid`} subtitle="Fully Settled" icon={CheckCircle2} color="emerald" />
-                <StatCard title="Pending Outstanding" value={`${invoices.filter(i => i.status !== 'PAID').length} Unpaid`} subtitle="Collection Queue" icon={Clock} color="amber" />
-              </div>
-
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <CreditCard size={18} className="text-emerald-600" />
-                  Financial Billing & Invoice Receipts Audit ({invoices.length})
-                </h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Invoice Number</th>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">Payment Mode</th>
-                        <th className="p-3">Total Amount</th>
-                        <th className="p-3">Paid Amount</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Invoice Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
-                      {invoices.map((inv) => (
-                        <tr key={inv._id} className="hover:bg-slate-50">
-                          <td className="p-3 font-mono font-bold text-indigo-700">{inv.invoiceNumber || inv._id}</td>
-                          <td className="p-3 font-bold text-slate-900">{inv.patientName || 'Walk-in Patient'}</td>
-                          <td className="p-3 font-semibold text-slate-600">{inv.paymentMode || 'CASH'}</td>
-                          <td className="p-3 font-bold text-slate-900">{formatCurrency(inv.grandTotal || inv.totalAmount || 0)}</td>
-                          <td className="p-3 font-bold text-emerald-700">{formatCurrency(inv.paidAmount || inv.grandTotal || 0)}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {inv.status || 'PAID'}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right text-slate-500 font-mono">{formatDate(inv.createdAt)}</td>
-                        </tr>
-                      ))}
-                      {invoices.length === 0 && (
-                        <tr><td colSpan={7} className="p-8 text-center text-slate-500">No invoices generated.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* ── METRIC 6: PATIENTS ── */}
-          {metric === 'patients' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Registered Patients" value={`${patients.length} Records`} subtitle="System Directory" icon={Users} color="indigo" />
-                <StatCard title="Active Admissions" value="12 IPD" subtitle="In-Patient Wards" icon={Activity} color="purple" />
-                <StatCard title="OPD Registrations" value={`${patients.length} OPD`} subtitle="Out-Patient Care" icon={Users} color="emerald" />
-                <StatCard title="Emergency Admissions" value="3 Active" subtitle="Trauma & ICU" icon={ShieldAlert} color="rose" />
-              </div>
-
-              <Card>
-                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <Users size={18} className="text-indigo-600" />
-                  Patient Master Directory & Registration Records ({patients.length})
-                </h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">UHID</th>
-                        <th className="p-3">Contact Phone</th>
-                        <th className="p-3">Gender & Age</th>
-                        <th className="p-3">Category</th>
-                        <th className="p-3 text-right">Registration Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
-                      {patients.map((pat) => (
-                        <tr key={pat._id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
-                          <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid}</td>
-                          <td className="p-3 text-slate-700">{pat.phone}</td>
-                          <td className="p-3 text-slate-600">{pat.gender || 'M'} • {pat.age ? `${pat.age} Yrs` : 'Adult'}</td>
-                          <td className="p-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">{pat.category || 'GENERAL'}</span></td>
-                          <td className="p-3 text-right text-slate-500 font-mono">{formatDate(pat.createdAt)}</td>
-                        </tr>
-                      ))}
-                      {patients.length === 0 && (
-                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No patients recorded.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* ── METRIC 7: NURSING ── */}
-          {metric === 'nursing' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Nurse Administration Tasks" value={`${nurseTasks.length} Tasks`} subtitle="Ward Medication" icon={Activity} color="teal" />
+                <StatCard title="Nursing Staff" value={`${nursingData.length} Nurses`} subtitle="Ward Duty Roster" icon={Activity} color="teal" />
+                <StatCard title="Nurse Administration Tasks" value={`${nurseTasks.length} Tasks`} subtitle="Ward Medication" icon={Activity} color="indigo" />
                 <StatCard title="Completed Tasks" value={`${nurseTasks.filter(t => t.status === 'ADMINISTERED' || t.status === 'COMPLETED').length} Done`} subtitle="Given to Patients" icon={CheckCircle2} color="emerald" />
-                <StatCard title="Pending Ward Administration" value={`${nurseTasks.filter(t => t.status === 'PENDING').length} Scheduled`} subtitle="Due Medication" icon={Clock} color="amber" />
-                <StatCard title="Active Ward Nurses" value="8 On Duty" subtitle="Shift Duty" icon={Users} color="indigo" />
+                <StatCard title="Pending Ward Tasks" value={`${nurseTasks.filter(t => t.status === 'PENDING').length} Scheduled`} subtitle="Due Medication" icon={Clock} color="amber" />
               </div>
+
+              {renderStaffTable(nursingData, 'Nursing Staff Directory', Activity)}
 
               <Card>
                 <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
@@ -630,6 +477,317 @@ export const SuperAdminReportsPage = () => {
                       ))}
                       {nurseTasks.length === 0 && (
                         <tr><td colSpan={6} className="p-8 text-center text-slate-500">No nurse administration tasks logged.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── METRIC: PATHOLOGY & LAB ── */}
+          {activeTabId === 'laboratory' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Laboratory Staff" value={`${labStaffData.length} Technologists`} subtitle="Pathology Staff" icon={TestTube} color="teal" />
+                <StatCard title="Total Lab Requests" value={`${labOrders.length} Orders`} subtitle="Pathology & Blood Tests" icon={TestTube} color="indigo" />
+                <StatCard title="Completed Reports" value={`${labOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Done`} subtitle="Uploaded to EMR" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Laboratory Revenue" value={formatCurrency(labOrders.reduce((sum, o) => sum + (o.totalDepartmentCharge || o.price || 0), 0))} subtitle="Charges Logged" icon={IndianRupee} color="sky" />
+              </div>
+
+              {renderStaffTable(labStaffData, 'Laboratory Technologists & Staff Directory', TestTube)}
+
+              <Card>
+                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <TestTube size={18} className="text-indigo-600" />
+                    Pathology Laboratory Diagnostic Orders ({labOrders.length})
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">LIS Laboratory Log</span>
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Patient & UHID</th>
+                        <th className="p-3">Test Name & Category</th>
+                        <th className="p-3">Ordering Doctor</th>
+                        <th className="p-3">Priority</th>
+                        <th className="p-3">Workflow Status</th>
+                        <th className="p-3 text-right">Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {labOrders.map((ord) => (
+                        <tr key={ord._id} className="hover:bg-slate-50">
+                          <td className="p-3">
+                            <p className="font-bold text-slate-900">{ord.patientName}</p>
+                            <p className="font-mono text-[10px] text-indigo-700 font-bold">{ord.uhid}</p>
+                          </td>
+                          <td className="p-3">
+                            <p className="font-bold text-slate-800">{ord.testName}</p>
+                            <p className="text-[10px] text-slate-500">{ord.testCategory}</p>
+                          </td>
+                          <td className="p-3 font-medium text-slate-700">{ord.doctorName || 'Consultant'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ord.priority === 'EMERGENCY' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}>
+                              {ord.priority}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {ord.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-900">{formatCurrency(ord.price || 0)}</td>
+                        </tr>
+                      ))}
+                      {labOrders.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No laboratory test orders found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── METRIC: RADIOLOGY & IMAGING ── */}
+          {activeTabId === 'radiology' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Radiology Staff" value={`${radiologyStaffData.length} Radiologists`} subtitle="PACS Staff" icon={Scan} color="purple" />
+                <StatCard title="Total Radiology Orders" value={`${radiologyOrders.length} Scans`} subtitle="X-Ray, MRI, CT & USG" icon={Scan} color="purple" />
+                <StatCard title="Completed Scans" value={`${radiologyOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Done`} subtitle="PACS DICOM Scans" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Radiology Revenue" value={formatCurrency(radiologyOrders.reduce((sum, o) => sum + (o.totalDepartmentCharge || o.price || 0), 0))} subtitle="Charges Logged" icon={IndianRupee} color="sky" />
+              </div>
+
+              {renderStaffTable(radiologyStaffData, 'Radiologists & PACS Staff Directory', Scan)}
+
+              <Card>
+                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Scan size={18} className="text-purple-600" />
+                    Radiology & PACS Imaging Diagnostic Reports ({radiologyOrders.length})
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">Live PACS RIS Feed</span>
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Patient & UHID</th>
+                        <th className="p-3">Scan Type & Category</th>
+                        <th className="p-3">Ordering Doctor</th>
+                        <th className="p-3">Priority</th>
+                        <th className="p-3">Workflow Status</th>
+                        <th className="p-3 text-right">Scan Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {radiologyOrders.map((ord) => (
+                        <tr key={ord._id} className="hover:bg-slate-50">
+                          <td className="p-3">
+                            <p className="font-bold text-slate-900">{ord.patientName}</p>
+                            <p className="font-mono text-[10px] text-indigo-700 font-bold">{ord.uhid}</p>
+                          </td>
+                          <td className="p-3">
+                            <p className="font-bold text-slate-800">{ord.testName}</p>
+                            <p className="text-[10px] text-slate-500">{ord.testCategory}</p>
+                          </td>
+                          <td className="p-3 font-medium text-slate-700">{ord.doctorName || 'Consultant'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ord.priority === 'EMERGENCY' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}>
+                              {ord.priority}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {ord.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-900">{formatCurrency(ord.price || 0)}</td>
+                        </tr>
+                      ))}
+                      {radiologyOrders.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No radiology diagnostic orders found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── METRIC: PHARMACY & STOCK ── */}
+          {activeTabId === 'pharmacy' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Pharmacy Staff" value={`${pharmacyStaffData.length} Pharmacists`} subtitle="FEFO Dispensing" icon={Pill} color="rose" />
+                <StatCard title="Total Medicine SKUs" value={`${pharmacyData.medicines.length} Medicines`} subtitle="Formulary Catalog" icon={Pill} color="rose" />
+                <StatCard title="In Stock Medicines" value={`${pharmacyData.medicines.filter(m => m.stockStatus === 'IN_STOCK').length} SKUs`} subtitle="Sufficient Quantity" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Low / Out of Stock" value={`${pharmacyData.medicines.filter(m => m.stockStatus !== 'IN_STOCK').length} SKUs`} subtitle="Reorder Required" icon={ShieldAlert} color="amber" />
+              </div>
+
+              {renderStaffTable(pharmacyStaffData, 'Pharmacy Staff & Dispensing Roster', Pill)}
+
+              <Card>
+                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Pill size={18} className="text-rose-600" />
+                    Pharmacy Formulary Stock Catalog ({pharmacyData.medicines.length})
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">FEFO Batch Inventory</span>
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Medicine Name</th>
+                        <th className="p-3">Generic Name</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3 text-right">Available Stock</th>
+                        <th className="p-3 font-mono text-right">Selling Price</th>
+                        <th className="p-3 text-right">Stock Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pharmacyData.medicines.map((m) => (
+                        <tr key={m._id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900">{m.name}</td>
+                          <td className="p-3 font-semibold text-slate-600">{m.genericName}</td>
+                          <td className="p-3 font-medium text-slate-500">{m.category}</td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-900">{m.totalQuantity || 0}</td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-700">{formatCurrency(m.sellingPrice || 0)}</td>
+                          <td className="p-3 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              m.stockStatus === 'IN_STOCK' ? 'bg-emerald-100 text-emerald-800' :
+                              m.stockStatus === 'LOW_STOCK' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {m.stockStatus || 'IN_STOCK'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {pharmacyData.medicines.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No medicines cataloged in pharmacy inventory.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── METRIC: BILLING & REVENUE ── */}
+          {activeTabId === 'billing' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Billing & Cashier Staff" value={`${billingStaffData.length} Cashiers`} subtitle="Revenue Desk" icon={CreditCard} color="amber" />
+                <StatCard title="Total Revenue Collected" value={formatCurrency(invoices.reduce((acc, i) => acc + (i.paidAmount || i.grandTotal || 0), 0))} subtitle="All Invoices" icon={IndianRupee} color="emerald" />
+                <StatCard title="Total Invoices Issued" value={`${invoices.length} Bills`} subtitle="OPD & IPD Bills" icon={CreditCard} color="purple" />
+                <StatCard title="Paid Invoices" value={`${invoices.filter(i => i.status === 'PAID').length} Paid`} subtitle="Fully Settled" icon={CheckCircle2} color="emerald" />
+              </div>
+
+              {renderStaffTable(billingStaffData, 'Billing Desk & Cashier Staff Directory', CreditCard)}
+
+              <Card>
+                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <CreditCard size={18} className="text-emerald-600" />
+                  Financial Billing & Invoice Receipts Audit ({invoices.length})
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Invoice #</th>
+                        <th className="p-3">Patient & UHID</th>
+                        <th className="p-3">Billing Type</th>
+                        <th className="p-3">Payment Status</th>
+                        <th className="p-3 text-right">Grand Total</th>
+                        <th className="p-3 text-right">Invoice Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {invoices.map((inv) => (
+                        <tr key={inv._id} className="hover:bg-slate-50">
+                          <td className="p-3 font-mono font-bold text-indigo-900">{inv.invoiceNo || inv.receiptNo || 'INV-000'}</td>
+                          <td className="p-3 font-bold text-slate-900">{inv.patientName || inv.patientId?.firstName || 'Walk-in'} <span className="font-mono text-[10px] text-slate-400">({inv.uhid || '—'})</span></td>
+                          <td className="p-3 font-medium text-slate-600">{inv.billType || inv.encounterType || 'OPD Billing'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {inv.status || 'PAID'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-700">{formatCurrency(inv.grandTotal || inv.totalAmount || 0)}</td>
+                          <td className="p-3 text-right font-mono text-slate-500">{formatDate(inv.createdAt || inv.invoiceDate)}</td>
+                        </tr>
+                      ))}
+                      {invoices.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No financial invoices or billing receipts found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── METRIC: PATIENTS & ADMISSIONS ── */}
+          {activeTabId === 'patients' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Total Registered Patients" value={`${patients.length} Patients`} subtitle="Permanent UHID" icon={Users} color="indigo" />
+                <StatCard title="OPD Active Patients" value={`${patients.filter(p => !p.admissionStatus || p.admissionStatus === 'OPD').length} OPD`} subtitle="Outpatient Desk" icon={Stethoscope} color="sky" />
+                <StatCard title="IPD Admitted Ward" value={`${patients.filter(p => p.admissionStatus === 'ADMITTED').length} Inpatients`} subtitle="Bed Occupancy" icon={Activity} color="purple" />
+                <StatCard title="Discharged Patients" value={`${patients.filter(p => p.admissionStatus === 'DISCHARGED').length} History`} subtitle="Checked Out" icon={CheckCircle2} color="emerald" />
+              </div>
+
+              <Card>
+                <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users size={18} className="text-indigo-600" />
+                    Patient Registration & EMR Directory ({patients.length})
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">Hospital Master EMR</span>
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">UHID</th>
+                        <th className="p-3">Patient Name</th>
+                        <th className="p-3">Gender / Age</th>
+                        <th className="p-3">Mobile Contact</th>
+                        <th className="p-3">Admission Status</th>
+                        <th className="p-3 text-right">Registration Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {patients.map((pat) => (
+                        <tr key={pat._id} className="hover:bg-slate-50">
+                          <td className="p-3 font-mono font-bold text-indigo-900">{pat.uhid}</td>
+                          <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
+                          <td className="p-3 text-slate-600">{pat.gender || 'MALE'} / {pat.age || '30 Y'}</td>
+                          <td className="p-3 font-mono text-slate-700">{pat.phone}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              pat.admissionStatus === 'ADMITTED' ? 'bg-purple-100 text-purple-800' :
+                              pat.admissionStatus === 'DISCHARGED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {pat.admissionStatus || 'OPD'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono text-slate-500">{formatDate(pat.createdAt)}</td>
+                        </tr>
+                      ))}
+                      {patients.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-slate-500">No patient records registered.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -680,7 +838,7 @@ export const SuperAdminReportsPage = () => {
               <label className="text-xs font-bold text-slate-700">New Password</label>
               <input
                 type="text"
-                placeholder="Enter new password (e.g. Doctor123!)"
+                placeholder="Enter new password (e.g. Staff123!)"
                 value={newPasswordInput}
                 onChange={(e) => setNewPasswordInput(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"

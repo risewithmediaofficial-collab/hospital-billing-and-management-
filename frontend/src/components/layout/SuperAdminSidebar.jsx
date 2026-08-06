@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import * as Icons from 'lucide-react';
 import { SUPER_ADMIN_NAVIGATION, HOSPITAL_DRILLDOWN_NAVIGATION } from '../../utils/superAdminNavigation';
 import { useSuperAdminContextStore } from '../../store/superAdminContextStore';
+import { useSocket } from '../../providers/SocketProvider';
 import { axiosClient } from '../../api/axiosClient';
 
 let savedSuperAdminSidebarScrollTop = 0;
@@ -10,7 +11,9 @@ let savedSuperAdminSidebarScrollTop = 0;
 export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null }) => {
   const location = useLocation();
   const { selectedHospitalName } = useSuperAdminContextStore();
+  const { socket } = useSocket();
   const navRef = useRef(null);
+
 
   useLayoutEffect(() => {
     const restore = () => {
@@ -54,16 +57,29 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const res = await axiosClient.get('/saas/hospitals');
+        const res = await axiosClient.get('/saas/hospitals/pending');
         const list = res.data || [];
-        const pending = list.filter((h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')).length;
-        setPendingCount(pending);
+        setPendingCount(Array.isArray(list) ? list.length : 0);
       } catch (err) {
-        // Ignore fetch errors
+        // fallback
+        try {
+          const res2 = await axiosClient.get('/saas/hospitals');
+          const list2 = res2.data || [];
+          const pending = list2.filter((h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')).length;
+          setPendingCount(pending);
+        } catch {}
       }
     };
     fetchPending();
-  }, [location.pathname]);
+
+    if (!socket) return;
+    socket.on('saas:pending_changed', fetchPending);
+    socket.on('workflow:notification', fetchPending);
+    return () => {
+      socket.off('saas:pending_changed', fetchPending);
+      socket.off('workflow:notification', fetchPending);
+    };
+  }, [location.pathname, Boolean(socket)]);
 
   const menuItems = drilldownHospitalId
     ? HOSPITAL_DRILLDOWN_NAVIGATION(drilldownHospitalId)
@@ -132,25 +148,34 @@ export const SuperAdminSidebar = ({ isOpen, onClose, drilldownHospitalId = null 
         <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Navigation</p>
 
         <nav ref={navRef} onScroll={handleNavScroll} className="flex-1 min-h-0 px-3 pb-3 space-y-0.5 overflow-y-auto" aria-label="Super Admin navigation">
-          {menuItems.map((item) => {
+          {menuItems.filter(item => !item.hidden).map((item) => {
             const IconComponent = Icons[item.icon] || Icons.Circle;
             const active = isItemActive(item.path);
+            const isAmber = item.highlight === 'amber';
             return (
               <Link
-                key={item.path}
+                key={item.path + (item.title || '')}
                 to={item.path}
                 onClick={handleLinkClick}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
                   active
-                    ? 'bg-violet-50 text-violet-700 font-semibold border-l-violet-500'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
+                    ? isAmber
+                      ? 'bg-amber-50 text-amber-700 font-semibold border-l-amber-500'
+                      : 'bg-violet-50 text-violet-700 font-semibold border-l-violet-500'
+                    : isAmber
+                      ? 'text-amber-700 hover:bg-amber-50 hover:text-amber-800 border-l-amber-300 bg-amber-50/40'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
                 }`}
               >
-                <IconComponent size={16} className={`shrink-0 ${active ? 'text-violet-500' : 'text-slate-400'}`} />
+                <IconComponent size={16} className={`shrink-0 ${
+                  active
+                    ? isAmber ? 'text-amber-500' : 'text-violet-500'
+                    : isAmber ? 'text-amber-500' : 'text-slate-400'
+                }`} />
                 <span className="truncate flex-1">{item.title}</span>
                 {item.badgeKey === 'PENDING_HOSPITALS' && pendingCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs shrink-0">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs shrink-0 animate-pulse">
                     {pendingCount}
                   </span>
                 )}

@@ -86,19 +86,24 @@ app.use('/api/v1/workflow', workflowRoutes);
 app.use('/api/v1/pharmacy', pharmacyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 
-// Automated Trial Expiry & Reminders Background Evaluator (Runs every 10 minutes)
+// Automated Trial & Subscription Expiry Background Evaluator (Runs every 10 minutes)
 setInterval(() => {
   SaasService.evaluateHospitalTrials().catch((err) =>
     console.error('Error running trial evaluator task:', err)
   );
+  SaasService.evaluateSubscriptionExpiry().catch((err) =>
+    console.error('Error running subscription expiry task:', err)
+  );
 }, 10 * 60 * 1000);
 
-// Run initial trial check on server boot after 10s delay
+// Run initial check on server boot after 10s delay
 setTimeout(() => {
   SaasService.evaluateHospitalTrials().catch(() => {});
+  SaasService.evaluateSubscriptionExpiry().catch(() => {});
 }, 10000);
 
 // Global Error Handler
 app.use(errorHandler);
 
 export default app;
+// Server reloaded: 2026-08-06

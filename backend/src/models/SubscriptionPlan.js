@@ -8,6 +8,8 @@ const subscriptionPlanSchema = new mongoose.Schema(
     monthlyPrice: { type: Number, required: true, default: 0 },
     yearlyPrice: { type: Number, required: true, default: 0 },
     trialDays: { type: Number, default: 7 },
+    // -1 means unlimited patients
+    patientLimit: { type: Number, default: 1000 },
     staffLimits: {
       type: mongoose.Schema.Types.Mixed,
       default: () => ({
@@ -25,7 +27,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
     usageLimits: {
       type: mongoose.Schema.Types.Mixed,
       default: () => ({
-        monthlyPatients: 10000,
+        monthlyPatients: 1000,
         storageInGB: 50,
         branches: 2,
         departments: 25,

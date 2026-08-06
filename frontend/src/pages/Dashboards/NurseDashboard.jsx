@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
+import { useAvailability } from '../../hooks/useAvailability';
 import { HeartPulse, Bed, Bell, AlertOctagon, CheckCircle2, Syringe, Activity, ArrowUpRight } from 'lucide-react';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
@@ -10,6 +12,7 @@ import { axiosClient } from '../../api/axiosClient';
 export const NurseDashboard = () => {
   const { socket } = useSocket();
   const { user } = useAuthStore();
+  const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const [requests, setRequests] = useState([]);
   const [nurseTasks, setNurseTasks] = useState([]);
   const [beds, setBeds] = useState([]);
@@ -99,6 +102,20 @@ export const NurseDashboard = () => {
           <p className="text-xs text-slate-500 mt-0.5">Medication Administration, Injection Schedules & Care Requests</p>
         </div>
       </div>
+
+      <AvailabilityBanner
+        role="Nurse"
+        isAvailable={isAvailable}
+        isToggling={isToggling}
+        onToggle={handleToggle}
+        pendingCount={pendingTasks.length + requests.filter(r => r.status !== 'COMPLETED').length}
+      />
+
+      {statusMessage && (
+        <div className={`p-3 rounded-xl border text-xs font-bold ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Ward Beds Occupied" value={`${beds.filter(b => b.status === 'OCCUPIED').length} Beds`} subtitle="Inpatient Ward Beds" icon={Bed} color="sky" />

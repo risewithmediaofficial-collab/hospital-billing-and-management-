@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
+import { useAvailability } from '../../hooks/useAvailability';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
   Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText
@@ -14,6 +16,7 @@ import { useDepartmentNotificationStore } from '../../store/departmentNotificati
 export const PharmacistDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const refreshPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
 
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'inventory', 'batches', 'transfers', 'alerts', 'audit'
@@ -178,10 +181,24 @@ export const PharmacistDashboard = () => {
             <Boxes size={16} className="mr-1" /> Add Stock Batch
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowTransferModal(true)}>
-            <ArrowRightLeft size={16} className="mr-1" /> Location Transfer
+            <ArrowRightLeft size={16} className="mr-1" /> Internal Transfer
           </Button>
         </div>
       </div>
+
+      <AvailabilityBanner
+        role="Pharmacist"
+        isAvailable={isAvailable}
+        isToggling={isToggling}
+        onToggle={handleToggle}
+        pendingCount={pending.length}
+      />
+
+      {statusMessage && (
+        <div className={`p-3 rounded-xl border text-xs font-bold ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -18,6 +18,8 @@ import {
   updateSubscriptionPlan,
   extendHospitalTrial,
   assignPlanToHospital,
+  getPendingApprovals,
+  getSubscriptionAlerts,
 } from './saas.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { requireRole } from '../../middleware/permissions.js';
@@ -34,6 +36,7 @@ router.get('/plans', getAllSubscriptionPlans);
 router.get('/platform/metrics', ...superAdminOnly, getPlatformMetrics);
 router.get('/hospitals/stats', ...superAdminOnly, getHospitalsWithStats);
 router.get('/hospitals/overview', ...superAdminOnly, getHospitalAdminOverview);
+router.get('/hospitals/pending', ...superAdminOnly, getPendingApprovals);
 router.get('/hospitals/:id/detail', ...superAdminOnly, getHospitalDetail);
 router.patch('/hospitals/:id/configuration', ...superAdminOnly, updateHospitalConfiguration);
 router.post('/hospitals/:id/extend-trial', ...superAdminOnly, extendHospitalTrial);
@@ -42,6 +45,7 @@ router.get('/search', ...superAdminOnly, globalSearch);
 router.get('/audit-logs', ...superAdminOnly, getAuditLogs);
 
 // Subscription Plan Management
+router.get('/subscriptions/alerts', ...superAdminOnly, getSubscriptionAlerts);
 router.post('/plans', ...superAdminOnly, createSubscriptionPlan);
 router.patch('/plans/:id', ...superAdminOnly, updateSubscriptionPlan);
 

@@ -3,6 +3,8 @@ import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
+import { useAvailability } from '../../hooks/useAvailability';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
@@ -12,6 +14,7 @@ import { TestTube, QrCode, FileCheck, CheckCircle2, FlaskConical, AlertCircle, U
 export const LabTechDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const resolvePending = useDepartmentNotificationStore((state) => state.resolvePending);
   const navigate = useNavigate();
   const location = useLocation();
@@ -135,7 +138,19 @@ export const LabTechDashboard = () => {
         </p>
       </div>
 
+      <AvailabilityBanner
+        role="Laboratory Technologist"
+        isAvailable={isAvailable}
+        isToggling={isToggling}
+        onToggle={handleToggle}
+        pendingCount={pendingCount + inProgressCount}
+      />
 
+      {statusMessage && (
+        <div className={`p-3 rounded-xl border text-xs font-bold ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Active Pathology Requests" value={`${activeOrders.length} Active`} subtitle="Auto-Dispatched by Doctors" icon={TestTube} color="amber" />

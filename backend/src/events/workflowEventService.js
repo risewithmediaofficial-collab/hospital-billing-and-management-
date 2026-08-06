@@ -4,6 +4,10 @@
  * Maps every workflow lifecycle event to the target roles that should be notified.
  * All inter-department socket emissions pass through here so that adding a new
  * department only requires adding entries to WORKFLOW_EVENTS and TARGET_ROLES.
+ *
+ * ─── PERSISTENCE ────────────────────────────────────────────────────────────
+ * Every emitted event also writes a persistent Notification record to the DB.
+ * This ensures staff see missed alerts after a page refresh or reconnect.
  */
 import { socketManager } from './socketManager.js';
 
@@ -52,6 +56,10 @@ export const WORKFLOW_EVENTS = {
   // Emergency (broadcast)
   EMERGENCY_RAISED:        'EMERGENCY_RAISED',
   EMERGENCY_RESOLVED:      'EMERGENCY_RESOLVED',
+
+  // Staff Availability
+  STAFF_WENT_OFFLINE:      'STAFF_WENT_OFFLINE',
+  STAFF_CAME_ONLINE:       'STAFF_CAME_ONLINE',
 };
 
 // ─── Which roles get notified for each event ─────────────────────────────────
@@ -59,8 +67,6 @@ const TARGET_ROLES = {
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:  ['RECEPTIONIST'],
-  // Consultation completion means "ready for billing". Reception must not
-  // receive it in Completed & Billed until PAYMENT_COLLECTED is emitted.
   [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:    ['CASHIER', 'BILLING_STAFF'],
   [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:        ['LAB_TECH', 'LABORATORY_STAFF'],
   [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:  ['RADIOLOGIST', 'RADIOLOGY_STAFF'],
@@ -81,123 +87,188 @@ const TARGET_ROLES = {
   // Emergency is broadcast to ALL — handled separately
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:         ['ALL'],
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:       ['ALL'],
+  [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:       ['HOSPITAL_ADMIN', 'RECEPTIONIST'],
+  [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:        ['HOSPITAL_ADMIN'],
 };
 
 // ─── Human-readable notification messages for each event ─────────────────────
 const MESSAGE_TEMPLATES = {
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:
-    (p) => ({ title: 'New Patient in Queue', message: `${p.patientName} (${p.uhid}) has been assigned Token #${p.tokenNumber} and is waiting.` }),
+    (p) => ({ title: 'New Patient in Queue', message: `${p.patientName} (${p.uhid}) has been assigned Token #${p.tokenNumber} and is waiting for consultation.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:
-    (p) => ({ title: 'Patient Re-queued', message: `${p.patientName} (${p.uhid}) token has been re-queued.` }),
+    (p) => ({ title: 'Patient Re-queued', message: `${p.patientName} (${p.uhid}) token has been re-queued. Please attend.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:
-    (p) => ({ title: 'Doctor Accepted Patient', message: `Dr. ${p.doctorName} has accepted ${p.patientName} (${p.uhid}) for consultation.` }),
+    (p) => ({ title: 'Doctor Accepted Patient', message: `Dr. ${p.doctorName} has accepted ${p.patientName} (${p.uhid}) for consultation.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:
-    (p) => ({ title: 'Consultation Completed', message: `Dr. ${p.doctorName} has completed the consultation for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '✅ Consultation Completed — Bill Ready', message: `Dr. ${p.doctorName} completed the consultation for ${p.patientName} (${p.uhid}). Generate the invoice now.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:
-    (p) => ({ title: 'New Lab Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '🔬 New Lab Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}). Please process and upload results.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:
-    (p) => ({ title: 'New Radiology Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '🩻 New Radiology Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}). Please process and upload scan.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.LAB_ACCEPTED]:
-    (p) => ({ title: 'Request Accepted', message: `Laboratory accepted your request for ${p.testName} (${p.patientName}).` }),
+    (p) => ({ title: '🔬 Lab Accepted Your Request', message: `Laboratory has accepted the ${p.testName} request for ${p.patientName}. Sample is being processed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.LAB_SUBMITTED]:
-    (p) => ({ title: 'Laboratory Response Received', message: `Response received from Laboratory for ${p.testName} (${p.patientName}).` }),
+    (p) => ({ title: '🔬 Lab Report Ready — Review Required', message: `Lab results for ${p.testName} (${p.patientName}) are ready. Please review and accept to proceed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED]:
-    (p) => ({ title: 'Request Accepted', message: `X-Ray department accepted your request for ${p.testName} (${p.patientName}).` }),
+    (p) => ({ title: '🩻 Radiology Accepted Your Request', message: `Radiology dept accepted the ${p.testName} scan request for ${p.patientName}. Scan in progress.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:
-    (p) => ({ title: 'X-Ray Response Received', message: `Response received from X-Ray Department for ${p.testName} (${p.patientName}).` }),
+    (p) => ({ title: '🩻 Radiology Scan Ready — Review Required', message: `${p.testName} scan for ${p.patientName} is ready. Please review and accept to continue treatment.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:
-    (p) => ({ title: 'Doctor Reviewed Report', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} report for ${p.patientName}.` }),
+    (p) => ({ title: 'Doctor Reviewed Lab Report', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} report for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]:
-    (p) => ({ title: 'Doctor Reviewed Scan', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} scan for ${p.patientName}.` }),
+    (p) => ({ title: 'Doctor Reviewed Scan', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} scan for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]:
-    (p) => ({ title: 'New Prescription', message: `Dr. ${p.doctorName} has issued a prescription for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '💊 New Prescription Received', message: `Dr. ${p.doctorName} has issued a prescription for ${p.patientName} (${p.uhid}). Please dispense medicines.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.PHARMACY_ACCEPTED]:
-    (p) => ({ title: 'Pharmacy Accepted', message: `Pharmacy has accepted the prescription for ${p.patientName} and is preparing medicines.` }),
+    (p) => ({ title: '💊 Pharmacy Accepted Prescription', message: `Pharmacy has accepted the prescription for ${p.patientName} and is preparing medicines.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PHARMACY_DISPENSED]:
-    (p) => ({ title: 'Medicines Dispensed', message: `Pharmacy has dispensed all medicines for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '💊 Medicines Dispensed', message: `Pharmacy has dispensed all medicines for ${p.patientName} (${p.uhid}). Encounter can be closed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.BILL_REQUESTED]:
-    (p) => ({ title: 'Bill Ready to Generate', message: `Bill generation requested for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '🧾 Bill Generation Requested', message: `Bill generation requested for ${p.patientName} (${p.uhid}). Please generate the invoice.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.BILL_READY]:
-    (p) => ({ title: 'Invoice Generated', message: `Invoice #${p.invoiceNo || ''} created for ${p.patientName} (${p.uhid}).` }),
+    (p) => ({ title: '🧾 Invoice Generated', message: `Invoice #${p.invoiceNo || ''} has been created for ${p.patientName} (${p.uhid}).`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PAYMENT_COLLECTED]:
-    (p) => ({ title: 'Payment Collected', message: `Payment collected for ${p.patientName} (${p.uhid}). Encounter closed.` }),
+    (p) => ({ title: '💰 Payment Collected', message: `Payment has been collected for ${p.patientName} (${p.uhid}). This encounter is now closed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]:
-    (p) => ({ title: 'Nurse Request', message: `Nurse raised a ${p.requestType} request for patient in ${p.location}.` }),
+    (p) => ({ title: '🏥 Nurse Request', message: `Nurse raised a ${p.requestType} request for patient in ${p.location}. Please attend.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]:
-    (p) => ({ title: 'Nurse Request Completed', message: `Nurse has completed the ${p.requestType} request for ${p.patientName}.` }),
+    (p) => ({ title: '✅ Nurse Request Completed', message: `Nurse has completed the ${p.requestType} request for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
-    (p) => ({ title: '🚨 EMERGENCY ALERT', message: `${p.emergencyType} emergency raised at ${p.location} by ${p.raisedBy}. Patient: ${p.patientName || 'Unknown'}.` }),
+    (p) => ({ title: '🚨 EMERGENCY ALERT', message: `${p.emergencyType} emergency raised at ${p.location} by ${p.raisedBy}. Patient: ${p.patientName || 'Unknown'}. Report immediately!`, type: 'EMERGENCY' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
-    (p) => ({ title: 'Emergency Resolved', message: `Emergency at ${p.location} has been resolved by ${p.resolvedBy}.` }),
+    (p) => ({ title: '✅ Emergency Resolved', message: `Emergency at ${p.location} has been resolved by ${p.resolvedBy}.`, type: 'SYSTEM_ALERT' }),
+
+  [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:
+    (p) => ({ title: '⚠️ Staff Offline', message: `${p.staffName} (${p.role}) has gone offline. Patients cannot be assigned to them until they go back online.`, type: 'SYSTEM_ALERT' }),
+
+  [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:
+    (p) => ({ title: '✅ Staff Back Online', message: `${p.staffName} (${p.role}) is now online and available for assignments.`, type: 'SYSTEM_ALERT' }),
+};
+
+// ─── Notification type → DB type mapping ─────────────────────────────────────
+const DB_NOTIFICATION_TYPES = {
+  WORKFLOW: 'WORKFLOW',
+  NEW_DATA: 'NEW_DATA',
+  DEPT_RESPONSE: 'DEPT_RESPONSE',
+  EMERGENCY: 'EMERGENCY',
+  SYSTEM_ALERT: 'SYSTEM_ALERT',
 };
 
 // ─── WorkflowEventService ─────────────────────────────────────────────────────
 export class WorkflowEventService {
   /**
-   * Emit a workflow event to all target role rooms.
+   * Emit a workflow event to all target role rooms AND persist to DB.
    * @param {string} event  - One of WORKFLOW_EVENTS constants
    * @param {object} payload - Data specific to this event
    * @param {string} branchId - Optional: scope to a specific branch room
    */
-  static emit(event, payload, branchId = null) {
+  static async emit(event, payload, branchId = null) {
     const roles = TARGET_ROLES[event] || [];
     const templateFn = MESSAGE_TEMPLATES[event];
-    const notification = templateFn ? templateFn(payload) : { title: event, message: '' };
+    const notifData = templateFn ? templateFn(payload) : { title: event, message: '', type: 'SYSTEM_ALERT' };
+    const { title, message, type } = notifData;
 
     const envelope = {
       event,
-      ...notification,
+      title,
+      message,
+      type,
       payload,
       timestamp: new Date().toISOString(),
       isRead: false,
       linkedPath: payload.linkedPath || null,
     };
 
+    // ── Socket.IO Emission ────────────────────────────────────────────────────
     if (roles.includes('ALL')) {
-      // Emergency broadcast — goes to everyone
       socketManager.emitEmergency(event, envelope);
       if (branchId) socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
-      return;
-    }
+    } else {
+      roles.forEach((role) => {
+        const targetedEnvelope = { ...envelope, targetRole: role };
+        const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
+        if (targetUserId) {
+          socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
+        } else {
+          socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
+        }
+      });
 
-    roles.forEach((role) => {
-      const targetedEnvelope = { ...envelope, targetRole: role };
-      const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
-      if (targetUserId) {
-        socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
-        socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
-      } else {
-        socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
-        socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
+      if (branchId) {
+        socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
+        socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
       }
-    });
-
-    // Also emit to branch room for any display boards
-    if (branchId) {
-      socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
-      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
     }
+
+    // ── Persist to DB (non-blocking) ─────────────────────────────────────────
+    try {
+      const { NotificationService } = await import('../domains/notifications/notification.service.js');
+
+      if (roles.includes('ALL')) {
+        // Emergency — one broadcast notification for all
+        await NotificationService.createNotification({
+          recipientRole: 'ALL',
+          hospitalId: payload.hospitalId || null,
+          title,
+          message,
+          type: DB_NOTIFICATION_TYPES[type] || 'SYSTEM_ALERT',
+          link: payload.linkedPath || '',
+          metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
+        });
+      } else {
+        // Per-role persistent notifications
+        for (const role of roles) {
+          const isPersonal = role === 'DOCTOR' && payload.doctorId;
+          await NotificationService.createNotification({
+            recipientUserId: isPersonal ? payload.doctorId : null,
+            recipientRole: isPersonal ? null : role,
+            hospitalId: payload.hospitalId || null,
+            title,
+            message,
+            type: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
+            link: payload.linkedPath || '',
+            metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
+          });
+        }
+      }
+    } catch (dbErr) {
+      // DB persistence failure must never block real-time socket emission
+      console.error('[WorkflowEventService] Failed to persist notification to DB:', dbErr.message);
+    }
+  }
+
+  /**
+   * Synchronous emit — for backwards compatibility where await cannot be used.
+   * Fires socket events immediately; DB persistence runs in background.
+   */
+  static emitSync(event, payload, branchId = null) {
+    // Fire and forget — don't await
+    WorkflowEventService.emit(event, payload, branchId).catch((err) =>
+      console.error('[WorkflowEventService] emitSync error:', err.message)
+    );
   }
 
   static getTargetRoles(event) {

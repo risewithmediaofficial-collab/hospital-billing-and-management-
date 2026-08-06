@@ -91,7 +91,7 @@ export class EmrService {
       nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user);
 
       const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
-      WorkflowEventService.emit(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
         prescriptionId: prescription._id,
         patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
         uhid: patient?.uhid || 'N/A',

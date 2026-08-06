@@ -362,9 +362,9 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                   </select>
                 )}
                 {selectedDoctor && selectedDoctor.isAvailable === false && (
-                  <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center gap-1.5 font-medium">
-                    <Info size={13} className="flex-shrink-0 text-amber-600" />
-                    Doctor is currently marked Off Duty. Token will be queued for when doctor comes on duty.
+                  <div className="mt-1.5 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-center gap-1.5 font-bold">
+                    <AlertCircle size={14} className="flex-shrink-0 text-red-600" />
+                    This doctor is currently OFFLINE. Please select an AVAILABLE doctor from the dropdown above.
                   </div>
                 )}
               </div>
@@ -378,7 +378,13 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
               <div className="flex gap-2 pt-1">
                 <Button type="button" variant="outline" className="w-1/2" onClick={handleReset}>Cancel</Button>
-                <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading} disabled={!selectedPatient}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-1/2 font-bold"
+                  isLoading={isLoading}
+                  disabled={!selectedPatient || (selectedDoctor && selectedDoctor.isAvailable === false)}
+                >
                   Generate Token #
                 </Button>
               </div>

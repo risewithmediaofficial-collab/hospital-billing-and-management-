@@ -4,10 +4,13 @@ import {
   Building2, ShieldCheck, Users, Stethoscope, ConciergeBell, Activity,
   TestTube, Scan, Pill, CreditCard, UserCircle, BedDouble, ClipboardList,
   Calendar, IndianRupee, AlertTriangle, ShieldAlert, Clock, FileText, ScrollText,
+  Bell, ArrowRight
 } from 'lucide-react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { axiosClient } from '../../api/axiosClient';
+import { useSocket } from '../../providers/SocketProvider';
 import { STAT_CARD_ROUTES } from '../../utils/superAdminNavigation';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
@@ -41,27 +44,48 @@ const DASHBOARD_CARDS = [
 
 export const SuperAdminDashboardPage = () => {
   const navigate = useNavigate();
+  const { socket } = useSocket();
   const [metrics, setMetrics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [subAlerts, setSubAlerts] = useState({ expiringSoon: [], trialsExpiringSoon: [] });
+
+  const loadDashboardData = async () => {
+    try {
+      const [metricsRes, pendingRes, alertsRes] = await Promise.allSettled([
+        axiosClient.get('/saas/platform/metrics'),
+        axiosClient.get('/saas/hospitals/pending'),
+        axiosClient.get('/saas/subscriptions/alerts'),
+      ]);
+      if (metricsRes.status === 'fulfilled') setMetrics(metricsRes.value.data);
+      if (pendingRes.status === 'fulfilled') setPendingCount((pendingRes.value.data || []).length);
+      if (alertsRes.status === 'fulfilled') setSubAlerts(alertsRes.value.data || {});
+    } catch (err) {
+      console.error('Failed to load platform metrics:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await axiosClient.get('/saas/platform/metrics');
-        setMetrics(res.data);
-      } catch (err) {
-        console.error('Failed to load platform metrics:', err);
-      } finally {
-        setIsLoading(false);
-      }
+    loadDashboardData();
+
+    if (!socket) return;
+    socket.on('saas:pending_changed', loadDashboardData);
+    socket.on('workflow:notification', loadDashboardData);
+    return () => {
+      socket.off('saas:pending_changed', loadDashboardData);
+      socket.off('workflow:notification', loadDashboardData);
     };
-    load();
-  }, []);
+  }, [Boolean(socket)]);
 
   const navigateTo = (key) => {
     const path = STAT_CARD_ROUTES[key];
     if (path) navigate(path);
   };
+
+  const totalAlerts = (subAlerts.expiringSoon?.length || 0) + (subAlerts.trialsExpiringSoon?.length || 0);
+  const hasAlerts = pendingCount > 0 || totalAlerts > 0 || (metrics?.emergencyCases || 0) > 0;
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-slate-500">Loading platform dashboard...</div>;
@@ -74,6 +98,56 @@ export const SuperAdminDashboardPage = () => {
         <p className="text-xs text-neutral-500 mt-1">Complete overview of the entire Hospital Billing & Management platform</p>
       </div>
 
+      {/* Platform Alerts */}
+      {hasAlerts && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell size={18} className="text-amber-600" />
+            <h3 className="font-bold text-amber-800">Platform Alerts — Action Required</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {pendingCount > 0 && (
+              <button
+                onClick={() => navigate('/admin/pending-approvals')}
+                className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200 hover:bg-amber-50 transition-colors text-left shadow-sm"
+              >
+                <div>
+                  <p className="text-xs font-bold text-amber-700">Pending Approvals</p>
+                  <p className="text-2xl font-black text-slate-900">{pendingCount}</p>
+                  <p className="text-[10px] text-slate-500">hospitals awaiting review</p>
+                </div>
+                <ArrowRight size={16} className="text-amber-500" />
+              </button>
+            )}
+            {totalAlerts > 0 && (
+              <button
+                onClick={() => navigate('/admin/subscriptions')}
+                className="flex items-center justify-between p-3 rounded-xl bg-white border border-orange-200 hover:bg-orange-50 transition-colors text-left shadow-sm"
+              >
+                <div>
+                  <p className="text-xs font-bold text-orange-700">Plans Expiring Soon</p>
+                  <p className="text-2xl font-black text-slate-900">{totalAlerts}</p>
+                  <p className="text-[10px] text-slate-500">within the next 7 days</p>
+                </div>
+                <ArrowRight size={16} className="text-orange-500" />
+              </button>
+            )}
+            {(metrics?.emergencyCases || 0) > 0 && (
+              <button
+                onClick={() => navigate('/admin/emergency')}
+                className="flex items-center justify-between p-3 rounded-xl bg-white border border-red-200 hover:bg-red-50 transition-colors text-left shadow-sm"
+              >
+                <div>
+                  <p className="text-xs font-bold text-red-700">Emergency Cases</p>
+                  <p className="text-2xl font-black text-slate-900">{metrics.emergencyCases}</p>
+                  <p className="text-[10px] text-slate-500">active across all hospitals</p>
+                </div>
+                <ArrowRight size={16} className="text-red-500" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {DASHBOARD_CARDS.map(({ key, title, icon, color, format }) => (
           <StatCard

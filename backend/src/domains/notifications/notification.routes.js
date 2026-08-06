@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth.js';
+import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { NotificationService } from './notification.service.js';
 
 const router = Router();
-router.use(authenticate);
+router.use(verifyJwt);
 
 // Get notifications & unread badge count
 router.get('/', async (req, res, next) => {

@@ -131,7 +131,7 @@ export class AppointmentsService {
       socketManager.io.emit('token:generated', queuePayload);
     }
 
-    WorkflowEventService.emit(WORKFLOW_EVENTS.PATIENT_QUEUED, {
+    WorkflowEventService.emitSync(WORKFLOW_EVENTS.PATIENT_QUEUED, {
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
       tokenNumber,
@@ -197,14 +197,14 @@ export class AppointmentsService {
     const docName = appointment.doctorId?.name || user?.name || 'Doctor';
 
     if (status === 'IN_CONSULTATION') {
-      WorkflowEventService.emit(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
         patientName: pName,
         uhid,
         doctorName: docName,
         linkedPath: '/reception/registered-patients?tab=QUEUED',
       }, appointment.branchId);
     } else if (status === 'COMPLETED') {
-      WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
         patientName: pName,
         uhid,
         doctorName: docName,

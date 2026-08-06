@@ -27,6 +27,7 @@ import { SuperAdminStaffPage, SuperAdminDoctorsPage } from '../pages/SuperAdmin/
 import { SuperAdminAuditLogsPage } from '../pages/SuperAdmin/SuperAdminAuditLogsPage';
 import { SuperAdminSubscriptionsPage } from '../pages/SuperAdmin/SuperAdminSubscriptionsPage';
 import { SuperAdminReportsPage } from '../pages/SuperAdmin/SuperAdminReportsPage';
+import { SuperAdminPendingApprovalsPage } from '../pages/SuperAdmin/SuperAdminPendingApprovalsPage';
 
 import { HospitalAdminDashboard } from '../pages/Dashboards/HospitalAdminDashboard';
 import { HospitalAdminManagementViews } from '../pages/Dashboards/HospitalAdminManagementViews';
@@ -95,6 +96,7 @@ export const AppRoutes = () => {
         <Route path="/admin/hospital-admins" element={<SuperAdminLayout><SuperAdminHospitalAdminsPage /></SuperAdminLayout>} />
         <Route path="/admin/staff" element={<SuperAdminLayout><SuperAdminStaffPage /></SuperAdminLayout>} />
         <Route path="/admin/doctors" element={<SuperAdminLayout><SuperAdminDoctorsPage /></SuperAdminLayout>} />
+        <Route path="/admin/pending-approvals" element={<SuperAdminLayout><SuperAdminPendingApprovalsPage /></SuperAdminLayout>} />
         <Route path="/admin/patients" element={<SuperAdminLayout><SuperAdminModuleBridge><RegisteredPatientsView /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/reception" element={<SuperAdminLayout><SuperAdminModuleBridge><ReceptionDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />
         <Route path="/admin/nursing" element={<SuperAdminLayout><SuperAdminModuleBridge><NurseDashboard /></SuperAdminModuleBridge></SuperAdminLayout>} />

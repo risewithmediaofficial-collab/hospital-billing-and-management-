@@ -161,7 +161,7 @@ export class BillingService {
         receiptNo: receipt.receiptNo,
         linkedPath: '/reception/registered-patients?tab=COMPLETED',
       };
-      WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
     }
 

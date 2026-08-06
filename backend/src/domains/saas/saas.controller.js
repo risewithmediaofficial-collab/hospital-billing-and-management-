@@ -164,3 +164,16 @@ export const assignPlanToHospital = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+export const getPendingApprovals = async (req, res, next) => {
+  try {
+    const hospitals = await SaasService.getPendingApprovals();
+    return sendSuccess(res, 200, 'Pending approval queue retrieved', hospitals);
+  } catch (error) { next(error); }
+};
+
+export const getSubscriptionAlerts = async (req, res, next) => {
+  try {
+    const alerts = await SaasService.getSubscriptionAlerts();
+    return sendSuccess(res, 200, 'Subscription alerts retrieved', alerts);
+  } catch (error) { next(error); }
+};

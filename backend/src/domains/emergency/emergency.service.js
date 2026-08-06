@@ -55,7 +55,7 @@ export class EmergencyService {
     });
 
     // Broadcast workflow emergency event to ALL connected roles across hospital
-    WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RAISED, {
+    WorkflowEventService.emitSync(WORKFLOW_EVENTS.EMERGENCY_RAISED, {
       emergencyId: newEmergency._id,
       emergencyType: newEmergency.emergencyType,
       severity: newEmergency.severity,
@@ -93,7 +93,7 @@ export class EmergencyService {
     await emergency.save();
 
     // Broadcast resolution event to ALL connected roles
-    WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, {
+    WorkflowEventService.emitSync(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, {
       emergencyId: emergency._id,
       emergencyType: emergency.emergencyType,
       location: emergency.location,

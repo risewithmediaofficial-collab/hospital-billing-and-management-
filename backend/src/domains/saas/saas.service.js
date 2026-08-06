@@ -179,7 +179,7 @@ export class SaasService {
       code,
       subdomain,
       status: 'PENDING_APPROVAL',
-      plan: data.plan || 'PROFESSIONAL',
+      plan: data.plan || 'BASIC',
       contactName: data.contactName || data.hospitalName || 'Hospital Administrator',
       contactEmail: cleanEmail,
       contactPhone: data.contactPhone || '+1 (555) 000-0000',
@@ -206,7 +206,7 @@ export class SaasService {
       title: `New Hospital Registration: ${hospital.name}`,
       message: `Hospital ${hospital.name} (Code: ${hospital.code}) registered by ${hospital.contactName} (${hospital.contactEmail}, ${hospital.contactPhone}) on ${trialStartDate.toLocaleString()}. 7-Day Free Trial ends on ${trialEndDate.toLocaleDateString()}.`,
       type: 'REGISTRATION',
-      link: `/admin/hospital/${hospital._id}/dashboard`,
+      link: '/admin/pending-approvals',
       metadata: {
         hospitalId: hospital._id,
         hospitalName: hospital.name,
@@ -217,6 +217,24 @@ export class SaasService {
         trialExpiryDate: trialEndDate,
       },
     });
+
+    // Real-time Socket.IO emission to Super Admin online consoles
+    try {
+      const { socketManager } = await import('../../events/socketManager.js');
+      socketManager.emitToRole('SUPER_ADMIN', 'workflow:notification', {
+        title: `🏥 New Hospital Application: ${hospital.name}`,
+        message: `New hospital '${hospital.name}' registered by ${hospital.contactName} (${hospital.contactEmail}). Awaiting Super Admin approval.`,
+        type: 'REGISTRATION',
+        linkedPath: '/admin/pending-approvals',
+        event: 'HOSPITAL_REGISTERED',
+        timestamp: new Date().toISOString(),
+      });
+      if (socketManager.io) {
+        socketManager.io.emit('saas:pending_changed', { hospitalId: hospital._id, action: 'NEW_REGISTRATION' });
+      }
+    } catch (e) {
+      console.error('Socket emission failed on hospital registration:', e.message);
+    }
 
     // Audit Log Entry
     await AuditLog.create({
@@ -235,6 +253,50 @@ export class SaasService {
 
   static async getAllHospitals(user) {
     return await Hospital.find(tenantFilter()).sort({ createdAt: -1 });
+  }
+
+  static async getPendingApprovals() {
+    const hospitals = await Hospital.find({
+      ...tenantFilter(),
+      status: { $in: ['PENDING_APPROVAL', 'PENDING'] },
+      isDeleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+    return hospitals;
+  }
+
+  static async getSubscriptionAlerts() {
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Paid plans expiring within 7 days
+    const expiringSoon = await Hospital.find({
+      ...tenantFilter(),
+      isDeleted: { $ne: true },
+      isTrial: false,
+      subscriptionEndDate: { $ne: null, $gte: now, $lte: sevenDaysFromNow },
+    }).sort({ subscriptionEndDate: 1 });
+
+    // Already expired
+    const expired = await Hospital.find({
+      ...tenantFilter(),
+      isDeleted: { $ne: true },
+      status: 'EXPIRED',
+    }).sort({ subscriptionEndDate: -1 }).limit(20);
+
+    // Trials expiring within 7 days
+    const trialsExpiringSoon = await Hospital.find({
+      ...tenantFilter(),
+      isDeleted: { $ne: true },
+      isTrial: true,
+      status: 'APPROVED',
+      trialEndDate: { $ne: null, $gte: now, $lte: sevenDaysFromNow },
+    }).sort({ trialEndDate: 1 });
+
+    return {
+      expiringSoon,
+      expired,
+      trialsExpiringSoon,
+    };
   }
 
   static async getPlatformMetrics() {
@@ -669,47 +731,51 @@ export class SaasService {
 
   static async getAllSubscriptionPlans() {
     const { SubscriptionPlan } = await import('../../models/SubscriptionPlan.js');
-    let plans = await SubscriptionPlan.find({}).sort({ monthlyPrice: 1 });
-    if (plans.length === 0) {
-      // Seed default plans if none exist
+    let plans = await SubscriptionPlan.find({ code: { $in: ['BASIC', 'STANDARD', 'UNLIMITED'] } }).sort({ monthlyPrice: 1 });
+    if (plans.length < 3) {
+      // Clear old plans and seed the 3-tier pricing
+      await SubscriptionPlan.deleteMany({ code: { $in: ['STARTER', 'PROFESSIONAL', 'ENTERPRISE', 'BASIC', 'STANDARD', 'UNLIMITED'] } });
       plans = await SubscriptionPlan.insertMany([
         {
-          name: 'STARTER PLAN',
-          code: 'STARTER',
-          description: 'Ideal for small clinics and single-specialty centers',
-          monthlyPrice: 2999,
-          yearlyPrice: 29990,
+          name: 'BASIC PLAN',
+          code: 'BASIC',
+          description: 'For small clinics — register and bill up to 100 patients per month',
+          monthlyPrice: 4000,
+          yearlyPrice: 40000,
           trialDays: 7,
+          patientLimit: 100,
           staffLimits: { hospitalAdmins: 1, doctors: 5, receptionists: 2, nurses: 5, laboratoryStaff: 2, radiologyStaff: 2, pharmacyStaff: 2, billingStaff: 2, totalStaff: 20 },
-          usageLimits: { monthlyPatients: 2000, storageInGB: 10, branches: 1, departments: 10, notifications: 2000 },
+          usageLimits: { monthlyPatients: 100, storageInGB: 10, branches: 1, departments: 10, notifications: 1000 },
           supportLevel: 'BASIC',
           backupFrequency: 'WEEKLY',
           apiAccess: false,
-          isDefault: false,
-        },
-        {
-          name: 'PROFESSIONAL PLAN',
-          code: 'PROFESSIONAL',
-          description: 'Full-featured SaaS solution for multi-specialty hospitals',
-          monthlyPrice: 6999,
-          yearlyPrice: 69990,
-          trialDays: 7,
-          staffLimits: { hospitalAdmins: 2, doctors: 15, receptionists: 5, nurses: 15, laboratoryStaff: 5, radiologyStaff: 5, pharmacyStaff: 5, billingStaff: 5, totalStaff: 50 },
-          usageLimits: { monthlyPatients: 10000, storageInGB: 50, branches: 2, departments: 25, notifications: 10000 },
-          supportLevel: 'PRIORITY',
-          backupFrequency: 'DAILY',
-          apiAccess: true,
           isDefault: true,
         },
         {
-          name: 'ENTERPRISE PLAN',
-          code: 'ENTERPRISE',
-          description: 'Unlimited capacity for multi-branch hospital networks',
-          monthlyPrice: 14999,
-          yearlyPrice: 149990,
+          name: 'STANDARD PLAN',
+          code: 'STANDARD',
+          description: 'For growing hospitals — register and bill up to 1,000 patients per month',
+          monthlyPrice: 30000,
+          yearlyPrice: 300000,
           trialDays: 7,
-          staffLimits: { hospitalAdmins: 5, doctors: 50, receptionists: 20, nurses: 50, laboratoryStaff: 20, radiologyStaff: 20, pharmacyStaff: 20, billingStaff: 20, totalStaff: 200 },
-          usageLimits: { monthlyPatients: 50000, storageInGB: 200, branches: 10, departments: 100, notifications: 50000 },
+          patientLimit: 1000,
+          staffLimits: { hospitalAdmins: 2, doctors: 20, receptionists: 8, nurses: 20, laboratoryStaff: 8, radiologyStaff: 8, pharmacyStaff: 8, billingStaff: 8, totalStaff: 80 },
+          usageLimits: { monthlyPatients: 1000, storageInGB: 50, branches: 3, departments: 25, notifications: 10000 },
+          supportLevel: 'PRIORITY',
+          backupFrequency: 'DAILY',
+          apiAccess: true,
+          isDefault: false,
+        },
+        {
+          name: 'UNLIMITED PLAN',
+          code: 'UNLIMITED',
+          description: 'For large hospital networks — unlimited patients with full platform access',
+          monthlyPrice: 50000,
+          yearlyPrice: 500000,
+          trialDays: 7,
+          patientLimit: -1,
+          staffLimits: { hospitalAdmins: 5, doctors: 100, receptionists: 30, nurses: 100, laboratoryStaff: 30, radiologyStaff: 30, pharmacyStaff: 30, billingStaff: 30, totalStaff: 500 },
+          usageLimits: { monthlyPatients: -1, storageInGB: 500, branches: 20, departments: 100, notifications: 100000 },
           supportLevel: '24_7_DEDICATED',
           backupFrequency: 'HOURLY',
           apiAccess: true,
@@ -802,6 +868,115 @@ export class SaasService {
     });
 
     return hospital;
+  }
+
+  // ── AUTOMATED SUBSCRIPTION EXPIRY & 7-DAY WARNING ──
+  static async evaluateSubscriptionExpiry() {
+    const hospitals = await Hospital.find({ isDeleted: false, isTrial: false, subscriptionEndDate: { $ne: null } });
+    const now = new Date();
+    const { NotificationService } = await import('../notifications/notification.service.js');
+
+    for (const hosp of hospitals) {
+      if (!hosp.subscriptionEndDate) continue;
+
+      const diffTime = new Date(hosp.subscriptionEndDate) - now;
+      const remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const warnings = hosp.subscriptionWarningsSent || { '7_days': false, '3_days': false, '1_day': false, '0_days': false };
+
+      // Expired — set data retention deadline (90 days)
+      if (remainingDays <= 0 && hosp.status !== 'EXPIRED') {
+        hosp.status = 'EXPIRED';
+        hosp.trialStatus = 'TRIAL_EXPIRED';
+        const retentionDeadline = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+        hosp.dataRetentionDeadline = retentionDeadline;
+        warnings['0_days'] = true;
+        hosp.subscriptionWarningsSent = warnings;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Subscription Expired',
+          message: `Your ${hosp.plan} plan has expired. Your data will be retained for 90 days until ${retentionDeadline.toLocaleDateString()}. Please renew your subscription to restore access.`,
+          type: 'TRIAL_EXPIRED',
+        });
+
+        await NotificationService.createNotification({
+          recipientRole: 'SUPER_ADMIN',
+          hospitalId: hosp._id,
+          title: `Subscription Expired: ${hosp.name}`,
+          message: `${hosp.plan} plan for ${hosp.name} (${hosp.contactEmail}) expired today. Data retention period: 90 days until ${retentionDeadline.toLocaleDateString()}.`,
+          type: 'TRIAL_EXPIRED',
+          link: `/admin/hospital/${hosp._id}/dashboard`,
+        });
+      } else if (remainingDays <= 7 && !warnings['7_days']) {
+        // 7-day warning
+        warnings['7_days'] = true;
+        hosp.subscriptionWarningsSent = warnings;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Subscription Expiring in 7 Days!',
+          message: `Your ${hosp.plan} subscription expires on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Renew now to avoid service interruption.`,
+          type: 'TRIAL_EXPIRING',
+        });
+
+        await NotificationService.createNotification({
+          recipientRole: 'SUPER_ADMIN',
+          hospitalId: hosp._id,
+          title: `⚠️ Plan Expiring Soon: ${hosp.name}`,
+          message: `${hosp.name}'s ${hosp.plan} plan expires in ${remainingDays} days on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Contact them to renew.`,
+          type: 'TRIAL_EXPIRING',
+          link: `/admin/hospital/${hosp._id}/dashboard`,
+        });
+      } else if (remainingDays <= 3 && !warnings['3_days']) {
+        warnings['3_days'] = true;
+        hosp.subscriptionWarningsSent = warnings;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: `Subscription Expiring in ${remainingDays} Days!`,
+          message: `URGENT: Your ${hosp.plan} plan expires in ${remainingDays} days. Renew immediately to prevent data access interruption.`,
+          type: 'TRIAL_EXPIRING',
+        });
+      } else if (remainingDays <= 1 && !warnings['1_day']) {
+        warnings['1_day'] = true;
+        hosp.subscriptionWarningsSent = warnings;
+        await hosp.save();
+
+        await NotificationService.createNotification({
+          recipientRole: 'HOSPITAL_ADMIN',
+          hospitalId: hosp._id,
+          title: 'Subscription Expires Tomorrow!',
+          message: `FINAL WARNING: Your ${hosp.plan} plan expires tomorrow. Renew immediately to avoid loss of access.`,
+          type: 'TRIAL_EXPIRING',
+        });
+      }
+    }
+
+    // Check 90-day data retention deadlines — notify super admin before purge
+    const expiringRetention = await Hospital.find({
+      isDeleted: false,
+      dataRetentionDeadline: { $ne: null, $lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+      dataRetentionNotified: { $ne: true },
+    });
+    for (const hosp of expiringRetention) {
+      const daysLeft = Math.ceil((new Date(hosp.dataRetentionDeadline) - now) / (1000 * 60 * 60 * 24));
+      hosp.dataRetentionNotified = true;
+      await hosp.save();
+      await NotificationService.createNotification({
+        recipientRole: 'SUPER_ADMIN',
+        hospitalId: hosp._id,
+        title: `⚠️ Data Deletion in ${daysLeft} Days: ${hosp.name}`,
+        message: `${hosp.name}'s 90-day data retention period ends on ${new Date(hosp.dataRetentionDeadline).toLocaleDateString()}. All hospital data will be permanently deleted unless they renew.`,
+        type: 'TRIAL_EXPIRED',
+        link: `/admin/hospital/${hosp._id}/dashboard`,
+      });
+    }
   }
 
   // ── AUTOMATED TRIAL EXPIRY & REMINDERS EVALUATOR ──

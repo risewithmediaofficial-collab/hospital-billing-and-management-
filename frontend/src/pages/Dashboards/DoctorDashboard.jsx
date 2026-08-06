@@ -473,6 +473,38 @@ export const DoctorDashboard = () => {
             </div>
           )}
 
+          {/* ── OFFLINE WARNING BANNER ── */}
+          {!isAvailable && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 shadow-sm animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center flex-shrink-0">
+                  <Lock size={18} className="text-rose-600" />
+                </div>
+                <div>
+                  <p className="font-extrabold text-rose-800 text-sm flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-600 inline-block" />
+                    You are currently OFFLINE — No new patients will be assigned to you
+                  </p>
+                  <p className="text-xs text-rose-600 mt-0.5">
+                    {liveQueue.length > 0
+                      ? `⚠️ You still have ${liveQueue.length} patient(s) in your queue from before going offline. Please attend them or reassign.`
+                      : 'Reception cannot issue new tokens to you while you are offline. Go online when you are ready to consult.'}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="success"
+                className="font-bold gap-2 text-xs shadow-sm shrink-0"
+                isLoading={isTogglingStatus}
+                onClick={handleToggleAvailability}
+              >
+                <Power size={14} />
+                Go Online Now
+              </Button>
+            </div>
+          )}
+
           {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard title="OPD Live Queue" value={`${liveQueue.length} Patients`} subtitle="Waiting Consultation" icon={Users} color="sky" />

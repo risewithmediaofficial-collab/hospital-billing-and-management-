@@ -1,5 +1,6 @@
 import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
 import { Patient } from '../../models/Patient.js';
+import { User } from '../../models/User.js';
 import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { AuditLog } from '../../models/AuditLog.js';
@@ -130,8 +131,19 @@ export class DiagnosticsService {
 
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(testCategory);
     const evtName = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED : WORKFLOW_EVENTS.LAB_ORDER_CREATED;
-    WorkflowEventService.emit(evtName, {
+
+    // Check if any available staff exist in the target department
+    const targetRole = isRadio ? 'RADIOLOGIST' : 'LAB_TECH';
+    const availableStaff = await User.find({ hospitalId, role: { $in: isRadio ? ['RADIOLOGIST', 'RADIOLOGY_STAFF'] : ['LAB_TECH', 'LABORATORY_STAFF'] }, isAvailable: { $ne: false } });
+    if (availableStaff.length === 0) {
+      // Still create the order (it queues), but warn in the notes
+      newOrder.timeline.push({ status: 'REQUESTED', timestamp: new Date(), updatedBy: doctorName, notes: `⚠️ No ${isRadio ? 'radiology' : 'lab'} staff currently available. Order queued.` });
+      await newOrder.save();
+    }
+
+    WorkflowEventService.emitSync(evtName, {
       orderId: newOrder._id,
+      hospitalId,
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
       doctorName,
@@ -211,7 +223,7 @@ export class DiagnosticsService {
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
     if (status === 'ACCEPTED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED : WORKFLOW_EVENTS.LAB_ACCEPTED;
-      WorkflowEventService.emit(evt, {
+      WorkflowEventService.emitSync(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
         patientName: order.patientName,
@@ -221,7 +233,7 @@ export class DiagnosticsService {
       }, order.branchId);
     } else if (status === 'COMPLETED' || status === 'REPORT_UPLOADED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED;
-      WorkflowEventService.emit(evt, {
+      WorkflowEventService.emitSync(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
         patientName: order.patientName,
@@ -314,7 +326,7 @@ export class DiagnosticsService {
     // A report upload is itself the completed department handoff. Do not make
     // the doctor's notification depend on a second status request succeeding.
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
-    WorkflowEventService.emit(
+    WorkflowEventService.emitSync(
       isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED,
       {
         ...reportPayload,
@@ -490,7 +502,7 @@ export class DiagnosticsService {
     });
 
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
-    WorkflowEventService.emit(
+    WorkflowEventService.emitSync(
       isRadio ? WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY : WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB,
       { orderId: order._id, doctorName: user?.name || 'Doctor', patientName: order.patientName, testName: order.testName },
       order.branchId,
