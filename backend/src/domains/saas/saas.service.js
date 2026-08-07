@@ -1122,7 +1122,16 @@ export class SaasService {
     const { name, email, password } = data;
     const cleanEmail = email ? email.toLowerCase().trim() : '';
 
-    let adminUser = await User.findOne({ hospitalId, role: 'HOSPITAL_ADMIN' });
+    const hospitalObjId = hospital._id;
+    const hospitalStrId = String(hospital._id);
+
+    let adminUser = await User.findOne({
+      $or: [
+        { hospitalId: { $in: [hospitalObjId, hospitalStrId, hospitalId] }, role: { $in: [ROLES.HOSPITAL_ADMIN, 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'] } },
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(hospital.contactEmail ? [{ email: hospital.contactEmail.toLowerCase() }] : []),
+      ]
+    });
 
     if (cleanEmail) {
       const existingUser = await User.findOne({ email: cleanEmail });
@@ -1134,7 +1143,7 @@ export class SaasService {
     const cleanPassword = password ? String(password).trim() : '';
 
     if (!adminUser) {
-      const pass = cleanPassword || 'HospitalAdmin123!';
+      const pass = cleanPassword || hospital.initialAdminPassword || 'HospitalAdmin123!';
       const passwordHash = await bcrypt.hash(pass, 12);
       adminUser = await User.create({
         hospitalId: hospital._id,
@@ -1142,13 +1151,15 @@ export class SaasService {
         email: cleanEmail || hospital.contactEmail,
         passwordHash,
         assignedPasswordHint: pass,
-        role: 'HOSPITAL_ADMIN',
+        role: ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN',
         phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
       });
     } else {
       if (name) adminUser.name = name;
       if (cleanEmail) adminUser.email = cleanEmail;
+      if (!adminUser.phone) adminUser.phone = hospital.contactPhone || '+1 (555) 000-0000';
+      if (!adminUser.role) adminUser.role = ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN';
       if (cleanPassword) {
         adminUser.passwordHash = cleanPassword;
         adminUser.assignedPasswordHint = cleanPassword;
@@ -1158,6 +1169,8 @@ export class SaasService {
 
     if (name) hospital.contactName = name;
     if (cleanEmail) hospital.contactEmail = cleanEmail;
+    if (!hospital.contactPhone) hospital.contactPhone = adminUser.phone || '+1 (555) 000-0000';
+    if (!hospital.licenseNumber) hospital.licenseNumber = 'LIC-' + (hospital.code || 'DEFAULT');
     if (cleanPassword) hospital.initialAdminPassword = cleanPassword;
     await hospital.save();
 
