@@ -49,6 +49,68 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  patientLogin: async (mobileNumber, dob) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await axiosClient.post('/auth/patient-login', { mobileNumber, dob });
+      const payload = response?.data || response;
+      const { user, tokens } = payload;
+
+      if (!user || !tokens?.accessToken) {
+        throw new Error('The server returned an invalid login response.');
+      }
+
+      localStorage.removeItem('hpmbs_super_admin_context');
+      localStorage.setItem('hpmbs_access_token', tokens.accessToken);
+      localStorage.setItem('hpmbs_user', JSON.stringify(user));
+
+      set({
+        user,
+        token: tokens.accessToken,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      return user;
+    } catch (err) {
+      const message = err.error?.message || err.message || 'Patient login failed';
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+  guardianLogin: async (guardianMobile, patientMobile, patientNumber) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await axiosClient.post('/auth/guardian-login', { guardianMobile, patientMobile, patientNumber });
+      const payload = response?.data || response;
+      const { user, tokens } = payload;
+
+      if (!user || !tokens?.accessToken) {
+        throw new Error('The server returned an invalid login response.');
+      }
+
+      localStorage.removeItem('hpmbs_super_admin_context');
+      localStorage.setItem('hpmbs_access_token', tokens.accessToken);
+      localStorage.setItem('hpmbs_user', JSON.stringify(user));
+
+      set({
+        user,
+        token: tokens.accessToken,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      return user;
+    } catch (err) {
+      const message = err.error?.message || err.message || 'Guardian login failed';
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
   fetchProfile: async () => {
     if (!get().token) {
       localStorage.removeItem('hpmbs_user');

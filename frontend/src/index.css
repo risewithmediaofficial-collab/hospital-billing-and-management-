@@ -466,3 +466,36 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   PRINT & PDF EXPORT STYLES
+   ============================================================ */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print, nav, aside, header, .sidebar, .navbar, button, select, input, .modal-overlay, .print-hide {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .printable-content, main, .main-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px !important;
+    font-size: 11px !important;
+    color: #000000 !important;
+  }
+}

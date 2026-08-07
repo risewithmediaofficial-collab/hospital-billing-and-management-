@@ -142,15 +142,16 @@ export const SuperAdminHospitalDashboard = () => {
     if (roleFilter !== 'ALL' && roleFilter !== 'ALL_ACTIVE' && roleFilter !== 'ALL_INACTIVE') {
       const sRole = String(staff.role || '').toUpperCase();
       const targetRole = String(roleFilter).toUpperCase();
+      const addRoles = (staff.additionalRoles || []).map((r) => String(r).toUpperCase());
 
-      if (targetRole === 'DOCTOR' && sRole !== 'DOCTOR') return false;
-      if (targetRole === 'NURSE' && sRole !== 'NURSE' && sRole !== 'NURSE_INCHARGE') return false;
-      if (targetRole === 'RECEPTIONIST' && sRole !== 'RECEPTIONIST') return false;
-      if (targetRole === 'LAB_TECH' && sRole !== 'LAB_TECH' && sRole !== 'LABORATORY_STAFF') return false;
-      if (targetRole === 'RADIOLOGIST' && sRole !== 'RADIOLOGIST' && sRole !== 'RADIOLOGY_STAFF') return false;
-      if (targetRole === 'PHARMACIST' && sRole !== 'PHARMACIST' && sRole !== 'PHARMACY_STAFF') return false;
-      if (targetRole === 'CASHIER' && sRole !== 'CASHIER' && sRole !== 'BILLING_STAFF') return false;
-      if (targetRole === 'HOSPITAL_ADMIN' && sRole !== 'HOSPITAL_ADMIN') return false;
+      if (targetRole === 'DOCTOR' && !['DOCTOR', 'PHYSICIAN'].includes(sRole) && !addRoles.includes('DOCTOR')) return false;
+      if (targetRole === 'NURSE' && !['NURSE', 'NURSE_INCHARGE'].includes(sRole) && !addRoles.includes('NURSE') && !addRoles.includes('NURSE_INCHARGE')) return false;
+      if (targetRole === 'RECEPTIONIST' && !['RECEPTIONIST', 'RECEPTION', 'FRONT_DESK'].includes(sRole) && !addRoles.includes('RECEPTIONIST')) return false;
+      if (targetRole === 'LAB_TECH' && !['LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'].includes(sRole) && !addRoles.includes('LAB_TECH')) return false;
+      if (targetRole === 'RADIOLOGIST' && !['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(sRole) && !addRoles.includes('RADIOLOGIST')) return false;
+      if (targetRole === 'PHARMACIST' && !['PHARMACIST', 'PHARMACY_STAFF'].includes(sRole) && !addRoles.includes('PHARMACIST')) return false;
+      if (targetRole === 'CASHIER' && !['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(sRole) && !addRoles.includes('CASHIER')) return false;
+      if (targetRole === 'HOSPITAL_ADMIN' && !['HOSPITAL_ADMIN', 'ADMIN'].includes(sRole) && !addRoles.includes('HOSPITAL_ADMIN')) return false;
     }
 
     if (searchTerm) {

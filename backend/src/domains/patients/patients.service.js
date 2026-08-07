@@ -207,14 +207,15 @@ export class PatientsService {
     }
   }
 
-  static async getPatients(user, query = '') {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const defaultHospital = await Hospital.findOne({});
-      hospitalId = defaultHospital?._id;
+  static async getPatients(user, query = '', targetHospitalId = null) {
+    let filter = {};
+    if (targetHospitalId && targetHospitalId !== 'ALL') {
+      filter.hospitalId = { $in: [targetHospitalId, String(targetHospitalId)] };
+    } else if (user?.role !== 'SUPER_ADMIN' && user?.hospitalId) {
+      const hId = typeof user.hospitalId === 'object' ? user.hospitalId._id : user.hospitalId;
+      filter.hospitalId = { $in: [hId, String(hId)] };
     }
 
-    const filter = hospitalId ? { hospitalId } : {};
     if (query) {
       filter.$or = [
         { uhid: { $regex: query, $options: 'i' } },
@@ -223,7 +224,7 @@ export class PatientsService {
         { phone: { $regex: query, $options: 'i' } },
       ];
     }
-    return await Patient.find(filter).sort({ createdAt: -1 }).limit(50);
+    return await Patient.find(filter).sort({ createdAt: -1 }).limit(200);
   }
 
   static async getPatientByUhid(uhid, user) {

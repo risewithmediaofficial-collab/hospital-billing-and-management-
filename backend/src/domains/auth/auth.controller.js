@@ -26,6 +26,54 @@ export const login = async (req, res, next) => {
   }
 };
 
+export const patientLogin = async (req, res, next) => {
+  try {
+    const { mobileNumber, dob } = req.body;
+    const result = await AuthService.patientLogin(mobileNumber, dob);
+
+    res.cookie('accessToken', result.tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    res.cookie('refreshToken', result.tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    return sendSuccess(res, 200, 'Patient authentication successful', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const guardianLogin = async (req, res, next) => {
+  try {
+    const { guardianMobile, patientMobile, patientNumber } = req.body;
+    const result = await AuthService.guardianLogin(guardianMobile, patientMobile, patientNumber);
+
+    res.cookie('accessToken', result.tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    res.cookie('refreshToken', result.tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    return sendSuccess(res, 200, 'Guardian authentication successful', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const logout = async (req, res, next) => {
   try {
     res.clearCookie('accessToken');

@@ -22,7 +22,7 @@ export const errorHandler = (err, req, res, next) => {
     code = 'DUPLICATE_KEY';
     const field = Object.keys(err.keyValue || {})[0] || 'field';
     const val = err.keyValue ? err.keyValue[field] : '';
-    message = `A record with this ${field} ('${val}') already exists.`;
+    message = `User already registered: A user with this ${field} ('${val}') already exists in the system.`;
   }
 
   return sendError(res, statusCode, message, details, code);

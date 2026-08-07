@@ -56,11 +56,12 @@ export const verifyJwt = async (req, res, next) => {
     // inaccessible even if a Super Admin crafts a direct request.
     if (
       decoded.role === 'SUPER_ADMIN' &&
+      req.method !== 'GET' &&
       !req.originalUrl.startsWith('/api/v1/saas') &&
       !req.originalUrl.startsWith('/api/v1/workflow') &&
       !req.originalUrl.startsWith('/api/v1/auth')
     ) {
-      return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot use hospital operational APIs.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');
+      return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot modify hospital operational data.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');
     }
     const module = moduleForRequest(req.originalUrl);
     // PATIENT and GUARDIAN roles always pass permission check for their own portal routes

@@ -44,38 +44,40 @@ const countStaffByRole = async (hospitalId, role) => {
 };
 
 const buildStaffCounts = async (hospitalId = null) => {
-  const base = hospitalId ? { hospitalId, isActive: true } : { isActive: true };
-  const roles = [
-    ROLES.HOSPITAL_ADMIN,
-    ROLES.DOCTOR,
-    ROLES.RECEPTIONIST,
-    ROLES.NURSE,
-    ROLES.NURSE_INCHARGE,
-    ROLES.LAB_TECH,
-    ROLES.RADIOLOGIST,
-    ROLES.PHARMACIST,
-    ROLES.CASHIER,
-  ];
+  const base = hospitalId ? { hospitalId: { $in: [hospitalId, String(hospitalId)] } } : {};
 
-  const counts = {};
-  await Promise.all(
-    roles.map(async (role) => {
-      counts[role] = await User.countDocuments({ ...base, role });
-    })
-  );
+  const [
+    hospitalAdmins,
+    doctors,
+    receptionists,
+    nurses,
+    labStaff,
+    radiologyStaff,
+    pharmacyStaff,
+    billingStaff,
+  ] = await Promise.all([
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.HOSPITAL_ADMIN, 'HOSPITAL_ADMIN', 'ADMIN'] } }, { additionalRoles: 'HOSPITAL_ADMIN' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.DOCTOR, 'DOCTOR', 'PHYSICIAN'] } }, { additionalRoles: 'DOCTOR' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.RECEPTIONIST, 'RECEPTIONIST', 'RECEPTION', 'FRONT_DESK'] } }, { additionalRoles: 'RECEPTIONIST' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.NURSE, 'NURSE', 'NURSE_INCHARGE', 'NURSING', 'NURSE_STAFF'] } }, { additionalRoles: { $in: ['NURSE', 'NURSE_INCHARGE'] } }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.LAB_TECH, 'LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'] } }, { additionalRoles: 'LAB_TECH' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.RADIOLOGIST, 'RADIOLOGIST', 'RADIOLOGY_STAFF'] } }, { additionalRoles: 'RADIOLOGIST' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.PHARMACIST, 'PHARMACIST', 'PHARMACY_STAFF'] } }, { additionalRoles: 'PHARMACIST' }] }),
+    User.countDocuments({ ...base, role: { $ne: 'SUPER_ADMIN' }, $or: [{ role: { $in: [ROLES.CASHIER, 'CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'] } }, { additionalRoles: 'CASHIER' }] }),
+  ]);
 
-  const nurses = counts[ROLES.NURSE] + counts[ROLES.NURSE_INCHARGE];
+  const totalStaff = await User.countDocuments({ ...base, role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] } });
 
   return {
-    hospitalAdmins: counts[ROLES.HOSPITAL_ADMIN],
-    doctors: counts[ROLES.DOCTOR],
-    receptionists: counts[ROLES.RECEPTIONIST],
+    hospitalAdmins,
+    doctors,
+    receptionists,
     nurses,
-    labStaff: counts[ROLES.LAB_TECH],
-    radiologyStaff: counts[ROLES.RADIOLOGIST],
-    pharmacyStaff: counts[ROLES.PHARMACIST],
-    billingStaff: counts[ROLES.CASHIER],
-    totalStaff: Object.values(counts).reduce((a, b) => a + b, 0),
+    labStaff,
+    radiologyStaff,
+    pharmacyStaff,
+    billingStaff,
+    totalStaff,
   };
 };
 
@@ -414,9 +416,15 @@ export class SaasService {
       };
     });
 
-    const patientList = await Patient.find({ hospitalId: hospital._id })
+    const patientList = await Patient.find({
+      $or: [
+        { hospitalId: { $in: [hospitalObjId, hospitalStrId] } },
+        { hospitalId: { $exists: false } },
+        { hospitalId: null }
+      ]
+    })
       .sort({ createdAt: -1 })
-      .limit(100)
+      .limit(200)
       .lean();
 
     const adminLastLogin = admin?.lastLoginAt || null;

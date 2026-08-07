@@ -67,7 +67,7 @@ export const SuperAdminReportsPage = () => {
         axiosClient.get(`/pharmacy/medicines${queryParams}`).catch(() => ({ data: [] })),
         axiosClient.get(`/auth/staff${queryParams}`).catch(() => ({ data: [] })),
         axiosClient.get(`/billing/receipts${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/patients/search${queryParams}`).catch(() => ({ data: [] })),
+        axiosClient.get(`/patients${queryParams}`).catch(() => ({ data: [] })),
         axiosClient.get(`/pharmacy/nurse-tasks${queryParams}`).catch(() => ({ data: [] })),
       ]);
 
@@ -83,25 +83,27 @@ export const SuperAdminReportsPage = () => {
         );
       };
 
-      const rawStaff = staffRes.data || [];
+      const rawStaff = (staffRes.data || []).filter((s) => s.role !== 'PATIENT' && s.role !== 'GUARDIAN');
       const hospStaff = targetHospId
         ? rawStaff.filter((s) => String(s.hospitalId?._id || s.hospitalId) === String(targetHospId))
         : rawStaff;
 
       setAllStaff(hospStaff);
-      setDoctorsData(hospStaff.filter((s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))));
-      setReceptionData(hospStaff.filter((s) => s.role === 'RECEPTIONIST' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('RECEPTIONIST'))));
-      setNursingData(hospStaff.filter((s) => ['NURSE', 'NURSE_INCHARGE'].includes(s.role)));
-      setLabStaffData(hospStaff.filter((s) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(s.role)));
-      setRadiologyStaffData(hospStaff.filter((s) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(s.role)));
-      setPharmacyStaffData(hospStaff.filter((s) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(s.role)));
-      setBillingStaffData(hospStaff.filter((s) => ['CASHIER', 'BILLING_STAFF'].includes(s.role)));
+      setDoctorsData(hospStaff.filter((s) => ['DOCTOR', 'PHYSICIAN'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))));
+      setReceptionData(hospStaff.filter((s) => ['RECEPTIONIST', 'RECEPTION', 'FRONT_DESK'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('RECEPTIONIST'))));
+      setNursingData(hospStaff.filter((s) => ['NURSE', 'NURSE_INCHARGE', 'NURSING', 'NURSE_STAFF'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && (s.additionalRoles.includes('NURSE') || s.additionalRoles.includes('NURSE_INCHARGE')))));
+      setLabStaffData(hospStaff.filter((s) => ['LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('LAB_TECH'))));
+      setRadiologyStaffData(hospStaff.filter((s) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('RADIOLOGIST'))));
+      setPharmacyStaffData(hospStaff.filter((s) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('PHARMACIST'))));
+      setBillingStaffData(hospStaff.filter((s) => ['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('CASHIER'))));
 
       setRadiologyOrders(filterByHosp(allOrders).filter((o) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(o.testCategory)));
       setLabOrders(filterByHosp(allOrders).filter((o) => ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'].includes(o.testCategory)));
       setPharmacyData({ medicines: filterByHosp(pharmRes.data || []), alerts: { lowStock: [], expired: [] } });
       setInvoices(filterByHosp(invRes.data || []));
-      setPatients(filterByHosp(patRes.data || []));
+
+      const rawPatients = patRes.data?.data || patRes.data || (Array.isArray(patRes) ? patRes : []);
+      setPatients(filterByHosp(rawPatients));
       setNurseTasks(filterByHosp(nurseRes.data || []));
     } catch (err) {
       console.error('Failed to load reports data:', err);
@@ -321,7 +323,7 @@ export const SuperAdminReportsPage = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 no-print">
           {hospitals.length > 0 && !hospitalId && (
             <select
               value={selectedHospitalId}
@@ -342,7 +344,7 @@ export const SuperAdminReportsPage = () => {
       </div>
 
       {/* Metric Selector Tabs */}
-      <div className="flex border-b border-slate-200 gap-2 overflow-x-auto text-xs font-bold scrollbar-none">
+      <div className="flex border-b border-slate-200 gap-2 overflow-x-auto text-xs font-bold scrollbar-none no-print">
         {METRIC_TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTabId === tab.id;
@@ -377,7 +379,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: EXECUTIVE OVERVIEW ── */}
           {activeTabId === 'overview' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Across All Roles" icon={Users} color="purple" />
                 <StatCard title="Appointed Doctors" value={`${doctorsData.length} Physicians`} subtitle="Active Consultants" icon={Stethoscope} color="emerald" />
                 <StatCard title="Receptionists & Front Desk" value={`${receptionData.length} Staff`} subtitle="Counter Desk" icon={ConciergeBell} color="blue" />
@@ -391,7 +393,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: ALL STAFF ROSTER ── */}
           {activeTabId === 'staff' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Cross-Department Roster" icon={Users} color="purple" />
                 <StatCard title="On Duty Available" value={`${allStaff.filter(s => s.isAvailable !== false).length} Active`} subtitle="Working Shift" icon={CheckCircle2} color="emerald" />
                 <StatCard title="Reception & Front Desk" value={`${receptionData.length} Receptionists`} subtitle="Registration Desk" icon={ConciergeBell} color="blue" />
@@ -405,7 +407,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: RECEPTION & FRONT DESK ── */}
           {activeTabId === 'reception' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Reception Staff" value={`${receptionData.length} Receptionists`} subtitle="Front Counter Desk" icon={ConciergeBell} color="blue" />
                 <StatCard title="Active On Duty" value={`${receptionData.filter(r => r.isAvailable !== false).length} On Duty`} subtitle="Active Shift" icon={CheckCircle2} color="emerald" />
                 <StatCard title="Registered Patients" value={`${patients.length} Patients`} subtitle="Auto-Sequenced UHID" icon={Users} color="indigo" />
@@ -419,7 +421,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: DOCTORS & CONSULTS ── */}
           {activeTabId === 'doctors' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Appointed Doctors" value={`${doctorsData.length} Physicians`} subtitle="Cross-Department OPD" icon={Stethoscope} color="emerald" />
                 <StatCard title="On Duty Available" value={`${doctorsData.filter(d => d.isAvailable !== false).length} Active`} subtitle="Available in OPD Cabins" icon={CheckCircle2} color="emerald" />
                 <StatCard title="Consultations Completed" value={`${doctorsData.reduce((acc, d) => acc + (d.patientsHandled || 0), 0)} Visits`} subtitle="OPD Checked" icon={Activity} color="purple" />
@@ -433,7 +435,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: NURSING & WARD TASKS ── */}
           {activeTabId === 'nursing' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Nursing Staff" value={`${nursingData.length} Nurses`} subtitle="Ward Duty Roster" icon={Activity} color="teal" />
                 <StatCard title="Nurse Administration Tasks" value={`${nurseTasks.length} Tasks`} subtitle="Ward Medication" icon={Activity} color="indigo" />
                 <StatCard title="Completed Tasks" value={`${nurseTasks.filter(t => t.status === 'ADMINISTERED' || t.status === 'COMPLETED').length} Done`} subtitle="Given to Patients" icon={CheckCircle2} color="emerald" />
@@ -488,7 +490,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: PATHOLOGY & LAB ── */}
           {activeTabId === 'laboratory' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Laboratory Staff" value={`${labStaffData.length} Technologists`} subtitle="Pathology Staff" icon={TestTube} color="teal" />
                 <StatCard title="Total Lab Requests" value={`${labOrders.length} Orders`} subtitle="Pathology & Blood Tests" icon={TestTube} color="indigo" />
                 <StatCard title="Completed Reports" value={`${labOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Done`} subtitle="Uploaded to EMR" icon={CheckCircle2} color="emerald" />
@@ -556,7 +558,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: RADIOLOGY & IMAGING ── */}
           {activeTabId === 'radiology' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Radiology Staff" value={`${radiologyStaffData.length} Radiologists`} subtitle="PACS Staff" icon={Scan} color="purple" />
                 <StatCard title="Total Radiology Orders" value={`${radiologyOrders.length} Scans`} subtitle="X-Ray, MRI, CT & USG" icon={Scan} color="purple" />
                 <StatCard title="Completed Scans" value={`${radiologyOrders.filter(o => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status)).length} Done`} subtitle="PACS DICOM Scans" icon={CheckCircle2} color="emerald" />
@@ -624,7 +626,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: PHARMACY & STOCK ── */}
           {activeTabId === 'pharmacy' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Pharmacy Staff" value={`${pharmacyStaffData.length} Pharmacists`} subtitle="FEFO Dispensing" icon={Pill} color="rose" />
                 <StatCard title="Total Medicine SKUs" value={`${pharmacyData.medicines.length} Medicines`} subtitle="Formulary Catalog" icon={Pill} color="rose" />
                 <StatCard title="In Stock Medicines" value={`${pharmacyData.medicines.filter(m => m.stockStatus === 'IN_STOCK').length} SKUs`} subtitle="Sufficient Quantity" icon={CheckCircle2} color="emerald" />
@@ -685,7 +687,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: BILLING & REVENUE ── */}
           {activeTabId === 'billing' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Billing & Cashier Staff" value={`${billingStaffData.length} Cashiers`} subtitle="Revenue Desk" icon={CreditCard} color="amber" />
                 <StatCard title="Total Revenue Collected" value={formatCurrency(invoices.reduce((acc, i) => acc + (i.paidAmount || i.grandTotal || 0), 0))} subtitle="All Invoices" icon={IndianRupee} color="emerald" />
                 <StatCard title="Total Invoices Issued" value={`${invoices.length} Bills`} subtitle="OPD & IPD Bills" icon={CreditCard} color="purple" />
@@ -740,7 +742,7 @@ export const SuperAdminReportsPage = () => {
           {/* ── METRIC: PATIENTS & ADMISSIONS ── */}
           {activeTabId === 'patients' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
                 <StatCard title="Total Registered Patients" value={`${patients.length} Patients`} subtitle="Permanent UHID" icon={Users} color="indigo" />
                 <StatCard title="OPD Active Patients" value={`${patients.filter(p => !p.admissionStatus || p.admissionStatus === 'OPD').length} OPD`} subtitle="Outpatient Desk" icon={Stethoscope} color="sky" />
                 <StatCard title="IPD Admitted Ward" value={`${patients.filter(p => p.admissionStatus === 'ADMITTED').length} Inpatients`} subtitle="Bed Occupancy" icon={Activity} color="purple" />

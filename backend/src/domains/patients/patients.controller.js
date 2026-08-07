@@ -13,7 +13,8 @@ export const registerPatient = async (req, res, next) => {
 export const getPatients = async (req, res, next) => {
   try {
     const query = req.query.q || '';
-    const patients = await PatientsService.getPatients(req.user, query);
+    const hospitalId = req.query.hospitalId || null;
+    const patients = await PatientsService.getPatients(req.user, query, hospitalId);
     return sendSuccess(res, 200, 'Patients retrieved successfully', patients);
   } catch (error) {
     next(error);

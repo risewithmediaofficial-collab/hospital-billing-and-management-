@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
   login,
+  patientLogin,
+  guardianLogin,
   getMe,
   logout,
   createStaffUser,
@@ -24,6 +26,8 @@ const router = Router();
 
 // Public Authentication Endpoints
 router.post('/login', authRateLimiter, login);
+router.post('/patient-login', authRateLimiter, patientLogin);
+router.post('/guardian-login', authRateLimiter, guardianLogin);
 router.post('/logout', verifyJwt, logout);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
