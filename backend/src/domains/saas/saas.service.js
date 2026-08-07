@@ -1122,22 +1122,26 @@ export class SaasService {
     const { name, email, password } = data;
     const cleanEmail = email ? email.toLowerCase().trim() : '';
 
-    if (cleanEmail && cleanEmail !== hospital.contactEmail.toLowerCase()) {
+    let adminUser = await User.findOne({ hospitalId, role: 'HOSPITAL_ADMIN' });
+
+    if (cleanEmail) {
       const existingUser = await User.findOne({ email: cleanEmail });
-      if (existingUser) {
+      if (existingUser && existingUser._id.toString() !== adminUser?._id?.toString()) {
         throw new ApiError(400, `A user with email '${cleanEmail}' already exists in the system.`);
       }
     }
 
-    let adminUser = await User.findOne({ hospitalId, role: 'HOSPITAL_ADMIN' });
+    const cleanPassword = password ? String(password).trim() : '';
+
     if (!adminUser) {
-      const passwordHash = await bcrypt.hash(password || 'HospitalAdmin123!', 12);
+      const pass = cleanPassword || 'HospitalAdmin123!';
+      const passwordHash = await bcrypt.hash(pass, 12);
       adminUser = await User.create({
         hospitalId: hospital._id,
         name: name || hospital.contactName || 'Hospital Admin',
         email: cleanEmail || hospital.contactEmail,
         passwordHash,
-        assignedPasswordHint: password || 'HospitalAdmin123!',
+        assignedPasswordHint: pass,
         role: 'HOSPITAL_ADMIN',
         phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
@@ -1145,16 +1149,16 @@ export class SaasService {
     } else {
       if (name) adminUser.name = name;
       if (cleanEmail) adminUser.email = cleanEmail;
-      if (password) {
-        adminUser.passwordHash = password;
-        adminUser.assignedPasswordHint = password;
+      if (cleanPassword) {
+        adminUser.passwordHash = cleanPassword;
+        adminUser.assignedPasswordHint = cleanPassword;
       }
       await adminUser.save();
     }
 
     if (name) hospital.contactName = name;
     if (cleanEmail) hospital.contactEmail = cleanEmail;
-    if (password) hospital.initialAdminPassword = password;
+    if (cleanPassword) hospital.initialAdminPassword = cleanPassword;
     await hospital.save();
 
     return {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, MapPin, Mail, Phone, Trash2, RotateCcw, Clock } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, EyeOff, MapPin, Mail, Phone, Trash2, RotateCcw, Clock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -19,9 +19,11 @@ export const SuperAdminHospitalsPage = () => {
   const [isDirectCreateOpen, setIsDirectCreateOpen] = useState(false);
   const [isEditCredentialsOpen, setIsEditCredentialsOpen] = useState(false);
   const [editingHospital, setEditingHospital] = useState(null);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [credentialsForm, setCredentialsForm] = useState({
-    name: '', email: '', password: '',
+    name: '', email: '', password: '', confirmPassword: '',
   });
   const [actionMessage, setActionMessage] = useState(null);
   const [provisionedCreds, setProvisionedCreds] = useState(null);
@@ -154,26 +156,48 @@ export const SuperAdminHospitalsPage = () => {
 
   const openEditCredentialsModal = (hosp) => {
     setEditingHospital(hosp);
+    setShowCurrentPassword(false);
     setShowPassword(false);
+    setShowConfirmPassword(false);
     setCredentialsForm({
       name: hosp.contactName || '',
       email: hosp.contactEmail || '',
       password: '',
+      confirmPassword: '',
     });
     setIsEditCredentialsOpen(true);
   };
 
   const handleUpdateCredentials = async (e) => {
     e.preventDefault();
+    const pass = (credentialsForm.password || '').trim();
+    const confirm = (credentialsForm.confirmPassword || '').trim();
+
+    if (pass || confirm) {
+      if (pass !== confirm) {
+        setActionMessage('New Password and Confirm Password do not match.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
-      await axiosClient.patch(`/saas/hospitals/${editingHospital._id}/admin-credentials`, credentialsForm);
+      const payload = {
+        name: credentialsForm.name,
+        email: credentialsForm.email,
+      };
+      if (pass) {
+        payload.password = pass;
+      }
+
+      await axiosClient.patch(`/saas/hospitals/${editingHospital._id}/admin-credentials`, payload);
       setActionMessage(`Admin credentials for '${editingHospital.name}' updated successfully!`);
       setIsEditCredentialsOpen(false);
       setEditingHospital(null);
       fetchHospitals();
     } catch (err) {
-      setActionMessage(`Failed to update credentials: ${err.response?.data?.message || err.message}`);
+      const errorMsg = err.message || err.error?.message || (typeof err === 'string' ? err : 'Failed to update credentials');
+      setActionMessage(`Failed to update credentials: ${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -490,10 +514,29 @@ export const SuperAdminHospitalsPage = () => {
                 <div className="relative">
                   <Input
                     label="Current Password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showCurrentPassword ? 'text' : 'password'}
                     value={editingHospital.initialAdminPassword || 'HospitalAdmin123!'}
                     disabled
                     className="pr-10 bg-slate-50 border-slate-200 select-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                    title={showCurrentPassword ? "Hide password" : "Show password"}
+                  >
+                    {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    label="New Password (Leave blank to keep current)"
+                    type={showPassword ? 'text' : 'password'}
+                    value={credentialsForm.password}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
+                    placeholder="••••••••"
+                    className="pr-10 font-mono"
                   />
                   <button
                     type="button"
@@ -505,13 +548,24 @@ export const SuperAdminHospitalsPage = () => {
                   </button>
                 </div>
 
-                <Input
-                  label="New/Change Password (Leave blank to keep current)"
-                  type="password"
-                  value={credentialsForm.password}
-                  onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <Input
+                    label="Confirm New Password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={credentialsForm.confirmPassword}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
+                    placeholder="••••••••"
+                    className="pr-10 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                    title={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
 
                 <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl space-y-1">
                   <p className="font-bold flex items-center gap-1"><span className="text-sm">💡</span> Password Reminder</p>
