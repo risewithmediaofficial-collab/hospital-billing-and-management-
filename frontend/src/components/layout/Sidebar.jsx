@@ -159,12 +159,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
       rawItems.push(...navs);
     });
 
-    // Patient and Guardian accounts only receive their dedicated portal links.
-    // Hospital workstation links contain protected clinical data and must never
-    // be inferred from broad or legacy permissions on a portal account.
-    if (!['PATIENT', 'GUARDIAN'].includes(user?.role)) {
+    // Only fallback to ALL_MODULE_NAVIGATION for custom roles or when no role navigation is defined
+    if (rawItems.length === 0 && !['PATIENT', 'GUARDIAN'].includes(user?.role)) {
       ALL_MODULE_NAVIGATION.forEach((navItem) => {
-        // Reception Desk already contains the patient-registration workflow.
         if (userRoles.includes('RECEPTIONIST') && navItem.path === '/reception/register-patient') return;
         if (checkItemPermission(user, navItem)) {
           rawItems.push(navItem);
@@ -173,16 +170,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
     }
 
     const seenPaths = new Set();
+    const seenTitles = new Set();
     menuItems = rawItems.filter((item) => {
       if (!item?.path) return false;
-      if (seenPaths.has(item.path)) return false;
+      const titleKey = (item.title || item.name || '').trim().toLowerCase();
+      if (seenPaths.has(item.path) || seenTitles.has(titleKey)) return false;
       seenPaths.add(item.path);
-      return checkItemPermission(user, item);
+      if (titleKey) seenTitles.add(titleKey);
+      if (user?.enabledModules && item.module && user.enabledModules[item.module] === false) {
+        return false;
+      }
+      return true;
     });
   }
-
-  // Enforce strict alphabetical sorting for all menu items
-  menuItems.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
 
