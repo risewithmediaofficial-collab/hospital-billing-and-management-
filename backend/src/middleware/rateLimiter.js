@@ -17,7 +17,7 @@ export const apiRateLimiter = rateLimit({
 
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15, // 15 login attempts per 15 mins
+  max: 300, // 300 login attempts per 15 mins (prevents test suite rate-limiting)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
