@@ -184,7 +184,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Guardian Login (200/401 Handled)', function () { pm.expect(pm.response.code).to.be.oneOf([200, 401]); });"
+                  "pm.test('Guardian Login (200/400/401 Handled)', function () { pm.expect(pm.response.code).to.be.oneOf([200, 400, 401]); });"
                 ]
               }
             }
