@@ -57,8 +57,11 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await user.save().catch(() => {});
 
-    if (user.hospitalId && !user.hospitalId.name && user.hospitalId._id) {
-      await user.populate('hospitalId');
+    if (user.hospitalId) {
+      if (!user.hospitalId.name || !user.hospitalId.domain) {
+        const hospId = user.hospitalId._id || user.hospitalId;
+        user.hospitalId = await Hospital.findById(hospId).lean();
+      }
     }
 
     const accessToken = user.generateAccessToken();
@@ -85,6 +88,21 @@ export class AuthService {
         GUARDIAN: `/${domain}/guardian/dashboard`,
       };
       defaultRoute = baseMap[user.role] || `/${domain}/dashboard`;
+    } else {
+      const baseMap = {
+        HOSPITAL_ADMIN: '/hospital-admin/dashboard',
+        DOCTOR: '/doctor/dashboard',
+        NURSE: '/nursing/dashboard',
+        NURSE_INCHARGE: '/nurse-incharge/dashboard',
+        RECEPTIONIST: '/reception/dashboard',
+        PHARMACIST: '/pharmacy/dashboard',
+        LAB_TECH: '/laboratory/dashboard',
+        RADIOLOGIST: '/radiology/dashboard',
+        CASHIER: '/billing/dashboard',
+        PATIENT: '/patient-portal/dashboard',
+        GUARDIAN: '/guardian-portal/dashboard',
+      };
+      defaultRoute = baseMap[user.role] || '/dashboard';
     }
 
     return {

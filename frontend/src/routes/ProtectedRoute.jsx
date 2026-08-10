@@ -69,8 +69,7 @@ export const ProtectedRoute = ({ allowedRoles = [] }) => {
 
   const hasRoleMatch = allowedRoles.length === 0 ||
     allowedRoles.some((role) => userRoles.includes(role)) ||
-    userRoles.includes('SUPER_ADMIN') ||
-    userRoles.includes('HOSPITAL_ADMIN');
+    userRoles.includes('SUPER_ADMIN');
 
   const hasPerm = currentModule ? checkModulePermission(user?.permissions, currentModule) : false;
 
