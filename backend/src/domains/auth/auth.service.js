@@ -301,26 +301,37 @@ export class AuthService {
     }
 
     let user = await User.findOne({
-      uhid: matchedPatient.uhid,
-      role: 'PATIENT'
+      $or: [
+        { uhid: matchedPatient.uhid, role: 'PATIENT' },
+        ...(matchedPatient.email ? [{ email: matchedPatient.email }] : []),
+        { phone: matchedPatient.phone },
+        { phone: cleanMobile }
+      ]
     }).populate('hospitalId').populate('branchId');
 
     if (!user) {
       const dummyPass = await bcrypt.hash(matchedPatient.uhid + 'PatientKey!', 12);
-      user = await User.create({
-        hospitalId: matchedPatient.hospitalId._id || matchedPatient.hospitalId,
-        branchId: matchedPatient.branchId?._id || matchedPatient.branchId,
-        name: `${matchedPatient.firstName} ${matchedPatient.lastName}`.trim(),
-        email: matchedPatient.email || `${matchedPatient.uhid.toLowerCase()}@patient.local`,
-        phone: matchedPatient.phone || cleanMobile,
-        uhid: matchedPatient.uhid,
-        passwordHash: dummyPass,
-        assignedPasswordHint: 'Mobile & DOB Authentication',
-        role: 'PATIENT',
-        status: 'ACTIVE',
-        isActive: true,
-      });
-      user = await User.findById(user._id).populate('hospitalId').populate('branchId');
+      try {
+        user = await User.create({
+          hospitalId: matchedPatient.hospitalId._id || matchedPatient.hospitalId,
+          branchId: matchedPatient.branchId?._id || matchedPatient.branchId,
+          name: `${matchedPatient.firstName} ${matchedPatient.lastName}`.trim(),
+          email: matchedPatient.email || `${matchedPatient.uhid.toLowerCase()}@patient.local`,
+          phone: matchedPatient.phone || cleanMobile,
+          uhid: matchedPatient.uhid,
+          passwordHash: dummyPass,
+          assignedPasswordHint: 'Mobile & DOB Authentication',
+          role: 'PATIENT',
+          status: 'ACTIVE',
+          isActive: true,
+        });
+      } catch (err) {
+        if (err.code === 11000 || err.message?.includes('already exists') || err.message?.includes('duplicate key')) {
+          user = await User.findOne({ email: matchedPatient.email }).populate('hospitalId').populate('branchId');
+        } else {
+          throw err;
+        }
+      }
     }
 
     return await this.formatAuthResponse(user);
