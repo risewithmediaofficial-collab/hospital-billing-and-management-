@@ -85,6 +85,7 @@ export const AppRoutes = () => {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/:hospitalDomain/login" element={<LoginPage />} />
+      <Route path="/:hospitalDomain" element={<TenantDomainRedirect />} />
       <Route path="/register-hospital" element={<HospitalRegisterPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
