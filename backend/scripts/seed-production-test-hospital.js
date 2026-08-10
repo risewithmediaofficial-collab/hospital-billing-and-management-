@@ -188,7 +188,7 @@ export async function ensureTestHospitalCredentials() {
     guardianUser = await User.findOne({ loginIds: "6380140928", role: "GUARDIAN" });
   }
   if (!guardianUser) {
-    await User.create({
+    guardianUser = await User.create({
       hospitalId: hospital._id,
       branchId: branch._id,
       name: "Test Guardian",
@@ -215,6 +215,266 @@ export async function ensureTestHospitalCredentials() {
     guardianUser.isActive = true;
     await guardianUser.save();
     console.log("  [Seed] Updated Guardian User Account (Phone: 6380140928)");
+  }
+
+  // 7. Dynamic Clinical, IPD Admission & Treatment Seeding for Patient 6380140927
+  const doctorUser = await User.findOne({ hospitalId: hospital._id, role: "DOCTOR" });
+  const nurseUser = await User.findOne({ hospitalId: hospital._id, role: "NURSE" });
+
+  // A. Create/Update Bed (ICU-B01)
+  const { Bed } = await import("../src/models/Bed.js");
+  let bed = await Bed.findOne({ hospitalId: hospital._id, bedNumber: "ICU-B01" });
+  if (!bed) {
+    bed = await Bed.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      wardName: "ICU Ward 3B",
+      wardType: "ICU",
+      bedNumber: "ICU-B01",
+      dailyTariff: 2500,
+      status: "OCCUPIED",
+      occupiedByPatientId: patient._id,
+      assignedAt: new Date(),
+    });
+  } else {
+    bed.status = "OCCUPIED";
+    bed.occupiedByPatientId = patient._id;
+    await bed.save();
+  }
+
+  // B. Create/Update Active IPD Admission
+  const { Admission } = await import("../src/models/Admission.js");
+  let admission = await Admission.findOne({ hospitalId: hospital._id, patientId: patient._id, status: "ADMITTED" });
+  if (!admission) {
+    admission = await Admission.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      patientId: patient._id,
+      uhid: "TH-P-1001",
+      patientName: "Test Patient",
+      admissionNumber: 1,
+      admissionReference: "ADM-TH-2026-00001",
+      doctorId: doctorUser?._id,
+      doctorName: doctorUser?.name || "Dr. Test Doctor",
+      assignedNurseId: nurseUser?._id,
+      careTeamAssigned: true,
+      wardType: "ICU",
+      targetWardName: "ICU Ward 3B",
+      bedId: bed._id,
+      bedNumber: "ICU-B01",
+      admissionReason: "Acute Respiratory Assessment & Multi-Department Inpatient Observation",
+      dailyTariff: 2500,
+      status: "ADMITTED",
+      admittedAt: new Date(),
+      assignedAt: new Date(),
+    });
+    console.log("  [Seed] Created Active IPD Admission: Bed ICU-B01 (Doctor: Dr. Test Doctor, Nurse: Nurse Test)");
+  } else {
+    admission.doctorId = doctorUser?._id || admission.doctorId;
+    admission.assignedNurseId = nurseUser?._id || admission.assignedNurseId;
+    admission.bedId = bed._id;
+    admission.bedNumber = "ICU-B01";
+    admission.status = "ADMITTED";
+    await admission.save();
+    console.log("  [Seed] Updated Active IPD Admission: Bed ICU-B01");
+  }
+
+  // Update Patient admission status
+  patient.admissionStatus = "ACTIVE_ADMISSION";
+  patient.activeAdmissionId = admission._id;
+  await patient.save();
+
+  // C. GlobalPatient Link with Active Admission
+  const { GlobalPatient } = await import("../src/models/GlobalPatient.js");
+  let globalPatient = await GlobalPatient.findOne({ primaryPhone: "6380140927" });
+  if (!globalPatient) {
+    globalPatient = await GlobalPatient.create({
+      globalPatientId: "GP-TH-2026-00001",
+      firstName: "Test",
+      lastName: "Patient",
+      dob: patient.dob,
+      gender: "MALE",
+      primaryPhone: "6380140927",
+      patientUserId: patientUser._id,
+      hospitalMemberships: [
+        {
+          hospitalId: hospital._id,
+          hospitalName: "Test Hospital",
+          localPatientId: patient._id,
+          localUhid: "TH-P-1001",
+          joinedAt: new Date(),
+          hasActiveAdmission: true,
+          activeAdmissionId: admission._id,
+        }
+      ],
+      isActive: true,
+    });
+  } else {
+    globalPatient.patientUserId = patientUser._id;
+    globalPatient.hospitalMemberships = [
+      {
+        hospitalId: hospital._id,
+        hospitalName: "Test Hospital",
+        localPatientId: patient._id,
+        localUhid: "TH-P-1001",
+        joinedAt: new Date(),
+        hasActiveAdmission: true,
+        activeAdmissionId: admission._id,
+      }
+    ];
+    await globalPatient.save();
+  }
+
+  // D. Multi-Department Diagnostic Orders (MRI, Blood Check, Chest X-Ray)
+  const { DiagnosticOrder } = await import("../src/models/DiagnosticOrder.js");
+  const existingOrders = await DiagnosticOrder.find({ patientId: patient._id });
+  if (existingOrders.length === 0) {
+    await DiagnosticOrder.create([
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        uhid: "TH-P-1001",
+        patientName: "Test Patient",
+        doctorId: doctorUser._id,
+        doctorName: doctorUser.name,
+        testCategory: "PATHOLOGY",
+        testName: "Complete Blood Count (CBC) & Serum Electrolytes",
+        clinicalNotes: "Inpatient Admission Workup",
+        priority: "NORMAL",
+        price: 800,
+        status: "COMPLETED",
+        sampleCollectedAt: new Date(),
+        resultSummary: "Hemoglobin 13.5 g/dL (Normal), WBC 7,200 /mcL (Normal)",
+      },
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        uhid: "TH-P-1001",
+        patientName: "Test Patient",
+        doctorId: doctorUser._id,
+        doctorName: doctorUser.name,
+        testCategory: "MRI",
+        testName: "Brain MRI Scan (Non-Contrast)",
+        clinicalNotes: "Evaluate for acute intracranial etiology",
+        priority: "URGENT",
+        price: 4500,
+        status: "REQUESTED",
+      },
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        uhid: "TH-P-1001",
+        patientName: "Test Patient",
+        doctorId: doctorUser._id,
+        doctorName: doctorUser.name,
+        testCategory: "XRAY",
+        testName: "Chest X-Ray (PA & Lateral View)",
+        clinicalNotes: "Cardiopulmonary Assessment",
+        priority: "NORMAL",
+        price: 750,
+        status: "COMPLETED",
+        resultSummary: "Clear lung fields, normal cardiac silhouette.",
+      }
+    ]);
+    console.log("  [Seed] Created Diagnostic Orders: Pathology Blood Check, Brain MRI, Chest X-Ray");
+  }
+
+  // E. Prescriptions
+  const { Prescription } = await import("../src/models/Prescription.js");
+  const existingPrescription = await Prescription.findOne({ patientId: patient._id });
+  if (!existingPrescription) {
+    await Prescription.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      consultationId: admission._id,
+      patientId: patient._id,
+      doctorId: doctorUser._id,
+      prescriptionNo: "RX-TH-2026-00001",
+      medicines: [
+        {
+          medicineName: "Paracetamol 500mg",
+          dosageForm: "TABLET",
+          dosage: "1 Tablet",
+          frequency: "1-0-1",
+          durationDays: 5,
+          timing: "AFTER_FOOD",
+          instructions: "Take with water after meals",
+          itemStatus: "PENDING",
+        },
+        {
+          medicineName: "Amoxicillin 250mg",
+          dosageForm: "CAPSULE",
+          dosage: "1 Capsule",
+          frequency: "1-1-1",
+          durationDays: 7,
+          timing: "AFTER_FOOD",
+          instructions: "Complete 7-day antibiotic course",
+          itemStatus: "PENDING",
+        }
+      ],
+      dispenseStatus: "PENDING_DISPENSE",
+    });
+    console.log("  [Seed] Created E-Prescription: Paracetamol 500mg & Amoxicillin 250mg");
+  }
+
+  // F. Care Requests
+  const { PatientRequest } = await import("../src/models/PatientRequest.js");
+  const existingReq = await PatientRequest.findOne({ patientId: patient._id });
+  if (!existingReq) {
+    await PatientRequest.create([
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        bedId: bed._id,
+        requestType: "WATER",
+        category: "CARETAKER",
+        status: "SUBMITTED",
+        notes: "Requested fresh warm drinking water",
+      },
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        bedId: bed._id,
+        requestType: "FOOD",
+        category: "CARETAKER",
+        status: "SUBMITTED",
+        notes: "Dietary request: Soft inpatient meal",
+      }
+    ]);
+    console.log("  [Seed] Created Care Requests: Water & Food");
+  }
+
+  // G. Inpatient Invoice & Payment Billing
+  const { Invoice } = await import("../src/models/Invoice.js");
+  let invoice = await Invoice.findOne({ hospitalId: hospital._id, patientId: patient._id });
+  if (!invoice) {
+    invoice = await Invoice.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      patientId: patient._id,
+      doctorId: doctorUser._id,
+      doctorName: doctorUser.name,
+      invoiceNo: "INV-TH-2026-00001",
+      items: [
+        { description: "ICU Ward Room Charge (2 Days @ ₹2,500/day)", category: "BED_TARIFF", qty: 2, unitPrice: 2500, totalPrice: 5000 },
+        { description: "Specialist Inpatient Consultation Fee (Dr. Test Doctor)", category: "CONSULTATION", qty: 1, unitPrice: 1000, totalPrice: 1000 },
+        { description: "Brain MRI Scan (Non-Contrast)", category: "RADIOLOGY", qty: 1, unitPrice: 4500, totalPrice: 4500 },
+        { description: "Pathology Complete Blood Count (CBC) & Electrolytes", category: "LAB", qty: 1, unitPrice: 800, totalPrice: 800 },
+        { description: "Inpatient Pharmacy Medications", category: "PHARMACY", qty: 1, unitPrice: 700, totalPrice: 700 },
+      ],
+      subtotal: 12000,
+      discountAmount: 0,
+      grandTotal: 12000,
+      paidAmount: 4000,
+      balanceAmount: 8000,
+      status: "PARTIALLY_PAID",
+    });
+    console.log("  [Seed] Created Inpatient Bill: Total ₹12,000 | Paid ₹4,000 | Balance Due ₹8,000");
   }
 
   return { hospital, patient };
