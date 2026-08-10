@@ -477,6 +477,97 @@ export async function ensureTestHospitalCredentials() {
     console.log("  [Seed] Created Inpatient Bill: Total ₹12,000 | Paid ₹4,000 | Balance Due ₹8,000");
   }
 
+  // H. OPD Queue Tokens & Appointments for Doctor Workstation
+  const { Appointment } = await import("../src/models/Appointment.js");
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Ensure Walkin Patients exist
+  let patient2 = await Patient.findOne({ hospitalId: hospital._id, uhid: "TH-P-1002" });
+  if (!patient2) {
+    patient2 = await Patient.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      uhid: "TH-P-1002",
+      firstName: "John",
+      lastName: "Walkin",
+      gender: "MALE",
+      dob: new Date("1990-05-15"),
+      age: 35,
+      phone: "9876543210",
+      address: "45 OPD Lane",
+      city: "Test City",
+      isActive: true,
+    });
+  }
+
+  let patient3 = await Patient.findOne({ hospitalId: hospital._id, uhid: "TH-P-1003" });
+  if (!patient3) {
+    patient3 = await Patient.create({
+      hospitalId: hospital._id,
+      branchId: branch._id,
+      uhid: "TH-P-1003",
+      firstName: "Sarah",
+      lastName: "Miller",
+      gender: "FEMALE",
+      dob: new Date("1998-08-20"),
+      age: 27,
+      phone: "9876543211",
+      address: "88 Consultation Way",
+      city: "Test City",
+      isActive: true,
+    });
+  }
+
+  const existingApt = await Appointment.findOne({ hospitalId: hospital._id, doctorId: doctorUser._id, appointmentDate: todayStr });
+  if (!existingApt) {
+    await Appointment.create([
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient._id,
+        doctorId: doctorUser._id,
+        appointmentNo: `APT-${todayStr.replace(/-/g, '')}-001`,
+        tokenNumber: 1,
+        appointmentDate: todayStr,
+        status: "WAITING",
+        chiefComplaints: "High Fever, Persistent Cough & Body Aches",
+        cabinNo: doctorUser.cabinNo || "Cabin 101",
+      },
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient2._id,
+        doctorId: doctorUser._id,
+        appointmentNo: `APT-${todayStr.replace(/-/g, '')}-002`,
+        tokenNumber: 2,
+        appointmentDate: todayStr,
+        status: "WAITING",
+        chiefComplaints: "Routine Blood Pressure & Blood Sugar Follow-up",
+        cabinNo: doctorUser.cabinNo || "Cabin 101",
+      },
+      {
+        hospitalId: hospital._id,
+        branchId: branch._id,
+        patientId: patient3._id,
+        doctorId: doctorUser._id,
+        appointmentNo: `APT-${todayStr.replace(/-/g, '')}-003`,
+        tokenNumber: 3,
+        appointmentDate: todayStr,
+        status: "IN_CONSULTATION",
+        chiefComplaints: "Acute Chest Discomfort & Mild Dizziness",
+        cabinNo: doctorUser.cabinNo || "Cabin 101",
+      }
+    ]);
+    console.log("  [Seed] Created Live OPD Queue Tokens #1, #2, #3 for Dr. Test Doctor (Cabin 101)");
+  } else {
+    // Update existing tokens status to WAITING / IN_CONSULTATION so queue is active
+    await Appointment.updateMany(
+      { hospitalId: hospital._id, doctorId: doctorUser._id },
+      { $set: { status: "WAITING", appointmentDate: todayStr } }
+    );
+    console.log("  [Seed] Updated Live OPD Queue Tokens for Dr. Test Doctor (Cabin 101)");
+  }
+
   return { hospital, patient };
 }
 

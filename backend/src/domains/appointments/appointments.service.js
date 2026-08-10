@@ -145,35 +145,35 @@ export class AppointmentsService {
 
   static async getOpdQueue(user, doctorId = null) {
     let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
+    if (!hospitalId && user) {
       const defaultHosp = await Hospital.findOne({});
       hospitalId = defaultHosp?._id;
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const targetDocId = doctorId || user?.id || user?._id;
+
     let filter = {};
 
     if (user?.role === 'DOCTOR') {
-      const docId = user.id || user._id;
       filter = {
-        doctorId: docId,
         $or: [
-          { status: { $in: ['WAITING', 'IN_CONSULTATION'] } },
-          { appointmentDate: todayStr }
-        ]
+          { doctorId: targetDocId },
+          ...(hospitalId ? [{ hospitalId }] : [])
+        ],
+        status: { $nin: ['CANCELLED'] }
       };
-    } else if (doctorId) {
-      filter = { doctorId };
+    } else if (targetDocId) {
+      filter = { doctorId: targetDocId };
+    } else if (hospitalId) {
+      filter = { hospitalId };
     } else {
       filter = { appointmentDate: todayStr };
-      if (hospitalId) filter.hospitalId = hospitalId;
     }
 
     return await Appointment.find(filter)
       .populate('patientId')
       .populate('doctorId')
-      // FIFO: the earliest token is always at the top and newly issued tokens
-      // are appended at the bottom. createdAt resolves any legacy duplicates.
       .sort(FIFO_QUEUE_SORT);
   }
 
