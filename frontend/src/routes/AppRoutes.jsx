@@ -346,8 +346,9 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/guardian/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
       </Route>
 
-      {/* Global Emergency Route */}
+      {/* Global & Tenant Emergency Routes */}
       <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
+      <Route path="/:hospitalDomain/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
 
       {/* Redirect Root to Login */}
       <Route path="/" element={<Navigate to="/login" replace />} />
