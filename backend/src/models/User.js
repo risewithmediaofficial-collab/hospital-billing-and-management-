@@ -78,11 +78,13 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 userSchema.methods.generateAccessToken = function () {
   const hId = this.hospitalId?._id ? this.hospitalId._id.toString() : (this.hospitalId ? String(this.hospitalId) : null);
   const bId = this.branchId?._id ? this.branchId._id.toString() : (this.branchId ? String(this.branchId) : null);
+  const hDomain = this.hospitalId?.domain || this.hospitalId?.subdomain || null;
   return jwt.sign(
     {
       id: this._id,
       hospitalId: hId,
       branchId: bId,
+      hospitalDomain: hDomain,
       role: this.role,
       email: this.email,
       name: this.name,

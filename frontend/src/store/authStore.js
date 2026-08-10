@@ -15,13 +15,13 @@ export const useAuthStore = create((set, get) => ({
   isLoading: !!localStorage.getItem('hpmbs_access_token'),
   error: null,
 
-  login: async (email, password) => {
+  login: async (email, password, hospitalDomain = null) => {
     set({ isLoading: true, error: null });
     try {
       // axiosClient's response interceptor already returns the response body.
       // Reading response.data here discarded the API payload and made a valid
       // login fail while trying to access `tokens.accessToken`.
-      const response = await axiosClient.post('/auth/login', { email, password });
+      const response = await axiosClient.post('/auth/login', { email, password, hospitalDomain });
       const payload = response?.data || response;
       const { user, tokens } = payload;
 
@@ -49,10 +49,10 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  patientLogin: async (mobileNumber, dob) => {
+  patientLogin: async (mobileNumber, dob, hospitalDomain = null) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosClient.post('/auth/patient-login', { mobileNumber, dob });
+      const response = await axiosClient.post('/auth/patient-login', { mobileNumber, dob, hospitalDomain });
       const payload = response?.data || response;
       const { user, tokens } = payload;
 
@@ -80,10 +80,10 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  guardianLogin: async (guardianMobile, patientMobile, patientNumber) => {
+  guardianLogin: async (guardianMobile, patientMobile, patientNumber, hospitalDomain = null) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosClient.post('/auth/guardian-login', { guardianMobile, patientMobile, patientNumber });
+      const response = await axiosClient.post('/auth/guardian-login', { guardianMobile, patientMobile, patientNumber, hospitalDomain });
       const payload = response?.data || response;
       const { user, tokens } = payload;
 

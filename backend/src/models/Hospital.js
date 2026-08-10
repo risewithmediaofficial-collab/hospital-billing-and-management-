@@ -1,9 +1,35 @@
 import mongoose from 'mongoose';
 
+export const RESERVED_DOMAINS = [
+  'admin', 'api', 'login', 'super-admin', 'superadmin', 'system', 'settings', 'assets', 'static', 'dashboard', 'public'
+];
+
+export function sanitizeAndValidateDomain(inputDomain) {
+  if (!inputDomain || !String(inputDomain).trim()) {
+    throw new Error('Hospital Domain / URL Name is required.');
+  }
+  const clean = String(inputDomain).toLowerCase().trim();
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(clean)) {
+    throw new Error('Domain must contain only lowercase letters, numbers, and single hyphens (e.g. guman, citygeneral, apollo-hosur).');
+  }
+  if (RESERVED_DOMAINS.includes(clean)) {
+    throw new Error(`The domain name '${clean}' is a reserved platform route and cannot be used by a hospital.`);
+  }
+  return clean;
+}
+
 const hospitalSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, unique: true, uppercase: true, trim: true },
+    domain: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
     subdomain: { type: String, required: true, unique: true, lowercase: true, trim: true },
     status: {
       type: String,

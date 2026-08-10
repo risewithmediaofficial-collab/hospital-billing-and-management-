@@ -3,8 +3,9 @@ import { sendSuccess } from '../../utils/apiResponse.js';
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const result = await AuthService.login(email, password);
+    const { email, password, hospitalDomain, domain } = req.body;
+    const domainSlug = hospitalDomain || domain || req.headers['x-hospital-domain'];
+    const result = await AuthService.login(email, password, domainSlug);
 
     res.cookie('accessToken', result.tokens.accessToken, {
       httpOnly: true,

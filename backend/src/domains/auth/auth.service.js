@@ -57,10 +57,35 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await user.save().catch(() => {});
 
+    if (user.hospitalId && !user.hospitalId.name && user.hospitalId._id) {
+      await user.populate('hospitalId');
+    }
+
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
 
     const roleDoc = await Role.findOne({ code: user.role });
+    const domain = user.hospitalId?.domain || user.hospitalId?.subdomain || '';
+
+    let defaultRoute = '/dashboard';
+    if (user.role === 'SUPER_ADMIN') {
+      defaultRoute = '/admin/dashboard';
+    } else if (domain) {
+      const baseMap = {
+        HOSPITAL_ADMIN: `/${domain}/admin/dashboard`,
+        DOCTOR: `/${domain}/doctor/dashboard`,
+        NURSE: `/${domain}/nurse/dashboard`,
+        NURSE_INCHARGE: `/${domain}/nurse-incharge/dashboard`,
+        RECEPTIONIST: `/${domain}/reception/dashboard`,
+        PHARMACIST: `/${domain}/pharmacy/dashboard`,
+        LAB_TECH: `/${domain}/laboratory/dashboard`,
+        RADIOLOGIST: `/${domain}/radiology/dashboard`,
+        CASHIER: `/${domain}/billing/dashboard`,
+        PATIENT: `/${domain}/patient/dashboard`,
+        GUARDIAN: `/${domain}/guardian/dashboard`,
+      };
+      defaultRoute = baseMap[user.role] || `/${domain}/dashboard`;
+    }
 
     return {
       user: {
@@ -76,9 +101,10 @@ export class AuthService {
         isActive: user.isActive,
         roleName: roleDoc ? roleDoc.name : user.role,
         permissions: permissionsFor(user, user.hospitalId?.enabledModules),
-        defaultRoute: roleDoc ? roleDoc.defaultRoute : (user.role === 'PATIENT' ? '/patient-portal/dashboard' : user.role === 'GUARDIAN' ? '/guardian-portal/dashboard' : '/dashboard'),
+        defaultRoute,
         hospitalId: user.hospitalId?._id || user.hospitalId,
         hospitalName: user.hospitalId?.name,
+        hospitalDomain: domain,
         enabledModules: user.hospitalId?.enabledModules || {},
         branchId: user.branchId?._id || user.branchId,
         branchName: user.branchId?.name,
@@ -90,8 +116,20 @@ export class AuthService {
     };
   }
 
-  static async login(identifier, password) {
+  static async login(identifier, password, hospitalDomain = null) {
     const cleanId = identifier ? String(identifier).trim() : '';
+    let targetHospital = null;
+    if (hospitalDomain && String(hospitalDomain).trim()) {
+      const cleanDomain = String(hospitalDomain).toLowerCase().trim();
+      targetHospital = await Hospital.findOne({
+        $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }],
+        isDeleted: { $ne: true },
+      });
+      if (!targetHospital) {
+        throw new ApiError(404, `Hospital '${cleanDomain}' not found.`, null, 'HOSPITAL_NOT_FOUND');
+      }
+    }
+
     let candidates = await User.find({
       $or: [
         { loginIds: cleanId },
@@ -109,6 +147,20 @@ export class AuthService {
       }
       return true;
     });
+
+    // Enforce tenant isolation if hospitalDomain is specified
+    if (targetHospital) {
+      const domainCandidates = candidates.filter((candidate) => {
+        if (candidate.role === 'SUPER_ADMIN') return true;
+        const candHospId = candidate.hospitalId?._id ? String(candidate.hospitalId._id) : String(candidate.hospitalId);
+        return candHospId === String(targetHospital._id);
+      });
+
+      if (domainCandidates.length === 0 && candidates.length > 0) {
+        throw new ApiError(403, `Access Denied: Your account does not belong to ${targetHospital.name}. Please log in through your hospital's URL.`, null, 'TENANT_MISMATCH');
+      }
+      candidates = domainCandidates;
+    }
 
     // PRIORITIZE STAFF AND ADMIN ROLES OVER PATIENT / GUARDIAN ROLES
     const STAFF_ROLES = [

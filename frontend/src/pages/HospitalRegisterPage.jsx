@@ -177,7 +177,8 @@ export const HospitalRegisterPage = () => {
               is now <span className="font-bold text-amber-600">PENDING APPROVAL</span> by the Platform Super Admin.
             </p>
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2.5 mb-6">
-              <p><span className="text-slate-400">Assigned Subdomain:</span> <span className="font-mono font-bold text-indigo-600">{registeredResult.hospital?.subdomain}.hpmbs.com</span></p>
+              <p><span className="text-slate-400">Hospital Portal URL:</span> <span className="font-mono font-bold text-indigo-600">http://82.29.166.169:86/{registeredResult.hospital?.domain || registeredResult.hospital?.subdomain}/login</span></p>
+              <p><span className="text-slate-400">Admin Dashboard:</span> <span className="font-mono font-bold text-purple-600">http://82.29.166.169:86/{registeredResult.hospital?.domain || registeredResult.hospital?.subdomain}/admin/dashboard</span></p>
               <p><span className="text-slate-400">Contact:</span> <span className="font-bold text-slate-900">{registeredResult.hospital?.contactName} ({registeredResult.hospital?.contactEmail})</span></p>
               <p><span className="text-slate-400">Selected Plan:</span> <span className="font-bold text-violet-600">{registeredResult.hospital?.plan}</span></p>
               <p><span className="text-slate-400">Free Trial:</span> <span className="font-bold text-emerald-600">7 days from approval date</span></p>
@@ -191,9 +192,9 @@ export const HospitalRegisterPage = () => {
                 </div>
               </div>
             </div>
-            <Link to="/login">
+            <Link to={`/${registeredResult.hospital?.domain || registeredResult.hospital?.subdomain || 'login'}/login`}>
               <Button variant="primary" size="lg" className="font-bold w-full">
-                Go to Platform Login <ArrowRight size={18} />
+                Go to Hospital Portal Login <ArrowRight size={18} />
               </Button>
             </Link>
           </div>
@@ -288,17 +289,40 @@ export const HospitalRegisterPage = () => {
                   <Input
                     label="Hospital Name"
                     value={formData.hospitalName}
-                    onChange={(e) => setFormData({ ...formData, hospitalName: e.target.value })}
-                    placeholder="Enter hospital name"
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const autoDomain = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                      setFormData((prev) => ({
+                        ...prev,
+                        hospitalName: name,
+                        domain: prev.domainManual ? prev.domain : autoDomain,
+                        subdomain: prev.domainManual ? prev.domain : autoDomain,
+                      }));
+                    }}
+                    placeholder="e.g. Guman Hospital"
                     required
                   />
-                  <Input
-                    label="Target Subdomain / Code"
-                    value={formData.subdomain}
-                    onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })}
-                    placeholder="hospitalcode (no spaces)"
-                    required
-                  />
+                  <div>
+                    <Input
+                      label="Hospital Domain / Hospital URL Name"
+                      value={formData.domain || formData.subdomain || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
+                        setFormData((prev) => ({
+                          ...prev,
+                          domain: val,
+                          subdomain: val,
+                          domainManual: true,
+                        }));
+                      }}
+                      placeholder="e.g. guman or apollo-hosur"
+                      required
+                    />
+                    <div className="mt-1.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg text-[11px] font-mono text-indigo-700 flex items-center gap-1.5">
+                      <Globe size={12} className="shrink-0 text-indigo-500" />
+                      <span>URL Preview: <strong className="text-indigo-900">http://82.29.166.169:86/{formData.domain || formData.subdomain || 'guman'}/login</strong></span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

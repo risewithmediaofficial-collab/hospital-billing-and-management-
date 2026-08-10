@@ -10,9 +10,6 @@ export async function autoEnsureSystemCredentials() {
     const defaultPassword = "0000";
     const defaultHash = await bcrypt.hash(defaultPassword, 12);
 
-    const gunamPassword = "1234";
-    const gunamHash = await bcrypt.hash(gunamPassword, 12);
-
     // 1. Ensure System Roles exist
     const rolesToCreate = Object.values(ROLES).map((roleCode) => {
       let defaultRoute = "/admin/dashboard";
@@ -42,6 +39,7 @@ export async function autoEnsureSystemCredentials() {
       platformHospital = await Hospital.create({
         name: "HPMBS SaaS Platform Owner",
         code: "PLATFORM",
+        domain: "platform",
         subdomain: "platform",
         status: "APPROVED",
         plan: "ENTERPRISE",
@@ -51,6 +49,9 @@ export async function autoEnsureSystemCredentials() {
         licenseNumber: "PLATFORM-MASTER-001",
         isActive: true,
       });
+    } else if (!platformHospital.domain) {
+      platformHospital.domain = "platform";
+      await platformHospital.save();
     }
 
     let mainBranch = await Branch.findOne({ hospitalId: platformHospital._id, isMainBranch: true });
@@ -83,7 +84,7 @@ export async function autoEnsureSystemCredentials() {
         status: "ACTIVE",
         isActive: true,
       });
-      console.log("[AutoSeed] ? Created SuperAdmin (superadmin@gmail.com / 0000)");
+      console.log("[AutoSeed] ? Ensured SuperAdmin (superadmin@gmail.com / 0000)");
     } else if (!/^\$2[abxy]\$\d+\$/.test(superAdminUser.passwordHash)) {
       superAdminUser.passwordHash = defaultHash;
       superAdminUser.assignedPasswordHint = defaultPassword;
@@ -91,75 +92,7 @@ export async function autoEnsureSystemCredentials() {
       console.log("[AutoSeed] ? Updated SuperAdmin password hash");
     }
 
-    // 3. Ensure GUNAM Hospital & Gunam Primary Admin (narayanamadhu93@gmail.com / 1234)
-    let gunamHospital = await Hospital.findOne({
-      $or: [
-        { code: "GUNAMCOM" },
-        { contactEmail: "narayanamadhu93@gmail.com" },
-        { name: /gunam/i }
-      ]
-    });
-
-    if (!gunamHospital) {
-      gunamHospital = await Hospital.create({
-        name: "GUNAM",
-        code: "GUNAMCOM",
-        subdomain: "gunam",
-        status: "APPROVED",
-        plan: "ENTERPRISE",
-        contactName: "Madhu Narayan",
-        contactEmail: "narayanamadhu93@gmail.com",
-        contactPhone: "+91 9876543210",
-        licenseNumber: "HOSP-GUNAM-001",
-        address: { street: "Main Rd", city: "Chennai", state: "TN", country: "India" },
-        isActive: true,
-      });
-      console.log("[AutoSeed] ? Created GUNAM Hospital (GUNAMCOM)");
-    }
-
-    let gunamBranch = await Branch.findOne({ hospitalId: gunamHospital._id, isMainBranch: true });
-    if (!gunamBranch) {
-      gunamBranch = await Branch.create({
-        hospitalId: gunamHospital._id,
-        name: "Gunam Main Campus",
-        branchCode: "GUNAM-MAIN",
-        phone: "+91 9876543210",
-        email: "narayanamadhu93@gmail.com",
-        address: "Main Rd",
-        city: "Chennai",
-        state: "TN",
-        postalCode: "600001",
-        isMainBranch: true,
-      });
-    }
-
-    let gunamAdmin = await User.findOne({ email: "narayanamadhu93@gmail.com" });
-    if (!gunamAdmin) {
-      await User.create({
-        hospitalId: gunamHospital._id,
-        branchId: gunamBranch._id,
-        name: "Madhu Narayan",
-        email: "narayanamadhu93@gmail.com",
-        passwordHash: gunamHash,
-        assignedPasswordHint: gunamPassword,
-        role: ROLES.HOSPITAL_ADMIN,
-        phone: "+91 9876543210",
-        status: "ACTIVE",
-        isActive: true,
-      });
-      console.log("[AutoSeed] ? Created Gunam Admin (narayanamadhu93@gmail.com / 1234)");
-    } else {
-      gunamAdmin.hospitalId = gunamHospital._id;
-      gunamAdmin.branchId = gunamBranch._id;
-      gunamAdmin.passwordHash = gunamHash;
-      gunamAdmin.assignedPasswordHint = gunamPassword;
-      gunamAdmin.status = "ACTIVE";
-      gunamAdmin.isActive = true;
-      await gunamAdmin.save();
-      console.log("[AutoSeed] ? Ensured Gunam Admin credentials (narayanamadhu93@gmail.com / 1234)");
-    }
-
-    console.log("[AutoSeed] System credentials check completed successfully");
+    console.log("[AutoSeed] System roles & SuperAdmin check completed successfully");
   } catch (err) {
     console.error("[AutoSeed Warning] Failed system credentials check:", err.message);
   }

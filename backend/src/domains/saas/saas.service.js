@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { Hospital } from '../../models/Hospital.js';
+import { Hospital, sanitizeAndValidateDomain } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { User } from '../../models/User.js';
 import { Patient } from '../../models/Patient.js';
@@ -170,18 +170,30 @@ export class SaasService {
       );
     }
 
-    let rawSubdomain = data.subdomain || data.hospitalName;
-    let subdomain = String(rawSubdomain).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-    if (!subdomain) {
-      subdomain = `hosp${Date.now().toString(36)}`;
+    let rawDomain = data.domain || data.hospitalDomain || data.subdomain || data.hospitalName;
+    let cleanDomain = '';
+    try {
+      cleanDomain = sanitizeAndValidateDomain(rawDomain);
+    } catch (err) {
+      throw new ApiError(400, err.message, null, 'INVALID_DOMAIN');
     }
-    let code = subdomain.toUpperCase();
 
-    const existingSubdomain = await Hospital.findOne({ subdomain, isDeleted: { $ne: true } });
-    if (existingSubdomain) {
-      subdomain = `${subdomain}${Math.floor(100 + Math.random() * 900)}`;
-      code = subdomain.toUpperCase();
+    const existingDomain = await Hospital.findOne({
+      $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }],
+      isDeleted: { $ne: true },
+    });
+    if (existingDomain) {
+      throw new ApiError(
+        400,
+        `Hospital Domain / URL Name '${cleanDomain}' is already taken. Please choose another unique domain.`,
+        null,
+        'DUPLICATE_DOMAIN'
+      );
     }
+
+    const subdomain = cleanDomain;
+    let code = cleanDomain.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!code) code = `HOSP${Math.floor(100 + Math.random() * 900)}`;
 
     const trialStartDate = new Date();
     const trialEndDate = new Date(trialStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -189,7 +201,8 @@ export class SaasService {
     const hospital = await Hospital.create({
       name: data.hospitalName.trim(),
       code,
-      subdomain,
+      domain: cleanDomain,
+      subdomain: cleanDomain,
       status: 'PENDING_APPROVAL',
       plan: data.plan || 'BASIC',
       contactName: data.contactName || data.hospitalName || 'Hospital Administrator',
@@ -1191,6 +1204,57 @@ export class SaasService {
         assignedPasswordHint: adminUser.assignedPasswordHint
       }
     };
+  }
+
+  static async getHospitalByDomain(domainSlug) {
+    if (!domainSlug || !String(domainSlug).trim()) {
+      throw new ApiError(400, 'Hospital domain parameter is required', null, 'VALIDATION_ERROR');
+    }
+    const cleanDomain = String(domainSlug).toLowerCase().trim();
+    const hospital = await Hospital.findOne({
+      $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }],
+      isDeleted: { $ne: true },
+    }).select('name code domain subdomain status plan contactEmail logoUrl address enabledModules').lean();
+
+    if (!hospital) {
+      throw new ApiError(404, `Hospital domain '${cleanDomain}' not found.`, null, 'HOSPITAL_NOT_FOUND');
+    }
+    return hospital;
+  }
+
+  static async updateHospitalDomain(hospitalId, newDomain, requestingUser) {
+    if (requestingUser?.role !== 'SUPER_ADMIN') {
+      throw new ApiError(403, 'Only Super Admin can update a hospital domain.', null, 'FORBIDDEN');
+    }
+    const cleanDomain = sanitizeAndValidateDomain(newDomain);
+    const existing = await Hospital.findOne({
+      _id: { $ne: hospitalId },
+      $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }],
+      isDeleted: { $ne: true },
+    });
+    if (existing) {
+      throw new ApiError(400, `Domain '${cleanDomain}' is already in use by another hospital.`, null, 'DUPLICATE_DOMAIN');
+    }
+
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital not found', null, 'NOT_FOUND');
+    }
+    const oldDomain = hospital.domain;
+    hospital.domain = cleanDomain;
+    hospital.subdomain = cleanDomain;
+    await hospital.save();
+
+    await AuditLog.create({
+      action: 'UPDATE_HOSPITAL_DOMAIN',
+      userId: requestingUser.id,
+      userRole: requestingUser.role,
+      userEmail: requestingUser.email,
+      hospitalId,
+      details: { oldDomain, newDomain: cleanDomain },
+    }).catch(() => {});
+
+    return hospital;
   }
 }
 

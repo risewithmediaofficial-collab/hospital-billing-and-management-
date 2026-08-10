@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
+import { TenantRouteGuard } from '../components/auth/TenantRouteGuard';
 import { Navbar } from '../components/layout/Navbar';
 import { Sidebar } from '../components/layout/Sidebar';
 import { GlobalCodeBlueModal } from '../components/emergency/GlobalCodeBlueModal';
@@ -15,6 +16,7 @@ import { ForgotPasswordPage } from '../pages/Auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/Auth/ResetPasswordPage';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { HospitalNotFoundPage } from '../pages/HospitalNotFoundPage';
 
 import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
 import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
@@ -82,6 +84,7 @@ export const AppRoutes = () => {
       {/* Public Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/:hospitalDomain/login" element={<LoginPage />} />
       <Route path="/register-hospital" element={<HospitalRegisterPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -283,9 +286,65 @@ export const AppRoutes = () => {
         <Route path="/guardian" element={<Navigate to="/guardian-portal/dashboard" replace />} />
       </Route>
 
-      {/* Legacy Redirect Aliases */}
-      <Route path="/guardian/dashboard" element={<Navigate to="/guardian-portal/dashboard" replace />} />
-      <Route path="/patient/dashboard" element={<Navigate to="/patient-portal/dashboard" replace />} />
+      {/* Dynamic Tenant-Scoped Routes under /:hospitalDomain */}
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/doctors" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/nurses" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/reception" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/billing" element={<MainLayout><HospitalAdminManagementViews viewType="billing" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/laboratory" element={<MainLayout><HospitalAdminManagementViews viewType="laboratory" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/radiology" element={<MainLayout><HospitalAdminManagementViews viewType="radiology" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/pharmacy" element={<MainLayout><HospitalAdminManagementViews viewType="pharmacy" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/patients" element={<MainLayout><HospitalAdminManagementViews viewType="patients" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/opd" element={<MainLayout><HospitalAdminManagementViews viewType="opd" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/ipd" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/emergency" element={<MainLayout><HospitalAdminManagementViews viewType="emergency" /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/doctor/dashboard" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/queue" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/prescriptions" element={<MainLayout><GenericSubView title="E-Prescriptions History" subtitle="FEFO Auto-Checked Orders" iconName="Pill" /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/diagnostics" element={<MainLayout><GenericSubView title="Diagnostic Lab & RIS Results" subtitle="Pathology and Radiology Reports" iconName="Activity" /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse-incharge/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
+        <Route path="/:hospitalDomain/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.LAB_TECH, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RADIOLOGIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PATIENT, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/patient/dashboard" element={<MainLayout><PatientDashboard activeTab="dashboard" /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.GUARDIAN, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/:hospitalDomain/guardian/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
+      </Route>
 
       {/* Global Emergency Route */}
       <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />

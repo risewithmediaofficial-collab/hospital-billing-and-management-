@@ -193,3 +193,20 @@ export const updateHospitalAdminCredentials = async (req, res, next) => {
     return sendSuccess(res, 200, 'Hospital admin credentials updated successfully', result);
   } catch (error) { next(error); }
 };
+
+export const getHospitalByDomain = async (req, res, next) => {
+  try {
+    const { domain } = req.params;
+    const hospital = await SaasService.getHospitalByDomain(domain);
+    return sendSuccess(res, 200, 'Hospital domain details retrieved', hospital);
+  } catch (error) { next(error); }
+};
+
+export const updateHospitalDomain = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { domain } = req.body;
+    const updated = await SaasService.updateHospitalDomain(id, domain, req.user);
+    return sendSuccess(res, 200, 'Hospital domain updated successfully', updated);
+  } catch (error) { next(error); }
+};

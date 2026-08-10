@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
-import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash } from 'lucide-react';
+import { axiosClient } from '../api/axiosClient';
+import { HospitalNotFoundPage } from './HospitalNotFoundPage';
+import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash, Globe } from 'lucide-react';
 
 export const LoginPage = () => {
+  const { hospitalDomain } = useParams();
   const [activeTab, setActiveTab] = useState('STAFF'); // 'STAFF' | 'PATIENT' | 'GUARDIAN'
+
+  // Domain verification state
+  const [hospitalInfo, setHospitalInfo] = useState(null);
+  const [domainLoading, setDomainLoading] = useState(!!hospitalDomain);
+  const [domainNotFound, setDomainNotFound] = useState(false);
 
   // Staff credentials
   const [email, setEmail] = useState('');
@@ -26,30 +34,69 @@ export const LoginPage = () => {
   const { login, patientLogin, guardianLogin, isLoading, error } = useAuthStore();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!hospitalDomain) {
+      setDomainLoading(false);
+      return;
+    }
+    let isMounted = true;
+    setDomainLoading(true);
+    setDomainNotFound(false);
+
+    axiosClient.get(`/saas/hospitals/by-domain/${hospitalDomain}`)
+      .then((res) => {
+        if (!isMounted) return;
+        const data = res?.data || res;
+        setHospitalInfo(data);
+        setDomainLoading(false);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        if (err?.response?.status === 404 || err?.status === 404 || err?.error?.code === 'HOSPITAL_NOT_FOUND') {
+          setDomainNotFound(true);
+        }
+        setDomainLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hospitalDomain]);
+
+  if (domainNotFound) {
+    return <HospitalNotFoundPage domain={hospitalDomain} />;
+  }
+
   const handleRouteRedirect = (user) => {
+    if (user.defaultRoute) {
+      navigate(user.defaultRoute);
+      return;
+    }
+    const domainPrefix = hospitalDomain || user.hospitalDomain || '';
+    const prefix = domainPrefix ? `/${domainPrefix}` : '';
     const routes = {
       [ROLES.SUPER_ADMIN]: '/admin/dashboard',
-      [ROLES.HOSPITAL_ADMIN]: '/hospital-admin/dashboard',
-      [ROLES.DOCTOR]: '/doctor/dashboard',
-      [ROLES.NURSE]: '/nursing/dashboard',
-      [ROLES.NURSE_INCHARGE]: '/nurse-incharge/dashboard',
-      [ROLES.RECEPTIONIST]: '/reception/dashboard',
-      [ROLES.PHARMACIST]: '/pharmacy/dashboard',
-      [ROLES.LAB_TECH]: '/laboratory/dashboard',
-      [ROLES.RADIOLOGIST]: '/radiology/dashboard',
-      [ROLES.CASHIER]: '/billing/dashboard',
-      [ROLES.INVENTORY_MANAGER]: '/inventory/dashboard',
-      [ROLES.HR_MANAGER]: '/hr/dashboard',
-      [ROLES.PATIENT]: '/patient-portal/dashboard',
-      [ROLES.GUARDIAN]: '/guardian-portal/dashboard',
+      [ROLES.HOSPITAL_ADMIN]: `${prefix}/admin/dashboard`,
+      [ROLES.DOCTOR]: `${prefix}/doctor/dashboard`,
+      [ROLES.NURSE]: `${prefix}/nurse/dashboard`,
+      [ROLES.NURSE_INCHARGE]: `${prefix}/nurse-incharge/dashboard`,
+      [ROLES.RECEPTIONIST]: `${prefix}/reception/dashboard`,
+      [ROLES.PHARMACIST]: `${prefix}/pharmacy/dashboard`,
+      [ROLES.LAB_TECH]: `${prefix}/laboratory/dashboard`,
+      [ROLES.RADIOLOGIST]: `${prefix}/radiology/dashboard`,
+      [ROLES.CASHIER]: `${prefix}/billing/dashboard`,
+      [ROLES.INVENTORY_MANAGER]: `${prefix}/inventory/dashboard`,
+      [ROLES.HR_MANAGER]: `${prefix}/hr/dashboard`,
+      [ROLES.PATIENT]: `${prefix}/patient/dashboard`,
+      [ROLES.GUARDIAN]: `${prefix}/guardian/dashboard`,
     };
-    navigate(routes[user.role] || '/');
+    navigate(routes[user.role] || (prefix ? `${prefix}/dashboard` : '/'));
   };
 
   const handleStaffLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await login(email, password);
+      const user = await login(email, password, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
@@ -59,7 +106,7 @@ export const LoginPage = () => {
   const handlePatientLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await patientLogin(patientMobile, patientDob);
+      const user = await patientLogin(patientMobile, patientDob, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
@@ -69,7 +116,7 @@ export const LoginPage = () => {
   const handleGuardianLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await guardianLogin(guardianMobile, guardianPatientMobile, guardianUHID);
+      const user = await guardianLogin(guardianMobile, guardianPatientMobile, guardianUHID, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
