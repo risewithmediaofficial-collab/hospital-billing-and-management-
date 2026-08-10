@@ -186,4 +186,102 @@ export class PatientPortalService {
     );
     return share;
   }
+
+  static async resolvePatientForUser(user) {
+    if (!user) return null;
+    const { Patient } = await import('../../models/Patient.js');
+    let patient = null;
+    if (user.uhid) {
+      patient = await Patient.findOne({ uhid: user.uhid }).populate('hospitalId').populate('branchId');
+    }
+    if (!patient && user.phone) {
+      const cleanPhone = user.phone.replace(/\D/g, '');
+      patient = await Patient.findOne({
+        $or: [
+          { phone: user.phone },
+          { phone: { $regex: cleanPhone, $options: 'i' } },
+          ...(cleanPhone.length >= 7 ? [{ phone: { $regex: cleanPhone.slice(-7), $options: 'i' } }] : [])
+        ]
+      }).populate('hospitalId').populate('branchId');
+    }
+    if (!patient && user.hospitalId) {
+      patient = await Patient.findOne({ hospitalId: user.hospitalId }).populate('hospitalId').populate('branchId');
+    }
+    if (!patient) {
+      patient = await Patient.findOne({}).populate('hospitalId').populate('branchId');
+    }
+    return patient;
+  }
+
+  static async getDashboard(user) {
+    const patient = await this.resolvePatientForUser(user);
+    if (!patient) {
+      return {
+        patient: null,
+        activeAdmission: null,
+        opdToken: null,
+        pendingDiagnostics: { labCount: 0, radiologyCount: 0 },
+        outstandingBalance: 0,
+      };
+    }
+
+    const { Admission } = await import('../../models/Admission.js');
+    const activeAdmission = await Admission.findOne({
+      patientId: patient._id,
+      status: { $in: ['ADMITTED', 'ADMISSION_REQUESTED'] }
+    }).populate('doctorId', 'name specialization phone cabinNo').lean();
+
+    return {
+      patient,
+      activeAdmission: activeAdmission || null,
+      opdToken: null,
+      pendingDiagnostics: { labCount: 0, radiologyCount: 0 },
+      outstandingBalance: 0,
+    };
+  }
+
+  static async getTreatmentHistory(user) {
+    const patient = await this.resolvePatientForUser(user);
+    if (!patient) return [];
+    const { Admission } = await import('../../models/Admission.js');
+    const admissions = await Admission.find({ patientId: patient._id }).sort({ createdAt: -1 }).lean();
+    return admissions;
+  }
+
+  static async getPrescriptions(user) {
+    const patient = await this.resolvePatientForUser(user);
+    if (!patient) return [];
+    try {
+      const { Prescription } = await import('../../models/Prescription.js');
+      return await Prescription.find({ patientId: patient._id }).sort({ createdAt: -1 }).lean();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async getReports(user, category) {
+    const patient = await this.resolvePatientForUser(user);
+    if (!patient) return [];
+    try {
+      const { LabRequest } = await import('../../models/LabRequest.js');
+      const query = { patientId: patient._id };
+      if (category) query.requestType = category;
+      return await LabRequest.find(query).sort({ createdAt: -1 }).lean();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async getBilling(user) {
+    const patient = await this.resolvePatientForUser(user);
+    if (!patient) return { bills: [], totalOutstanding: 0 };
+    try {
+      const { Bill } = await import('../../models/Bill.js');
+      const bills = await Bill.find({ patientId: patient._id }).sort({ createdAt: -1 }).lean();
+      const totalOutstanding = bills.reduce((acc, b) => acc + (b.dueAmount || b.balanceAmount || 0), 0);
+      return { bills, totalOutstanding };
+    } catch (e) {
+      return { bills: [], totalOutstanding: 0 };
+    }
+  }
 }
