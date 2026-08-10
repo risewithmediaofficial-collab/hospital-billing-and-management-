@@ -336,13 +336,20 @@ export const Sidebar = ({ isOpen, onClose }) => {
     }
   }, [user, socket]);
 
+  const formatTenantPath = (path) => {
+    if (!path || user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return path;
+    if (path.startsWith(`/${user.hospitalDomain}`)) return path;
+    return `/${user.hospitalDomain}${path}`;
+  };
+
   const isItemActive = (itemPath) => {
-    const [itemPathname, itemSearch] = itemPath.split('?');
+    const formatted = formatTenantPath(itemPath);
+    const [itemPathname, itemSearch] = formatted.split('?');
     const currentSearch = location.search.replace('?', '');
     if (itemSearch) {
       return location.pathname === itemPathname && currentSearch === itemSearch;
     }
-    return location.pathname === itemPathname && !location.search.includes('tab=');
+    return (location.pathname === itemPathname || location.pathname === itemPath.split('?')[0]) && !location.search.includes('tab=');
   };
 
   useEffect(() => {
