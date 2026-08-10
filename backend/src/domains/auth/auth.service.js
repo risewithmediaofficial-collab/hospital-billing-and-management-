@@ -231,7 +231,7 @@ export class AuthService {
     return await this.formatAuthResponse(user);
   }
 
-  static async patientLogin(mobileNumber, dob) {
+  static async patientLogin(mobileNumber, dob, hospitalDomain = null) {
     if (!mobileNumber || !String(mobileNumber).trim()) {
       throw new ApiError(400, 'Patient Mobile Number is required.', null, 'VALIDATION_ERROR');
     }
@@ -243,12 +243,31 @@ export class AuthService {
     const cleanMobileDigits = cleanMobile.replace(/\D/g, '');
     const { Patient } = await import('../../models/Patient.js');
 
-    const patients = await Patient.find({
-      $or: [
-        { phone: cleanMobile },
-        { phone: { $regex: cleanMobileDigits.slice(-10), $options: 'i' } }
-      ]
-    }).populate('hospitalId').populate('branchId');
+    let targetHospitalId = null;
+    if (hospitalDomain && String(hospitalDomain).trim()) {
+      const cleanDomain = String(hospitalDomain).toLowerCase().trim();
+      const hosp = await Hospital.findOne({ $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }], isDeleted: { $ne: true } });
+      if (hosp) targetHospitalId = hosp._id;
+    }
+
+    const phoneQueries = [
+      { phone: cleanMobile },
+      { phone: { $regex: cleanMobileDigits, $options: 'i' } }
+    ];
+    if (cleanMobileDigits.length >= 6) {
+      phoneQueries.push({ phone: { $regex: cleanMobileDigits.slice(-7), $options: 'i' } });
+    }
+
+    const patientQuery = { $or: phoneQueries };
+    if (targetHospitalId) {
+      patientQuery.hospitalId = targetHospitalId;
+    }
+
+    let patients = await Patient.find(patientQuery).populate('hospitalId').populate('branchId');
+
+    if ((!patients || patients.length === 0) && targetHospitalId) {
+      patients = await Patient.find({ $or: phoneQueries }).populate('hospitalId').populate('branchId');
+    }
 
     if (!patients || patients.length === 0) {
       throw new ApiError(401, 'No patient registered with this mobile number.', null, 'INVALID_CREDENTIALS');
@@ -307,7 +326,7 @@ export class AuthService {
     return await this.formatAuthResponse(user);
   }
 
-  static async guardianLogin(guardianMobile, patientMobile, patientNumber) {
+  static async guardianLogin(guardianMobile, patientMobile, patientNumber, hospitalDomain = null) {
     if (!guardianMobile || !String(guardianMobile).trim()) {
       throw new ApiError(400, 'Guardian Mobile Number is required.', null, 'VALIDATION_ERROR');
     }

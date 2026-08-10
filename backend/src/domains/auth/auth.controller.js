@@ -29,8 +29,9 @@ export const login = async (req, res, next) => {
 
 export const patientLogin = async (req, res, next) => {
   try {
-    const { mobileNumber, dob } = req.body;
-    const result = await AuthService.patientLogin(mobileNumber, dob);
+    const { mobileNumber, dob, hospitalDomain, domain } = req.body;
+    const domainSlug = hospitalDomain || domain || req.headers['x-hospital-domain'];
+    const result = await AuthService.patientLogin(mobileNumber, dob, domainSlug);
 
     res.cookie('accessToken', result.tokens.accessToken, {
       httpOnly: true,
@@ -53,8 +54,9 @@ export const patientLogin = async (req, res, next) => {
 
 export const guardianLogin = async (req, res, next) => {
   try {
-    const { guardianMobile, patientMobile, patientNumber } = req.body;
-    const result = await AuthService.guardianLogin(guardianMobile, patientMobile, patientNumber);
+    const { guardianMobile, patientMobile, patientNumber, hospitalDomain, domain } = req.body;
+    const domainSlug = hospitalDomain || domain || req.headers['x-hospital-domain'];
+    const result = await AuthService.guardianLogin(guardianMobile, patientMobile, patientNumber, domainSlug);
 
     res.cookie('accessToken', result.tokens.accessToken, {
       httpOnly: true,
