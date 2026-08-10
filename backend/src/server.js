@@ -20,8 +20,11 @@ server.on('error', (error) => {
   }
 });
 
+import { autoEnsureSystemCredentials } from './config/autoSeed.js';
+
 // Connect to MongoDB and start HTTP Server
-connectDB().then(() => {
+connectDB().then(async () => {
+  await autoEnsureSystemCredentials();
   server.listen(env.PORT, () => {
     console.log(`====================================================`);
     console.log(` HPMBS Backend Server Running on Port ${env.PORT}`);
