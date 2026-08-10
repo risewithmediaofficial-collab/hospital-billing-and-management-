@@ -21,6 +21,10 @@ const emergencySchema = new mongoose.Schema(
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' },
     patientName: { type: String, default: 'Unknown / Unidentified' },
     uhid: { type: String, default: 'N/A' },
+    // Admission context — enables targeted care-team routing
+    admissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admission', default: null, index: true },
+    // Users who received this alert (populated from CareTeamAssignment at raise time)
+    routedToUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     location: { type: String, required: true }, // e.g. "Room 302", "Radiology Scanner 1", "OPD Waiting Area"
     description: { type: String, default: '' },
     status: {

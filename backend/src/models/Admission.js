@@ -8,10 +8,20 @@ const admissionSchema = new mongoose.Schema(
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     uhid: { type: String, required: true },
     patientName: { type: String, required: true },
+    // Sequential admission number per patient per hospital (e.g. #001, #002)
+    admissionNumber: { type: Number, default: 1 },
+    admissionReference: { type: String, default: '' }, // e.g. 'ADM-HOSP-2026-00001-001'
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     doctorName: { type: String, required: true, default: 'Dr. Gregory House' },
+    // Consulting team
+    consultingDoctorIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     assignedNurseId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     assignedCaretakerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    dutyNurseId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Care team status
+    careTeamAssigned: { type: Boolean, default: false },
+    // Active authorized guardians for this admission
+    activeGuardianIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     wardType: { type: String, enum: ['GENERAL', 'SEMI_PRIVATE', 'PRIVATE', 'ICU'], default: 'GENERAL' },
     targetWardName: { type: String, default: 'Ward 3B - Inpatient' },
     bedId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bed' },

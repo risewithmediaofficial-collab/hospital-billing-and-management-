@@ -60,7 +60,7 @@ export const SuperAdminHospitalsPage = () => {
       return !isDel && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING');
     }
     if (tabFilter === 'ACTIVE') {
-      return !isDel && !isExp && (h.status === 'APPROVED' || h.isActive);
+      return !isDel && !isExp && h.status === 'APPROVED';
     }
     if (tabFilter === 'EXPIRED') {
       return !isDel && isExp;
@@ -68,8 +68,8 @@ export const SuperAdminHospitalsPage = () => {
     if (tabFilter === 'DELETED') {
       return isDel;
     }
-    // Default 'ALL': Show non-deleted hospitals
-    return !isDel;
+    // Default 'ALL': Show all registered hospitals matching Total Hospitals count
+    return true;
   });
 
   const pendingCount = hospitals.filter((h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')).length;

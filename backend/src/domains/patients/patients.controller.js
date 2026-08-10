@@ -6,6 +6,55 @@ export const registerPatient = async (req, res, next) => {
     const patient = await PatientsService.registerPatient(req.body, req.user);
     return sendSuccess(res, 201, 'Patient registered successfully', patient);
   } catch (error) {
+    // 409 Possible Duplicate — return it as a structured response, not a 500
+    if (error.statusCode === 409 || error.possibleDuplicate) {
+      return res.status(409).json({
+        success: false,
+        statusCode: 409,
+        message: error.message,
+        code: 'POSSIBLE_DUPLICATE',
+        possibleDuplicate: true,
+        existingRecords: error.errors || [],
+      });
+    }
+    next(error);
+  }
+};
+
+export const checkDuplicatePatient = async (req, res, next) => {
+  try {
+    let hospitalId = req.user?.hospitalId;
+    if (!hospitalId) {
+      const { Hospital } = await import('../../models/Hospital.js');
+      const h = await Hospital.findOne({});
+      hospitalId = h?._id;
+    }
+    const duplicates = await PatientsService.checkDuplicate(req.body, hospitalId);
+    return sendSuccess(res, 200, 'Duplicate check completed', {
+      hasDuplicates: duplicates.length > 0,
+      count: duplicates.length,
+      matches: duplicates.map(p => ({
+        _id: p._id,
+        uhid: p.uhid,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        phone: p.phone,
+        dob: p.dob,
+        admissionStatus: p.admissionStatus,
+        createdAt: p.createdAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchGlobalPatient = async (req, res, next) => {
+  try {
+    const query = req.query.q || '';
+    const results = await PatientsService.searchGlobalPatient(query);
+    return sendSuccess(res, 200, 'Global patient search results', results);
+  } catch (error) {
     next(error);
   }
 };

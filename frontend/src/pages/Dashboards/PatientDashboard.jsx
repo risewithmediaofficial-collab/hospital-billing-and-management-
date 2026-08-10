@@ -42,6 +42,13 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   const [billingData, setBillingData] = useState({ invoices: [], receipts: [] });
   const [myRequests, setMyRequests] = useState([]);
 
+  // Multi-hospital state
+  const [myHospitals, setMyHospitals] = useState([]);
+  const [activeContext, setActiveContext] = useState(null); // { admission, careTeam, hospitalId, localUhid }
+  const [selectedHospitalId, setSelectedHospitalId] = useState(null);
+  const isDischarged = activeContext === null || (activeContext && activeContext.admission?.status === 'DISCHARGED');
+  const hasActiveAdmission = activeContext && (activeContext.admission?.status === 'ADMITTED' || activeContext.admission?.status === 'ADMISSION_REQUESTED');
+
   const [isLoading, setIsLoading] = useState(false);
   const [requestFeedback, setRequestFeedback] = useState(null);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -54,6 +61,8 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   useEffect(() => {
     fetchDashboardData();
     fetchRequests();
+    fetchMyHospitals();
+    fetchActiveContext();
   }, []);
 
   useEffect(() => {
@@ -67,9 +76,28 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   const fetchDashboardData = async () => {
     try {
       const res = await axiosClient.get('/patient-portal/dashboard');
-      setDashboardData(res.data?.data || res.data);
+      setDashboardData(res?.data || res);
     } catch (err) {
       console.error('Failed to load patient dashboard:', err);
+    }
+  };
+
+  const fetchMyHospitals = async () => {
+    try {
+      const res = await axiosClient.get('/patient-portal/hospitals');
+      const hospitals = res.hospitals || res.data?.hospitals || [];
+      setMyHospitals(hospitals);
+    } catch (err) {
+      // Non-critical: patient may not have GlobalPatient yet
+    }
+  };
+
+  const fetchActiveContext = async () => {
+    try {
+      const res = await axiosClient.get('/patient-portal/active-context');
+      setActiveContext(res.data || res || null);
+    } catch (err) {
+      setActiveContext(null);
     }
   };
 
@@ -187,7 +215,68 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      {/* Patient Header Banner */}
+
+      {/* ── Multi-Hospital Selector (if patient has multiple hospitals) ── */}
+      {myHospitals.length > 1 && (
+        <div style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 18 }}>🏥</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#818cf8' }}>My Hospitals</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {myHospitals.map((h) => (
+              <button
+                key={String(h.hospitalId)}
+                onClick={() => setSelectedHospitalId(h.hospitalId)}
+                style={{
+                  padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid',
+                  background: String(selectedHospitalId || activeContext?.hospitalId) === String(h.hospitalId) ? 'rgba(79,70,229,0.25)' : 'rgba(255,255,255,0.05)',
+                  color: String(selectedHospitalId || activeContext?.hospitalId) === String(h.hospitalId) ? '#a78bfa' : 'rgba(255,255,255,0.5)',
+                  borderColor: String(selectedHospitalId || activeContext?.hospitalId) === String(h.hospitalId) ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.1)',
+                }}
+              >
+                {h.hasActiveAdmission ? '🔴 ' : ''}{h.hospitalName}
+                <span style={{ marginLeft: 6, opacity: 0.6 }}>({h.localUhid})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Active Admission Banner ── */}
+      {hasActiveAdmission && (
+        <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.06))', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 16, padding: '14px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 22 }}>🏥</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>Currently Admitted – IPD</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+                Ward: {activeContext.admission?.targetWardName || '—'} &nbsp;·&nbsp; Bed: {activeContext.admission?.bedNumber || '—'} &nbsp;·&nbsp;
+                Status: <strong style={{ color: '#fbbf24' }}>{activeContext.admission?.status}</strong>
+              </div>
+            </div>
+            {activeContext.careTeam?.length > 0 && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                {activeContext.careTeam.slice(0, 3).map((c, i) => (
+                  <span key={i} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+                    {c.role.replace('_', ' ')} · {c.userId?.name || c.userName}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Discharge Read-Only Banner ── */}
+      {!hasActiveAdmission && patient.admissionStatus === 'DISCHARGED' && (
+        <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }}>📋</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Admission Closed – Read Only Mode</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Your last admission has ended. Live service requests and emergency alerts are disabled. View your records below.</div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0 border border-indigo-500">
@@ -213,14 +302,20 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowEmergencyModal(true)}
-            className="font-extrabold shadow-md shadow-rose-600/30 gap-1.5 px-4 py-2"
-          >
-            <ShieldAlert size={16} /> 🚨 TRIGGER EMERGENCY
-          </Button>
+          {hasActiveAdmission ? (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowEmergencyModal(true)}
+              className="font-extrabold shadow-md shadow-rose-600/30 gap-1.5 px-4 py-2"
+            >
+              <ShieldAlert size={16} /> 🚨 TRIGGER EMERGENCY
+            </Button>
+          ) : (
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', padding: '6px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+              🔒 Emergency — Not Admitted
+            </span>
+          )}
         </div>
       </div>
 

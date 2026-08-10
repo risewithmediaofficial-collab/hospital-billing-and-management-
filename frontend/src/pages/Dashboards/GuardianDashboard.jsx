@@ -32,6 +32,9 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
   const [linkedPatients, setLinkedPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [guardianData, setGuardianData] = useState(null);
+  // Discharge lock: track whether the selected patient has live access
+  const [liveAccessActive, setLiveAccessActive] = useState(true);
+  const isDischarged = !liveAccessActive;
 
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkFormData, setLinkFormData] = useState({ patientUhid: '', relationship: 'FATHER', notes: '' });
@@ -50,10 +53,19 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     fetchGuardianDashboard();
   }, [selectedPatientId]);
 
+  // Update liveAccessActive when selection changes
+  useEffect(() => {
+    if (!selectedPatientId) { setLiveAccessActive(true); return; }
+    const link = linkedPatients.find(l => String(l.patient?._id) === String(selectedPatientId));
+    const isActive = link?.liveAccessActive !== false; // default true
+    const patientAdmStatus = link?.patient?.admissionStatus;
+    setLiveAccessActive(isActive && patientAdmStatus !== 'DISCHARGED');
+  }, [selectedPatientId, linkedPatients]);
+
   const fetchLinkedPatients = async () => {
     try {
       const res = await axiosClient.get('/guardian-portal/linked-patients');
-      const list = res.data?.data || res.data || [];
+      const list = res.data || res || [];
       setLinkedPatients(list);
       if (list.length > 0 && !selectedPatientId) {
         setSelectedPatientId(list[0].patient?._id);
@@ -67,7 +79,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     try {
       const url = selectedPatientId ? `/guardian-portal/dashboard?patientId=${selectedPatientId}` : '/guardian-portal/dashboard';
       const res = await axiosClient.get(url);
-      setGuardianData(res.data?.data || res.data);
+      setGuardianData(res.data || res);
     } catch (err) {
       console.error('Failed to load guardian dashboard:', err);
     }
@@ -103,6 +115,20 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
+
+      {/* ── Discharge Read-Only Banner ── */}
+      {isDischarged && (
+        <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Lock size={22} style={{ color: '#fbbf24', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Patient Discharged — Guardian Read-Only Mode</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+              The patient's admission has ended. You can still view all medical history and previous records, but live service requests and emergency alerts are now disabled.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">

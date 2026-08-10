@@ -1,380 +1,189 @@
+import { GlobalPatient } from '../../models/GlobalPatient.js';
 import { Patient } from '../../models/Patient.js';
 import { Admission } from '../../models/Admission.js';
-import { Appointment } from '../../models/Appointment.js';
-import { Consultation } from '../../models/Consultation.js';
-import { Prescription } from '../../models/Prescription.js';
-import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
-import { Invoice } from '../../models/Invoice.js';
-import { Receipt } from '../../models/Receipt.js';
-import { PatientRequest } from '../../models/PatientRequest.js';
-import { DoctorUpdate } from '../../models/DoctorUpdate.js';
-import { Bed } from '../../models/Bed.js';
-import { User } from '../../models/User.js';
+import { MedicalRecordShare } from '../../models/MedicalRecordShare.js';
 import { ApiError } from '../../utils/apiError.js';
 
 export class PatientPortalService {
-  /**
-   * Resolves the Patient document associated with the logged-in user.
-   */
-  static async resolvePatientForUser(user) {
-    // Step 1: Get full user record from DB to access phone/email/uhid
-    let userDoc = null;
-    try {
-      if (user?.id) userDoc = await User.findById(user.id);
-    } catch (_) {}
-
-    const phone = userDoc?.phone || user?.phone || '';
-    const email = userDoc?.email || user?.email || '';
-    const uhid = userDoc?.uhid || user?.uhid || '';
-    const name = userDoc?.name || user?.name || 'Patient User';
-    const hospitalId = userDoc?.hospitalId || user?.hospitalId;
-
-    // Step 2: Try to find patient by uhid, phone, email
-    let patient = null;
-    try {
-      const ors = [];
-      if (uhid) ors.push({ uhid: uhid.toUpperCase() });
-      if (phone) ors.push({ phone });
-      if (email && !email.includes('@patient.hospital.local')) ors.push({ email: email.toLowerCase() });
-      if (ors.length > 0) patient = await Patient.findOne({ $or: ors });
-    } catch (_) {}
-
-    // Step 3: Fallback - most recent patient in DB
-    if (!patient) {
-      try {
-        patient = await Patient.findOne({}).sort({ createdAt: -1 });
-      } catch (_) {}
-    }
-
-    // Step 4: Create patient on the fly - guaranteed to succeed
-    if (!patient) {
-      try {
-        const { Hospital } = await import('../../models/Hospital.js');
-        const { Branch } = await import('../../models/Branch.js');
-        let defaultHosp = await Hospital.findOne({});
-        let defaultBranch = defaultHosp ? await Branch.findOne({ hospitalId: defaultHosp._id }) : null;
-
-        const nameparts = String(name).trim().split(' ');
-        patient = await Patient.create({
-          hospitalId: hospitalId || defaultHosp?._id,
-          branchId: defaultBranch?._id,
-          uhid: uhid || `HOSP-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
-          firstName: nameparts[0] || 'Patient',
-          lastName: nameparts[1] || 'User',
-          phone: phone || '0000000000',
-          email: email || `patient.${Date.now()}@hospital.local`,
-          gender: 'MALE',
-          age: 30,
-          category: 'GENERAL',
-        });
-      } catch (createErr) {
-        console.error('[Patient Auto-Create]', createErr.message);
-      }
-    }
-
-    // Step 5: If everything fails, return a safe empty patient object
-    if (!patient) {
-      patient = {
-        _id: null,
-        uhid: uhid || 'UNKNOWN',
-        firstName: name.split(' ')[0] || 'Patient',
-        lastName: name.split(' ')[1] || '',
-        phone,
-        email,
-        gender: 'MALE',
-        bloodGroup: 'O+',
-        age: 30,
-        category: 'GENERAL',
-        allergies: [],
-        emergencyContact: {},
-      };
-    }
-
-    return patient;
-  }
 
   /**
-   * Get main dashboard summary for Patient Portal.
+   * Get all hospitals a patient has registered at (via GlobalPatient).
+   * Includes admission status per hospital.
    */
-  static async getDashboard(user) {
-    const patient = await this.resolvePatientForUser(user);
-    const patientId = patient?._id || null;
+  static async getPatientHospitals(userId) {
+    const globalPatient = await GlobalPatient.findOne({ patientUserId: userId })
+      .populate('hospitalMemberships.hospitalId', 'name address contactPhone');
 
-    let activeAdmission = null;
-    let bedInfo = null;
-    let activeAppointment = null;
-    let latestPrescription = null;
-    let pendingLabs = 0;
-    let pendingRadiology = 0;
-    let unpaidInvoices = [];
-    let activeEmergencyRequest = null;
-    let assignedNurse = null;
-    let assignedCaretaker = null;
+    if (!globalPatient) {
+      return { hospitals: [], globalPatientId: null };
+    }
 
-    if (patientId) {
-      try {
-        activeAdmission = await Admission.findOne({ patientId, status: 'ADMITTED' })
-          .populate('doctorId', 'name specialization cabinNo phone shiftPattern')
-          .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails')
-          .populate('assignedCaretakerId', 'name role phone assignedUnit shiftDetails')
-          .populate('bedId');
-        if (activeAdmission?.bedId) {
-          bedInfo = await Bed.findById(activeAdmission.bedId._id || activeAdmission.bedId)
-            .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails');
-          assignedNurse = bedInfo?.assignedNurseId || null;
-        }
-      } catch (_) {}
+    const hospitalsData = await Promise.all(
+      globalPatient.hospitalMemberships.map(async (membership) => {
+        const hospital = membership.hospitalId;
 
-      try {
-        activeAppointment = await Appointment.findOne({
-          patientId,
-          status: { $in: ['SCHEDULED', 'QUEUED', 'IN_CONSULTATION'] },
-        }).populate('doctorId', 'name specialization cabinNo');
-      } catch (_) {}
+        const admissions = await Admission.find({ patientId: membership.localPatientId })
+          .sort({ admissionNumber: 1 })
+          .select('admissionNumber admissionReference status admittedAt dischargedAt wardType bedNumber targetWardName careTeamAssigned')
+          .lean();
 
-      try {
-        latestPrescription = await Prescription.findOne({ patientId }).sort({ createdAt: -1 }).populate('doctorId', 'name');
-      } catch (_) {}
+        const activeAdmission = admissions.find(a => a.status === 'ADMITTED' || a.status === 'ADMISSION_REQUESTED');
 
-      try {
-        pendingLabs = await DiagnosticOrder.countDocuments({ patientId, category: 'LABORATORY', status: { $ne: 'COMPLETED' } });
-        pendingRadiology = await DiagnosticOrder.countDocuments({ patientId, category: 'RADIOLOGY', status: { $ne: 'COMPLETED' } });
-      } catch (_) {}
-
-      try {
-        unpaidInvoices = await Invoice.find({ patientId, paymentStatus: { $in: ['UNPAID', 'PARTIALLY_PAID'] } });
-      } catch (_) {}
-
-      try {
-        activeEmergencyRequest = await PatientRequest.findOne({
-          patientId,
-          requestType: 'EMERGENCY',
-          status: { $in: ['SUBMITTED', 'PENDING', 'ACCEPTED', 'IN_PROGRESS'] },
-        }).populate('acceptedBy', 'name role');
-      } catch (_) {}
-
-      try {
-        const activeAssignment = {
-          patientId,
-          status: { $in: ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'] },
+        return {
+          hospitalId: hospital?._id,
+          hospitalName: hospital?.name || 'Unknown Hospital',
+          hospitalPhone: hospital?.contactPhone,
+          localPatientId: membership.localPatientId,
+          localUhid: membership.localUhid,
+          joinedAt: membership.joinedAt,
+          lastVisitAt: membership.lastVisitAt,
+          hasActiveAdmission: !!activeAdmission,
+          activeAdmission: activeAdmission || null,
+          totalAdmissions: admissions.length,
+          admissions,
         };
-        const [nurseRequest, caretakerRequest] = await Promise.all([
-          PatientRequest.findOne({ ...activeAssignment, assignedNurseId: { $ne: null } })
-            .sort({ updatedAt: -1 })
-            .populate('assignedNurseId', 'name role phone assignedUnit shiftDetails'),
-          PatientRequest.findOne({ ...activeAssignment, assignedCaretakerId: { $ne: null } })
-            .sort({ updatedAt: -1 })
-            .populate('assignedCaretakerId', 'name role phone assignedUnit shiftDetails'),
-        ]);
+      })
+    );
 
-        assignedNurse ||= nurseRequest?.assignedNurseId || null;
-        assignedCaretaker = caretakerRequest?.assignedCaretakerId || null;
-      } catch (_) {}
-    }
-
-    const totalPendingAmount = unpaidInvoices.reduce((sum, inv) => sum + (inv.pendingAmount || 0), 0);
+    hospitalsData.sort((a, b) => (b.hasActiveAdmission ? 1 : 0) - (a.hasActiveAdmission ? 1 : 0));
 
     return {
-      patient,
-      currentStatus: activeAdmission ? 'ADMITTED' : activeAppointment ? activeAppointment.status : 'UNDER_OUTPATIENT_CARE',
-      admissionDetails: activeAdmission
-        ? {
-            admissionNo: activeAdmission.admissionNo,
-            admittedAt: activeAdmission.admittedAt,
-            wardName: activeAdmission.wardName || bedInfo?.wardName || 'General Ward',
-            roomNumber: activeAdmission.roomNumber || bedInfo?.roomNumber || 'Room 101',
-            bedNumber: bedInfo?.bedNumber || 'Bed 1',
-            admissionType: activeAdmission.admissionType,
-          }
-        : null,
-      careTeam: {
-        doctor: activeAdmission?.doctorId || activeAppointment?.doctorId || null,
-        nurse: activeAdmission?.assignedNurseId || assignedNurse,
-        caretaker: activeAdmission?.assignedCaretakerId || assignedCaretaker,
-      },
-      queuePosition: activeAppointment?.tokenNumber ? `#${activeAppointment.tokenNumber}` : 'N/A',
-      latestPrescription,
-      pendingLabs,
-      pendingRadiology,
-      totalPendingAmount,
-      activeEmergency: activeEmergencyRequest
-        ? {
-            id: activeEmergencyRequest._id,
-            status: activeEmergencyRequest.status,
-            submittedAt: activeEmergencyRequest.submittedAt,
-            acceptedBy: activeEmergencyRequest.acceptedBy?.name || null,
-          }
-        : null,
+      globalPatientId: globalPatient.globalPatientId,
+      firstName: globalPatient.firstName,
+      lastName: globalPatient.lastName,
+      hospitals: hospitalsData,
     };
   }
 
-  /**
-   * Get chronological treatment history timeline for Patient.
-   */
-  static async getTreatmentHistory(user) {
-    const patient = await this.resolvePatientForUser(user);
-    const timeline = [];
+  static async getActiveAdmissionContext(userId) {
+    const globalPatient = await GlobalPatient.findOne({ patientUserId: userId });
+    if (!globalPatient) return null;
 
-    // 1. Patient Registration
-    timeline.push({
-      id: `reg-${patient._id}`,
-      date: patient.createdAt,
-      type: 'REGISTRATION',
-      title: 'Hospital Registration Complete',
-      department: 'Reception',
-      description: `Registered with UHID: ${patient.uhid}. Category: ${patient.category}`,
-      status: 'COMPLETED',
+    const activeMembership = globalPatient.hospitalMemberships.find(m => m.hasActiveAdmission && m.activeAdmissionId);
+    if (!activeMembership) return null;
+
+    const admission = await Admission.findById(activeMembership.activeAdmissionId)
+      .populate('doctorId', 'name specialization phone avatarUrl cabinNo')
+      .populate('assignedNurseId', 'name role phone')
+      .populate('assignedCaretakerId', 'name role phone')
+      .lean();
+
+    const { CareTeamAssignment } = await import('../../models/CareTeamAssignment.js');
+    const careTeam = await CareTeamAssignment.find({
+      admissionId: activeMembership.activeAdmissionId,
+      removedAt: null,
+    }).populate('userId', 'name role specialization phone').lean();
+
+    return {
+      hospitalId: activeMembership.hospitalId,
+      localPatientId: activeMembership.localPatientId,
+      localUhid: activeMembership.localUhid,
+      admission,
+      careTeam,
+    };
+  }
+
+  static async shareRecord(userId, shareData) {
+    const { fromHospitalId, toHospitalId, toDoctorId, recordType, recordId, recordDescription, shareType, expiresAt } = shareData;
+
+    const globalPatient = await GlobalPatient.findOne({ patientUserId: userId });
+    if (!globalPatient) {
+      throw new ApiError(404, 'Global patient identity not found', null, 'NOT_FOUND');
+    }
+
+    const fromMembership = globalPatient.hospitalMemberships.find(
+      m => String(m.hospitalId) === String(fromHospitalId)
+    );
+    if (!fromMembership) {
+      throw new ApiError(403, 'You do not have a patient record at the source hospital.', null, 'FORBIDDEN');
+    }
+
+    const { Hospital } = await import('../../models/Hospital.js');
+    const { User } = await import('../../models/User.js');
+    const [fromHospital, toHospital, toDoctor] = await Promise.all([
+      Hospital.findById(fromHospitalId).select('name').lean(),
+      Hospital.findById(toHospitalId).select('name').lean(),
+      User.findById(toDoctorId).select('name').lean(),
+    ]);
+
+    const share = await MedicalRecordShare.create({
+      globalPatientId: globalPatient._id,
+      patientUserId: userId,
+      fromHospitalId,
+      fromHospitalName: fromHospital?.name || '',
+      toHospitalId,
+      toHospitalName: toHospital?.name || '',
+      toDoctorId,
+      toDoctorName: toDoctor?.name || '',
+      recordType,
+      recordId,
+      recordDescription: recordDescription || '',
+      shareType: shareType || 'ONCE',
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      patientConsentAt: new Date(),
+      status: 'ACTIVE',
     });
 
-    // 2. Appointments & Tokens
-    const appointments = await Appointment.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const app of appointments) {
-      timeline.push({
-        id: `app-${app._id}`,
-        date: app.createdAt,
-        type: 'APPOINTMENT',
-        title: `Appointment & Token #${app.tokenNumber || 'OPD'}`,
-        department: app.department || 'OPD',
-        description: `Status: ${app.status}. Chief complaints: ${app.reason || 'General Consultation'}`,
-        status: app.status,
+    try {
+      const { socketManager } = await import('../../events/socketManager.js');
+      socketManager.emitToUser(String(toDoctorId), 'patient:record_shared', {
+        shareId: share._id,
+        patientName: `${globalPatient.firstName} ${globalPatient.lastName}`,
+        recordType,
+        recordDescription,
+        fromHospitalName: fromHospital?.name,
+        sharedAt: new Date(),
       });
+    } catch (e) {
+      console.error('[ShareRecord/Socket]', e.message);
     }
 
-    // 3. Consultations
-    const consultations = await Consultation.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const con of consultations) {
-      timeline.push({
-        id: `con-${con._id}`,
-        date: con.createdAt,
-        type: 'CONSULTATION',
-        title: `Doctor Consultation - ${con.diagnosis || 'Clinical Review'}`,
-        department: 'OPD / Clinical',
-        description: `Chief complaint: ${con.chiefComplaint}. Clinical Notes: ${con.clinicalNotes || 'Reviewed'}`,
-        status: 'COMPLETED',
-      });
-    }
-
-    // 4. Prescriptions
-    const prescriptions = await Prescription.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const rx of prescriptions) {
-      timeline.push({
-        id: `rx-${rx._id}`,
-        date: rx.createdAt,
-        type: 'PRESCRIPTION',
-        title: `E-Prescription Issued (${rx.medicines?.length || 0} Medicines)`,
-        department: 'Pharmacy / Clinical',
-        description: rx.medicines?.map((m) => `${m.name} (${m.dosage})`).join(', ') || 'Medication prescribed',
-        status: rx.status || 'ACTIVE',
-      });
-    }
-
-    // 5. Diagnostic Orders
-    const diagnostics = await DiagnosticOrder.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const diag of diagnostics) {
-      timeline.push({
-        id: `diag-${diag._id}`,
-        date: diag.createdAt,
-        type: diag.category || 'LABORATORY',
-        title: `${diag.category} Test: ${diag.testName}`,
-        department: diag.category === 'RADIOLOGY' ? 'Radiology / PACS' : 'Laboratory / Pathology',
-        description: diag.status === 'COMPLETED' ? `Approved Results: ${diag.reportSummary || 'Normal'}` : `Status: ${diag.status}`,
-        status: diag.status,
-      });
-    }
-
-    // 6. Admissions
-    const admissions = await Admission.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const adm of admissions) {
-      timeline.push({
-        id: `adm-${adm._id}`,
-        date: adm.admittedAt || adm.createdAt,
-        type: 'ADMISSION',
-        title: `IPD Hospital Admission #${adm.admissionNo}`,
-        department: 'Inpatient Care',
-        description: `Ward: ${adm.wardName || 'General Ward'}. Admission Type: ${adm.admissionType}`,
-        status: adm.status,
-      });
-
-      if (adm.dischargedAt) {
-        timeline.push({
-          id: `dis-${adm._id}`,
-          date: adm.dischargedAt,
-          type: 'DISCHARGE',
-          title: `Hospital Discharge Completed`,
-          department: 'Inpatient Care',
-          description: `Summary: ${adm.dischargeSummary || 'Patient discharged in stable condition'}`,
-          status: 'COMPLETED',
-        });
-      }
-    }
-
-    // 7. Doctor Updates
-    const doctorUpdates = await DoctorUpdate.find({
-      patientId: patient._id,
-      visibility: { $in: ['PATIENT_ONLY', 'BOTH'] },
-    }).sort({ createdAt: -1 });
-
-    for (const update of doctorUpdates) {
-      timeline.push({
-        id: `docup-${update._id}`,
-        date: update.createdAt,
-        type: 'DOCTOR_UPDATE',
-        title: `Physician Progress Note: ${update.title}`,
-        department: 'Clinical Care',
-        description: update.content,
-        status: 'PUBLISHED',
-      });
-    }
-
-    // 8. Invoices & Receipts
-    const invoices = await Invoice.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    for (const inv of invoices) {
-      timeline.push({
-        id: `inv-${inv._id}`,
-        date: inv.createdAt,
-        type: 'BILLING',
-        title: `Hospital Invoice #${inv.invoiceNumber}`,
-        department: 'Central Billing',
-        description: `Total Amount: ₹${inv.totalAmount}. Pending: ₹${inv.pendingAmount || 0}`,
-        status: inv.paymentStatus,
-      });
-    }
-
-    // Sort timeline newest first
-    timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    return timeline;
+    return share;
   }
 
-  /**
-   * Get read-only approved diagnostic reports.
-   */
-  static async getReports(user, category = null) {
-    const patient = await this.resolvePatientForUser(user);
-    const filter = { patientId: patient._id, status: 'COMPLETED' };
-    if (category) {
-      filter.category = category;
+  static async revokeShare(shareId, userId) {
+    const share = await MedicalRecordShare.findOne({ _id: shareId, patientUserId: userId });
+    if (!share) {
+      throw new ApiError(404, 'Shared record not found or you do not have permission to revoke it.', null, 'NOT_FOUND');
     }
-    return await DiagnosticOrder.find(filter).sort({ createdAt: -1 });
+    share.status = 'REVOKED';
+    share.revokedAt = new Date();
+    share.revokedByUserId = userId;
+    await share.save();
+    return share;
   }
 
-  /**
-   * Get read-only prescriptions.
-   */
-  static async getPrescriptions(user) {
-    const patient = await this.resolvePatientForUser(user);
-    return await Prescription.find({ patientId: patient._id })
+  static async getSharedRecords(userId) {
+    const globalPatient = await GlobalPatient.findOne({ patientUserId: userId });
+    if (!globalPatient) return [];
+    return await MedicalRecordShare.find({ globalPatientId: globalPatient._id })
       .sort({ createdAt: -1 })
-      .populate('doctorId', 'name specialization');
+      .populate('toDoctorId', 'name specialization')
+      .lean();
   }
 
-  /**
-   * Get billing ledger & invoices.
-   */
-  static async getBilling(user) {
-    const patient = await this.resolvePatientForUser(user);
-    const invoices = await Invoice.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    const receipts = await Receipt.find({ patientId: patient._id }).sort({ createdAt: -1 });
-    return { invoices, receipts };
+  static async logRecordView(shareId, viewerUser, ipAddress = '') {
+    const share = await MedicalRecordShare.findById(shareId);
+    if (!share || share.status !== 'ACTIVE') {
+      throw new ApiError(403, 'This shared record is no longer accessible.', null, 'ACCESS_REVOKED');
+    }
+    if (share.shareType === 'UNTIL_DATE' && share.expiresAt && new Date() > share.expiresAt) {
+      await MedicalRecordShare.updateOne({ _id: shareId }, { $set: { status: 'EXPIRED' } });
+      throw new ApiError(403, 'Access to this shared record has expired.', null, 'ACCESS_EXPIRED');
+    }
+    await MedicalRecordShare.updateOne(
+      { _id: shareId },
+      {
+        $push: {
+          accessLog: {
+            viewedByUserId: viewerUser._id || viewerUser.id,
+            viewedByName: viewerUser.name || '',
+            viewedAt: new Date(),
+            ipAddress,
+          }
+        }
+      }
+    );
+    return share;
   }
 }

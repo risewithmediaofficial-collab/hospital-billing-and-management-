@@ -6,6 +6,8 @@ const guardianLinkSchema = new mongoose.Schema(
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
+    // Admission-level scope — null means general/all-admissions access
+    admissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admission', default: null, index: true },
     guardianUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     relationship: {
       type: String,
@@ -31,6 +33,9 @@ const guardianLinkSchema = new mongoose.Schema(
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     approvedAt: { type: Date, default: null },
     expiresAt: { type: Date, default: null },
+    // Live access control — set to false on patient discharge to disable active service requests
+    liveAccessActive: { type: Boolean, default: true },
+    liveAccessDisabledAt: { type: Date, default: null },
     notes: { type: String, default: '' },
   },
   { timestamps: true }

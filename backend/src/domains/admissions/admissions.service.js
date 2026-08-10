@@ -4,6 +4,8 @@ import { Patient } from '../../models/Patient.js';
 import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { User } from '../../models/User.js';
+import { CareTeamAssignment } from '../../models/CareTeamAssignment.js';
+import { GlobalPatient } from '../../models/GlobalPatient.js';
 import { socketManager } from '../../events/socketManager.js';
 import { BED_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
@@ -27,6 +29,11 @@ export class AdmissionsService {
       throw new ApiError(404, 'Patient record not found', null, 'NOT_FOUND');
     }
 
+    // Count previous admissions for this patient in this hospital to generate sequential number
+    const prevAdmissionCount = await Admission.countDocuments({ patientId: patient._id, hospitalId });
+    const admissionNumber = prevAdmissionCount + 1;
+    const admissionReference = `ADM-${patient.uhid}-${String(admissionNumber).padStart(3, '0')}`;
+
     const admission = await Admission.create({
       hospitalId,
       branchId,
@@ -39,8 +46,24 @@ export class AdmissionsService {
       targetWardName: data.targetWardName || 'Ward 3B - Inpatient',
       admissionReason: data.admissionReason || 'Inpatient trauma observation & surgery',
       dailyTariff: data.wardType === 'ICU' ? 650.0 : 150.0,
+      admissionNumber,
+      admissionReference,
       status: 'ADMISSION_REQUESTED',
     });
+
+    // Update Patient.admissionStatus
+    await Patient.updateOne(
+      { _id: patient._id },
+      { $set: { admissionStatus: 'ACTIVE_ADMISSION', activeAdmissionId: admission._id }, $inc: { admissionCount: 1 } }
+    );
+
+    // Update GlobalPatient membership hasActiveAdmission flag
+    if (patient.globalPatientId) {
+      await GlobalPatient.updateOne(
+        { _id: patient.globalPatientId, 'hospitalMemberships.localPatientId': patient._id },
+        { $set: { 'hospitalMemberships.$.hasActiveAdmission': true, 'hospitalMemberships.$.activeAdmissionId': admission._id } }
+      );
+    }
 
     // Real-time broadcast to Nurse In-Charge & Ward Nurse Desks
     socketManager.emitToBranch(branchId, 'admission:requisition_created', {
@@ -222,6 +245,49 @@ export class AdmissionsService {
     await admission.save();
     socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
 
+    // Update Patient.admissionStatus to DISCHARGED
+    await Patient.updateOne(
+      { _id: admission.patientId },
+      { $set: { admissionStatus: 'DISCHARGED', activeAdmissionId: null } }
+    );
+
+    // Update GlobalPatient membership active admission flag
+    const patient = await Patient.findById(admission.patientId).select('globalPatientId').lean();
+    if (patient?.globalPatientId) {
+      await GlobalPatient.updateOne(
+        { _id: patient.globalPatientId, 'hospitalMemberships.activeAdmissionId': admission._id },
+        { $set: { 'hospitalMemberships.$.hasActiveAdmission': false, 'hospitalMemberships.$.activeAdmissionId': null, 'hospitalMemberships.$.lastVisitAt': new Date() } }
+      );
+    }
+
+    // Close all active care team assignments
+    await CareTeamAssignment.updateMany(
+      { admissionId, removedAt: null },
+      { $set: { removedAt: new Date(), removalReason: 'Patient discharged', removedByName: user?.name || 'System' } }
+    );
+
+    // Disable guardian live access for this admission
+    try {
+      const { GuardianLink } = await import('../../models/GuardianLink.js');
+      await GuardianLink.updateMany(
+        { patientId: admission.patientId, liveAccessActive: true },
+        { $set: { liveAccessActive: false, liveAccessDisabledAt: new Date() } }
+      );
+    } catch (e) {
+      console.error('[Discharge/GuardianLink]', e.message);
+    }
+
+    // Cancel pending NurseTasks
+    try {
+      const { NurseTask } = await import('../../models/NurseTask.js');
+      await NurseTask.updateMany(
+        { patientId: admission.patientId, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED'] } },
+        { $set: { status: 'CANCELLED' } }
+      );
+    } catch (e) {
+      console.error('[Discharge/NurseTask]', e.message);
+    }
+
     if (admission.bedId) {
       const bed = await Bed.findById(admission.bedId);
       if (bed) {
@@ -241,5 +307,107 @@ export class AdmissionsService {
     }
 
     return admission;
+  }
+
+  /**
+   * Assign or update a care team member for an admission.
+   * Automatically closes any existing active assignment for the same role before adding the new one.
+   */
+  static async assignCareTeam(admissionId, assignments, user) {
+    const admission = await Admission.findById(admissionId);
+    if (!admission) {
+      throw new ApiError(404, 'Admission not found', null, 'NOT_FOUND');
+    }
+    if (admission.status === 'DISCHARGED') {
+      throw new ApiError(400, 'Cannot modify care team for a discharged admission.', null, 'ADMISSION_DISCHARGED');
+    }
+
+    const results = [];
+    for (const assignment of assignments) {
+      const { role, userId, notes } = assignment;
+
+      if (!role || !userId) continue;
+
+      const staffUser = await User.findOne({ _id: userId, hospitalId: admission.hospitalId, isActive: true });
+      if (!staffUser) continue;
+
+      // Close existing active assignment for this role
+      await CareTeamAssignment.updateMany(
+        { admissionId, role, removedAt: null },
+        {
+          $set: {
+            removedAt: new Date(),
+            removedBy: user._id || user.id,
+            removedByName: user.name || 'System',
+            removalReason: 'Replaced by new assignment',
+          }
+        }
+      );
+
+      const newAssignment = await CareTeamAssignment.create({
+        hospitalId: admission.hospitalId,
+        branchId: admission.branchId,
+        admissionId,
+        patientId: admission.patientId,
+        uhid: admission.uhid,
+        role,
+        userId: staffUser._id,
+        userName: staffUser.name,
+        userRole: staffUser.role,
+        department: staffUser.assignedUnit || staffUser.specialization || '',
+        assignedAt: new Date(),
+        assignedBy: user._id || user.id,
+        assignedByName: user.name || 'System',
+        notes: notes || '',
+      });
+
+      results.push(newAssignment);
+
+      // Update Admission quick-reference fields
+      if (role === 'PRIMARY_DOCTOR') {
+        await Admission.updateOne({ _id: admissionId }, { $set: { doctorId: staffUser._id, doctorName: staffUser.name } });
+      } else if (role === 'NURSE' || role === 'DUTY_NURSE') {
+        const field = role === 'DUTY_NURSE' ? 'dutyNurseId' : 'assignedNurseId';
+        await Admission.updateOne({ _id: admissionId }, { $set: { [field]: staffUser._id } });
+      } else if (role === 'CARETAKER') {
+        await Admission.updateOne({ _id: admissionId }, { $set: { assignedCaretakerId: staffUser._id } });
+      } else if (role === 'CONSULTING_DOCTOR') {
+        await Admission.updateOne({ _id: admissionId }, { $addToSet: { consultingDoctorIds: staffUser._id } });
+      }
+
+      // Notify the newly assigned staff member via socket
+      socketManager.emitToUser(String(staffUser._id), 'care_team:assigned', {
+        admissionId,
+        role,
+        patientName: admission.patientName,
+        uhid: admission.uhid,
+        assignedAt: new Date(),
+      });
+    }
+
+    // Mark care team as assigned if we have at least a doctor and nurse
+    const activeDoctorCount = await CareTeamAssignment.countDocuments({ admissionId, role: 'PRIMARY_DOCTOR', removedAt: null });
+    const activeNurseCount = await CareTeamAssignment.countDocuments({ admissionId, role: { $in: ['NURSE', 'DUTY_NURSE'] }, removedAt: null });
+    if (activeDoctorCount > 0 && activeNurseCount > 0) {
+      await Admission.updateOne({ _id: admissionId }, { $set: { careTeamAssigned: true } });
+    }
+
+    return results;
+  }
+
+  /**
+   * Get full care team for an admission — current active + history.
+   */
+  static async getCareTeam(admissionId) {
+    const active = await CareTeamAssignment.find({ admissionId, removedAt: null })
+      .populate('userId', 'name role specialization phone avatarUrl')
+      .sort({ assignedAt: -1 });
+
+    const history = await CareTeamAssignment.find({ admissionId, removedAt: { $ne: null } })
+      .populate('userId', 'name role specialization phone')
+      .sort({ removedAt: -1 })
+      .limit(50);
+
+    return { active, history };
   }
 }

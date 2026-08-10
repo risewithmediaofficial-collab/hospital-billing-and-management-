@@ -372,12 +372,13 @@ export class SaasService {
     const hospitalStrId = String(hospital._id);
     const hospitalFilter = { hospitalId: { $in: [hospitalObjId, hospitalStrId] } };
 
-    const totalStaffCount = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' } });
-    const activeStaff = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' }, isActive: true });
-    const inactiveStaff = await User.countDocuments({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' }, isActive: false });
+    const staffRoleFilter = { role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] } };
+    const totalStaffCount = await User.countDocuments({ ...hospitalFilter, ...staffRoleFilter });
+    const activeStaff = await User.countDocuments({ ...hospitalFilter, ...staffRoleFilter, isActive: true });
+    const inactiveStaff = await User.countDocuments({ ...hospitalFilter, ...staffRoleFilter, isActive: false });
 
     // Fetch all staff members created for this hospital
-    const rawStaff = await User.find({ ...hospitalFilter, role: { $ne: 'SUPER_ADMIN' } })
+    const rawStaff = await User.find({ ...hospitalFilter, ...staffRoleFilter })
       .select('-passwordHash')
       .sort({ createdAt: -1 })
       .lean();
@@ -417,11 +418,7 @@ export class SaasService {
     });
 
     const patientList = await Patient.find({
-      $or: [
-        { hospitalId: { $in: [hospitalObjId, hospitalStrId] } },
-        { hospitalId: { $exists: false } },
-        { hospitalId: null }
-      ]
+      hospitalId: { $in: [hospitalObjId, hospitalStrId] }
     })
       .sort({ createdAt: -1 })
       .limit(200)
@@ -459,7 +456,7 @@ export class SaasService {
   }
 
   static async getAllHospitalAdminOverview() {
-    const hospitals = await Hospital.find({ ...tenantFilter(), status: 'APPROVED' }).sort({ name: 1 });
+    const hospitals = await Hospital.find({ ...tenantFilter() }).sort({ name: 1 });
 
     const overview = await Promise.all(
       hospitals.map(async (hospital) => {
@@ -569,12 +566,15 @@ export class SaasService {
   }
 
   static async getAllHospitalsWithStats() {
-    const hospitals = await Hospital.find(tenantFilter()).sort({ createdAt: -1 });
+    const hospitals = await Hospital.find({
+      code: { $nin: PLATFORM_CODES },
+      subdomain: { $ne: 'platform' },
+    }).sort({ createdAt: -1 });
 
     return Promise.all(
       hospitals.map(async (hospital) => {
         const admin = await User.findOne({ hospitalId: hospital._id, role: ROLES.HOSPITAL_ADMIN }).select('name email lastLoginAt');
-        const totalStaff = await User.countDocuments({ hospitalId: hospital._id, isActive: true });
+        const totalStaff = await User.countDocuments({ hospitalId: hospital._id, role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] }, isActive: true });
         const totalPatients = await Patient.countDocuments({ hospitalId: hospital._id });
         const todayStart = startOfToday();
         const todayEnd = endOfToday();

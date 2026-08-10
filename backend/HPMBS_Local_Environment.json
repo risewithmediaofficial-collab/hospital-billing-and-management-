@@ -1,0 +1,61 @@
+{
+  "name": "HPMBS Local Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5001/api/v1",
+      "initialValue": "http://localhost:5001/api/v1",
+      "currentValue": "http://localhost:5001/api/v1",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "superadmin_token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "hospital_admin_token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "hospital_id",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "patient_id",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "patient_uhid",
+      "value": "HOSP-2026-00005",
+      "initialValue": "HOSP-2026-00005",
+      "currentValue": "HOSP-2026-00005",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

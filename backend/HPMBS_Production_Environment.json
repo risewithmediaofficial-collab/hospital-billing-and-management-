@@ -1,0 +1,61 @@
+{
+  "name": "HPMBS Production Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://82.29.166.169:5003/api/v1",
+      "initialValue": "http://82.29.166.169:5003/api/v1",
+      "currentValue": "http://82.29.166.169:5003/api/v1",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "superadmin_token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "hospital_admin_token",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "hospital_id",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "patient_id",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "patient_uhid",
+      "value": "",
+      "initialValue": "",
+      "currentValue": "",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

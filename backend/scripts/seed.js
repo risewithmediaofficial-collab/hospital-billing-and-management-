@@ -122,24 +122,26 @@ async function seedDatabase() {
       isMainBranch: true,
     });
 
+    const hashedAdminPassword = await bcrypt.hash('0000', 12);
     await User.create({
       hospitalId: cityGeneralHospital._id,
       branchId: cityGenBranch._id,
       name: 'Dr. Robert Vance',
       email: 'admin@citygeneral.com',
-      passwordHash: 'HospitalAdmin123!',
-      assignedPasswordHint: 'HospitalAdmin123!',
+      passwordHash: hashedAdminPassword,
+      assignedPasswordHint: '0000',
       role: ROLES.HOSPITAL_ADMIN,
       phone: '+1 (555) 234-5678',
       status: 'ACTIVE',
     });
 
+    const hashedDoctorPassword = await bcrypt.hash('1234', 12);
     await User.create({
       hospitalId: cityGeneralHospital._id,
       branchId: cityGenBranch._id,
       name: 'Dr. Madhu Narayan',
       email: 'madhu@gmail.com',
-      passwordHash: '1234',
+      passwordHash: hashedDoctorPassword,
       assignedPasswordHint: '1234',
       role: ROLES.DOCTOR,
       specialization: 'Cardiology',
@@ -147,24 +149,26 @@ async function seedDatabase() {
       status: 'ACTIVE',
     });
 
+    const hashedReceptionPassword = await bcrypt.hash('1234', 12);
     await User.create({
       hospitalId: cityGeneralHospital._id,
       branchId: cityGenBranch._id,
       name: 'Satish Kumar',
       email: 'satish@gmail.com',
-      passwordHash: '1234',
+      passwordHash: hashedReceptionPassword,
       assignedPasswordHint: '1234',
       role: ROLES.RECEPTIONIST,
       phone: '+91 9876543211',
       status: 'ACTIVE',
     });
 
+    const hashedTechPassword = await bcrypt.hash('1234', 12);
     await User.create({
       hospitalId: cityGeneralHospital._id,
       branchId: cityGenBranch._id,
       name: 'Hari Diagnostic Tech',
       email: 'hari@gmail.com',
-      passwordHash: '1234',
+      passwordHash: hashedTechPassword,
       assignedPasswordHint: '1234',
       role: ROLES.RADIOLOGIST,
       specialization: 'X-Ray & Radiology Imaging',

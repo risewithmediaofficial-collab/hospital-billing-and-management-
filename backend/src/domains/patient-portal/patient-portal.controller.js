@@ -77,4 +77,56 @@ export class PatientPortalController {
       next(err);
     }
   }
+
+  // ── Multi-Hospital Portal Endpoints ──────────────────────────────────────────
+
+  static async getMyHospitals(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const data = await PatientPortalService.getPatientHospitals(userId);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getActiveContext(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const data = await PatientPortalService.getActiveAdmissionContext(userId);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async shareRecord(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const share = await PatientPortalService.shareRecord(userId, req.body);
+      res.status(201).json({ success: true, data: share });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async revokeShare(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const share = await PatientPortalService.revokeShare(req.params.shareId, userId);
+      res.json({ success: true, data: share });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getSharedRecords(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const records = await PatientPortalService.getSharedRecords(userId);
+      res.json({ success: true, data: records });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
