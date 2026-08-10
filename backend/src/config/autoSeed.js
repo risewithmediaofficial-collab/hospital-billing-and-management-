@@ -5,6 +5,8 @@ import { Role } from "../models/Role.js";
 import { User } from "../models/User.js";
 import { ROLES } from "./constants.js";
 
+import { ensureTestHospitalCredentials } from "../../scripts/seed-production-test-hospital.js";
+
 export async function autoEnsureSystemCredentials() {
   try {
     const defaultPassword = "0000";
@@ -92,7 +94,8 @@ export async function autoEnsureSystemCredentials() {
       console.log("[AutoSeed] ? Updated SuperAdmin password hash");
     }
 
-    console.log("[AutoSeed] System roles & SuperAdmin check completed successfully");
+    await ensureTestHospitalCredentials().catch((e) => console.error("[AutoSeed Warning] Test hospital seed failed:", e.message));
+    console.log("[AutoSeed] System roles, SuperAdmin, & Test Hospital check completed successfully");
   } catch (err) {
     console.error("[AutoSeed Warning] Failed system credentials check:", err.message);
   }
