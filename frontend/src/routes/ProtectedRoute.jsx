@@ -60,7 +60,7 @@ export const ProtectedRoute = ({ allowedRoles = [] }) => {
     ['/pharmacy/', 'pharmacy'], ['/billing/', 'billing'], ['/inventory/', 'inventory'],
     ['/hr/', 'hr'], ['/emergency', 'emergency'], ['/patients', 'patients'], ['/appointments', 'appointments'],
   ];
-  const currentModule = routeModules.find(([prefix]) => location.pathname.startsWith(prefix))?.[1];
+  const currentModule = routeModules.find(([prefix]) => location.pathname.includes(prefix))?.[1];
 
   const userRoles = [
     user?.role,

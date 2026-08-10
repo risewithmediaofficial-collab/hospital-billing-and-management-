@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Navigate, useLocation } from "react-router-dom";
+import { useParams, Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { axiosClient } from "../../api/axiosClient";
 import { HospitalNotFoundPage } from "../../pages/HospitalNotFoundPage";
@@ -66,7 +66,7 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
 
   // Super Admin global access allowed
   if (user.role === "SUPER_ADMIN") {
-    return children;
+    return children ? children : <Outlet />;
   }
 
   // Cross-tenant protection: Check user's hospitalDomain against route hospitalDomain
@@ -82,5 +82,5 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/403" replace />;
   }
 
-  return children;
+  return children ? children : <Outlet />;
 };

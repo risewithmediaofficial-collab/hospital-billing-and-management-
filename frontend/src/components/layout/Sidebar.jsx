@@ -439,7 +439,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={formatTenantPath(item.path)}
                 onClick={handleLinkClick}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
