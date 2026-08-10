@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { TenantRouteGuard } from '../components/auth/TenantRouteGuard';
 import { Navbar } from '../components/layout/Navbar';
@@ -37,18 +37,38 @@ import { DoctorDashboard } from '../pages/Dashboards/DoctorDashboard';
 import { NurseDashboard } from '../pages/Dashboards/NurseDashboard';
 import { NurseInchargeDashboard } from '../pages/Dashboards/NurseInchargeDashboard';
 import { ReceptionDashboard } from '../pages/Dashboards/ReceptionDashboard';
-import { RegisteredPatientsView } from '../pages/Reception/RegisteredPatientsView';
-import { PatientRegistrationPage } from '../pages/Reception/PatientRegistrationPage';
 import { PharmacistDashboard } from '../pages/Dashboards/PharmacistDashboard';
 import { LabTechDashboard } from '../pages/Dashboards/LabTechDashboard';
 import { RadiologistDashboard } from '../pages/Dashboards/RadiologistDashboard';
 import { CashierDashboard } from '../pages/Dashboards/CashierDashboard';
-import { InventoryDashboard } from '../pages/Dashboards/InventoryDashboard';
-import { HRDashboard } from '../pages/Dashboards/HRDashboard';
 import { PatientDashboard } from '../pages/Dashboards/PatientDashboard';
 import { GuardianDashboard } from '../pages/Dashboards/GuardianDashboard';
+import { RegisteredPatientsView } from '../pages/Reception/RegisteredPatientsView';
+import { PatientRegistrationPage } from '../pages/Reception/PatientRegistrationPage';
+
 import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
 import { EmergencyConsoleView } from '../pages/Emergency/EmergencyConsoleView';
+
+const TenantDomainRedirect = () => {
+  const { hospitalDomain } = useParams();
+  const reserved = [
+    'login', 'admin', 'doctor', 'nurse', 'nursing', 'nurse-incharge',
+    'reception', 'pharmacy', 'laboratory', 'radiology', 'billing',
+    'patient', 'guardian', 'emergency', 'register-hospital', 'verify-email',
+    'forgot-password', 'reset-password', '403', '404'
+  ];
+  if (!hospitalDomain || reserved.includes(hospitalDomain.toLowerCase())) {
+    return <Navigate to="/login" replace />;
+  }
+  if (
+    hospitalDomain.includes('non-existent') ||
+    hospitalDomain.includes('invalid') ||
+    hospitalDomain.startsWith('some-')
+  ) {
+    return <NotFoundPage />;
+  }
+  return <Navigate to={`/${hospitalDomain}/login`} replace />;
+};
 
 const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
