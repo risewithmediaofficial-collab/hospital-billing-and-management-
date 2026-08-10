@@ -195,6 +195,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Hospital Settings', path: '/hospital-admin/tariffs', icon: 'Settings', module: 'hospitalSettings' },
   ],
   DOCTOR: [
+    { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Calendar', module: 'appointments' },
     { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
     { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation' },
     { title: 'Department Request & Response Tracker', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation' },

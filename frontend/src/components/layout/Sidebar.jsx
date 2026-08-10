@@ -337,9 +337,14 @@ export const Sidebar = ({ isOpen, onClose }) => {
   }, [user, socket]);
 
   const formatTenantPath = (path) => {
-    if (!path || user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return path;
-    if (path.startsWith(`/${user.hospitalDomain}`)) return path;
-    return `/${user.hospitalDomain}${path}`;
+    if (!path) return path;
+    let targetPath = path;
+    if (user?.role === 'DOCTOR' && (path === '/reception/dashboard' || path.includes('/reception/dashboard'))) {
+      targetPath = '/doctor/dashboard?tab=LIVE';
+    }
+    if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return targetPath;
+    if (targetPath.startsWith(`/${user.hospitalDomain}`)) return targetPath;
+    return `/${user.hospitalDomain}${targetPath}`;
   };
 
   const isItemActive = (itemPath) => {
