@@ -105,10 +105,10 @@ export async function ensureTestHospitalCredentials() {
     }
   }
 
-  // 4. Patient Record (Mobile: 638040927, DOB: 10-11-2004)
+  // 4. Patient Record (Mobile: 6380140927, DOB: 10-11-2004)
   let patient = await Patient.findOne({ hospitalId: hospital._id, uhid: "TH-P-1001" });
   if (!patient) {
-    patient = await Patient.findOne({ phone: "638040927" });
+    patient = await Patient.findOne({ $or: [{ phone: "6380140927" }, { phone: "638040927" }] });
   }
 
   const patientDob = new Date("2004-11-10");
@@ -123,42 +123,43 @@ export async function ensureTestHospitalCredentials() {
       gender: "MALE",
       dob: patientDob,
       age: 21,
-      phone: "638040927",
-      email: "testpatient@gmail.com",
+      phone: "6380140927",
+      email: "",
       address: "123 Medical Way",
       city: "Test City",
       emergencyContact: {
         name: "Test Guardian",
-        phone: "638040928",
+        phone: "6380140928",
         relation: "Guardian"
       },
       isActive: true,
     });
-    console.log("  [Seed] Created Patient: Test Patient (UHID: TH-P-1001, Phone: 638040927, DOB: 2004-11-10)");
+    console.log("  [Seed] Created Patient: Test Patient (UHID: TH-P-1001, Phone: 6380140927, DOB: 2004-11-10)");
   } else {
     patient.hospitalId = hospital._id;
     patient.branchId = branch._id;
     patient.firstName = "Test";
     patient.lastName = "Patient";
-    patient.phone = "638040927";
+    patient.phone = "6380140927";
     patient.dob = patientDob;
-    patient.emergencyContact = { name: "Test Guardian", phone: "638040928", relation: "Guardian" };
+    patient.emergencyContact = { name: "Test Guardian", phone: "6380140928", relation: "Guardian" };
     await patient.save();
-    console.log("  [Seed] Updated Patient: Test Patient (UHID: TH-P-1001)");
+    console.log("  [Seed] Updated Patient: Test Patient (UHID: TH-P-1001, Phone: 6380140927)");
   }
 
-  // 5. Patient Account (Password: 0000)
+  // 5. Patient Account (No mandatory email requirement)
   let patientUser = await User.findOne({ uhid: "TH-P-1001", role: "PATIENT" });
   if (!patientUser) {
-    patientUser = await User.findOne({ email: "testpatient@gmail.com" });
+    patientUser = await User.findOne({ phone: "6380140927", role: "PATIENT" });
   }
   if (!patientUser) {
     await User.create({
       hospitalId: hospital._id,
       branchId: branch._id,
       name: "Test Patient",
-      email: "testpatient@gmail.com",
-      phone: "638040927",
+      email: "6380140927_thp1001@noemail.local",
+      phone: "6380140927",
+      loginIds: ["6380140927", "638040927"],
       uhid: "TH-P-1001",
       passwordHash: defaultHash,
       assignedPasswordHint: defaultPassword,
@@ -166,32 +167,34 @@ export async function ensureTestHospitalCredentials() {
       status: "ACTIVE",
       isActive: true,
     });
-    console.log("  [Seed] Created Patient User Account (testpatient@gmail.com / 0000)");
+    console.log("  [Seed] Created Patient User Account (Phone: 6380140927 / DOB: 10-11-2004)");
   } else {
     patientUser.hospitalId = hospital._id;
     patientUser.branchId = branch._id;
     patientUser.passwordHash = defaultHash;
     patientUser.assignedPasswordHint = defaultPassword;
-    patientUser.phone = "638040927";
+    patientUser.phone = "6380140927";
+    patientUser.loginIds = ["6380140927", "638040927"];
     patientUser.uhid = "TH-P-1001";
     patientUser.status = "ACTIVE";
     patientUser.isActive = true;
     await patientUser.save();
-    console.log("  [Seed] Updated Patient User Account (testpatient@gmail.com / 0000)");
+    console.log("  [Seed] Updated Patient User Account (Phone: 6380140927 / DOB: 10-11-2004)");
   }
 
-  // 6. Guardian Account (Mobile: 638040928, Password: 0000)
-  let guardianUser = await User.findOne({ phone: "638040928", role: "GUARDIAN" });
+  // 6. Guardian Account (Mobile: 6380140928)
+  let guardianUser = await User.findOne({ phone: "6380140928", role: "GUARDIAN" });
   if (!guardianUser) {
-    guardianUser = await User.findOne({ email: "testguardian@gmail.com" });
+    guardianUser = await User.findOne({ loginIds: "6380140928", role: "GUARDIAN" });
   }
   if (!guardianUser) {
     await User.create({
       hospitalId: hospital._id,
       branchId: branch._id,
       name: "Test Guardian",
-      email: "testguardian@gmail.com",
-      phone: "638040928",
+      email: "6380140928_thp1001@noemail.local",
+      phone: "6380140928",
+      loginIds: ["6380140928", "638040928"],
       uhid: "TH-P-1001",
       passwordHash: defaultHash,
       assignedPasswordHint: defaultPassword,
@@ -199,18 +202,19 @@ export async function ensureTestHospitalCredentials() {
       status: "ACTIVE",
       isActive: true,
     });
-    console.log("  [Seed] Created Guardian User Account (638040928 / 0000)");
+    console.log("  [Seed] Created Guardian User Account (Phone: 6380140928)");
   } else {
     guardianUser.hospitalId = hospital._id;
     guardianUser.branchId = branch._id;
     guardianUser.passwordHash = defaultHash;
     guardianUser.assignedPasswordHint = defaultPassword;
-    guardianUser.phone = "638040928";
+    guardianUser.phone = "6380140928";
+    guardianUser.loginIds = ["6380140928", "638040928"];
     guardianUser.uhid = "TH-P-1001";
     guardianUser.status = "ACTIVE";
     guardianUser.isActive = true;
     await guardianUser.save();
-    console.log("  [Seed] Updated Guardian User Account (638040928 / 0000)");
+    console.log("  [Seed] Updated Guardian User Account (Phone: 6380140928)");
   }
 
   return { hospital, patient };
