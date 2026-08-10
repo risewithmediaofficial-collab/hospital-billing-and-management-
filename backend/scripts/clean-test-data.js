@@ -1,84 +1,113 @@
-import mongoose from 'mongoose';
-import { User } from '../src/models/User.js';
-import { Patient } from '../src/models/Patient.js';
-import { Hospital } from '../src/models/Hospital.js';
-import { env } from '../src/config/env.js';
+/**
+ * Production Cleanup Script
+ * Cleans up sample/test seed data (City General, St. Jude, Postman test entries)
+ * while PRESERVING Gunam Hospital (GUNAMCOM / narayanamadhu93@gmail.com) and SuperAdmin.
+ *
+ * Run: node scripts/clean-test-data.js
+ */
+import mongoose from "mongoose";
+import { connectDB } from "../src/config/database.js";
+import { Hospital } from "../src/models/Hospital.js";
+import { Branch } from "../src/models/Branch.js";
+import { User } from "../src/models/User.js";
+import { Patient } from "../src/models/Patient.js";
+import { Appointment } from "../src/models/Appointment.js";
 
-const cleanTestData = async () => {
+async function cleanTestData() {
   try {
-    const mongoUri = env.MONGO_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/hpmbs_db';
-    console.log('[Cleanup] Connecting to MongoDB:', mongoUri);
-    await mongoose.connect(mongoUri);
+    console.log("\n====================================================");
+    console.log(" ?? Production Database Cleanup Tool");
+    console.log("====================================================\n");
 
-    console.log('\n--- 1. IDENTIFYING DUMMY / TEST USERS ---');
-    const dummyUserFilter = {
+    await connectDB();
+
+    // 1. Identify Protected Hospitals
+    const platformHospital = await Hospital.findOne({ code: "PLATFORM" });
+    const gunamHospital = await Hospital.findOne({
       $or: [
-        { name: { $regex: /test/i } },
-        { email: { $regex: /test/i } },
-        { email: { $regex: /nurse2/i } },
-        { name: { $regex: /Patient superadmin/i } },
-        { email: { $regex: /superadmin@patient/i } },
-        { email: { $regex: /superadmin@hpmbs/i } },
-        { email: { $regex: /superadmin@gmail\.\./i } },
-        { role: 'PATIENT', email: { $regex: /superadmin/i } },
-        { role: 'GUARDIAN', email: { $regex: /superadmin/i } },
+        { _id: new mongoose.Types.ObjectId("6a7303307bf6527ae87cc7bd") },
+        { code: "GUNAMCOM" },
+        { contactEmail: "narayanamadhu93@gmail.com" },
+        { name: /gunam/i }
       ]
-    };
-
-    const dummyUsers = await User.find(dummyUserFilter);
-    console.log(`Found ${dummyUsers.length} dummy/test user accounts to remove:`);
-    dummyUsers.forEach((u) => {
-      console.log(` - ID: ${u._id} | Name: ${u.name} | Email: ${u.email} | Role: ${u.role}`);
     });
 
-    if (dummyUsers.length > 0) {
-      const deleteUserRes = await User.deleteMany(dummyUserFilter);
-      console.log(`[Success] Deleted ${deleteUserRes.deletedCount} dummy user accounts.`);
-    } else {
-      console.log('[Info] No dummy user accounts found.');
-    }
+    const protectedHospitalIds = [
+      platformHospital?._id,
+      gunamHospital?._id
+    ].filter(Boolean);
 
-    console.log('\n--- 2. IDENTIFYING DUMMY / TEST PATIENTS ---');
-    const dummyPatientFilter = {
+    console.log("???  Protected Hospitals:");
+    if (platformHospital) console.log(`   - Platform Owner: ${platformHospital.name} (${platformHospital._id})`);
+    if (gunamHospital) console.log(`   - Gunam Hospital: ${gunamHospital.name} [GUNAMCOM] (${gunamHospital._id})`);
+    else console.log("   - Gunam Hospital not yet registered in this environment.");
+
+    // 2. Identify Test Hospitals to Delete
+    const testHospitals = await Hospital.find({
+      _id: { $nin: protectedHospitalIds },
       $or: [
-        { firstName: { $regex: /test/i } },
-        { lastName: { $regex: /test/i } },
-        { firstName: { $regex: /superadmin/i } },
-        { lastName: { $regex: /superadmin/i } },
+        { code: { $in: ["CITYGEN", "STJUDE"] } },
+        { name: /postman|test|city general|st\. jude/i },
+        { contactEmail: /postman|test|citygeneral|stjude/i }
       ]
-    };
-
-    const dummyPatients = await Patient.find(dummyPatientFilter);
-    console.log(`Found ${dummyPatients.length} dummy/test patient records to remove:`);
-    dummyPatients.forEach((p) => {
-      console.log(` - UHID: ${p.uhid} | Name: ${p.firstName} ${p.lastName} | Phone: ${p.phone}`);
     });
 
-    if (dummyPatients.length > 0) {
-      const deletePatRes = await Patient.deleteMany(dummyPatientFilter);
-      console.log(`[Success] Deleted ${deletePatRes.deletedCount} dummy patient records.`);
-    } else {
-      console.log('[Info] No dummy patient records found.');
+    const testHospitalIds = testHospitals.map(h => h._id);
+
+    console.log(`\n???  Test Hospitals identified for removal (${testHospitals.length}):`);
+    testHospitals.forEach(h => console.log(`   - ${h.name} (${h.code || h._id})`));
+
+    // 3. Delete Test Data
+    if (testHospitalIds.length > 0) {
+      const deletedBranches = await Branch.deleteMany({ hospitalId: { $in: testHospitalIds } });
+      const deletedPatients = await Patient.deleteMany({ hospitalId: { $in: testHospitalIds } });
+      const deletedAppointments = await Appointment.deleteMany({ hospitalId: { $in: testHospitalIds } });
+      const deletedTestHospitals = await Hospital.deleteMany({ _id: { $in: testHospitalIds } });
+
+      console.log(`\n? Removed test hospital records:`);
+      console.log(`   - Hospitals removed:    ${deletedTestHospitals.deletedCount}`);
+      console.log(`   - Branches removed:     ${deletedBranches.deletedCount}`);
+      console.log(`   - Patients removed:     ${deletedPatients.deletedCount}`);
+      console.log(`   - Appointments removed: ${deletedAppointments.deletedCount}`);
     }
 
-    console.log('\n--- 3. CLEAN DATABASE SUMMARY ---');
-    const totalUsers = await User.countDocuments({});
-    const totalStaff = await User.countDocuments({ role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] } });
-    const totalPatients = await Patient.countDocuments({});
-    const totalHospitals = await Hospital.countDocuments({ code: { $nin: ['PLATFORM', 'PLATFORM-HQ'] }, subdomain: { $ne: 'platform' } });
+    // 4. Clean up Test Users
+    const deletedTestUsers = await User.deleteMany({
+      email: {
+        $in: [
+          "admin@citygeneral.com",
+          "madhu@gmail.com",
+          "satish@gmail.com",
+          "hari@gmail.com",
+          "admin@stjude.com"
+        ]
+      }
+    });
 
-    console.log(`Remaining Valid System State:`);
-    console.log(` - Total Users: ${totalUsers}`);
-    console.log(` - Total Staff Members: ${totalStaff}`);
-    console.log(` - Total Patients: ${totalPatients}`);
-    console.log(` - Total Registered Hospitals: ${totalHospitals}`);
+    const deletedPostmanUsers = await User.deleteMany({
+      email: /postman|test.*hospital\.com|guardian\.local/i,
+      email: { $ne: "superadmin@gmail.com" }
+    });
 
-    await mongoose.disconnect();
-    console.log('\n[Cleanup Complete] MongoDB connection closed cleanly.');
+    console.log(`\n? Removed test user accounts:`);
+    console.log(`   - Sample seed users removed: ${deletedTestUsers.deletedCount}`);
+    console.log(`   - Postman test users removed: ${deletedPostmanUsers.deletedCount}`);
+
+    // 5. Verify Active System Users
+    const remainingUsers = await User.find({}).select("name email role hospitalId").lean();
+    console.log(`\n====================================================`);
+    console.log(` ? CLEANUP COMPLETED! Remaining Active Accounts (${remainingUsers.length}):`);
+    console.log(`====================================================`);
+    remainingUsers.forEach(u => {
+      console.log(` - [${u.role}] ${u.name} <${u.email}>`);
+    });
+    console.log(`====================================================\n`);
+
+    process.exit(0);
   } catch (err) {
-    console.error('[Cleanup Error]', err);
+    console.error("? Cleanup failed:", err);
     process.exit(1);
   }
-};
+}
 
 cleanTestData();

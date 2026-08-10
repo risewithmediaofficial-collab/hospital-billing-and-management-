@@ -88,63 +88,7 @@ export async function autoEnsureSystemCredentials() {
       console.log('[AutoSeed] Updated SuperAdmin password hash');
     }
 
-    // 3. Ensure Client Hospital (City General) & Hospital Admin exist
-    let cityHospital = await Hospital.findOne({ code: 'CITYGEN' });
-    if (!cityHospital) {
-      cityHospital = await Hospital.create({
-        name: 'City General Hospital',
-        code: 'CITYGEN',
-        subdomain: 'citygen',
-        status: 'APPROVED',
-        plan: 'ENTERPRISE',
-        contactName: 'Dr. Robert Vance',
-        contactEmail: 'admin@citygeneral.com',
-        contactPhone: '+1 (555) 234-5678',
-        licenseNumber: 'HOSP-NY-88402',
-        address: { street: '500 Health Way', city: 'New York', state: 'NY', country: 'USA' },
-        isActive: true,
-      });
-    }
-
-    let cityBranch = await Branch.findOne({ hospitalId: cityHospital._id, isMainBranch: true });
-    if (!cityBranch) {
-      cityBranch = await Branch.create({
-        hospitalId: cityHospital._id,
-        name: 'City General Main Campus',
-        branchCode: 'CG-MAIN',
-        phone: '+1 (555) 234-5678',
-        email: 'main@citygeneral.com',
-        address: '500 Health Way',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10002',
-        isMainBranch: true,
-      });
-    }
-
-    let hospitalAdmin = await User.findOne({ email: 'admin@citygeneral.com' });
-    if (!hospitalAdmin) {
-      await User.create({
-        hospitalId: cityHospital._id,
-        branchId: cityBranch._id,
-        name: 'Dr. Robert Vance',
-        email: 'admin@citygeneral.com',
-        passwordHash: hashedPassword,
-        assignedPasswordHint: password,
-        role: ROLES.HOSPITAL_ADMIN,
-        phone: '+1 (555) 234-5678',
-        status: 'ACTIVE',
-        isActive: true,
-      });
-      console.log('[AutoSeed] Created Hospital Admin (admin@citygeneral.com)');
-    } else if (!/^\$2[abxy]\$\d+\$/.test(hospitalAdmin.passwordHash)) {
-      hospitalAdmin.passwordHash = hashedPassword;
-      hospitalAdmin.assignedPasswordHint = password;
-      await hospitalAdmin.save();
-      console.log('[AutoSeed] Updated Hospital Admin password hash');
-    }
-
-    console.log('[AutoSeed] System credentials check completed successfully');
+    console.log('[AutoSeed] System roles and SuperAdmin check completed successfully');
   } catch (err) {
     console.error('[AutoSeed Warning] Failed system credentials check:', err.message);
   }

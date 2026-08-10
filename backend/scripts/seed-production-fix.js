@@ -1,6 +1,6 @@
 /**
- * Production Fix Script
- * Fixes Hospital Admin login credentials in production without wiping data.
+ * Realtime Production Fix & Cleanup Script
+ * Fixes SuperAdmin & Gunam Hospital credentials while ensuring no test/dummy data exists.
  * Run: node scripts/seed-production-fix.js
  */
 import bcrypt from "bcryptjs";
@@ -47,7 +47,6 @@ async function fixProductionCredentials() {
       await superAdmin.save();
       console.log("  ? SuperAdmin password updated");
     } else {
-      // Find or create platform hospital
       let platformHospital = await Hospital.findOne({ code: "PLATFORM" });
       if (!platformHospital) {
         platformHospital = await Hospital.create({
@@ -73,49 +72,19 @@ async function fixProductionCredentials() {
       console.log("  ? SuperAdmin created");
     }
 
-    // 3. Fix or Create Hospital Admin (City General)
-    console.log("[ProductionFix] Fixing Hospital Admin credentials...");
-    let cityHospital = await Hospital.findOne({ code: "CITYGEN" });
-    if (!cityHospital) {
-      cityHospital = await Hospital.create({
-        name: "City General Hospital", code: "CITYGEN", subdomain: "citygen",
-        status: "APPROVED", plan: "ENTERPRISE", contactName: "Dr. Robert Vance",
-        contactEmail: "admin@citygeneral.com", contactPhone: "+1 (555) 234-5678",
-        licenseNumber: "HOSP-NY-88402", isActive: true,
-        address: { street: "500 Health Way", city: "New York", state: "NY", country: "USA" },
-      });
-      console.log("  ? City General Hospital created");
-    }
-    let cityBranch = await Branch.findOne({ hospitalId: cityHospital._id, isMainBranch: true });
-    if (!cityBranch) {
-      cityBranch = await Branch.create({
-        hospitalId: cityHospital._id, name: "City General Main Campus", branchCode: "CG-MAIN",
-        phone: "+1 (555) 234-5678", email: "main@citygeneral.com", address: "500 Health Way",
-        city: "New York", state: "NY", postalCode: "10002", isMainBranch: true,
-      });
-    }
-    const hospitalAdmin = await User.findOne({ email: "admin@citygeneral.com" });
-    if (hospitalAdmin) {
-      hospitalAdmin.passwordHash = hashedPassword;
-      hospitalAdmin.assignedPasswordHint = password;
-      hospitalAdmin.isActive = true;
-      hospitalAdmin.status = "ACTIVE";
-      await hospitalAdmin.save();
-      console.log("  ? Hospital Admin password updated");
-    } else {
-      await User.create({
-        hospitalId: cityHospital._id, branchId: cityBranch._id, name: "Dr. Robert Vance",
-        email: "admin@citygeneral.com", passwordHash: hashedPassword, assignedPasswordHint: password,
-        role: ROLES.HOSPITAL_ADMIN, phone: "+1 (555) 234-5678", status: "ACTIVE", isActive: true,
-      });
-      console.log("  ? Hospital Admin created");
+    // 3. Update Gunam Primary Admin password if present
+    const gunamAdmin = await User.findOne({ email: "narayanamadhu93@gmail.com" });
+    if (gunamAdmin) {
+      gunamAdmin.passwordHash = hashedPassword;
+      gunamAdmin.assignedPasswordHint = password;
+      gunamAdmin.isActive = true;
+      gunamAdmin.status = "ACTIVE";
+      await gunamAdmin.save();
+      console.log("  ? Gunam Hospital Admin (narayanamadhu93@gmail.com) password updated");
     }
 
     console.log("\n====================================================");
     console.log(" Production Fix Complete!");
-    console.log("====================================================");
-    console.log(" SuperAdmin:       superadmin@gmail.com  / 0000");
-    console.log(" Hospital Admin:   admin@citygeneral.com / 0000");
     console.log("====================================================\n");
     process.exit(0);
   } catch (error) {
