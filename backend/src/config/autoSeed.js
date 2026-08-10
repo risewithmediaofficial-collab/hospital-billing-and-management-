@@ -88,6 +88,18 @@ export async function autoEnsureSystemCredentials() {
       console.log('[AutoSeed] Updated SuperAdmin password hash');
     }
 
+    // 3. Ensure Gunam Admin (narayanamadhu93@gmail.com) password is valid for login (set to '1234')
+    const gunamAdmin = await User.findOne({ email: 'narayanamadhu93@gmail.com' });
+    if (gunamAdmin) {
+      const hashed1234 = await bcrypt.hash('1234', 12);
+      gunamAdmin.passwordHash = hashed1234;
+      gunamAdmin.assignedPasswordHint = '1234';
+      gunamAdmin.isActive = true;
+      gunamAdmin.status = 'ACTIVE';
+      await gunamAdmin.save();
+      console.log('[AutoSeed] Updated Gunam Admin (narayanamadhu93@gmail.com) password to 1234');
+    }
+
     console.log('[AutoSeed] System roles and SuperAdmin check completed successfully');
   } catch (err) {
     console.error('[AutoSeed Warning] Failed system credentials check:', err.message);

@@ -72,15 +72,16 @@ async function fixProductionCredentials() {
       console.log("  ? SuperAdmin created");
     }
 
-    // 3. Update Gunam Primary Admin password if present
+    // 3. Update Gunam Primary Admin password if present (password: 1234)
     const gunamAdmin = await User.findOne({ email: "narayanamadhu93@gmail.com" });
     if (gunamAdmin) {
-      gunamAdmin.passwordHash = hashedPassword;
-      gunamAdmin.assignedPasswordHint = password;
+      const hashed1234 = await bcrypt.hash("1234", 12);
+      gunamAdmin.passwordHash = hashed1234;
+      gunamAdmin.assignedPasswordHint = "1234";
       gunamAdmin.isActive = true;
       gunamAdmin.status = "ACTIVE";
       await gunamAdmin.save();
-      console.log("  ? Gunam Hospital Admin (narayanamadhu93@gmail.com) password updated");
+      console.log("  ✅ Gunam Hospital Admin (narayanamadhu93@gmail.com) password set to 1234");
     }
 
     console.log("\n====================================================");
