@@ -103,8 +103,8 @@ export const EmergencyBanner = () => {
 
       {/* Raise Emergency Modal */}
       {isRaiseModalOpen && (
-        <div className="modal-overlay animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setIsRaiseModalOpen(false); }}>
-          <div className="modal-container max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-red-200" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-container max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-red-200">
             <div className="p-4 bg-red-600 text-white flex items-center justify-between border-b border-red-700">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-red-700 text-white flex-shrink-0 shadow-inner">
