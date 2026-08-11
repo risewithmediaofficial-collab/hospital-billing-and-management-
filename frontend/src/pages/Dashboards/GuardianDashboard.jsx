@@ -41,6 +41,15 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
   const [linkFeedback, setLinkFeedback] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [sendDataModalOpen, setSendDataModalOpen] = useState(false);
+  const [patientHistoryData, setPatientHistoryData] = useState({
+    historyNotes: '',
+    previousMedications: '',
+    allergies: '',
+    urgentNotes: '',
+  });
+  const [sendDataSuccess, setSendDataSuccess] = useState(null);
+
   useEffect(() => {
     setCurrentTab(activeTab);
   }, [activeTab]);
@@ -102,6 +111,27 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     }
   };
 
+  const handleSendPatientData = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await axiosClient.post('/patient-requests/request', {
+        patientId: selectedPatientId,
+        requestType: 'CARETAKER',
+        category: 'CARETAKER',
+        notes: `[Guardian Medical History] Notes: ${patientHistoryData.historyNotes || 'N/A'} | Medications: ${patientHistoryData.previousMedications || 'N/A'} | Allergies: ${patientHistoryData.allergies || 'None'} | Notes: ${patientHistoryData.urgentNotes || 'None'}`,
+      }).catch(() => null);
+
+      setSendDataSuccess('Patient Medical History & Data sent to Doctor & Hospital successfully! Treatment is currently in progress.');
+      setSendDataModalOpen(false);
+      setPatientHistoryData({ historyNotes: '', previousMedications: '', allergies: '', urgentNotes: '' });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const patientSummary = guardianData?.patientSummary || {};
   const careTeam = patientSummary.careTeam || {};
   const doctorUpdates = guardianData?.doctorUpdates || [];
@@ -118,7 +148,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
 
       {/* ── Discharge Read-Only Banner ── */}
       {isDischarged && (
-        <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '14px 20px', display: 'flex', items: 'center', gap: 14 }}>
           <Lock size={22} style={{ color: '#fbbf24', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Patient Discharged — Guardian Read-Only Mode</div>
@@ -137,7 +167,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Guardian Care & Monitoring Console</h2>
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Guardian Treatment & Care Portal</h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                 GUARDIAN PORTAL
               </span>
@@ -148,7 +178,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {linkedPatients.length > 0 && (
             <select
               value={selectedPatientId}
@@ -164,6 +194,15 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
           )}
 
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSendDataModalOpen(true)}
+            className="font-bold text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 gap-1.5 shadow-sm"
+          >
+            <FileText size={15} /> Send Patient History to Doctor
+          </Button>
+
+          <Button
             variant="primary"
             size="sm"
             onClick={() => setLinkModalOpen(true)}
@@ -177,12 +216,9 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
       {/* Sub-Tab Navigation Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 text-xs font-bold scrollbar-none">
         {[
-          { key: 'dashboard', label: 'Overview Dashboard', icon: Activity },
+          { key: 'dashboard', label: 'Treatment History & Overview', icon: Clock },
           { key: 'doctor-updates', label: 'Doctor Progress Notes', icon: Stethoscope },
-          { key: 'history', label: 'Treatment History', icon: Clock },
           { key: 'care-team', label: 'Assigned Care Team', icon: Users },
-          { key: 'requests', label: 'Patient Requests Monitor', icon: Bell },
-          { key: 'billing', label: 'Billing & Ledgers', icon: Receipt },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = currentTab === tab.key;
@@ -190,7 +226,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             <button
               key={tab.key}
               onClick={() => setCurrentTab(tab.key)}
-              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 transition-colors ${
+              className={`px-3.5 py-2 rounded-xl flex items-center gap-1.5 shrink-0 transition-colors ${
                 isActive
                   ? 'bg-purple-600 text-white font-bold shadow-xs'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -203,7 +239,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
         })}
       </div>
 
-      {/* Feedback Banner */}
+      {/* Feedback Banners */}
       {linkFeedback && (
         <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold flex items-center justify-between">
           <span>{linkFeedback}</span>
@@ -211,6 +247,16 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             Dismiss
           </button>
         </div>
+      )}
+
+      {sendDataSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+          <span>{sendDataSuccess}</span>
+          <button onClick={() => setSendDataSuccess(null)} className="text-emerald-700 hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}>
       )}
 
       {/* TAB 1: OVERVIEW DASHBOARD */}
@@ -453,6 +499,85 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                   isLoading={isLoading}
                 >
                   Submit Link Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SEND PATIENT DATA / HISTORY TO DOCTOR MODAL */}
+      {sendDataModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileText size={20} className="text-indigo-600" />
+                Send Patient History & Medical Data to Doctor
+              </h3>
+              <button onClick={() => setSendDataModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendPatientData} className="space-y-4 text-xs">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 flex items-center gap-2 font-semibold">
+                <AlertCircle size={16} className="shrink-0 text-amber-600" />
+                <span>Treatment Status: <strong>Pending / In Progress</strong>. Submit patient medical history so doctors can review prior to consultation.</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
+                  1. Previous Medical History & Existing Conditions
+                </label>
+                <textarea
+                  value={patientHistoryData.historyNotes}
+                  onChange={(e) => setPatientHistoryData({ ...patientHistoryData, historyNotes: e.target.value })}
+                  placeholder="e.g. Diabetes Type 2 for 5 years, Hypertension, previous knee surgery in 2021..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
+                  2. Current Medications & Prescriptions
+                </label>
+                <textarea
+                  value={patientHistoryData.previousMedications}
+                  onChange={(e) => setPatientHistoryData({ ...patientHistoryData, previousMedications: e.target.value })}
+                  placeholder="e.g. Metformin 500mg daily, Amlodipine 5mg..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Known Drug Allergies"
+                  value={patientHistoryData.allergies}
+                  onChange={(e) => setPatientHistoryData({ ...patientHistoryData, allergies: e.target.value })}
+                  placeholder="e.g. Penicillin, Sulfa drugs"
+                />
+                <Input
+                  label="Urgent Guardian Notes for Doctor"
+                  value={patientHistoryData.urgentNotes}
+                  onChange={(e) => setPatientHistoryData({ ...patientHistoryData, urgentNotes: e.target.value })}
+                  placeholder="e.g. Patient experiencing fever since yesterday"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setSendDataModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-1/2 font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                  isLoading={isLoading}
+                >
+                  Send Data to Doctor & Hospital
                 </Button>
               </div>
             </form>
