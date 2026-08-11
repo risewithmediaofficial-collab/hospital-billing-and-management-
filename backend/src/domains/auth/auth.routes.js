@@ -37,12 +37,12 @@ router.post('/reset-password', authRateLimiter, resetPassword);
 router.get('/me', verifyJwt, getMe);
 
 // Protected Staff Management Endpoints
-router.post('/staff', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), createStaffUser);
+router.post('/staff', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN), createStaffUser);
 router.get('/staff', verifyJwt, getHospitalStaff);
-router.patch('/staff/:id', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), updateStaffUser);
-router.post('/staff/:id/view-password', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), getStaffPassword);
-router.patch('/staff/:id/password', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), updateStaffPassword);
-router.patch('/staff/:id/permissions', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN), updateStaffPermissions);
+router.patch('/staff/:id', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN), updateStaffUser);
+router.post('/staff/:id/view-password', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN), getStaffPassword);
+router.patch('/staff/:id/password', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN), updateStaffPassword);
+router.patch('/staff/:id/permissions', verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN), updateStaffPermissions);
 router.patch('/staff/:id/availability', verifyJwt, updateDoctorAvailability);
 
 export default router;

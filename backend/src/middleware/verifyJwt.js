@@ -51,6 +51,10 @@ export const verifyJwt = async (req, res, next) => {
 
     const decoded = jwt.verify(token, env.JWT_SECRET);
     req.user = decoded;
+    // DEBUG: log role for staff PATCH requests
+    if (req.method === 'PATCH' && req.originalUrl.includes('/auth/staff')) {
+      console.log(`[verifyJwt DEBUG] ${req.method} ${req.originalUrl} — tokenSource: ${req.headers.authorization ? 'header' : 'cookie'}, role: "${decoded.role}", id: ${decoded.id}`);
+    }
     // The platform owner is intentionally not a hospital operator.  Platform
     // administration is exposed through /saas only; operational APIs remain
     // inaccessible even if a Super Admin crafts a direct request.

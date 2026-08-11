@@ -77,8 +77,9 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
     return <Navigate to={targetRoute} replace />;
   }
 
-  // Role validation
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+  // Role validation — check primary role AND any additional roles
+  const userAllRoles = [user.role, ...(Array.isArray(user.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
+  if (allowedRoles.length > 0 && !allowedRoles.some((r) => userAllRoles.includes(r))) {
     return <Navigate to="/403" replace />;
   }
 

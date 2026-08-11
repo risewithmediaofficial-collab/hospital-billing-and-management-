@@ -251,7 +251,7 @@ export const HospitalAdminDashboard = () => {
     try {
       const res = await axiosClient.get('/auth/staff');
       const hospitalStaffOnly = (res.data || []).filter(
-        (st) => st.role !== 'SUPER_ADMIN' && st.email !== 'superadmin@gmail.com'
+        (st) => !['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'].includes(st.role) && st.email !== 'superadmin@gmail.com'
       );
       setStaffList(hospitalStaffOnly);
     } catch (err) {

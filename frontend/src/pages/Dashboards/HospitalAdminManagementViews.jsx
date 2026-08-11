@@ -45,15 +45,17 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
     try {
       const [staffRes, patientsRes, billingRes] = await Promise.all([
         axiosClient.get('/auth/staff').catch(() => ({ data: [] })),
-        axiosClient.get('/patients/search').catch(() => ({ data: [] })),
+        axiosClient.get('/patients').catch(() => []),
         axiosClient.get('/billing/receipts').catch(() => ({ data: [] })),
       ]);
 
-      const staffData = (staffRes.data || []).filter(s => s.role !== 'SUPER_ADMIN' && s.email !== 'superadmin@gmail.com');
+      const staffData = (staffRes.data || staffRes || []).filter(s => !['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'].includes(s.role) && s.email !== 'superadmin@gmail.com');
       setStaffList(staffData);
-      setPatients(patientsRes.data || []);
 
-      const receipts = billingRes.data || [];
+      const pList = Array.isArray(patientsRes) ? patientsRes : (patientsRes.data || []);
+      setPatients(pList);
+
+      const receipts = billingRes.data || billingRes || [];
       const revenue = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || Number(r.grandTotal) || 0), 0);
       setBillingSummary({
         totalRevenue: revenue,
@@ -610,9 +612,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Total Registered Patients" value={`${patients.length} UHIDs`} subtitle="Master Patient Index" icon={Users} color="sky" />
-              <StatCard title="Active OPD Patients" value="34 Patients" subtitle="Queued / In Consultation" icon={TrendingUp} color="emerald" />
-              <StatCard title="Admitted IPD Patients" value="18 Patients" subtitle="Ward Bed Matrix" icon={BedDouble} color="purple" />
-              <StatCard title="Emergency Admissions" value="4 Patients" subtitle="Trauma / ICU Care" icon={ShieldAlert} color="rose" />
+              <StatCard title="Active OPD Patients" value={`${patients.filter(p => p.admissionStatus !== 'ACTIVE_ADMISSION').length} Patients`} subtitle="Queued / In Consultation" icon={TrendingUp} color="emerald" />
+              <StatCard title="Admitted IPD Patients" value={`${patients.filter(p => p.admissionStatus === 'ACTIVE_ADMISSION').length} Patients`} subtitle="Ward Bed Matrix" icon={BedDouble} color="purple" />
+              <StatCard title="Emergency Admissions" value={`${patients.filter(p => p.category === 'EMERGENCY' || p.admissionStatus === 'EMERGENCY').length} Patients`} subtitle="Trauma / ICU Care" icon={ShieldAlert} color="rose" />
             </div>
 
             <Card>
@@ -632,27 +634,32 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {patients.map((pat) => (
-                      <tr key={pat._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">
-                          {pat.name}
-                          <p className="text-[10px] font-mono text-indigo-600">{pat.uhid}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="font-medium text-neutral-800">{pat.phone || 'N/A'}</p>
-                          <p className="text-[10px] text-neutral-500">{pat.age ? `${pat.age} yrs` : 'Adult'} • {pat.gender || 'General'}</p>
-                        </td>
-                        <td className="p-3 font-semibold text-neutral-700">{pat.category || 'GENERAL'}</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            {pat.status || 'REGISTERED'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right text-neutral-500">
-                          {new Date(pat.createdAt || Date.now()).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
+                    {patients.map((pat) => {
+                      const patientFullName = pat.name || `${pat.firstName || ''} ${pat.lastName || ''}`.trim() || 'Patient';
+                      const statusLabel = pat.admissionStatus === 'ACTIVE_ADMISSION' ? 'ADMITTED (IPD)' : (pat.admissionStatus === 'DISCHARGED' ? 'DISCHARGED' : 'REGISTERED (OPD)');
+                      const statusClass = pat.admissionStatus === 'ACTIVE_ADMISSION' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                      return (
+                        <tr key={pat._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">
+                            {patientFullName}
+                            <p className="text-[10px] font-mono text-indigo-600">{pat.uhid}</p>
+                          </td>
+                          <td className="p-3">
+                            <p className="font-medium text-neutral-800">{pat.phone || 'N/A'}</p>
+                            <p className="text-[10px] text-neutral-500">{pat.age ? `${pat.age} yrs` : 'Adult'} • {pat.gender || 'General'}</p>
+                          </td>
+                          <td className="p-3 font-semibold text-neutral-700">{pat.category || 'GENERAL'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusClass}`}>
+                              {statusLabel}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right text-neutral-500">
+                            {new Date(pat.createdAt || Date.now()).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

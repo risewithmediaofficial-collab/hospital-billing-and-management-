@@ -46,9 +46,9 @@ const checkItemPermission = (user, item) => {
     '/doctor/': 'doctorConsultation', '/reception/': 'appointments', '/nursing/': 'nursing',
     '/nurse-incharge/': 'ipd', '/laboratory/': 'laboratory', '/radiology/': 'radiology',
     '/pharmacy/': 'pharmacy', '/billing/': 'billing', '/inventory/': 'inventory', '/hr/': 'hr',
-    '/emergency': 'emergency',
+    '/emergency': 'emergency', '/admin/': 'dashboard',
   })[Object.keys({
-    '/doctor/': 1, '/reception/': 1, '/nursing/': 1, '/nurse-incharge/': 1, '/laboratory/': 1, '/radiology/': 1, '/pharmacy/': 1, '/billing/': 1, '/inventory/': 1, '/hr/': 1, '/emergency': 1,
+    '/doctor/': 1, '/reception/': 1, '/nursing/': 1, '/nurse-incharge/': 1, '/laboratory/': 1, '/radiology/': 1, '/pharmacy/': 1, '/billing/': 1, '/inventory/': 1, '/hr/': 1, '/emergency': 1, '/admin/': 1,
   }).find((prefix) => item.path.startsWith(prefix))];
 
   if (!targetModule) return false;
@@ -342,7 +342,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
     if (user?.role === 'DOCTOR' && (path === '/reception/dashboard' || path.includes('/reception/dashboard'))) {
       targetPath = '/doctor/dashboard?tab=LIVE';
     }
+    // SUPER_ADMIN has no hospital domain; absolute paths stay absolute
     if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return targetPath;
+    // Already has the tenant prefix — leave it
     if (targetPath.startsWith(`/${user.hospitalDomain}`)) return targetPath;
     return `/${user.hospitalDomain}${targetPath}`;
   };

@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
     departmentId: { type: mongoose.Schema.Types.Mixed },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: false, sparse: true, lowercase: true, trim: true, default: null },
-    phone: { type: String, required: true, trim: true },
+    phone: { type: String, trim: true, default: '' },
     loginIds: [{ type: String, trim: true, index: true }],
     passwordHash: { type: String, required: true },
     assignedPasswordHint: { type: String, default: '' },

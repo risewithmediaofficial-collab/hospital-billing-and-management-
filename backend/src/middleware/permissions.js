@@ -12,10 +12,12 @@ export const requireRole = (...allowedRoles) => {
     const hasRoleMatch = allowedRoles.some((role) => userRoles.includes(role)) || userRoles.includes('SUPER_ADMIN');
 
     if (!hasRoleMatch) {
+      // DEBUG: log the actual role mismatch details
+      console.error(`[requireRole] 403 on ${req.method} ${req.originalUrl} — JWT role: "${req.user.role}", additionalRoles: [${(req.user.additionalRoles||[]).join(', ')}], required: [${allowedRoles.join(', ')}], userId: ${req.user.id}`);
       return sendError(
         res,
         403,
-        `Access denied. Required role: [${allowedRoles.join(', ')}]. Your roles: ${userRoles.join(', ')}`,
+        `Access denied. Required role: [${allowedRoles.join(', ')}]. Your role: ${req.user.role}`,
         null,
         'FORBIDDEN'
       );
