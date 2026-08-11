@@ -222,11 +222,12 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 7. Pharmacist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/expiry-alerts" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/pharmacy/audit" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
       </Route>
 
       {/* 8. Lab Tech Sub-Routes */}
@@ -377,11 +378,12 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Pharmacy tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><GenericSubView title="Prescription Dispense Queue" subtitle="FEFO Batch Selection" iconName="Clock" /></MainLayout>} />
-        <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><GenericSubView title="FEFO Stock Manager" subtitle="Batch Expiry Control" iconName="Boxes" /></MainLayout>} />
-        <Route path="/:hospitalDomain/pharmacy/expiry-alerts" element={<MainLayout><GenericSubView title="Near-Expiry Batch Alerts" subtitle="30-Day Expiry Warnings" iconName="AlertTriangle" /></MainLayout>} />
+        <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/pharmacy/expiry-alerts" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/pharmacy/audit" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
       </Route>
 
       {/* Laboratory tenant routes */}

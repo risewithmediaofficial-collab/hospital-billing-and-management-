@@ -229,12 +229,15 @@ export const ROLE_NAVIGATION = {
     { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy' },
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy' },
     { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy' },
+    { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   PHARMACY_STAFF: [
     { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy' },
     { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy' },
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy' },
+    { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy' },
+    { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   LAB_TECH: [

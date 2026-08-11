@@ -8,6 +8,7 @@ import { Emergency } from '../../models/Emergency.js';
 import { GuardianLink } from '../../models/GuardianLink.js';
 import { Hospital } from '../../models/Hospital.js';
 import { User } from '../../models/User.js';
+import { PharmacySubstitutionRequest } from '../../models/PharmacySubstitutionRequest.js';
 
 export const RADIOLOGY_CATEGORIES = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'];
 export const LAB_CATEGORIES = ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'];
@@ -40,14 +41,16 @@ export class WorkflowService {
     const tasks = [];
 
     if (roles.has('DOCTOR')) {
-      const [appointments, reports, doctorRequests] = await Promise.all([
+      const [appointments, reports, doctorRequests, subRequests] = await Promise.all([
         Appointment.find({ ...scope, doctorId: user.id, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
         DiagnosticOrder.find({ ...scope, doctorId: user.id, status: { $in: ['ACCEPTED', 'IN_PROGRESS', 'REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
         PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, $or: [{ assignedDoctorId: user.id }, { assignedDoctorId: null }] }).populate('patientId').lean(),
+        PharmacySubstitutionRequest.find({ ...scope, doctorId: user.id, status: 'PENDING' }).populate('patientId').lean(),
       ]);
       appointments.forEach((item) => tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard?tab=LIVE', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       reports.forEach((item) => tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', ['ACCEPTED', 'IN_PROGRESS'].includes(item.status) ? `Department accepted: ${item.testName}` : `Review response: ${item.testName}`)));
       doctorRequests.forEach((item) => tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard', `Patient request: ${item.requestType}`, { patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+      subRequests.forEach((item) => tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Substitution approval: ${item.originalMedicineName}`, { patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
 
     if ([...roles].some((role) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(role))) {
@@ -61,7 +64,7 @@ export class WorkflowService {
     }
 
     if ([...roles].some((role) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(role))) {
-      const records = await Prescription.find({ ...scope, dispenseStatus: 'PENDING_DISPENSE' }).populate('patientId').lean();
+      const records = await Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean();
       records.forEach((item) => tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dispense-queue', `Dispense prescription: ${item.prescriptionNo}`, { status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
 

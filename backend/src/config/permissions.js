@@ -85,14 +85,14 @@ export const ROLE_PERMISSION_DEFAULTS = {
   },
   PHARMACIST: {
     dashboard: ['view'],
-    pharmacy: ['view', 'create', 'edit', 'dispense', 'print'],
+    pharmacy: ['view', 'create', 'edit', 'dispense', 'adjust', 'transfer', 'print', 'delete', '*'],
     billing: ['view'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
   PHARMACY_STAFF: {
     dashboard: ['view'],
-    pharmacy: ['view', 'create', 'edit', 'dispense', 'print'],
+    pharmacy: ['view', 'create', 'edit', 'dispense', 'adjust', 'transfer', 'print', 'delete', '*'],
     billing: ['view'],
     emergency: ['view', 'create'],
     notifications: ['view'],
@@ -224,7 +224,18 @@ export const permissionsFor = (user, hospitalModules = null) => {
 };
 
 export const hasPermission = (user, module, action = 'view', hospitalModules = null) => {
-  if (user?.role === 'SUPER_ADMIN') return true;
+  if (user?.role === 'SUPER_ADMIN' || user?.role === 'HOSPITAL_ADMIN') return true;
+
+  const role = user?.role;
+  const userRoles = [role, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
+
+  // Role domain overrides — domain staff always have full access to their primary domain module
+  if (module === 'pharmacy' && userRoles.some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) return true;
+  if (module === 'laboratory' && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;
+  if (module === 'radiology' && userRoles.some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) return true;
+  if (module === 'billing' && userRoles.some((r) => ['CASHIER', 'BILLING_STAFF'].includes(r))) return true;
+  if (module === 'emergency' && userRoles.some((r) => ['EMERGENCY_STAFF', 'NURSE', 'NURSE_INCHARGE', 'DOCTOR'].includes(r))) return true;
+
   const permissions = permissionsFor(user, hospitalModules);
   
   if (permissions['*']?.includes('*') || permissions['*']?.includes(action)) return true;

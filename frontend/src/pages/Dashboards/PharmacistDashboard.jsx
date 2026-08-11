@@ -26,18 +26,13 @@ const RECOMMENDED_MEDICINES = [
   { name: 'Amlodipine 5mg', genericName: 'Amlodipine', category: 'Antihypertensive', dosageForm: 'TABLET', strength: '5 mg', purchasePrice: 4, sellingPrice: 10 },
 ];
 
-// Map URL paths to tab keys
-const PATH_TO_TAB = {
-  '/pharmacy/dispense-queue': 'queue',
-  '/pharmacy/dashboard': 'queue',
-  '/pharmacy/stock': 'inventory',
-  '/pharmacy/expiry-alerts': 'alerts',
-};
-const TAB_TO_PATH = {
-  queue: '/pharmacy/dispense-queue',
-  inventory: '/pharmacy/stock',
-  alerts: '/pharmacy/expiry-alerts',
-  audit: '/pharmacy/stock', // audit is a sub-section of stock page
+// Map URL path substring to active tab key
+const getActiveTabFromPath = (pathname) => {
+  if (pathname.includes('/pharmacy/audit')) return 'audit';
+  if (pathname.includes('/pharmacy/stock')) return 'inventory';
+  if (pathname.includes('/pharmacy/expiry-alerts')) return 'alerts';
+  if (pathname.includes('/pharmacy/dispense-queue')) return 'queue';
+  return 'queue';
 };
 
 export const PharmacistDashboard = () => {
@@ -48,9 +43,8 @@ export const PharmacistDashboard = () => {
   const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const refreshPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
 
-  // Drive the active tab from the URL path
-  const activeTab = PATH_TO_TAB[location.pathname] || 'queue';
-  const setActiveTab = useCallback((tab) => navigate(TAB_TO_PATH[tab] || '/pharmacy/dispense-queue'), [navigate]);
+  // Drive active view from current URL path (sidebar navigation)
+  const activeTab = getActiveTabFromPath(location.pathname);
   const [prescriptions, setPrescriptions] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [alerts, setAlerts] = useState({ lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
@@ -257,51 +251,7 @@ export const PharmacistDashboard = () => {
         <StatCard title="Total Medicine SKUs" value={`${medicines.length} SKUs`} subtitle={`${alerts.outOfStock.length} Out of Stock`} icon={Boxes} color="purple" />
       </div>
 
-      {/* URL-driven Tab Navigation — each button changes the URL path */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto text-sm font-semibold text-slate-600">
-        <button
-          onClick={() => setActiveTab('queue')}
-          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'queue' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          📋 Prescription Queue
-          {pending.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black">
-              {pending.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('inventory')}
-          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          💊 Inventory ({medicines.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('alerts')}
-          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'alerts' ? 'border-amber-600 text-amber-700' : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          ⚠️ Low Stock & Expiry
-          {(alerts.lowStock.length + alerts.nearExpiry.length + alerts.expired.length) > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-black">
-              {alerts.lowStock.length + alerts.nearExpiry.length + alerts.expired.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'audit' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          📊 Stock Audit ({stockAdjustments.length})
-        </button>
-      </div>
+
 
       {/* TAB 1: E-Prescription Queue */}
       {activeTab === 'queue' && (

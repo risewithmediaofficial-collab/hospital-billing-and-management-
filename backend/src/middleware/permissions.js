@@ -45,6 +45,14 @@ export const requirePermission = (permissionScope) => {
   };
 };
 
+const extractId = (val) => {
+  if (!val) return '';
+  if (typeof val === 'object') {
+    return val._id ? String(val._id) : (val.id ? String(val.id) : String(val));
+  }
+  return String(val);
+};
+
 /** Database-backed authorization. JWTs identify the user; they never become
  * the source of truth for mutable staff permissions. */
 export const requireModulePermission = (module, action = 'view') => {
@@ -53,8 +61,8 @@ export const requireModulePermission = (module, action = 'view') => {
     const user = await User.findById(req.user.id).select('hospitalId departmentId additionalDepartments isActive status role additionalRoles permissions revokedPermissions');
     if (!user || !user.isActive || user.status === 'INACTIVE') return sendError(res, 403, 'Your account is inactive.', null, 'ACCOUNT_INACTIVE');
     
-    const userHId = user.hospitalId?._id ? String(user.hospitalId._id) : (user.hospitalId ? String(user.hospitalId) : '');
-    const tokenHId = req.user.hospitalId?._id ? String(req.user.hospitalId._id) : (req.user.hospitalId ? String(req.user.hospitalId) : '');
+    const userHId = extractId(user.hospitalId);
+    const tokenHId = extractId(req.user.hospitalId);
     if (userHId && tokenHId && userHId !== tokenHId) {
       return sendError(res, 403, 'Hospital context is invalid.', null, 'HOSPITAL_CONTEXT_INVALID');
     }
