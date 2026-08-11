@@ -8,12 +8,14 @@ import { NotificationDropdown } from './NotificationDropdown';
 import { SuperAdminSidebar } from './SuperAdminSidebar';
 import { HospitalSelector } from '../superadmin/HospitalSelector';
 import { GlobalSearchBar } from '../superadmin/GlobalSearchBar';
+import { useSocket } from '../../providers/SocketProvider';
 
 export const SuperAdminLayout = ({ children, noPadding = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { user, logout } = useAuthStore();
-  const { unreadCount } = useNotificationStore();
+  const { socket } = useSocket();
+  const { unreadCount, fetchNotifications } = useNotificationStore();
   const { hospitalId } = useParams();
   const location = useLocation();
   const mainRef = useRef(null);
@@ -23,6 +25,14 @@ export const SuperAdminLayout = ({ children, noPadding = false }) => {
       mainRef.current.scrollTop = 0;
     }
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    fetchNotifications();
+    if (!socket) return;
+    const refresh = () => fetchNotifications();
+    socket.on('workflow:notification', refresh);
+    return () => socket.off('workflow:notification', refresh);
+  }, [socket, fetchNotifications]);
 
   const isDrilldown = Boolean(hospitalId);
 

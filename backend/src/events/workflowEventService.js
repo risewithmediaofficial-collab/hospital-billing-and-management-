@@ -10,6 +10,7 @@
  * This ensures staff see missed alerts after a page refresh or reconnect.
  */
 import { socketManager } from './socketManager.js';
+import { Branch } from '../models/Branch.js';
 
 // ─── Canonical workflow event names ──────────────────────────────────────────
 export const WORKFLOW_EVENTS = {
@@ -226,16 +227,26 @@ export class WorkflowEventService {
     // ── Persist to DB (non-blocking) ─────────────────────────────────────────
     try {
       const { NotificationService } = await import('../domains/notifications/notification.service.js');
+      const effectiveBranchId = branchId || payload.branchId || null;
+      let effectiveHospitalId = payload.hospitalId || null;
+      if (!effectiveHospitalId && effectiveBranchId) {
+        const branch = await Branch.findById(effectiveBranchId).select('hospitalId').lean();
+        effectiveHospitalId = branch?.hospitalId || null;
+      }
 
       if (roles.includes('ALL')) {
         // Emergency — one broadcast notification for all
         await NotificationService.createNotification({
           recipientRole: 'ALL',
-          hospitalId: payload.hospitalId || null,
+          hospitalId: effectiveHospitalId,
+          branchId: effectiveBranchId,
           title,
           message,
           type: DB_NOTIFICATION_TYPES[type] || 'SYSTEM_ALERT',
           link: payload.linkedPath || '',
+          targetModule: payload.targetModule || '',
+          relatedPatientId: payload.patientId || null,
+          relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
           metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
         });
       } else {
@@ -245,11 +256,15 @@ export class WorkflowEventService {
           await NotificationService.createNotification({
             recipientUserId: isPersonal ? payload.doctorId : null,
             recipientRole: isPersonal ? null : role,
-            hospitalId: payload.hospitalId || null,
+            hospitalId: effectiveHospitalId,
+            branchId: effectiveBranchId,
             title,
             message,
             type: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
             link: payload.linkedPath || '',
+            targetModule: payload.targetModule || '',
+            relatedPatientId: payload.patientId || null,
+            relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
             metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
           });
         }

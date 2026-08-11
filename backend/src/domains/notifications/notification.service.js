@@ -1,4 +1,17 @@
 import { Notification } from '../../models/Notification.js';
+import { User } from '../../models/User.js';
+
+const recipientQuery = async ({ userId, role, hospitalId, branchId }) => {
+  const user = await User.findById(userId).select('hospitalId branchId').lean();
+  const tenantId = hospitalId || user?.hospitalId;
+  const tenantBranchId = branchId || user?.branchId;
+  if (role === 'SUPER_ADMIN') return { recipientUserId: userId };
+  return {
+    recipientUserId: userId,
+    ...(tenantId ? { hospitalId: tenantId } : {}),
+    ...(tenantBranchId ? { $and: [{ $or: [{ branchId: tenantBranchId }, { branchId: null }] }] } : {}),
+  };
+};
 
 export class NotificationService {
   /**
@@ -6,17 +19,17 @@ export class NotificationService {
    */
   static async createNotification(data) {
     try {
-      const notification = await Notification.create({
+      const base = {
         hospitalId: data.hospitalId || null,
         branchId: data.branchId || null,
-        recipientUserId: data.recipientUserId || null,
-        recipientRole: data.recipientRole || 'ALL',
+        recipientRole: data.recipientRole ?? (data.recipientUserId ? null : 'ALL'),
         recipientDepartment: data.recipientDepartment || '',
         notificationType: data.notificationType || data.type || 'WORKFLOW_ALERT',
         type: data.type || 'SYSTEM_ALERT',
         title: data.title,
         message: data.message,
         relatedPatientId: data.relatedPatientId || null,
+        relatedTaskId: data.relatedTaskId || data.relatedRequestId || '',
         relatedRequestId: data.relatedRequestId || '',
         targetModule: data.targetModule || '',
         targetRoute: data.targetRoute || data.link || '',
@@ -24,8 +37,35 @@ export class NotificationService {
         isRead: false,
         status: data.status || 'ACTIVE',
         metadata: data.metadata || {},
-      });
-      return notification;
+      };
+
+      if (data.recipientUserId) {
+        return Notification.create({ ...base, recipientUserId: data.recipientUserId });
+      }
+
+      // Role/department alerts are materialized per current recipient so read and
+      // clear state belongs to one user and can never hide another user's bell.
+      const userQuery = { status: 'ACTIVE', isActive: { $ne: false } };
+      if (data.hospitalId) userQuery.hospitalId = data.hospitalId;
+      if (data.branchId) userQuery.$or = [{ branchId: data.branchId }, { branchId: null }];
+      if (data.recipientDepartment) {
+        userQuery.$and = [{ $or: [
+          { departmentId: data.recipientDepartment },
+          { additionalDepartments: data.recipientDepartment },
+        ] }];
+      } else if (data.recipientRole && data.recipientRole !== 'ALL') {
+        userQuery.$and = [{ $or: [
+          { role: data.recipientRole },
+          { additionalRoles: data.recipientRole },
+        ] }];
+      }
+
+      const recipients = await User.find(userQuery).select('_id').lean();
+      if (recipients.length === 0) return null;
+      const notifications = await Notification.insertMany(
+        recipients.map((recipient) => ({ ...base, recipientUserId: recipient._id }))
+      );
+      return notifications[0] || null;
     } catch (err) {
       console.error('Failed to create notification:', err);
       return null;
@@ -35,42 +75,16 @@ export class NotificationService {
   /**
    * Get unread notification counts for Super Admin or Hospital Admin badges
    */
-  static async getUnreadCount({ userId, role, hospitalId }) {
-    const query = { isRead: false };
-    if (role === 'SUPER_ADMIN') {
-      query.$or = [{ recipientRole: 'SUPER_ADMIN' }, { recipientRole: 'ALL' }];
-    } else if (hospitalId) {
-      query.$or = [
-        { recipientUserId: userId },
-        { hospitalId, recipientRole: role },
-        { hospitalId, recipientRole: 'ALL' },
-      ];
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    } else {
-      query.recipientUserId = userId;
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    }
-    return await Notification.countDocuments(query);
+  static async getUnreadCount(context) {
+    const query = await recipientQuery(context);
+    return Notification.countDocuments({ ...query, isRead: false, isCleared: { $ne: true } });
   }
 
   /**
    * Fetch paginated notifications for current user/role
    */
-  static async getNotifications({ userId, role, hospitalId, limit = 20 }) {
-    const query = {};
-    if (role === 'SUPER_ADMIN') {
-      query.$or = [{ recipientRole: 'SUPER_ADMIN' }, { recipientRole: 'ALL' }];
-    } else if (hospitalId) {
-      query.$or = [
-        { recipientUserId: userId },
-        { hospitalId, recipientRole: role },
-        { hospitalId, recipientRole: 'ALL' },
-      ];
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    } else {
-      query.recipientUserId = userId;
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    }
+  static async getNotifications({ limit = 20, ...context }) {
+    const query = { ...(await recipientQuery(context)), isCleared: { $ne: true } };
 
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
@@ -85,9 +99,9 @@ export class NotificationService {
   /**
    * Mark a single notification as read
    */
-  static async markAsRead(notificationId) {
-    return await Notification.findByIdAndUpdate(
-      notificationId,
+  static async markAsRead(notificationId, context) {
+    return Notification.findOneAndUpdate(
+      { _id: notificationId, ...(await recipientQuery(context)), isCleared: { $ne: true } },
       { isRead: true, readAt: new Date() },
       { new: true }
     );
@@ -96,24 +110,25 @@ export class NotificationService {
   /**
    * Mark all unread notifications as read for current user context
    */
-  static async markAllAsRead({ userId, role, hospitalId }) {
-    const query = { isRead: false };
-    if (role === 'SUPER_ADMIN') {
-      query.$or = [{ recipientRole: 'SUPER_ADMIN' }, { recipientRole: 'ALL' }];
-    } else if (hospitalId) {
-      query.$or = [
-        { recipientUserId: userId },
-        { hospitalId, recipientRole: role },
-        { hospitalId, recipientRole: 'ALL' },
-      ];
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    } else {
-      query.recipientUserId = userId;
-      query.recipientRole = { $ne: 'SUPER_ADMIN' };
-    }
-
+  static async markAllAsRead(context) {
+    const query = { ...(await recipientQuery(context)), isRead: false, isCleared: { $ne: true } };
     await Notification.updateMany(query, { isRead: true, readAt: new Date() });
     return { success: true };
   }
-}
 
+  static async clear(notificationId, context) {
+    return Notification.findOneAndUpdate(
+      { _id: notificationId, ...(await recipientQuery(context)), isCleared: { $ne: true } },
+      { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
+      { new: true }
+    );
+  }
+
+  static async clearAll(context) {
+    await Notification.updateMany(
+      { ...(await recipientQuery(context)), isCleared: { $ne: true } },
+      { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() }
+    );
+    return { success: true };
+  }
+}

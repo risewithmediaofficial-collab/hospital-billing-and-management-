@@ -8,8 +8,8 @@ router.use(verifyJwt);
 // Get notifications & unread badge count
 router.get('/', async (req, res, next) => {
   try {
-    const { id: userId, role, hospitalId } = req.user;
-    const result = await NotificationService.getNotifications({ userId, role, hospitalId });
+    const { id: userId, role, hospitalId, branchId } = req.user;
+    const result = await NotificationService.getNotifications({ userId, role, hospitalId, branchId });
     res.json(result);
   } catch (err) {
     next(err);
@@ -19,8 +19,8 @@ router.get('/', async (req, res, next) => {
 // Get unread badge count only
 router.get('/unread-count', async (req, res, next) => {
   try {
-    const { id: userId, role, hospitalId } = req.user;
-    const count = await NotificationService.getUnreadCount({ userId, role, hospitalId });
+    const { id: userId, role, hospitalId, branchId } = req.user;
+    const count = await NotificationService.getUnreadCount({ userId, role, hospitalId, branchId });
     res.json({ unreadCount: count });
   } catch (err) {
     next(err);
@@ -30,11 +30,26 @@ router.get('/unread-count', async (req, res, next) => {
 // Mark single notification as read
 router.patch('/:id/read', async (req, res, next) => {
   try {
-    const notification = await NotificationService.markAsRead(req.params.id);
+    const notification = await NotificationService.markAsRead(req.params.id, req.user);
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
     res.json(notification);
   } catch (err) {
     next(err);
   }
+});
+
+router.delete('/clear-all', async (req, res, next) => {
+  try {
+    res.json(await NotificationService.clearAll(req.user));
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const notification = await NotificationService.clear(req.params.id, req.user);
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
+    res.json(notification);
+  } catch (err) { next(err); }
 });
 
 // Mark all as read

@@ -250,9 +250,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       });
 
       const currentPath = location.pathname + (location.search || '');
-      if (!['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED'].includes(data.event) && linkedPath && (currentPath === linkedPath || (!linkedPath.includes('?') && location.pathname === linkedPath))) {
-        useDepartmentNotificationStore.getState().markAsRead(notificationId);
-      }
+      // Viewing a route never resolves pending work; status transitions do.
     };
 
     const handleDoctorQueueNotification = (data) => {

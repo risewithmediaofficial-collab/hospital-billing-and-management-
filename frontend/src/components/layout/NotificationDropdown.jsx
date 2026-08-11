@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useNotificationStore } from '../../store/notificationStore';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,7 +8,7 @@ import {
 
 export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { notifications, unreadCount, removeNotification, clearAllNotifications } = useDepartmentNotificationStore();
+  const { notifications, unreadCount, markAsRead, clearNotification, clearAllNotifications } = useNotificationStore();
   const { user } = useAuthStore();
   const dropdownRef = useRef(null);
 
@@ -55,7 +55,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleNotificationClick = (notif) => {
+  const handleNotificationClick = async (notif) => {
+    await markAsRead(notif.id);
     onClose();
     const isGuardianView = window.location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
     if (isGuardianView) {
@@ -116,10 +117,10 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Pending work summary & Clear All */}
+      {/* Bell history controls. Pending-work badges are managed independently. */}
       <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
         <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
-          Pending work ({notifications.length})
+          Notifications ({notifications.length})
         </span>
         {notifications.length > 0 && (
           <button
@@ -177,7 +178,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeNotification(notif.id);
+                    clearNotification(notif.id);
                   }}
                   className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                   title="Dismiss notification"
@@ -193,10 +194,10 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
           <div className="p-8 text-center text-slate-400 space-y-2">
             <Inbox size={28} className="mx-auto text-slate-300" />
             <p className="font-bold text-xs text-slate-600">
-              No Pending Work
+              No Notifications
             </p>
             <p className="text-[10px]">
-              All assigned work has been processed.
+              You have no new activity notifications.
             </p>
           </div>
         )}

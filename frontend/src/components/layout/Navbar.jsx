@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useNotificationStore } from '../../store/notificationStore';
+import { useSocket } from '../../providers/SocketProvider';
 import { ROLE_NAMES } from '../../utils/constants';
 import { LogOut, Bell, Building2, User, Menu } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -11,9 +12,18 @@ export const Navbar = ({ onToggleSidebar }) => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
-  const { notifications } = useDepartmentNotificationStore();
-  const notificationCount = notifications.filter((notification) => !notification.isRead || notification.isPending).length;
+  const { socket } = useSocket();
+  const { unreadCount: notificationCount, fetchNotifications } = useNotificationStore();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id && !user?._id) return;
+    fetchNotifications();
+    if (!socket) return;
+    const refresh = () => fetchNotifications();
+    socket.on('workflow:notification', refresh);
+    return () => socket.off('workflow:notification', refresh);
+  }, [user?.id, user?._id, socket, fetchNotifications]);
 
   const hasNotificationsPermission = (() => {
     if (!user) return false;

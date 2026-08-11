@@ -47,12 +47,12 @@ export class WorkflowService {
     if (activeRole === 'DOCTOR') {
       const [appointments, reports, doctorRequests, subRequests] = await Promise.all([
         Appointment.find({ ...scope, doctorId: user.id, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
-        DiagnosticOrder.find({ ...scope, doctorId: user.id, status: { $in: ['ACCEPTED', 'IN_PROGRESS', 'REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
+        DiagnosticOrder.find({ ...scope, doctorId: user.id, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
         PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, $or: [{ assignedDoctorId: user.id }, { assignedDoctorId: null }] }).populate('patientId').lean(),
         PharmacySubstitutionRequest.find({ ...scope, doctorId: user.id, status: 'PENDING' }).populate('patientId').lean(),
       ]);
       appointments.forEach((item) => tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard?tab=LIVE', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-      reports.forEach((item) => tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', ['ACCEPTED', 'IN_PROGRESS'].includes(item.status) ? `Department accepted: ${item.testName}` : `Review response: ${item.testName}`, { targetModule: 'doctor' })));
+      reports.forEach((item) => tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Review response: ${item.testName}`, { targetModule: 'doctor' })));
       doctorRequests.forEach((item) => tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard', `Patient request: ${item.requestType}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       subRequests.forEach((item) => tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Substitution approval: ${item.originalMedicineName}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
@@ -65,12 +65,8 @@ export class WorkflowService {
       records.forEach((item) => tasks.push(task('RADIOLOGY_WORK', item, '/radiology/dashboard', `Radiology pending: ${item.testName}`, { targetModule: 'radiology' })));
     }
     else if (['PHARMACIST', 'PHARMACY_STAFF'].includes(activeRole)) {
-      const [prescriptions, respondedSubs] = await Promise.all([
-        Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean(),
-        PharmacySubstitutionRequest.find({ ...scope, pharmacistId: user.id, status: { $in: ['APPROVED', 'REJECTED'] } }).populate('patientId').lean(),
-      ]);
+      const prescriptions = await Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean();
       prescriptions.forEach((item) => tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dispense-queue', `Dispense prescription: ${item.prescriptionNo}`, { targetModule: 'pharmacy', status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-      respondedSubs.forEach((item) => tasks.push(task('SUBSTITUTION_RESPONSE', item, '/pharmacy/dispense-queue', `Doctor ${item.status.toLowerCase()} substitution: ${item.originalMedicineName}`, { targetModule: 'pharmacy', status: item.status, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
     else if (['CASHIER', 'BILLING_STAFF'].includes(activeRole)) {
       const records = await Invoice.find({ ...scope, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }).populate('patientId').lean();
@@ -107,42 +103,4 @@ export class WorkflowService {
     return { total: uniqueTasks.length, byPath, tasks: uniqueTasks };
   }
 
-  static async dismissTask(taskId, user) {
-    if (!taskId) return { success: false };
-    const [type, resourceId] = taskId.split(':');
-    if (!type || !resourceId) return { success: false };
-
-    if (['SUBSTITUTION_RESPONSE', 'SUBSTITUTION_REQUEST'].includes(type)) {
-      await PharmacySubstitutionRequest.updateOne(
-        { _id: resourceId },
-        { acknowledgedByPharmacist: true }
-      );
-    } else if (type === 'DEPARTMENT_RESPONSE') {
-      await DiagnosticOrder.updateOne(
-        { _id: resourceId },
-        { reviewedAt: new Date() }
-      );
-    }
-
-    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
-      resourceId,
-      taskId,
-    });
-    return { success: true };
-  }
-
-  static async dismissAllTasks(user) {
-    await PharmacySubstitutionRequest.updateMany(
-      { hospitalId: user.hospitalId, pharmacistId: user.id },
-      { acknowledgedByPharmacist: true }
-    );
-    await DiagnosticOrder.updateMany(
-      { hospitalId: user.hospitalId, doctorId: user.id, reviewedAt: null },
-      { reviewedAt: new Date() }
-    );
-    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
-      cleared: true,
-    });
-    return { success: true };
-  }
 }

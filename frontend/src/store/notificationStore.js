@@ -1,145 +1,73 @@
 import { create } from 'zustand';
 import { axiosClient } from '../api/axiosClient';
 
-const getSavedReadIds = () => {
-  try {
-    const saved = localStorage.getItem('hpmbs_read_notifs');
-    return saved ? JSON.parse(saved) : [];
-  } catch (e) {
-    return [];
-  }
-};
+const normalize = (notification) => ({
+  ...notification,
+  id: notification._id || notification.id,
+  linkedPath: notification.targetRoute || notification.link || '',
+  timestamp: notification.createdAt ? new Date(notification.createdAt) : new Date(),
+  patientName: notification.metadata?.patientName || 'Patient',
+  uhid: notification.metadata?.uhid || 'N/A',
+});
 
-const saveReadIdToStorage = (id) => {
-  try {
-    const readIds = getSavedReadIds();
-    const strId = String(id);
-    if (!readIds.includes(strId)) {
-      const updated = [...readIds, strId];
-      localStorage.setItem('hpmbs_read_notifs', JSON.stringify(updated));
-    }
-  } catch (e) {}
-};
-
+/** Persisted bell notifications. This store never contains or mutates pending work. */
 export const useNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
+  isLoading: false,
 
-  // Add a new notification with strict deduplication
-  addNotification: (data) => {
-    const { notifications } = get();
-    const notifId = data.id || `${data.orderId || ''}_${data.status || ''}_${data.testName || ''}`;
-    const readIds = getSavedReadIds();
-    const isAlreadyRead = readIds.includes(String(data.orderId)) || readIds.includes(String(notifId));
-
-    // Check if notification already exists
-    const exists = notifications.some(
-      (n) => n.id === notifId || (data.orderId && n.orderId === data.orderId && n.status === data.status)
-    );
-
-    if (exists) return; // Do not allow duplicate notification to increment count
-
-    const newNotif = {
-      id: notifId,
-      orderId: data.orderId,
-      patientId: data.patientId,
-      patientName: data.patientName || 'Patient',
-      uhid: data.uhid || 'N/A',
-      testName: data.testName || 'Diagnostic Test',
-      status: data.status || 'COMPLETED',
-      title: data.title || `Report Ready: ${data.testName || 'Investigation'}`,
-      message: data.message || `Diagnostic scan/report completed for ${data.patientName || 'patient'} (${data.uhid || ''}).`,
-      reportSummary: data.reportSummary || '',
-      timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
-      isRead: isAlreadyRead,
-      category: data.category || 'INVESTIGATION',
-    };
-
-    const updated = [newNotif, ...notifications];
-    const newUnread = updated.filter((n) => !n.isRead).length;
-
-    set({
-      notifications: updated,
-      unreadCount: newUnread,
-    });
-  },
-
-  // Mark a single notification as read (reduces count by 1, moves to read history)
-  markAsRead: (id) => {
-    const { notifications } = get();
-    saveReadIdToStorage(id);
-    let countChanged = false;
-
-    const updated = notifications.map((n) => {
-      if ((n.id === id || n.orderId === id || String(n.orderId) === String(id)) && !n.isRead) {
-        countChanged = true;
-        return { ...n, isRead: true };
-      }
-      return n;
-    });
-
-    if (countChanged) {
-      const newUnread = updated.filter((n) => !n.isRead).length;
-      set({
-        notifications: updated,
-        unreadCount: newUnread,
-      });
-    }
-  },
-
-  // Mark all notifications as read
-  markAllAsRead: () => {
-    const { notifications } = get();
-    notifications.forEach((n) => {
-      if (n.orderId) saveReadIdToStorage(n.orderId);
-      if (n.id) saveReadIdToStorage(n.id);
-    });
-    const updated = notifications.map((n) => ({ ...n, isRead: true }));
-    set({
-      notifications: updated,
-      unreadCount: 0,
-    });
-  },
-
-  // Fetch initial completed reports for doctor from server
-  fetchInitialNotifications: async () => {
+  fetchNotifications: async () => {
+    if (get().isLoading) return;
+    set({ isLoading: true });
     try {
-      const res = await axiosClient.get('/diagnostics/orders');
-      const orders = res.data || [];
-      const completedOrders = orders.filter((o) => o.status === 'REPORT_UPLOADED' || o.status === 'COMPLETED');
-
-      const existingNotifs = get().notifications;
-      const readIds = getSavedReadIds();
-
-      const fetchedNotifs = completedOrders.map((ord) => {
-        const notifId = `ord_${ord._id}_${ord.status}`;
-        const existing = existingNotifs.find((n) => n.id === notifId || n.orderId === ord._id);
-        const isRead = existing ? existing.isRead : (readIds.includes(String(ord._id)) || readIds.includes(notifId));
-
-        return {
-          id: notifId,
-          orderId: ord._id,
-          patientId: ord.patientId?._id || ord.patientId,
-          patientName: ord.patientName || (ord.patientId ? `${ord.patientId.firstName || ''} ${ord.patientId.lastName || ''}`.trim() : 'Patient'),
-          uhid: ord.uhid || ord.patientId?.uhid || 'N/A',
-          testName: ord.testName || 'Diagnostic Scan',
-          status: ord.status,
-          title: `Report Ready: ${ord.testName}`,
-          message: ord.reportSummary || `Diagnostic scan findings uploaded by ${ord.technicianName || 'Specialist'}.`,
-          reportSummary: ord.reportSummary || '',
-          timestamp: ord.updatedAt ? new Date(ord.updatedAt) : new Date(),
-          isRead,
-          category: ord.testCategory || 'INVESTIGATION',
-        };
-      });
-
-      const unread = fetchedNotifs.filter((n) => !n.isRead).length;
+      const result = await axiosClient.get('/notifications');
       set({
-        notifications: fetchedNotifs,
-        unreadCount: unread,
+        notifications: (result.notifications || []).map(normalize),
+        unreadCount: Number(result.unreadCount) || 0,
       });
-    } catch (err) {
-      console.error('Failed to load initial notifications:', err);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      set({ notifications: [], unreadCount: 0 });
+    } finally {
+      set({ isLoading: false });
     }
+  },
+
+  fetchInitialNotifications: async () => get().fetchNotifications(),
+  addNotification: () => get().fetchNotifications(),
+
+  markAsRead: async (id) => {
+    const item = get().notifications.find((n) => n.id === id);
+    if (!item || item.isRead) return;
+    set((state) => ({
+      notifications: state.notifications.map((n) => n.id === id ? { ...n, isRead: true } : n),
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    }));
+    try { await axiosClient.patch(`/notifications/${encodeURIComponent(id)}/read`); }
+    catch (error) { await get().fetchNotifications(); }
+  },
+
+  markAllAsRead: async () => {
+    set((state) => ({ notifications: state.notifications.map((n) => ({ ...n, isRead: true })), unreadCount: 0 }));
+    try { await axiosClient.post('/notifications/read-all'); }
+    catch (error) { await get().fetchNotifications(); }
+  },
+
+  clearNotification: async (id) => {
+    set((state) => {
+      const removed = state.notifications.find((n) => n.id === id);
+      return {
+        notifications: state.notifications.filter((n) => n.id !== id),
+        unreadCount: Math.max(0, state.unreadCount - (removed && !removed.isRead ? 1 : 0)),
+      };
+    });
+    try { await axiosClient.delete(`/notifications/${encodeURIComponent(id)}`); }
+    catch (error) { await get().fetchNotifications(); }
+  },
+
+  clearAllNotifications: async () => {
+    set({ notifications: [], unreadCount: 0 });
+    try { await axiosClient.delete('/notifications/clear-all'); }
+    catch (error) { await get().fetchNotifications(); }
   },
 }));
