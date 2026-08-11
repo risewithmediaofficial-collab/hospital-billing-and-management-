@@ -207,7 +207,8 @@ export class RequestsService {
    * Get active requests for Nurse/Caretaker live queue.
    */
   static async getActiveRequests(user, categoryFilter = null) {
-    const filter = { branchId: user.branchId };
+    const filter = { hospitalId: user.hospitalId };
+    if (user.branchId) filter.branchId = user.branchId;
     if (categoryFilter) {
       filter.requestCategory = categoryFilter;
     }
