@@ -28,8 +28,8 @@ export const AvailabilityBanner = ({
   if (isAvailable) {
     // Subtle online indicator
     return (
-      <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" />
@@ -46,7 +46,7 @@ export const AvailabilityBanner = ({
         <Button
           size="xs"
           variant="outline"
-          className="text-[11px] font-bold text-rose-600 border-rose-200 hover:bg-rose-50 gap-1.5"
+          className="text-[11px] font-bold text-rose-600 border-rose-200 hover:bg-rose-50 gap-1.5 shrink-0 sm:ml-6"
           isLoading={isToggling}
           onClick={onToggle}
         >

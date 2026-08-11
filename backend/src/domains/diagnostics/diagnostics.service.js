@@ -117,6 +117,7 @@ export class DiagnosticsService {
     // Broadcast Socket.IO event to Department and Doctor
     socketManager.emitToBranch(branchId, 'investigation:new_request', {
       orderId: newOrder._id,
+      senderUserId: user.id || user._id,
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
       patientAge,

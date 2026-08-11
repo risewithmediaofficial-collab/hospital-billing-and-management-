@@ -45,7 +45,8 @@ export class NotificationService {
 
       // Role/department alerts are materialized per current recipient so read and
       // clear state belongs to one user and can never hide another user's bell.
-      const userQuery = { status: 'ACTIVE', isActive: { $ne: false } };
+      const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
+      if (['NEW_DATA', 'WORKFLOW'].includes(data.notificationType || data.type)) userQuery.isAvailable = { $ne: false };
       if (data.hospitalId) userQuery.hospitalId = data.hospitalId;
       if (data.branchId) userQuery.$or = [{ branchId: data.branchId }, { branchId: null }];
       if (data.recipientDepartment) {

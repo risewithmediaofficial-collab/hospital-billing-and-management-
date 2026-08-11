@@ -3,8 +3,9 @@ import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useSocket } from '../../providers/SocketProvider';
+import { useAvailability } from '../../hooks/useAvailability';
 import { ROLE_NAMES } from '../../utils/constants';
-import { LogOut, Bell, Building2, User, Menu } from 'lucide-react';
+import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 
@@ -14,7 +15,9 @@ export const Navbar = ({ onToggleSidebar }) => {
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
   const { socket } = useSocket();
   const { unreadCount: notificationCount, fetchNotifications } = useNotificationStore();
+  const { isAvailable, isToggling, handleToggle } = useAvailability();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const canSetAvailability = user && !['PATIENT', 'GUARDIAN', 'SUPER_ADMIN', 'HOSPITAL_ADMIN'].includes(user.role);
 
   useEffect(() => {
     if (!user?.id && !user?._id) return;
@@ -65,6 +68,18 @@ export const Navbar = ({ onToggleSidebar }) => {
 
       {/* Right: Notifications + User Info + Logout */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {canSetAvailability && (
+          <button
+            type="button"
+            onClick={handleToggle}
+            disabled={isToggling}
+            className={`flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg border text-[11px] font-bold transition-colors disabled:opacity-60 ${isAvailable ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'}`}
+            title={isAvailable ? 'Available — click to go offline' : 'Unavailable — click to go online'}
+          >
+            {isAvailable ? <Wifi size={14} /> : <WifiOff size={14} />}
+            <span className="hidden sm:inline">{isToggling ? 'Updating…' : (isAvailable ? 'Available' : 'Unavailable')}</span>
+          </button>
+        )}
         {/* Notification Bell */}
         {hasNotificationsPermission && (
           <div className="relative">

@@ -11,6 +11,7 @@
  */
 import { socketManager } from './socketManager.js';
 import { Branch } from '../models/Branch.js';
+import { User } from '../models/User.js';
 
 // ─── Canonical workflow event names ──────────────────────────────────────────
 export const WORKFLOW_EVENTS = {
@@ -189,6 +190,13 @@ export class WorkflowEventService {
     const templateFn = MESSAGE_TEMPLATES[event];
     const notifData = templateFn ? templateFn(payload) : { title: event, message: '', type: 'SYSTEM_ALERT' };
     const { title, message, type } = notifData;
+    const unavailableRoles = [];
+    const effectiveBranchId = branchId || payload.branchId || null;
+    let effectiveHospitalId = payload.hospitalId || null;
+    if (!effectiveHospitalId && effectiveBranchId) {
+      const branch = await Branch.findById(effectiveBranchId).select('hospitalId').lean();
+      effectiveHospitalId = branch?.hospitalId || null;
+    }
 
     const envelope = {
       event,
@@ -206,17 +214,43 @@ export class WorkflowEventService {
       socketManager.emitEmergency(event, envelope);
       if (branchId) socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
     } else {
-      roles.forEach((role) => {
+      for (const role of roles) {
         const targetedEnvelope = { ...envelope, targetRole: role };
         const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
         if (targetUserId) {
-          socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
-          socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
+          const target = await User.findOne({ _id: targetUserId, isAvailable: { $ne: false }, isActive: { $ne: false } }).select('_id').lean();
+          if (target) {
+            socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+            socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
+          } else {
+            unavailableRoles.push(role);
+            if (payload.senderUserId) socketManager.emitToUser(String(payload.senderUserId), 'workflow:queue_warning', {
+              event, targetRole: role, title: 'Work queued — assigned staff unavailable',
+              message: 'The assigned staff member is unavailable. The work remains queued until they return.',
+            });
+          }
         } else {
-          socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
-          socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
+          const availableUsers = await User.find({
+            ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
+            ...(effectiveBranchId ? { $or: [{ branchId: effectiveBranchId }, { branchId: null }] } : {}),
+            $and: [{ $or: [{ role }, { additionalRoles: role }] }],
+            isAvailable: { $ne: false },
+            isActive: { $ne: false },
+            status: { $ne: 'INACTIVE' },
+          }).select('_id').lean();
+          for (const availableUser of availableUsers) {
+            socketManager.emitToUser(String(availableUser._id), `workflow:${event.toLowerCase()}`, targetedEnvelope);
+            socketManager.emitToUser(String(availableUser._id), 'workflow:notification', targetedEnvelope);
+          }
+          if (availableUsers.length === 0 && payload.senderUserId) {
+            unavailableRoles.push(role);
+            socketManager.emitToUser(String(payload.senderUserId), 'workflow:queue_warning', {
+              event, targetRole: role, title: 'Work queued — no staff available',
+              message: `No available ${role.replaceAll('_', ' ').toLowerCase()} is online. The work remains queued and will be shown when staff becomes available.`,
+            });
+          }
         }
-      });
+      }
 
       if (branchId) {
         socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
@@ -227,12 +261,6 @@ export class WorkflowEventService {
     // ── Persist to DB (non-blocking) ─────────────────────────────────────────
     try {
       const { NotificationService } = await import('../domains/notifications/notification.service.js');
-      const effectiveBranchId = branchId || payload.branchId || null;
-      let effectiveHospitalId = payload.hospitalId || null;
-      if (!effectiveHospitalId && effectiveBranchId) {
-        const branch = await Branch.findById(effectiveBranchId).select('hospitalId').lean();
-        effectiveHospitalId = branch?.hospitalId || null;
-      }
 
       if (roles.includes('ALL')) {
         // Emergency — one broadcast notification for all
@@ -266,6 +294,21 @@ export class WorkflowEventService {
             relatedPatientId: payload.patientId || null,
             relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
             metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
+          });
+        }
+        if (payload.senderUserId && unavailableRoles.length > 0) {
+          await NotificationService.createNotification({
+            recipientUserId: payload.senderUserId,
+            hospitalId: effectiveHospitalId,
+            branchId: effectiveBranchId,
+            title: 'Work queued — staff unavailable',
+            message: `No available ${unavailableRoles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' or ')} is online. The request remains safely queued and will be surfaced when staff becomes available.`,
+            notificationType: 'SYSTEM_ALERT',
+            targetModule: payload.targetModule || '',
+            targetRoute: payload.linkedPath || '',
+            relatedPatientId: payload.patientId || null,
+            relatedTaskId: payload.orderId || payload.prescriptionId || payload.appointmentId || '',
+            metadata: { event, queued: true, unavailableRoles },
           });
         }
       }

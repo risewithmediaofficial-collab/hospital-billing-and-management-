@@ -114,6 +114,7 @@ export class AppointmentsService {
       doctorName: doctor.name,
       tokenNumber,
       patientName: `${patient.firstName} ${patient.lastName}`,
+      senderUserId: user?.id || user?._id,
       uhid: patient.uhid,
       linkedPath: '/doctor/dashboard?tab=LIVE',
       timestamp: new Date(),
@@ -199,6 +200,7 @@ export class AppointmentsService {
     if (status === 'IN_CONSULTATION') {
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
         patientName: pName,
+        senderUserId: user?.id || user?._id,
         uhid,
         doctorName: docName,
         linkedPath: '/reception/registered-patients?tab=QUEUED',
@@ -206,6 +208,7 @@ export class AppointmentsService {
     } else if (status === 'COMPLETED') {
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
         patientName: pName,
+        senderUserId: user?.id || user?._id,
         uhid,
         doctorName: docName,
         linkedPath: '/billing/dashboard',

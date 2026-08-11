@@ -113,6 +113,7 @@ export class GuardianPortalService {
     const patientSummary = await PatientPortalService.getDashboard({
       id: user.id,
       role: 'PATIENT',
+      patientId: patient._id,
       hospitalId: user.hospitalId || patient.hospitalId,
       email: patient.email,
       phone: patient.phone,

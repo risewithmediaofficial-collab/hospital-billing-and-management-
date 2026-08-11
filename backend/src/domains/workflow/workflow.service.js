@@ -9,6 +9,7 @@ import { GuardianLink } from '../../models/GuardianLink.js';
 import { Hospital } from '../../models/Hospital.js';
 import { User } from '../../models/User.js';
 import { PharmacySubstitutionRequest } from '../../models/PharmacySubstitutionRequest.js';
+import { NurseTask } from '../../models/NurseTask.js';
 
 export const RADIOLOGY_CATEGORIES = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'];
 export const LAB_CATEGORIES = ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'];
@@ -75,14 +76,16 @@ export class WorkflowService {
     else if (['NURSE', 'NURSE_INCHARGE'].includes(activeRole)) {
       const filter = { ...scope, requestCategory: 'NURSE', status: { $in: ACTIVE_REQUEST_STATUSES } };
       if (activeRole === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
-      const [records, admissions, emergencies] = await Promise.all([
+      const [records, admissions, emergencies, nurseTasks] = await Promise.all([
         PatientRequest.find(filter).populate('patientId').lean(),
         activeRole === 'NURSE_INCHARGE' ? Admission.find({ ...scope, status: 'ADMISSION_REQUESTED' }).lean() : Promise.resolve([]),
         Emergency.find({ ...scope, status: { $in: ['ACTIVE', 'RESPONDED'] } }).lean(),
+        NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] }, ...(activeRole === 'NURSE' ? { $or: [{ assignedNurseId: user.id }, { assignedNurseId: null }] } : {}) }).lean(),
       ]);
       records.forEach((item) => tasks.push(task('NURSING_WORK', item, '/nursing/requests', `Nursing request: ${item.requestType}`, { targetModule: 'nursing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       admissions.forEach((item) => tasks.push(task('IPD_WORK', item, '/nurse-incharge/dashboard?tab=REQUISITIONS', `Admission pending: ${item.patientName}`, { targetModule: 'ipd' })));
       emergencies.forEach((item) => tasks.push(task('EMERGENCY_WORK', item, '/emergency', `Emergency: ${item.emergencyType}`, { targetModule: 'emergency' })));
+      nurseTasks.forEach((item) => tasks.push(task('NURSE_TREATMENT', item, '/nursing/dashboard', `Treatment: ${item.medicineName}`, { targetModule: 'nursing' })));
     }
     else if (['RECEPTIONIST', 'OPD_STAFF'].includes(activeRole)) {
       const records = await Appointment.find({ ...scope, status: 'BOOKED' }).populate('patientId').lean();

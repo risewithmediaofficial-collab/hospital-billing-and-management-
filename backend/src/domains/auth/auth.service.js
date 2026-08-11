@@ -697,10 +697,9 @@ export class AuthService {
 
     const requesterId = requestingUser?.id || requestingUser?._id;
     const isOwner = String(staffDoc._id) === String(requesterId);
-    const isDoctorRole = requestingUser?.role === 'DOCTOR';
     const isAdmin = ['HOSPITAL_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST'].includes(requestingUser?.role);
-    if (!isOwner && !isAdmin && !isDoctorRole) {
-      throw new ApiError(403, 'You are not authorised to change this doctor\'s settings', null, 'FORBIDDEN');
+    if (!isOwner && !isAdmin) {
+      throw new ApiError(403, 'You are not authorised to change this staff member\'s availability', null, 'FORBIDDEN');
     }
 
     if (isAvailable !== undefined && isAvailable !== null) {

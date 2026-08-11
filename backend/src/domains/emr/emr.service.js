@@ -93,6 +93,7 @@ export class EmrService {
       const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
         prescriptionId: prescription._id,
+        senderUserId: user.id || user._id,
         patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
         uhid: patient?.uhid || 'N/A',
         doctorName: user.name || 'Doctor',

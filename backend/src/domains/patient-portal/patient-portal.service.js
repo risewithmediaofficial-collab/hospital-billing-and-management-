@@ -4,6 +4,13 @@ import { Admission } from '../../models/Admission.js';
 import { MedicalRecordShare } from '../../models/MedicalRecordShare.js';
 import { ApiError } from '../../utils/apiError.js';
 
+const staffFields = 'name role specialization phone avatarUrl cabinNo assignedUnit shiftDetails shiftPattern designation';
+const careTeamFromAdmission = (admission) => ({
+  doctor: admission?.doctorId || null,
+  nurse: admission?.assignedNurseId || admission?.dutyNurseId || null,
+  caretaker: admission?.assignedCaretakerId || null,
+});
+
 export class PatientPortalService {
 
   /**
@@ -63,16 +70,24 @@ export class PatientPortalService {
     if (!activeMembership) return null;
 
     const admission = await Admission.findById(activeMembership.activeAdmissionId)
-      .populate('doctorId', 'name specialization phone avatarUrl cabinNo')
-      .populate('assignedNurseId', 'name role phone')
-      .populate('assignedCaretakerId', 'name role phone')
+      .populate('doctorId', staffFields)
+      .populate('assignedNurseId', staffFields)
+      .populate('dutyNurseId', staffFields)
+      .populate('assignedCaretakerId', staffFields)
       .lean();
 
     const { CareTeamAssignment } = await import('../../models/CareTeamAssignment.js');
-    const careTeam = await CareTeamAssignment.find({
+    const assignments = await CareTeamAssignment.find({
       admissionId: activeMembership.activeAdmissionId,
       removedAt: null,
-    }).populate('userId', 'name role specialization phone').lean();
+    }).populate('userId', staffFields).lean();
+
+    const liveTeam = careTeamFromAdmission(admission);
+    const careTeam = assignments.length > 0 ? assignments : [
+      liveTeam.doctor && { role: 'PRIMARY_DOCTOR', userId: liveTeam.doctor },
+      liveTeam.nurse && { role: 'NURSE', userId: liveTeam.nurse },
+      liveTeam.caretaker && { role: 'CARETAKER', userId: liveTeam.caretaker },
+    ].filter(Boolean);
 
     return {
       hospitalId: activeMembership.hospitalId,
@@ -191,6 +206,9 @@ export class PatientPortalService {
     if (!user) return null;
     const { Patient } = await import('../../models/Patient.js');
     let patient = null;
+    if (user.patientId) {
+      patient = await Patient.findById(user.patientId).populate('hospitalId').populate('branchId');
+    }
     if (user.uhid) {
       patient = await Patient.findOne({ uhid: user.uhid }).populate('hospitalId').populate('branchId');
     }
@@ -229,11 +247,17 @@ export class PatientPortalService {
     const activeAdmission = await Admission.findOne({
       patientId: patient._id,
       status: { $in: ['ADMITTED', 'ADMISSION_REQUESTED'] }
-    }).populate('doctorId', 'name specialization phone cabinNo').lean();
+    })
+      .populate('doctorId', staffFields)
+      .populate('assignedNurseId', staffFields)
+      .populate('dutyNurseId', staffFields)
+      .populate('assignedCaretakerId', staffFields)
+      .lean();
 
     return {
       patient,
       activeAdmission: activeAdmission || null,
+      careTeam: careTeamFromAdmission(activeAdmission),
       opdToken: null,
       pendingDiagnostics: { labCount: 0, radiologyCount: 0 },
       outstandingBalance: 0,

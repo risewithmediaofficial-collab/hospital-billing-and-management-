@@ -243,12 +243,12 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
 
       {/* ── Active Admission Banner ── */}
       {hasActiveAdmission && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.06))', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 16, padding: '14px 20px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #fff1f2, #fff7ed)', border: '1px solid #fda4af', borderRadius: 16, padding: '14px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 22 }}>🏥</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>Currently Admitted – IPD</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
                 Ward: {activeContext.admission?.targetWardName || '—'} &nbsp;·&nbsp; Bed: {activeContext.admission?.bedNumber || '—'} &nbsp;·&nbsp;
                 Status: <strong style={{ color: '#fbbf24' }}>{activeContext.admission?.status}</strong>
               </div>
@@ -256,7 +256,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
             {activeContext.careTeam?.length > 0 && (
               <div style={{ display: 'flex', gap: 6 }}>
                 {activeContext.careTeam.slice(0, 3).map((c, i) => (
-                  <span key={i} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+                  <span key={i} style={{ background: '#ffffff', border: '1px solid #fecdd3', borderRadius: 20, padding: '4px 12px', fontSize: 11, color: '#475569', fontWeight: 600 }}>
                     {c.role.replace('_', ' ')} · {c.userId?.name || c.userName}
                   </span>
                 ))}

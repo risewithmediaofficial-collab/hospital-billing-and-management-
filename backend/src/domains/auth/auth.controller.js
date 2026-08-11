@@ -149,9 +149,32 @@ export const updateDoctorAvailability = async (req, res, next) => {
     }
     if (socketManager.io) {
       socketManager.io.emit('doctor:availability_changed', result);
+      socketManager.io.emit('staff:availability_changed', result);
     }
 
-    return sendSuccess(res, 200, `Doctor availability / cabin settings updated successfully`, result);
+    if (result.isAvailable) {
+      const [{ WorkflowService }, { NotificationService }] = await Promise.all([
+        import('../workflow/workflow.service.js'),
+        import('../notifications/notification.service.js'),
+      ]);
+      const queued = await WorkflowService.getPendingWork({ ...result, id: result.id });
+      if (queued.total > 0) {
+        await NotificationService.createNotification({
+          hospitalId: result.hospitalId,
+          branchId: result.branchId,
+          recipientUserId: result.id,
+          title: 'Queued work is ready',
+          message: `${queued.total} pending work item${queued.total === 1 ? '' : 's'} are waiting for you now that you are available.`,
+          notificationType: 'WORKFLOW',
+          targetModule: result.role.toLowerCase(),
+          targetRoute: queued.tasks[0]?.targetRoute || '',
+          relatedTaskId: queued.tasks[0]?.id || '',
+        });
+        socketManager.emitToUser(String(result.id), 'workflow:notification', { type: 'QUEUED_WORK_READY', count: queued.total });
+      }
+    }
+
+    return sendSuccess(res, 200, `Staff availability updated successfully`, result);
   } catch (error) {
     next(error);
   }
@@ -202,5 +225,4 @@ export const resetPassword = async (req, res, next) => {
     return sendSuccess(res, 200, result.message, result);
   } catch (error) { next(error); }
 };
-
 

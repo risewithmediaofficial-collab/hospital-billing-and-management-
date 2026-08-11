@@ -5,10 +5,15 @@ import { PharmacyStockAdjustment } from '../../models/PharmacyStockAdjustment.js
 import { PharmacyService } from './pharmacy.service.js';
 import { ApiError } from '../../utils/apiError.js';
 import { socketManager } from '../../events/socketManager.js';
+import { Admission } from '../../models/Admission.js';
+import { NotificationService } from '../notifications/notification.service.js';
 
 export class NurseTasksService {
   static async createTasksFromPrescription(prescription, user) {
     const createdTasks = [];
+    const admission = await Admission.findOne({ patientId: prescription.patientId, status: 'ADMITTED' })
+      .select('assignedNurseId dutyNurseId').lean();
+    const assignedNurseId = admission?.assignedNurseId || admission?.dutyNurseId || null;
 
     for (const item of prescription.medicines || []) {
       if (item.treatmentType === 'NURSE_ADMINISTERED') {
@@ -22,6 +27,7 @@ export class NurseTasksService {
           branchId: prescription.branchId,
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
+          assignedNurseId,
           prescriptionId: prescription._id,
           consultationId: prescription.consultationId,
           taskType:
@@ -48,10 +54,31 @@ export class NurseTasksService {
     }
 
     if (createdTasks.length > 0) {
-      socketManager.emitToBranch(prescription.branchId || prescription.hospitalId, 'workflow:notification', {
+      const envelope = {
         type: 'NEW_NURSE_TASKS',
         count: createdTasks.length,
+        patientId: prescription.patientId,
+        linkedPath: '/nursing/dashboard',
+      };
+      if (assignedNurseId) socketManager.emitToUser(String(assignedNurseId), 'workflow:notification', envelope);
+      else {
+        socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
+        socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
+      }
+      await NotificationService.createNotification({
+        hospitalId: prescription.hospitalId,
+        branchId: prescription.branchId,
+        recipientUserId: assignedNurseId,
+        recipientRole: assignedNurseId ? null : 'NURSE',
+        title: 'New nurse treatment task',
+        message: `${createdTasks.length} nurse-administered treatment task${createdTasks.length === 1 ? '' : 's'} received from the consulting doctor.`,
+        notificationType: 'NEW_DATA',
+        targetModule: 'nursing',
+        targetRoute: '/nursing/dashboard',
+        relatedPatientId: prescription.patientId,
+        relatedTaskId: String(createdTasks[0]._id),
       });
+      socketManager.emitToBranch(prescription.branchId || prescription.hospitalId, 'workflow:pending_changed', envelope);
     }
 
     return createdTasks;
@@ -59,6 +86,8 @@ export class NurseTasksService {
 
   static async getNurseTasks(user, query = {}) {
     const filter = { hospitalId: user.hospitalId };
+    if (user.branchId) filter.branchId = user.branchId;
+    if (user.role === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
     if (query.patientId) filter.patientId = query.patientId;
     if (query.status) filter.status = query.status;
 
