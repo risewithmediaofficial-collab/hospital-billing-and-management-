@@ -11,6 +11,7 @@
     "seed": "node scripts/seed.js",
     "seed:superadmin": "node scripts/seed-superadmin.js",
     "migrate:encrypt-patient-data": "node scripts/migrate-encrypt-patient-data.js",
+    "cleanup-seed": "node scripts/cleanup-seeded-data.js",
     "unseed": "node scripts/unseed.js"
   },
   "dependencies": {

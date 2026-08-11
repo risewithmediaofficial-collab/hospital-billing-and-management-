@@ -620,19 +620,27 @@ export class SaasService {
     if (!hospital) {
       throw new ApiError(404, 'Hospital tenant record not found');
     }
-    hospital.status = 'DELETED';
-    hospital.isDeleted = true;
-    hospital.isActive = false;
-    await hospital.save();
+    if (hospital.code === 'PLATFORM' || hospital.domain === 'platform') {
+      throw new ApiError(400, 'The master platform owner hospital cannot be deleted.');
+    }
 
-    await User.updateMany({ hospitalId: hospital._id }, { isActive: false });
-    return hospital;
+    const updated = await Hospital.findByIdAndUpdate(
+      hospitalId,
+      { $set: { status: 'DELETED', isDeleted: true, isActive: false } },
+      { new: true }
+    );
+
+    await User.updateMany({ hospitalId: hospital._id }, { $set: { isActive: false } });
+    return updated;
   }
 
   static async permanentlyDeleteHospital(hospitalId) {
     const hospital = await Hospital.findById(hospitalId);
     if (!hospital) {
       throw new ApiError(404, 'Hospital tenant record not found');
+    }
+    if (hospital.code === 'PLATFORM' || hospital.domain === 'platform') {
+      throw new ApiError(400, 'The master platform owner hospital cannot be deleted.');
     }
 
     await Hospital.findByIdAndDelete(hospitalId);
@@ -679,13 +687,14 @@ export class SaasService {
     if (!hospital) {
       throw new ApiError(404, 'Hospital tenant record not found');
     }
-    hospital.status = 'APPROVED';
-    hospital.isDeleted = false;
-    hospital.isActive = true;
-    await hospital.save();
+    const updated = await Hospital.findByIdAndUpdate(
+      hospitalId,
+      { $set: { status: 'APPROVED', isDeleted: false, isActive: true } },
+      { new: true }
+    );
 
-    await User.updateMany({ hospitalId: hospital._id }, { isActive: true });
-    return hospital;
+    await User.updateMany({ hospitalId: hospital._id }, { $set: { isActive: true } });
+    return updated;
   }
 
   static async approveHospital(hospitalId, user) {
