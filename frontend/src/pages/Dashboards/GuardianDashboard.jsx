@@ -338,7 +338,6 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
               color="amber"
             />
           </div>
-          </div>
 
           {/* Doctor Progress Notes Feed */}
           <Card>
