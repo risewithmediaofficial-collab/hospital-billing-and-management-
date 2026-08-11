@@ -164,9 +164,18 @@ export const PharmacistDashboard = () => {
 
   const handleRequestSubstitution = async (e) => {
     e.preventDefault();
+    if (!subForm.prescriptionId) {
+      alert('Please open substitution request from a specific pending prescription.');
+      return;
+    }
+    if (!subForm.suggestedMedicineId || subForm.suggestedMedicineId.startsWith('rec_')) {
+      alert('Please select an available medicine from your inventory first.');
+      return;
+    }
     try {
       await axiosClient.post('/pharmacy/substitutions/request', subForm);
       setShowSubReqModal(false);
+      setSubForm({ prescriptionId: '', originalMedicineName: '', suggestedMedicineId: '', reason: 'Brand out of stock, offering bioequivalent generic' });
       alert('Substitution request sent to Doctor for approval!');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to send substitution request');
@@ -182,7 +191,7 @@ export const PharmacistDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Availability / Online Toggle Banner */}
+      {/* Availability / Online Toggle Banner — single instance */}
       <AvailabilityBanner
         role="Pharmacist"
         isAvailable={isAvailable}
@@ -208,14 +217,6 @@ export const PharmacistDashboard = () => {
           </Button>
         </div>
       </div>
-
-      <AvailabilityBanner
-        role="Pharmacist"
-        isAvailable={isAvailable}
-        isToggling={isToggling}
-        onToggle={handleToggle}
-        pendingCount={pending.length}
-      />
 
       {statusMessage && (
         <div className={`p-3 rounded-xl border text-xs font-bold ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
