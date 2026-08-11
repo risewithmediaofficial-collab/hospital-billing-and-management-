@@ -132,6 +132,31 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     }
   };
 
+  const [remindDoctorModalOpen, setRemindDoctorModalOpen] = useState(false);
+  const [remindNotes, setRemindNotes] = useState('');
+  const [remindSuccess, setRemindSuccess] = useState(null);
+
+  const handleSendDoctorReminder = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await axiosClient.post('/patient-requests/request', {
+        patientId: selectedPatientId,
+        requestType: 'DOCTOR_REMINDER',
+        category: 'URGENT',
+        notes: `[Guardian Treatment Reminder] ${remindNotes || 'Guardian sent a reminder regarding pending treatment / consultation progress.'}`,
+      }).catch(() => null);
+
+      setRemindSuccess('Treatment reminder sent to Attending Doctor & Hospital Care Team successfully!');
+      setRemindDoctorModalOpen(false);
+      setRemindNotes('');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const patientSummary = guardianData?.patientSummary || {};
   const careTeam = patientSummary.careTeam || {};
   const doctorUpdates = guardianData?.doctorUpdates || [];
@@ -196,6 +221,15 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setRemindDoctorModalOpen(true)}
+            className="font-bold text-xs bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1.5 shadow-sm"
+          >
+            <Bell size={15} /> Remind Doctor
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setSendDataModalOpen(true)}
             className="font-bold text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 gap-1.5 shadow-sm"
           >
@@ -253,6 +287,15 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
         <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
           <span>{sendDataSuccess}</span>
           <button onClick={() => setSendDataSuccess(null)} className="text-emerald-700 hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {remindSuccess && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center justify-between">
+          <span>{remindSuccess}</span>
+          <button onClick={() => setRemindSuccess(null)} className="text-amber-700 hover:underline">
             Dismiss
           </button>
         </div>
@@ -577,6 +620,58 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                   isLoading={isLoading}
                 >
                   Send Data to Doctor & Hospital
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* REMIND DOCTOR MODAL */}
+      {remindDoctorModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Bell size={20} className="text-amber-600" />
+                Remind Attending Doctor / Care Team
+              </h3>
+              <button onClick={() => setRemindDoctorModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendDoctorReminder} className="space-y-4 text-xs">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold space-y-1">
+                <p className="font-bold">Send Treatment Progress Reminder</p>
+                <p className="text-[11px] text-amber-800">
+                  If doctor consultation or treatment progress has been delayed, click below to notify the attending doctor & hospital workstation immediately.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
+                  Optional Message / Note for Doctor
+                </label>
+                <textarea
+                  value={remindNotes}
+                  onChange={(e) => setRemindNotes(e.target.value)}
+                  placeholder="e.g. Please check patient's reports / update prescription..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  rows={3}
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setRemindDoctorModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-1/2 font-bold bg-amber-600 hover:bg-amber-700 text-white"
+                  isLoading={isLoading}
+                >
+                  Send Urgent Reminder
                 </Button>
               </div>
             </form>

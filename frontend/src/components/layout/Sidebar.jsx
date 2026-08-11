@@ -143,8 +143,12 @@ export const Sidebar = ({ isOpen, onClose }) => {
     ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
   ].filter(Boolean);
 
+  const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
+
   let menuItems = [];
-  if (user?.role === 'HOSPITAL_ADMIN') {
+  if (isGuardianView) {
+    menuItems = ROLE_NAVIGATION.GUARDIAN || [];
+  } else if (user?.role === 'HOSPITAL_ADMIN') {
     const adminNavs = ROLE_NAVIGATION.HOSPITAL_ADMIN || [];
     menuItems = adminNavs.filter((item) => {
       if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
@@ -420,7 +424,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               Active User Role
             </p>
             <p className="font-bold text-indigo-700 mt-0.5 truncate text-sm">
-              {primaryRoleName}
+              {isGuardianView ? 'Guardian Portal' : primaryRoleName}
             </p>
             {additionalRoleNames && (
               <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">
