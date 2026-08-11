@@ -7,6 +7,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { AllocateBedModal } from '../../components/modals/AllocateBedModal';
 import { formatCurrency } from '../../utils/formatters';
 import { useSocket } from '../../providers/SocketProvider';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import {
   BedDouble,
   CheckCircle2,
@@ -47,6 +48,7 @@ export const NurseInchargeDashboard = () => {
   }, [location.search]);
 
   const { socket } = useSocket();
+  const setNavCount = useDepartmentNotificationStore((state) => state.setNavCount);
 
   useEffect(() => {
     fetchData();
@@ -78,7 +80,9 @@ export const NurseInchargeDashboard = () => {
       ]);
       setAdmissions(Array.isArray(admRes) ? admRes : (admRes.data || []));
       setBeds(Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []));
-      setPatientRequests(Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []));
+      const requests = Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []);
+      setPatientRequests(requests);
+      setNavCount('/nurse-incharge/dashboard?tab=REQUESTS', requests.length);
       setNurseTasks(Array.isArray(tasksRes) ? tasksRes : (tasksRes.data || []));
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);

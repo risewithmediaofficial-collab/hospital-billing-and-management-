@@ -6,8 +6,9 @@ const pathMatches = (taskPath, navPath) => {
   const [taskPathname, taskSearch] = taskPath.split('?');
   const [navPathname, navSearch] = navPath.split('?');
   if (taskPathname !== navPathname) return false;
-  if (navSearch) return taskSearch === navSearch;
-  return true;
+  // A dashboard link without a tab must not aggregate badges belonging to
+  // each of its tab-specific navigation items.
+  return taskSearch === navSearch;
 };
 
 /**
@@ -18,6 +19,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
   byPath: {},
+  navCountOverrides: {},
   isLoading: false,
 
   fetchPendingWork: async () => {
@@ -51,5 +53,16 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   markAllAsRead: () => get().fetchPendingWork(),
   markAsReadForNav: () => {},
 
-  getUnreadCountForNav: (navPath) => get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length,
+  setNavCount: (navPath, count) => set((state) => ({
+    navCountOverrides: {
+      ...state.navCountOverrides,
+      [navPath]: Math.max(0, Number(count) || 0),
+    },
+  })),
+
+  getUnreadCountForNav: (navPath) => {
+    const override = get().navCountOverrides[navPath];
+    if (override !== undefined) return override;
+    return get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length;
+  },
 }));
