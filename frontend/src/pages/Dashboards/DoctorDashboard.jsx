@@ -47,6 +47,7 @@ export const DoctorDashboard = () => {
   const [departmentOrders, setDepartmentOrders] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
   const [selectedDeptOrder, setSelectedDeptOrder] = useState(null);
+  const [substitutionRequests, setSubstitutionRequests] = useState([]);
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
 
   const [patientInvestigations, setPatientInvestigations] = useState([]);
@@ -80,6 +81,7 @@ export const DoctorDashboard = () => {
   useEffect(() => {
     fetchOpdQueue();
     fetchDepartmentOrders();
+    fetchSubstitutionRequests();
   }, []);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
@@ -130,8 +132,14 @@ export const DoctorDashboard = () => {
     socket.on('investigation:status_updated', handleInvestigationUpdate);
     socket.on('diagnostics:report_ready', handleInvestigationUpdate);
     socket.on('doctor:availability_changed', handleDoctorAvailability);
+    socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); });
+    socket.on('queue:update', fetchOpdQueue);
+    socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); });
 
     return () => {
+      socket.off('workflow:notification');
+      socket.off('queue:update', fetchOpdQueue);
+      socket.off('department:order_update');
       socket.off('opd_queue:updated', handleQueueUpdate);
       socket.off('opd_queue:status_changed', handleQueueUpdate);
       socket.off('queue:patient_added', handleQueueUpdate);
@@ -180,6 +188,28 @@ export const DoctorDashboard = () => {
       }
     } catch (err) {
       console.error('Failed to load doctor OPD queue:', err);
+    }
+  };
+
+  const fetchSubstitutionRequests = async () => {
+    try {
+      const res = await axiosClient.get('/pharmacy/substitutions/pending');
+      setSubstitutionRequests(res.data || []);
+    } catch (err) {
+      // Not a critical error — may 403 if not a doctor role
+    }
+  };
+
+  const handleSubstitutionResponse = async (id, action) => {
+    try {
+      // Backend expects { status: 'APPROVED'|'REJECTED', doctorNotes? }
+      await axiosClient.patch(`/pharmacy/substitutions/${id}/respond`, {
+        status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        doctorNotes: action === 'APPROVE' ? 'Approved by Doctor' : 'Rejected by Doctor',
+      });
+      fetchSubstitutionRequests();
+    } catch (err) {
+      console.error('Failed to respond to substitution:', err);
     }
   };
 
@@ -940,6 +970,52 @@ export const DoctorDashboard = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </Card>
+      )}
+
+      {/* PHARMACY SUBSTITUTION REQUESTS (shown inside DEPT_RESPONSES) */}
+      {activeTab === 'DEPT_RESPONSES' && substitutionRequests.filter(r => r.status === 'PENDING').length > 0 && (
+        <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
+          <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
+            <Pill size={18} className="text-amber-600" />
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({substitutionRequests.filter(r => r.status === 'PENDING').length})</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine. Review and respond.</p>
+            </div>
+          </div>
+          <div className="divide-y divide-amber-50 text-xs">
+            {substitutionRequests.filter(r => r.status === 'PENDING').map((req) => (
+              <div key={req._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <p className="font-bold text-slate-900 text-sm">
+                    {req.patientId?.firstName} {req.patientId?.lastName}
+                    <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
+                    {' '}&rarr;{' '}
+                    <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
+                  </p>
+                  <p className="text-slate-500">Reason: {req.reason}</p>
+                  <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={13} /> Approve
+                  </button>
+                  <button
+                    onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
+                    className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5"
+                  >
+                    <X size={13} /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       )}

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -7,7 +8,7 @@ import { useAvailability } from '../../hooks/useAvailability';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
-  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X
+  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
@@ -25,18 +26,37 @@ const RECOMMENDED_MEDICINES = [
   { name: 'Amlodipine 5mg', genericName: 'Amlodipine', category: 'Antihypertensive', dosageForm: 'TABLET', strength: '5 mg', purchasePrice: 4, sellingPrice: 10 },
 ];
 
+// Map URL paths to tab keys
+const PATH_TO_TAB = {
+  '/pharmacy/dispense-queue': 'queue',
+  '/pharmacy/dashboard': 'queue',
+  '/pharmacy/stock': 'inventory',
+  '/pharmacy/expiry-alerts': 'alerts',
+};
+const TAB_TO_PATH = {
+  queue: '/pharmacy/dispense-queue',
+  inventory: '/pharmacy/stock',
+  alerts: '/pharmacy/expiry-alerts',
+  audit: '/pharmacy/stock', // audit is a sub-section of stock page
+};
+
 export const PharmacistDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const refreshPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
 
-  const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'inventory', 'batches', 'transfers', 'alerts', 'audit'
+  // Drive the active tab from the URL path
+  const activeTab = PATH_TO_TAB[location.pathname] || 'queue';
+  const setActiveTab = useCallback((tab) => navigate(TAB_TO_PATH[tab] || '/pharmacy/dispense-queue'), [navigate]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [alerts, setAlerts] = useState({ lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
   const [stockAdjustments, setStockAdjustments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Modals
   const [showAddMedModal, setShowAddMedModal] = useState(false);
@@ -73,6 +93,7 @@ export const PharmacistDashboard = () => {
   });
 
   const fetchData = async () => {
+    setIsLoading(true);
     try {
       const [rxRes, medRes, alertRes, auditRes] = await Promise.all([
         axiosClient.get('/pharmacy/prescriptions'),
@@ -86,6 +107,8 @@ export const PharmacistDashboard = () => {
       setStockAdjustments(auditRes.data || []);
     } catch (error) {
       console.error('Failed to load pharmacy data:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -190,8 +213,28 @@ export const PharmacistDashboard = () => {
   );
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Availability / Online Toggle Banner — single instance */}
+    <div className="space-y-5 animate-fade-in">
+
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Pharmacy & Medicine Inventory</h2>
+          <p className="text-xs text-slate-500 mt-1">{user?.name || 'Pharmacist'} — Multi-Location FEFO Inventory & Dispensing System</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" size="sm" onClick={() => setShowAddMedModal(true)}>
+            <Plus size={16} className="mr-1" /> Add Medicine SKU
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setShowAddBatchModal(true)}>
+            <Boxes size={16} className="mr-1" /> Add Stock Batch
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowTransferModal(true)}>
+            <ArrowRightLeft size={16} className="mr-1" /> Stock Transfer
+          </Button>
+        </div>
+      </div>
+
+      {/* Availability / Online Toggle Banner */}
       <AvailabilityBanner
         role="Pharmacist"
         isAvailable={isAvailable}
@@ -200,24 +243,6 @@ export const PharmacistDashboard = () => {
         pendingCount={pending.length}
       />
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Pharmacy & Medicine Inventory Workstation</h2>
-          <p className="text-xs text-slate-500 mt-1">{user?.name || 'Pharmacist'} — Multi-Location FEFO Inventory & Dispensing System</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={() => setShowAddMedModal(true)}>
-            <Plus size={16} className="mr-1" /> Add New Medicine SKU
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowAddBatchModal(true)}>
-            <Boxes size={16} className="mr-1" /> Add Stock Batch
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowTransferModal(true)}>
-            <ArrowRightLeft size={16} className="mr-1" /> Internal Transfer
-          </Button>
-        </div>
-      </div>
-
       {statusMessage && (
         <div className={`p-3 rounded-xl border text-xs font-bold ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
           {statusMessage.text}
@@ -225,53 +250,81 @@ export const PharmacistDashboard = () => {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Prescriptions Pending" value={`${pending.length} Orders`} subtitle="FEFO Auto E-Prescription Queue" icon={Pill} color="sky" />
-        <StatCard title="Today's Dispensed Items" value={`${dispensed.length} Orders`} subtitle="Auto Invoice Billing Sync" icon={CheckCircle2} color="emerald" />
+        <StatCard title="Today Dispensed" value={`${dispensed.length} Orders`} subtitle="Auto Invoice Billing Sync" icon={CheckCircle2} color="emerald" />
         <StatCard title="Near-Expiry / Expired" value={`${alerts.nearExpiry.length + alerts.expired.length} Batches`} subtitle="Requires Immediate Action" icon={AlertTriangle} color="amber" />
         <StatCard title="Total Medicine SKUs" value={`${medicines.length} SKUs`} subtitle={`${alerts.outOfStock.length} Out of Stock`} icon={Boxes} color="purple" />
       </div>
 
-      {/* Tabs Header */}
-      <div className="flex border-b border-slate-200 gap-4 overflow-x-auto text-sm font-semibold text-slate-600">
+      {/* URL-driven Tab Navigation — each button changes the URL path */}
+      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto text-sm font-semibold text-slate-600">
         <button
           onClick={() => setActiveTab('queue')}
-          className={`pb-3 px-1 border-b-2 whitespace-nowrap transition-colors ${activeTab === 'queue' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'}`}
+          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'queue' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
+          }`}
         >
-          E-Prescription Dispense Queue ({pending.length})
+          📋 Prescription Queue
+          {pending.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black">
+              {pending.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('inventory')}
-          className={`pb-3 px-1 border-b-2 whitespace-nowrap transition-colors ${activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'}`}
+          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'inventory' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
+          }`}
         >
-          Medicine SKUs ({medicines.length})
+          💊 Inventory ({medicines.length})
         </button>
         <button
           onClick={() => setActiveTab('alerts')}
-          className={`pb-3 px-1 border-b-2 whitespace-nowrap transition-colors ${activeTab === 'alerts' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'}`}
+          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'alerts' ? 'border-amber-600 text-amber-700' : 'border-transparent hover:text-slate-900'
+          }`}
         >
-          Low Stock & Expiry Alerts ({alerts.lowStock.length + alerts.nearExpiry.length + alerts.expired.length})
+          ⚠️ Low Stock & Expiry
+          {(alerts.lowStock.length + alerts.nearExpiry.length + alerts.expired.length) > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+              {alerts.lowStock.length + alerts.nearExpiry.length + alerts.expired.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('audit')}
-          className={`pb-3 px-1 border-b-2 whitespace-nowrap transition-colors ${activeTab === 'audit' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'}`}
+          className={`pb-3 px-3 border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'audit' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-900'
+          }`}
         >
-          Stock Movements & Audit ({stockAdjustments.length})
+          📊 Stock Audit ({stockAdjustments.length})
         </button>
       </div>
 
       {/* TAB 1: E-Prescription Queue */}
       {activeTab === 'queue' && (
         <Card>
-          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center justify-between">
-            <span className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Pill size={18} className="text-indigo-500" />
-              Pending E-Prescription FEFO Dispense Queue
-            </span>
-            <span className="text-xs text-slate-500 font-mono">FEFO Earliest Expiry Allocation Active</span>
-          </h3>
+              Pending Prescriptions
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-mono">FEFO Auto-Allocation</span>
+              <button onClick={fetchData} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors" title="Refresh">
+                <RefreshCw size={14} />
+              </button>
+            </div>
+          </div>
 
-          {pending.length > 0 ? (
+          {isLoading ? (
+            <div className="p-12 text-center">
+              <div className="inline-block w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
+              <p className="text-xs text-slate-500">Loading prescriptions...</p>
+            </div>
+          ) : pending.length > 0 ? (
             <div className="divide-y divide-slate-100">
               {pending.map((rx) => (
                 <div key={rx._id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
@@ -326,7 +379,14 @@ export const PharmacistDashboard = () => {
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center text-slate-500 text-sm">No pending e-prescriptions in queue.</div>
+            <div className="p-10 text-center space-y-3">
+              <CheckCircle2 size={36} className="mx-auto text-emerald-400" />
+              <p className="text-slate-600 font-semibold text-sm">No pending prescriptions in queue</p>
+              <p className="text-xs text-slate-400">All e-prescriptions are dispensed or this queue is empty. Doctor-issued prescriptions will appear here automatically.</p>
+              <button onClick={fetchData} className="mt-2 text-xs text-indigo-600 hover:underline flex items-center gap-1 mx-auto">
+                <RefreshCw size={12} /> Refresh Queue
+              </button>
+            </div>
           )}
         </Card>
       )}
@@ -664,7 +724,7 @@ export const PharmacistDashboard = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-slate-900">Request Doctor Approval for Medicine Substitution</h3>
+              <h3 className="text-base font-extrabold text-slate-900">Request Medicine Substitution</h3>
               <button
                 type="button"
                 onClick={() => setShowSubReqModal(false)}
@@ -675,6 +735,16 @@ export const PharmacistDashboard = () => {
               </button>
             </div>
 
+            {/* Info box: Where does this go? */}
+            <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <Info size={15} className="text-blue-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-800">
+                <strong>Where does this go?</strong> — The assigned Doctor will receive an instant notification in their{' '}
+                <strong>"Department Responses"</strong> tab. They will review and approve or reject the substitution.
+                You'll be notified once they respond via the notification bell.
+              </p>
+            </div>
+
             <form onSubmit={handleRequestSubstitution} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700">Original Prescribed Medicine</label>
@@ -683,13 +753,14 @@ export const PharmacistDashboard = () => {
               <div>
                 <label className="font-bold text-slate-700">Suggested Available Alternative *</label>
                 <select required value={subForm.suggestedMedicineId} onChange={(e) => setSubForm({ ...subForm, suggestedMedicineId: e.target.value })} className="w-full p-2 border rounded mt-1">
+                  <option value="">-- Select from your inventory --</option>
                   {medicines.map((m) => (
                     <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — ₹{m.sellingPrice}</option>
                   ))}
-                  {medicines.length === 0 && RECOMMENDED_MEDICINES.map((r, i) => (
-                    <option key={i} value={`rec_${i}`}>{r.name} ({r.genericName}) — ₹{r.sellingPrice}</option>
-                  ))}
                 </select>
+                {medicines.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">⚠️ No medicines in inventory yet. Add medicines first before requesting substitution.</p>
+                )}
               </div>
               <div>
                 <label className="font-bold text-slate-700">Reason for Substitution *</label>
@@ -697,7 +768,7 @@ export const PharmacistDashboard = () => {
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <Button type="button" variant="ghost" onClick={() => setShowSubReqModal(false)}>Cancel</Button>
-                <Button type="submit" variant="primary">Send to Doctor</Button>
+                <Button type="submit" variant="primary" disabled={!subForm.suggestedMedicineId || subForm.suggestedMedicineId.startsWith('rec_')}>Send to Doctor</Button>
               </div>
             </form>
           </div>
