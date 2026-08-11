@@ -256,7 +256,6 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             Dismiss
           </button>
         </div>
-      )}>
       )}
 
       {/* TAB 1: OVERVIEW DASHBOARD */}
