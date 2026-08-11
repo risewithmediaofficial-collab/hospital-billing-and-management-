@@ -3,12 +3,12 @@ import { useDepartmentNotificationStore } from '../../store/departmentNotificati
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, Clock, FileCheck2, ChevronRight, Inbox
+  Bell, Clock, FileCheck2, ChevronRight, Inbox, X, Trash2
 } from 'lucide-react';
 
 export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { notifications, unreadCount } = useDepartmentNotificationStore();
+  const { notifications, unreadCount, removeNotification, clearAllNotifications } = useDepartmentNotificationStore();
   const { user } = useAuthStore();
   const dropdownRef = useRef(null);
 
@@ -116,12 +116,23 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Pending work summary */}
+      {/* Pending work summary & Clear All */}
       <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
         <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
           Pending work ({notifications.length})
         </span>
-        <span className="text-[10px] text-slate-500 font-medium">Clears only when work is processed</span>
+        {notifications.length > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              clearAllNotifications();
+            }}
+            className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-200 transition-colors"
+            title="Clear all notifications"
+          >
+            <Trash2 size={12} /> Clear All
+          </button>
+        )}
       </div>
 
       {/* Notification List */}
@@ -131,17 +142,17 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
             <div
               key={notif.id}
               onClick={() => handleNotificationClick(notif)}
-              className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 flex items-start justify-between gap-3 text-xs ${
+              className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 flex items-start justify-between gap-2 text-xs ${
                 !notif.isRead ? 'bg-indigo-50/30' : 'bg-white'
               }`}
             >
-              <div className="flex items-start gap-2.5 min-w-0">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
                 <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                   !notif.isRead ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                 }`}>
                   <FileCheck2 size={16} />
                 </div>
-                <div className="min-w-0 space-y-0.5">
+                <div className="min-w-0 space-y-0.5 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold text-slate-900 text-xs truncate">{notif.title}</span>
                     {!notif.isRead && (
@@ -161,7 +172,21 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              <ChevronRight size={14} className="text-slate-400 shrink-0 self-center" />
+              <div className="flex items-center gap-1 shrink-0 self-center">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeNotification(notif.id);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Dismiss notification"
+                  aria-label="Dismiss notification"
+                >
+                  <X size={15} />
+                </button>
+                <ChevronRight size={14} className="text-slate-300" />
+              </div>
             </div>
           ))
         ) : (

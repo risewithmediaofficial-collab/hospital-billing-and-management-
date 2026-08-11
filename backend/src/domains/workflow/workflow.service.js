@@ -106,4 +106,43 @@ export class WorkflowService {
     const byPath = uniqueTasks.reduce((counts, item) => ({ ...counts, [item.linkedPath]: (counts[item.linkedPath] || 0) + 1 }), {});
     return { total: uniqueTasks.length, byPath, tasks: uniqueTasks };
   }
+
+  static async dismissTask(taskId, user) {
+    if (!taskId) return { success: false };
+    const [type, resourceId] = taskId.split(':');
+    if (!type || !resourceId) return { success: false };
+
+    if (['SUBSTITUTION_RESPONSE', 'SUBSTITUTION_REQUEST'].includes(type)) {
+      await PharmacySubstitutionRequest.updateOne(
+        { _id: resourceId },
+        { acknowledgedByPharmacist: true }
+      );
+    } else if (type === 'DEPARTMENT_RESPONSE') {
+      await DiagnosticOrder.updateOne(
+        { _id: resourceId },
+        { reviewedAt: new Date() }
+      );
+    }
+
+    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
+      resourceId,
+      taskId,
+    });
+    return { success: true };
+  }
+
+  static async dismissAllTasks(user) {
+    await PharmacySubstitutionRequest.updateMany(
+      { hospitalId: user.hospitalId, pharmacistId: user.id },
+      { acknowledgedByPharmacist: true }
+    );
+    await DiagnosticOrder.updateMany(
+      { hospitalId: user.hospitalId, doctorId: user.id, reviewedAt: null },
+      { reviewedAt: new Date() }
+    );
+    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
+      cleared: true,
+    });
+    return { success: true };
+  }
 }

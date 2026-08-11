@@ -46,9 +46,32 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   addNotification: () => get().fetchPendingWork(),
   resolvePending: () => get().fetchPendingWork(),
 
-  // Viewing is intentionally not a workflow transition.
-  markAsRead: () => {},
-  markAllAsRead: () => {},
+  removeNotification: async (id) => {
+    const current = get().notifications;
+    const updated = current.filter((n) => n.id !== id);
+    const byPath = updated.reduce((counts, item) => ({ ...counts, [item.linkedPath]: (counts[item.linkedPath] || 0) + 1 }), {});
+    set({ notifications: updated, unreadCount: updated.length, byPath });
+
+    try {
+      if (id) {
+        await axiosClient.patch(`/workflow/dismiss/${encodeURIComponent(id)}`);
+      }
+    } catch (err) {
+      console.error('Failed to dismiss task on backend:', err);
+    }
+  },
+
+  clearAllNotifications: async () => {
+    set({ notifications: [], unreadCount: 0, byPath: {} });
+    try {
+      await axiosClient.patch('/workflow/dismiss-all');
+    } catch (err) {
+      console.error('Failed to clear all tasks on backend:', err);
+    }
+  },
+
+  markAsRead: (id) => get().removeNotification(id),
+  markAllAsRead: () => get().clearAllNotifications(),
   markAsReadForNav: () => {},
 
   getUnreadCountForNav: (navPath) => get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length,
