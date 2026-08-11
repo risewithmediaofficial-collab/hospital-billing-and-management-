@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+﻿import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User } from '../../models/User.js';
 import { Role } from '../../models/Role.js';
@@ -406,7 +406,7 @@ export class AuthService {
           isActive: true,
         });
       } catch (createErr) {
-        // Handle race condition or duplicate — retry lookup
+        // Handle race condition or duplicate â€” retry lookup
         if (createErr.code === 11000) {
           user = await User.findOne({ email: guardianEmail }).populate('hospitalId').populate('branchId');
           if (!user) {
@@ -524,7 +524,7 @@ export class AuthService {
     const adminId = adminUser?.id || adminUser?._id;
     let adminDoc = null;
 
-    // Try by ID first (most reliable — from JWT)
+    // Try by ID first (most reliable â€” from JWT)
     if (adminId) {
       try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
     }
@@ -568,50 +568,11 @@ export class AuthService {
       assignedPassword: staffDoc.assignedPasswordHint || 'Password not recorded',
     };
   }
-
-  static async updateStaffPassword(staffId, data, adminUser) {
-    const { newPassword, adminPassword } = data;
-    const adminId = adminUser?.id || adminUser?._id;
-    let adminDoc = null;
-
-    // Try by ID first (most reliable — from JWT)
-    if (adminId) {
-      try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
-    }
-    // Fallback: by email
-    if (!adminDoc && adminUser?.email) {
-      adminDoc = await User.findOne({ email: adminUser.email.toLowerCase().trim() });
-    }
-    // Fallback: by hospitalId + admin role
-    if (!adminDoc && adminUser?.hospitalId) {
-      const hId = typeof adminUser.hospitalId === 'object' ? adminUser.hospitalId._id : adminUser.hospitalId;
-      adminDoc = await User.findOne({ hospitalId: hId, role: { $in: ['HOSPITAL_ADMIN', 'SUPER_ADMIN'] } });
-    }
-      passwordHash,
-      assignedPasswordHint: data.password,
-      role: data.role || 'DOCTOR',
-      additionalRoles: Array.isArray(data.additionalRoles) ? data.additionalRoles : [],
-      departmentId: data.departmentId || undefined,
-      additionalDepartments: Array.isArray(data.additionalDepartments) ? data.additionalDepartments : [],
-      employeeId: data.employeeId || '',
-      designation: data.designation || '',
-      assignedUnit: data.assignedUnit || '',
-      shiftDetails: data.shiftDetails || '',
-      permissions: data.permissions || {},
-      revokedPermissions: data.revokedPermissions || {},
-      specialization: data.specialization || '',
-      status,
-      isActive,
-    });
-
-    return newUser;
-  }
-
   static async getStaffPassword(staffId, adminPassword, adminUser) {
     const adminId = adminUser?.id || adminUser?._id;
     let adminDoc = null;
 
-    // Try by ID first (most reliable — from JWT)
+    // Try by ID first (most reliable â€” from JWT)
     if (adminId) {
       try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
     }
