@@ -4,7 +4,8 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
 import { useAvailability } from '../../hooks/useAvailability';
-import { HeartPulse, Bed, Bell, AlertOctagon, CheckCircle2, Syringe, Activity, ArrowUpRight } from 'lucide-react';
+import { useScrollLock } from '../../hooks/useScrollLock';
+import { HeartPulse, Bed, Bell, AlertOctagon, CheckCircle2, Syringe, Activity, ArrowUpRight, X } from 'lucide-react';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
@@ -19,6 +20,8 @@ export const NurseDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [selectedTask, setSelectedTask] = useState(null);
+
+  useScrollLock(!!selectedTask);
 
   // Administer Modal State
   const [adminForm, setAdminForm] = useState({
@@ -185,7 +188,17 @@ export const NurseDashboard = () => {
       {selectedTask && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Record Nurse Administration</h3>
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-lg font-bold text-slate-900">Record Nurse Administration</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedTask(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
             <div className="text-xs space-y-1 bg-slate-50 p-3 rounded border">
               <p className="font-bold text-indigo-700">{selectedTask.medicineName} ({selectedTask.dose})</p>
