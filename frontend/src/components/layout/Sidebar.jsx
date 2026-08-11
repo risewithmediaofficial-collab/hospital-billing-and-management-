@@ -454,11 +454,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
             const isEmergencyItem = item.path === '/emergency';
             const isReceiptsHistory = item.path.includes('tab=RECEIPTS') || item.path.includes('/billing/receipts');
 
+            const handleNavClick = (e) => {
+              if (isGuardianView && (isEmergencyItem || label === 'Emergency Assistance')) {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('open-emergency-modal'));
+              }
+              handleLinkClick();
+            };
+
             return (
               <Link
                 key={item.path}
                 to={formatTenantPath(item.path)}
-                onClick={handleLinkClick}
+                onClick={handleNavClick}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
                   active

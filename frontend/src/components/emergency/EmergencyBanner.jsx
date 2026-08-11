@@ -24,13 +24,19 @@ export const EmergencyBanner = () => {
 
   const activeEmergencies = emergencies.filter((e) => e.status === 'ACTIVE');
 
+  React.useEffect(() => {
+    const handleOpenModal = () => setIsRaiseModalOpen(true);
+    window.addEventListener('open-emergency-modal', handleOpenModal);
+    return () => window.removeEventListener('open-emergency-modal', handleOpenModal);
+  }, []);
+
   const handleRaiseSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       const res = await axiosClient.post('/emergency/raise', {
         ...formData,
-        raisedByDept: user?.role || 'HOSPITAL_STAFF',
+        raisedByDept: user?.role || 'GUARDIAN_PORTAL',
       });
       addEmergency(res.data);
       setIsRaiseModalOpen(false);
@@ -84,13 +90,13 @@ export const EmergencyBanner = () => {
         </div>
       )}
 
-      {/* Floating Trigger Emergency Button for Staff */}
+      {/* Floating Trigger Emergency Button for Staff & Guardian */}
       <div className="fixed bottom-4 right-4 z-40">
         <button
           onClick={() => setIsRaiseModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-red-600 text-white font-extrabold text-xs shadow-xl hover:bg-red-700 transition-all cursor-pointer border border-red-500 hover:scale-105 active:scale-95"
+          className="flex items-center gap-2 px-4 py-3 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-2xl transition-all cursor-pointer border-2 border-white hover:scale-105 active:scale-95"
         >
-          <BellRing size={16} className="animate-bounce" />
+          <BellRing size={18} className="animate-bounce" />
           <span>RAISE EMERGENCY</span>
         </button>
       </div>
@@ -98,19 +104,24 @@ export const EmergencyBanner = () => {
       {/* Raise Emergency Modal */}
       {isRaiseModalOpen && (
         <div className="modal-overlay animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setIsRaiseModalOpen(false); }}>
-          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header bg-red-600 text-white">
+          <div className="modal-container max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-red-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 bg-red-600 text-white flex items-center justify-between border-b border-red-700">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-700 text-white">
-                  <AlertTriangle size={20} />
+                <div className="p-2 rounded-xl bg-red-700 text-white flex-shrink-0 shadow-inner">
+                  <AlertTriangle size={22} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Broadcast Emergency Alert</h3>
-                  <p className="text-xs text-red-100">Instantly notify all doctors, nurses & emergency staff</p>
+                  <h3 className="text-base font-extrabold text-white tracking-tight leading-tight">Broadcast Emergency Alert</h3>
+                  <p className="text-xs text-red-100 font-semibold mt-0.5">Instantly notify all doctors, nurses & emergency staff</p>
                 </div>
               </div>
-              <button onClick={() => setIsRaiseModalOpen(false)} className="text-white hover:text-red-200">
-                <X size={18} />
+              <button
+                type="button"
+                onClick={() => setIsRaiseModalOpen(false)}
+                className="p-2 rounded-xl bg-red-700 hover:bg-red-800 text-white transition-colors flex items-center justify-center font-bold text-xs gap-1 border border-red-500 cursor-pointer"
+                title="Cancel & Close"
+              >
+                <X size={20} />
               </button>
             </div>
 

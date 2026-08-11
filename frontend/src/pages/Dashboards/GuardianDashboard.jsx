@@ -185,30 +185,30 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
       )}
 
       {/* Header Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0 border border-purple-500">
-            <Shield size={28} />
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0 border border-purple-500">
+            <Shield size={26} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Guardian Treatment & Care Portal</h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                GUARDIAN PORTAL
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Guardian Inpatient Care Portal</h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                IPD GUARDIAN
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-0.5 truncate">
               Authorized Representative: <strong className="text-slate-800">{user?.name || 'Guardian User'}</strong>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           {linkedPatients.length > 0 && (
             <select
               value={selectedPatientId}
               onChange={(e) => setSelectedPatientId(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 w-full sm:w-auto"
             >
               {linkedPatients.map((item) => (
                 <option key={item.patient._id} value={item.patient._id}>
@@ -222,7 +222,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             variant="outline"
             size="sm"
             onClick={() => setRemindDoctorModalOpen(true)}
-            className="font-bold text-xs bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1.5 shadow-sm"
+            className="font-bold text-xs bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1.5 shadow-2xs w-full sm:w-auto justify-center py-2.5"
           >
             <Bell size={15} /> Remind Doctor
           </Button>
@@ -231,21 +231,25 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             variant="outline"
             size="sm"
             onClick={() => setSendDataModalOpen(true)}
-            className="font-bold text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 gap-1.5 shadow-sm"
+            className="font-bold text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 gap-1.5 shadow-2xs w-full sm:w-auto justify-center py-2.5"
           >
-            <FileText size={15} /> Send Patient History to Doctor
-          </Button>
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setLinkModalOpen(true)}
-            className="font-bold text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-sm"
-          >
-            <PlusCircle size={15} /> Link Patient UHID
+            <FileText size={15} /> Send Patient History
           </Button>
         </div>
       </div>
+
+      {/* IPD Outpatient Alert Banner if not admitted */}
+      {!patientSummary.admissionDetails?.bedNumber && (
+        <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs font-medium flex items-start sm:items-center gap-3">
+          <BedDouble className="shrink-0 text-amber-600 mt-0.5 sm:mt-0" size={20} />
+          <div>
+            <p className="font-extrabold text-sm text-amber-950">Inpatient (IPD) Ward Monitoring Console</p>
+            <p className="text-amber-800 mt-0.5 leading-relaxed">
+              The Guardian Portal provides live care monitoring for admitted Inpatients (IPD). All medical history, progress notes, and care team details are listed below.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Sub-Tab Navigation Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 text-xs font-bold scrollbar-none">
@@ -304,11 +308,11 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
       {/* TAB 1: OVERVIEW DASHBOARD */}
       {currentTab === 'dashboard' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
               title="Patient Status"
-              value={patientSummary.currentStatus || 'UNDER CARE'}
-              subtitle="Live Clinical Status"
+              value={patientSummary.currentStatus || 'ADMITTED'}
+              subtitle="Live Clinical Care"
               icon={Activity}
               color="emerald"
             />
@@ -320,19 +324,20 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
               color="purple"
             />
             <StatCard
-              title="Active Inpatient Location"
-              value={patientSummary.admissionDetails?.bedNumber ? `Bed ${patientSummary.admissionDetails.bedNumber}` : 'OPD Care'}
-              subtitle={patientSummary.admissionDetails?.wardName || 'Outpatient'}
+              title="Inpatient Location"
+              value={patientSummary.admissionDetails?.bedNumber ? `Bed ${patientSummary.admissionDetails.bedNumber}` : 'IPD Ward'}
+              subtitle={patientSummary.admissionDetails?.wardName || 'Inpatient Care'}
               icon={BedDouble}
               color="sky"
             />
             <StatCard
-              title="Total Pending Charges"
+              title="Pending Invoices"
               value={`₹${(patientSummary.totalPendingAmount || 0).toLocaleString()}`}
-              subtitle="Outstanding Invoices"
+              subtitle="Total Ledger Balance"
               icon={IndianRupee}
               color="amber"
             />
+          </div>
           </div>
 
           {/* Doctor Progress Notes Feed */}
