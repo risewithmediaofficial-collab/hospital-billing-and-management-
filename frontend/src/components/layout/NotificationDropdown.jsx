@@ -126,8 +126,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
       {/* Notification List */}
       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-        {currentNotifs.length > 0 ? (
-          currentNotifs.map((notif) => (
+        {notifications.length > 0 ? (
+          notifications.map((notif) => (
             <div
               key={notif.id}
               onClick={() => handleNotificationClick(notif)}
