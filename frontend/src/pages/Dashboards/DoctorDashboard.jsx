@@ -268,6 +268,48 @@ export const DoctorDashboard = () => {
     'VIEWED BY DOCTOR': 'bg-slate-100 text-slate-700 border-slate-300',
   }[status] || 'bg-slate-50 text-slate-700 border-slate-200');
 
+  const handleContinueConsultation = async (ord) => {
+    markAsRead(ord._id);
+    try {
+      await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
+      resolvePending(ord._id);
+      fetchDepartmentOrders();
+    } catch (e) {
+      console.error('Failed to approve charge:', e);
+    }
+
+    let targetToken = departmentHoldQueue.find((t) => String(t._id) === String(ord.appointmentId?._id || ord.appointmentId))
+      || liveQueue.find((t) => String(t._id) === String(ord.appointmentId?._id || ord.appointmentId))
+      || liveQueue.find((t) => String(t.patientId?._id || t.patientId) === String(ord.patientId?._id || ord.patientId))
+      || departmentHoldQueue.find((t) => String(t.patientId?._id || t.patientId) === String(ord.patientId?._id || ord.patientId))
+      || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(ord.patientId?._id || ord.patientId));
+
+    if (!targetToken) {
+      const patientObj = typeof ord.patientId === 'object' && ord.patientId !== null
+        ? ord.patientId
+        : {
+            _id: ord.patientId || `pat_${Date.now()}`,
+            firstName: (ord.patientName || 'Patient').split(' ')[0] || 'Patient',
+            lastName: (ord.patientName || '').split(' ').slice(1).join(' ') || '',
+            uhid: ord.uhid || 'UHID',
+            gender: 'GENERAL',
+          };
+
+      targetToken = {
+        _id: ord.appointmentId?._id || ord.appointmentId || `apt_${Date.now()}`,
+        tokenNumber: ord.tokenNumber || 1,
+        status: 'IN_CONSULTATION',
+        patientId: patientObj,
+        chiefComplaints: `Follow-up on ${departmentLabel(ord.testCategory)}: ${ord.testName}`,
+      };
+    }
+
+    setSelectedToken(targetToken);
+    fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
+    setActiveTab('LIVE');
+    setIsConsultationModalOpen(true);
+  };
+
   // Toggle Doctor Availability (Online / Offline)
   const handleToggleAvailability = async () => {
     const nextState = !isAvailable;
@@ -841,28 +883,39 @@ export const DoctorDashboard = () => {
                               </a>
                             )}
 
-                            {['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) ? (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  markAsRead(ord._id);
-                                  try {
-                                    await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
-                                    resolvePending(ord._id);
-                                    fetchDepartmentOrders();
-                                  } catch (e) {
-                                    console.error('Failed to approve charge:', e);
-                                  }
-                                }}
-                                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
-                                  ord.chargeStatus === 'APPROVED'
-                                    ? 'bg-slate-100 border border-slate-300 text-slate-700'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                                }`}
-                              >
-                                <CheckCircle2 size={12} />
-                                {ord.chargeStatus === 'APPROVED' ? 'Reviewed' : 'View & Mark Reviewed'}
-                              </button>
+                            {['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status) || ord.reviewedAt || ord.chargeStatus === 'APPROVED' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    markAsRead(ord._id);
+                                    try {
+                                      await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
+                                      resolvePending(ord._id);
+                                      fetchDepartmentOrders();
+                                    } catch (e) {
+                                      console.error('Failed to approve charge:', e);
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
+                                    ord.chargeStatus === 'APPROVED' || ord.reviewedAt
+                                      ? 'bg-slate-100 border border-slate-300 text-slate-700'
+                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                                  }`}
+                                >
+                                  <CheckCircle2 size={12} />
+                                  {ord.chargeStatus === 'APPROVED' || ord.reviewedAt ? 'Reviewed' : 'View & Mark Reviewed'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleContinueConsultation(ord)}
+                                  className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Stethoscope size={13} />
+                                  Continue Consultation
+                                </button>
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -871,21 +924,6 @@ export const DoctorDashboard = () => {
                                 title="Report is being processed by department. You will be unlocked when department submits final report."
                               >
                                 <Lock size={12} /> {ord.status === 'IN_PROGRESS' ? 'Locked: In Progress' : ord.status === 'ACCEPTED' ? 'Locked: Accepted' : 'Locked: Pending'}
-                              </button>
-                            )}
-                            {ord.chargeStatus === 'APPROVED' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const heldToken = departmentHoldQueue.find((token) => String(token._id) === String(ord.appointmentId?._id || ord.appointmentId));
-                                  if (!heldToken) return;
-                                  setSelectedToken(heldToken);
-                                  fetchPatientInvestigations(heldToken.patientId?._id || heldToken.patientId);
-                                  setIsConsultationModalOpen(true);
-                                }}
-                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs"
-                              >
-                                Continue Consultation
                               </button>
                             )}
                           </div>

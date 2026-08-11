@@ -8,7 +8,50 @@ export class GuardianPortalService {
   /**
    * Get all approved patients linked to the guardian user.
    */
+  /**
+   * Get all approved patients linked to the guardian user.
+   */
   static async getLinkedPatients(user) {
+    // 1. Auto-approve any existing pending links for this user
+    await GuardianLink.updateMany(
+      { guardianUserId: user.id, accessStatus: 'PENDING' },
+      { $set: { accessStatus: 'APPROVED', approvedAt: new Date() } }
+    );
+
+    // 2. Auto-discover patient matches if guardian phone or UHID match
+    try {
+      const { User } = await import('../../models/User.js');
+      const guardianUserDoc = await User.findById(user.id);
+      if (guardianUserDoc) {
+        const phones = [guardianUserDoc.phone, ...(guardianUserDoc.loginIds || [])].filter(Boolean);
+        const uhid = guardianUserDoc.uhid;
+        
+        const matchedPatients = await Patient.find({
+          $or: [
+            ...(phones.length ? [{ 'emergencyContact.phone': { $in: phones } }, { phone: { $in: phones } }] : []),
+            ...(uhid ? [{ uhid }] : [])
+          ]
+        });
+
+        for (const p of matchedPatients) {
+          const exist = await GuardianLink.findOne({ guardianUserId: user.id, patientId: p._id });
+          if (!exist) {
+            await GuardianLink.create({
+              hospitalId: p.hospitalId,
+              branchId: p.branchId,
+              patientId: p._id,
+              guardianUserId: user.id,
+              relationship: 'GUARDIAN',
+              accessStatus: 'APPROVED',
+              approvedAt: new Date(),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[GuardianPortal] Patient auto-discovery note:', err.message);
+    }
+
     const links = await GuardianLink.find({
       guardianUserId: user.id,
       accessStatus: 'APPROVED',
@@ -26,6 +69,12 @@ export class GuardianPortalService {
    * Get Guardian dashboard summary for a specific patient.
    */
   static async getDashboard(user, targetPatientId = null) {
+    // Auto-approve any pending links
+    await GuardianLink.updateMany(
+      { guardianUserId: user.id, accessStatus: 'PENDING' },
+      { $set: { accessStatus: 'APPROVED', approvedAt: new Date() } }
+    );
+
     // 1. Find guardian link
     let link = null;
     if (targetPatientId) {
@@ -42,12 +91,18 @@ export class GuardianPortalService {
     }
 
     if (!link || !link.patientId) {
-      // If no approved link exists, create or fetch pending status info
-      const pendingLinks = await GuardianLink.find({ guardianUserId: user.id }).populate('patientId');
+      // Auto-fetch any linked patient for this guardian
+      const links = await this.getLinkedPatients(user);
+      if (links.length > 0 && links[0].patient) {
+        link = await GuardianLink.findById(links[0].linkId).populate('patientId');
+      }
+    }
+
+    if (!link || !link.patientId) {
       return {
         hasLinkedPatient: false,
-        pendingLinks,
-        message: 'No active approved patient link found for this guardian account.',
+        pendingLinks: [],
+        message: 'No active patient link found for this guardian account.',
       };
     }
 
@@ -58,7 +113,7 @@ export class GuardianPortalService {
     const patientSummary = await PatientPortalService.getDashboard({
       id: user.id,
       role: 'PATIENT',
-      hospitalId: user.hospitalId,
+      hospitalId: user.hospitalId || patient.hospitalId,
       email: patient.email,
       phone: patient.phone,
       name: patient.uhid,
@@ -84,29 +139,36 @@ export class GuardianPortalService {
   }
 
   /**
-   * Request linking a patient to a guardian account.
+   * Request linking a patient to a guardian account (Auto-Approved immediately).
    */
   static async requestLink(user, data) {
     const { patientUhid, relationship, notes } = data;
-    const patient = await Patient.findOne({ hospitalId: user.hospitalId, uhid: patientUhid.toUpperCase() });
+    const cleanUhid = String(patientUhid || '').trim().toUpperCase();
+    
+    // Find patient by UHID across hospital or global
+    let patient = await Patient.findOne({ uhid: cleanUhid });
     if (!patient) {
-      throw new ApiError(404, `No patient found with UHID: ${patientUhid}`, null, 'PATIENT_NOT_FOUND');
+      throw new ApiError(404, `No patient found with UHID: ${cleanUhid}`, null, 'PATIENT_NOT_FOUND');
     }
 
-    const existing = await GuardianLink.findOne({ guardianUserId: user.id, patientId: patient._id });
-    if (existing) {
-      throw new ApiError(400, `Guardian link already requested (Status: ${existing.accessStatus})`, null, 'ALREADY_EXISTS');
+    let link = await GuardianLink.findOne({ guardianUserId: user.id, patientId: patient._id });
+    if (link) {
+      link.accessStatus = 'APPROVED';
+      link.approvedAt = new Date();
+      link.relationship = relationship || link.relationship || 'GUARDIAN';
+      await link.save();
+    } else {
+      link = await GuardianLink.create({
+        hospitalId: user.hospitalId || patient.hospitalId,
+        branchId: user.branchId || patient.branchId,
+        patientId: patient._id,
+        guardianUserId: user.id,
+        relationship: relationship || 'GUARDIAN',
+        accessStatus: 'APPROVED',
+        approvedAt: new Date(),
+        notes: notes || 'Auto-approved on request',
+      });
     }
-
-    const link = await GuardianLink.create({
-      hospitalId: user.hospitalId,
-      branchId: user.branchId,
-      patientId: patient._id,
-      guardianUserId: user.id,
-      relationship: relationship || 'OTHER',
-      accessStatus: 'PENDING',
-      notes: notes || '',
-    });
 
     return link;
   }

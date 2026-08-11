@@ -91,7 +91,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     setLinkFeedback(null);
     try {
       await axiosClient.post('/guardian-portal/request-link', linkFormData);
-      setLinkFeedback('Guardian link request submitted! Awaiting Hospital Admin approval.');
+      setLinkFeedback('Patient UHID linked successfully! Care monitoring console active.');
       setLinkFormData({ patientUhid: '', relationship: 'FATHER', notes: '' });
       setLinkModalOpen(false);
       fetchLinkedPatients();

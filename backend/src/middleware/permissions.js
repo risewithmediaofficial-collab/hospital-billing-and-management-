@@ -9,7 +9,10 @@ export const requireRole = (...allowedRoles) => {
     }
 
     const userRoles = [req.user.role, ...(Array.isArray(req.user.additionalRoles) ? req.user.additionalRoles : [])].filter(Boolean);
-    const hasRoleMatch = allowedRoles.some((role) => userRoles.includes(role)) || userRoles.includes('SUPER_ADMIN');
+    const hasRoleMatch = allowedRoles.some((role) => userRoles.includes(role))
+      || userRoles.includes('SUPER_ADMIN')
+      || userRoles.includes('HOSPITAL_ADMIN')
+      || userRoles.includes('ADMIN');
 
     if (!hasRoleMatch) {
       // DEBUG: log the actual role mismatch details

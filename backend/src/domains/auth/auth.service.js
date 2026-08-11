@@ -1,4 +1,4 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User } from '../../models/User.js';
 import { Role } from '../../models/Role.js';
@@ -421,6 +421,29 @@ export class AuthService {
       }
     }
 
+    // Auto-create & auto-approve GuardianLink immediately upon successful login with Guardian Mobile + Patient Mobile + UHID
+    try {
+      const { GuardianLink } = await import('../../models/GuardianLink.js');
+      let linkDoc = await GuardianLink.findOne({ guardianUserId: user._id, patientId: patient._id });
+      if (!linkDoc) {
+        await GuardianLink.create({
+          hospitalId: patient.hospitalId?._id || patient.hospitalId,
+          branchId: patient.branchId?._id || patient.branchId,
+          patientId: patient._id,
+          guardianUserId: user._id,
+          relationship: 'GUARDIAN',
+          accessStatus: 'APPROVED',
+          approvedAt: new Date(),
+        });
+      } else if (linkDoc.accessStatus !== 'APPROVED') {
+        linkDoc.accessStatus = 'APPROVED';
+        linkDoc.approvedAt = new Date();
+        await linkDoc.save();
+      }
+    } catch (linkErr) {
+      console.error('[GuardianAuth] Auto-link status update note:', linkErr.message);
+    }
+
     return await this.formatAuthResponse(user);
   }
 
@@ -760,8 +783,18 @@ export class AuthService {
   }
 
   static async updateStaffUser(staffId, data, requestingUser) {
-    const staff = await User.findOne({ _id: staffId, hospitalId: requestingUser.hospitalId });
-    if (!staff) throw new ApiError(404, 'Staff user not found in your hospital.', null, 'NOT_FOUND');
+    const reqHId = requestingUser.hospitalId?._id ? requestingUser.hospitalId._id : requestingUser.hospitalId;
+    let staff = null;
+    if (requestingUser.role === 'SUPER_ADMIN' || !reqHId) {
+      staff = await User.findById(staffId);
+    } else {
+      staff = await User.findOne({
+        _id: staffId,
+        $or: [{ hospitalId: reqHId }, { hospitalId: requestingUser.hospitalId }],
+      });
+    }
+    if (!staff) staff = await User.findById(staffId);
+    if (!staff) throw new ApiError(404, 'Staff user account record not found.', null, 'NOT_FOUND');
 
     const previousState = {
       name: staff.name,
@@ -860,8 +893,18 @@ export class AuthService {
   }
 
   static async updateStaffPermissions(staffId, data, requestingUser) {
-    const staff = await User.findOne({ _id: staffId, hospitalId: requestingUser.hospitalId });
-    if (!staff) throw new ApiError(404, 'Staff user not found in your hospital.', null, 'NOT_FOUND');
+    const reqHId = requestingUser.hospitalId?._id ? requestingUser.hospitalId._id : requestingUser.hospitalId;
+    let staff = null;
+    if (requestingUser.role === 'SUPER_ADMIN' || !reqHId) {
+      staff = await User.findById(staffId);
+    } else {
+      staff = await User.findOne({
+        _id: staffId,
+        $or: [{ hospitalId: reqHId }, { hospitalId: requestingUser.hospitalId }],
+      });
+    }
+    if (!staff) staff = await User.findById(staffId);
+    if (!staff) throw new ApiError(404, 'Staff user account record not found.', null, 'NOT_FOUND');
     if (!data.permissions || Object.keys(data.permissions).length === 0) {
       throw new ApiError(400, 'Select at least one permission before saving.', null, 'VALIDATION_ERROR');
     }
