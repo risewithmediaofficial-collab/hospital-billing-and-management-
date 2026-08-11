@@ -7,13 +7,22 @@ export class NotificationService {
   static async createNotification(data) {
     try {
       const notification = await Notification.create({
-        recipientUserId: data.recipientUserId || null,
-        recipientRole: data.recipientRole || 'SUPER_ADMIN',
         hospitalId: data.hospitalId || null,
+        branchId: data.branchId || null,
+        recipientUserId: data.recipientUserId || null,
+        recipientRole: data.recipientRole || 'ALL',
+        recipientDepartment: data.recipientDepartment || '',
+        notificationType: data.notificationType || data.type || 'WORKFLOW_ALERT',
+        type: data.type || 'SYSTEM_ALERT',
         title: data.title,
         message: data.message,
-        type: data.type || 'SYSTEM_ALERT',
-        link: data.link || '',
+        relatedPatientId: data.relatedPatientId || null,
+        relatedRequestId: data.relatedRequestId || '',
+        targetModule: data.targetModule || '',
+        targetRoute: data.targetRoute || data.link || '',
+        link: data.link || data.targetRoute || '',
+        isRead: false,
+        status: data.status || 'ACTIVE',
         metadata: data.metadata || {},
       });
       return notification;

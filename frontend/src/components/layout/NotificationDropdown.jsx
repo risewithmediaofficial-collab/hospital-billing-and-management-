@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, Clock, FileCheck2, ChevronRight, Inbox
@@ -8,7 +9,36 @@ import {
 export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { notifications, unreadCount } = useDepartmentNotificationStore();
+  const { user } = useAuthStore();
   const dropdownRef = useRef(null);
+
+  // Default dashboard per role as fallback
+  const defaultRoleDashboard = {
+    PHARMACIST: '/pharmacy/dispense-queue',
+    PHARMACY_STAFF: '/pharmacy/dispense-queue',
+    LAB_TECH: '/laboratory/dashboard',
+    LABORATORY_STAFF: '/laboratory/dashboard',
+    RADIOLOGIST: '/radiology/dashboard',
+    RADIOLOGY_STAFF: '/radiology/dashboard',
+    CASHIER: '/billing/dashboard',
+    BILLING_STAFF: '/billing/dashboard',
+    NURSE: '/nursing/requests',
+    NURSE_INCHARGE: '/nurse-incharge/dashboard',
+    RECEPTIONIST: '/reception/tokens',
+    OPD_STAFF: '/reception/tokens',
+    DOCTOR: '/doctor/dashboard?tab=DEPT_RESPONSES',
+    GUARDIAN: '/guardian-portal/dashboard',
+    PATIENT: '/patient-portal',
+    HOSPITAL_ADMIN: '/hospital-admin/dashboard',
+    SUPER_ADMIN: '/admin/hospitals',
+  };
+
+  const formatTenantPath = (path) => {
+    if (!path) return path;
+    if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return path;
+    if (path.startsWith(`/${user.hospitalDomain}`)) return path;
+    return `/${user.hospitalDomain}${path}`;
+  };
 
   // Close when clicking outside dropdown container
   useEffect(() => {
@@ -25,21 +55,41 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const currentNotifs = notifications;
-
   const handleNotificationClick = (notif) => {
     onClose();
-    const isGuardianView = window.location.pathname.includes('/guardian') || (notif.targetRole === 'GUARDIAN');
+    const isGuardianView = window.location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
     if (isGuardianView) {
       navigate('/guardian-portal/dashboard');
       return;
     }
-    if (notif.linkedPath && !notif.linkedPath.includes('/admin') && !notif.linkedPath.includes('/doctor')) {
-      navigate(notif.linkedPath);
-    } else if (notif.linkedPath) {
-      navigate(notif.linkedPath);
+
+    const target = notif.linkedPath || notif.targetRoute;
+    const userRole = user?.role || 'GUEST';
+
+    // Verify target path matches user's role prefix before navigating
+    const rolePrefixes = {
+      PHARMACIST: ['/pharmacy', '/emergency'],
+      PHARMACY_STAFF: ['/pharmacy', '/emergency'],
+      LAB_TECH: ['/laboratory', '/emergency'],
+      LABORATORY_STAFF: ['/laboratory', '/emergency'],
+      RADIOLOGIST: ['/radiology', '/emergency'],
+      RADIOLOGY_STAFF: ['/radiology', '/emergency'],
+      CASHIER: ['/billing', '/emergency'],
+      BILLING_STAFF: ['/billing', '/emergency'],
+      NURSE: ['/nursing', '/nurse-incharge', '/emergency'],
+      NURSE_INCHARGE: ['/nursing', '/nurse-incharge', '/emergency'],
+      RECEPTIONIST: ['/reception', '/emergency'],
+      OPD_STAFF: ['/reception', '/emergency'],
+      DOCTOR: ['/doctor', '/emergency'],
+    }[userRole] || ['/'];
+
+    const isAllowedPath = target && rolePrefixes.some((prefix) => target.includes(prefix));
+
+    if (isAllowedPath) {
+      navigate(formatTenantPath(target));
     } else {
-      navigate('/doctor/dashboard?tab=DEPT_RESPONSES');
+      const fallback = defaultRoleDashboard[userRole] || '/';
+      navigate(formatTenantPath(fallback));
     }
   };
 
