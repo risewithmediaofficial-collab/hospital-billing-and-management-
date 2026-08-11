@@ -152,11 +152,17 @@ export class RequestsService {
       notes: data.notes || '',
       status: 'SUBMITTED',
       submittedAt: new Date(),
+      assignedNurseId: activeAdm?.assignedNurseId || null,
+      assignedCaretakerId: activeAdm?.assignedCaretakerId || null,
+      assignedDoctorId: activeAdm?.doctorId || null,
     });
 
     const populated = await PatientRequest.findById(request._id)
       .populate('patientId')
-      .populate('bedId');
+      .populate('bedId')
+      .populate('assignedNurseId', 'name role phone')
+      .populate('assignedCaretakerId', 'name role phone')
+      .populate('assignedDoctorId', 'name role specialization');
 
     const patientName = populated.patientId
       ? `${populated.patientId.firstName} ${populated.patientId.lastName}`

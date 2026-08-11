@@ -191,25 +191,21 @@ export const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/doctor/dashboard" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/queue" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
-        <Route path="/doctor/ipd-rounds" element={<MainLayout><GenericSubView title="IPD Rounds & Vitals" subtitle="Inpatient Ward Visits" iconName="BedDouble" /></MainLayout>} />
-        <Route path="/doctor/prescriptions" element={<MainLayout><GenericSubView title="E-Prescriptions History" subtitle="FEFO Auto-Checked Orders" iconName="Pill" /></MainLayout>} />
-        <Route path="/doctor/diagnostics" element={<MainLayout><GenericSubView title="Diagnostic Lab & RIS Results" subtitle="Pathology and Radiology Reports" iconName="Activity" /></MainLayout>} />
+        <Route path="/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
       </Route>
 
-      {/* 4. Nurse Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
-        <Route path="/nursing/dashboard" element={<MainLayout><NurseDashboard /></MainLayout>} />
-        <Route path="/nursing/beds" element={<MainLayout><GenericSubView title="Bed Matrix Console" subtitle="Live Ward Bed Occupancy" iconName="Bed" /></MainLayout>} />
-        <Route path="/nursing/requests" element={<MainLayout><GenericSubView title="In-Bed Patient Requests" subtitle="Real-Time Care Timers" iconName="Bell" /></MainLayout>} />
-        <Route path="/nursing/vitals" element={<MainLayout><GenericSubView title="Vitals & Medication Log (MAR)" subtitle="Shift MAR Administration" iconName="ClipboardList" /></MainLayout>} />
-      </Route>
-
-      {/* 5. Nurse In-Charge Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      {/* 4. Nurse Sub-Routes (Consolidated Nursing Module) */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nursing/beds" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nursing/requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nursing/vitals" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nurse-incharge/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/nurse-incharge/bed-transfers" element={<MainLayout><GenericSubView title="Bed Allocations & Ward Transfers" subtitle="Inter-ward movement" iconName="ArrowRightLeft" /></MainLayout>} />
-        <Route path="/nurse-incharge/overdue-requests" element={<MainLayout><GenericSubView title="Overdue Escalation Audit" subtitle="Level 1-3 Unanswered Requests" iconName="Clock" /></MainLayout>} />
-        <Route path="/nurse-incharge/roster" element={<MainLayout><GenericSubView title="Nurse Duty Roster Schedule" subtitle="Shift Roster Allocations" iconName="Calendar" /></MainLayout>} />
+        <Route path="/nurse-incharge/bed-transfers" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
       </Route>
 
       {/* 6. Receptionist Sub-Routes */}
@@ -217,8 +213,8 @@ export const AppRoutes = () => {
         <Route path="/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
-        <Route path="/reception/tokens" element={<MainLayout><GenericSubView title="OPD Token Calling Desk" subtitle="Live Queue Audio Calling" iconName="Ticket" /></MainLayout>} />
-        <Route path="/reception/visitors" element={<MainLayout><GenericSubView title="Visitor Pass Printing Desk" subtitle="Inpatient Visitor Badges" iconName="IdCard" /></MainLayout>} />
+        <Route path="/reception/tokens" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
+        <Route path="/reception/visitors" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
       </Route>
 
       {/* 7. Pharmacist Sub-Routes */}
@@ -248,25 +244,25 @@ export const AppRoutes = () => {
       {/* 10. Cashier Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
-        <Route path="/billing/create-invoice" element={<MainLayout><GenericSubView title="Invoice Generator Station" subtitle="Consolidated Patient Invoices" iconName="PlusCircle" /></MainLayout>} />
+        <Route path="/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
-        <Route path="/billing/shift-close" element={<MainLayout><GenericSubView title="End-of-Shift Reconciliation" subtitle="Drawer Cash Balancing" iconName="Lock" /></MainLayout>} />
+        <Route path="/billing/shift-close" element={<MainLayout><CashierDashboard /></MainLayout>} />
       </Route>
 
       {/* 11. Inventory Manager Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.INVENTORY_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/inventory/dashboard" element={<MainLayout><InventoryDashboard /></MainLayout>} />
-        <Route path="/inventory/indents" element={<MainLayout><GenericSubView title="Ward Indent Requests" subtitle="Central Store Stock Transfers" iconName="Truck" /></MainLayout>} />
-        <Route path="/inventory/purchase-orders" element={<MainLayout><GenericSubView title="Purchase Orders (PO) Console" subtitle="Vendor Procurement" iconName="ShoppingCart" /></MainLayout>} />
-        <Route path="/inventory/reorder-alerts" element={<MainLayout><GenericSubView title="Stock Reorder Alerts" subtitle="Safety Stock Thresholds" iconName="AlertCircle" /></MainLayout>} />
+        <Route path="/inventory/indents" element={<MainLayout><InventoryDashboard /></MainLayout>} />
+        <Route path="/inventory/purchase-orders" element={<MainLayout><InventoryDashboard /></MainLayout>} />
+        <Route path="/inventory/reorder-alerts" element={<MainLayout><InventoryDashboard /></MainLayout>} />
       </Route>
 
       {/* 12. HR Manager Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.HR_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/hr/dashboard" element={<MainLayout><HRDashboard /></MainLayout>} />
-        <Route path="/hr/roster" element={<MainLayout><GenericSubView title="Duty Rostering Engine" subtitle="Shift Roster Scheduling" iconName="CalendarDays" /></MainLayout>} />
-        <Route path="/hr/attendance" element={<MainLayout><GenericSubView title="Biometric Attendance Log" subtitle="eSSL Biometric Scanner Sync" iconName="Fingerprint" /></MainLayout>} />
-        <Route path="/hr/payroll" element={<MainLayout><GenericSubView title="Monthly Payroll Processing" subtitle="Salary & Commission Slips" iconName="IndianRupee" /></MainLayout>} />
+        <Route path="/hr/roster" element={<MainLayout><HRDashboard /></MainLayout>} />
+        <Route path="/hr/attendance" element={<MainLayout><HRDashboard /></MainLayout>} />
+        <Route path="/hr/payroll" element={<MainLayout><HRDashboard /></MainLayout>} />
       </Route>
 
       {/* 13. Patient Sub-Routes */}
@@ -350,22 +346,22 @@ export const AppRoutes = () => {
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/doctor/dashboard" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/queue" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/doctor/ipd-rounds" element={<MainLayout><GenericSubView title="IPD Rounds & Vitals" subtitle="Inpatient Ward Visits" iconName="BedDouble" /></MainLayout>} />
-        <Route path="/:hospitalDomain/doctor/prescriptions" element={<MainLayout><GenericSubView title="E-Prescriptions History" subtitle="FEFO Auto-Checked Orders" iconName="Pill" /></MainLayout>} />
-        <Route path="/:hospitalDomain/doctor/diagnostics" element={<MainLayout><GenericSubView title="Diagnostic Lab & RIS Results" subtitle="Pathology and Radiology Reports" iconName="Activity" /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
       </Route>
 
       {/* Nurse & Nurse-Incharge tenant routes */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
-        <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/nursing/dashboard" element={<MainLayout><NurseDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/nursing/beds" element={<MainLayout><GenericSubView title="Bed Matrix Console" subtitle="Live Ward Bed Occupancy" iconName="Bed" /></MainLayout>} />
-        <Route path="/:hospitalDomain/nursing/requests" element={<MainLayout><GenericSubView title="In-Bed Patient Requests" subtitle="Real-Time Care Timers" iconName="Bell" /></MainLayout>} />
-        <Route path="/:hospitalDomain/nursing/vitals" element={<MainLayout><GenericSubView title="Vitals & Medication Log (MAR)" subtitle="Shift MAR Administration" iconName="ClipboardList" /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nursing/beds" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nursing/requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nursing/vitals" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/nurse-incharge/bed-transfers" element={<MainLayout><GenericSubView title="Bed Allocations & Ward Transfers" subtitle="Inter-ward movement" iconName="ArrowRightLeft" /></MainLayout>} />
-        <Route path="/:hospitalDomain/nurse-incharge/overdue-requests" element={<MainLayout><GenericSubView title="Overdue Escalation Audit" subtitle="Level 1-3 Unanswered Requests" iconName="Clock" /></MainLayout>} />
-        <Route path="/:hospitalDomain/nurse-incharge/roster" element={<MainLayout><GenericSubView title="Nurse Duty Roster Schedule" subtitle="Shift Roster Allocations" iconName="Calendar" /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse-incharge/bed-transfers" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
       </Route>
 
       {/* Reception tenant routes */}
@@ -373,8 +369,8 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/reception/tokens" element={<MainLayout><GenericSubView title="OPD Token Calling Desk" subtitle="Live Queue Audio Calling" iconName="Ticket" /></MainLayout>} />
-        <Route path="/:hospitalDomain/reception/visitors" element={<MainLayout><GenericSubView title="Visitor Pass Printing Desk" subtitle="Inpatient Visitor Badges" iconName="IdCard" /></MainLayout>} />
+        <Route path="/:hospitalDomain/reception/tokens" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/reception/visitors" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
       </Route>
 
       {/* Pharmacy tenant routes */}
@@ -405,24 +401,24 @@ export const AppRoutes = () => {
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/billing/create-invoice" element={<MainLayout><GenericSubView title="Invoice Generator Station" subtitle="Consolidated Patient Invoices" iconName="PlusCircle" /></MainLayout>} />
-        <Route path="/:hospitalDomain/billing/shift-close" element={<MainLayout><GenericSubView title="End-of-Shift Reconciliation" subtitle="Drawer Cash Balancing" iconName="Lock" /></MainLayout>} />
+        <Route path="/:hospitalDomain/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/billing/shift-close" element={<MainLayout><CashierDashboard /></MainLayout>} />
       </Route>
 
       {/* Inventory Manager tenant routes */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.INVENTORY_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/inventory/dashboard" element={<MainLayout><InventoryDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/inventory/indents" element={<MainLayout><GenericSubView title="Ward Indent Requests" subtitle="Central Store Stock Transfers" iconName="Truck" /></MainLayout>} />
-        <Route path="/:hospitalDomain/inventory/purchase-orders" element={<MainLayout><GenericSubView title="Purchase Orders (PO) Console" subtitle="Vendor Procurement" iconName="ShoppingCart" /></MainLayout>} />
-        <Route path="/:hospitalDomain/inventory/reorder-alerts" element={<MainLayout><GenericSubView title="Stock Reorder Alerts" subtitle="Safety Stock Thresholds" iconName="AlertCircle" /></MainLayout>} />
+        <Route path="/:hospitalDomain/inventory/indents" element={<MainLayout><InventoryDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/inventory/purchase-orders" element={<MainLayout><InventoryDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/inventory/reorder-alerts" element={<MainLayout><InventoryDashboard /></MainLayout>} />
       </Route>
 
       {/* HR Manager tenant routes */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.HR_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/hr/dashboard" element={<MainLayout><HRDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/hr/roster" element={<MainLayout><GenericSubView title="Duty Rostering Engine" subtitle="Shift Roster Scheduling" iconName="CalendarDays" /></MainLayout>} />
-        <Route path="/:hospitalDomain/hr/attendance" element={<MainLayout><GenericSubView title="Biometric Attendance Log" subtitle="eSSL Biometric Scanner Sync" iconName="Fingerprint" /></MainLayout>} />
-        <Route path="/:hospitalDomain/hr/payroll" element={<MainLayout><GenericSubView title="Monthly Payroll Processing" subtitle="Salary & Commission Slips" iconName="IndianRupee" /></MainLayout>} />
+        <Route path="/:hospitalDomain/hr/roster" element={<MainLayout><HRDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/hr/attendance" element={<MainLayout><HRDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/hr/payroll" element={<MainLayout><HRDashboard /></MainLayout>} />
       </Route>
 
       {/* Patient tenant portal */}

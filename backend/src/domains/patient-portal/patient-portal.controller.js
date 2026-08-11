@@ -60,7 +60,13 @@ export class PatientPortalController {
       const { PatientRequest } = await import('../../models/PatientRequest.js');
       const patient = await PatientPortalService.resolvePatientForUser(req.user);
       const requests = patient?._id
-        ? await PatientRequest.find({ patientId: patient._id }).sort({ createdAt: -1 }).limit(50)
+        ? await PatientRequest.find({ patientId: patient._id })
+            .populate('assignedNurseId', 'name role phone')
+            .populate('assignedCaretakerId', 'name role phone')
+            .populate('acceptedBy', 'name role')
+            .populate('completedBy', 'name role')
+            .sort({ createdAt: -1 })
+            .limit(50)
         : [];
       res.json({ success: true, data: requests });
     } catch (err) {

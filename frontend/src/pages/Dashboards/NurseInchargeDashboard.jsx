@@ -24,9 +24,11 @@ import {
 
 export const NurseInchargeDashboard = () => {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState('REQUISITIONS'); // 'REQUISITIONS' | 'ADMITTED' | 'BEDS'
+  const [activeTab, setActiveTab] = useState('REQUISITIONS'); // 'REQUISITIONS' | 'ADMITTED' | 'BEDS' | 'REQUESTS' | 'TASKS'
   const [admissions, setAdmissions] = useState([]);
   const [beds, setBeds] = useState([]);
+  const [patientRequests, setPatientRequests] = useState([]);
+  const [nurseTasks, setNurseTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -37,7 +39,7 @@ export const NurseInchargeDashboard = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['REQUISITIONS', 'ADMITTED', 'BEDS'].includes(tabParam.toUpperCase())) {
+    if (tabParam && ['REQUISITIONS', 'ADMITTED', 'BEDS', 'REQUESTS', 'TASKS'].includes(tabParam.toUpperCase())) {
       setActiveTab(tabParam.toUpperCase());
     } else {
       setActiveTab('REQUISITIONS');
@@ -57,21 +59,27 @@ export const NurseInchargeDashboard = () => {
     };
     socket.on('admission:requisition_created', handleRequisitionUpdate);
     socket.on('admission:confirmed', handleRequisitionUpdate);
+    socket.on('workflow:pending_changed', handleRequisitionUpdate);
     return () => {
       socket.off('admission:requisition_created', handleRequisitionUpdate);
       socket.off('admission:confirmed', handleRequisitionUpdate);
+      socket.off('workflow:pending_changed', handleRequisitionUpdate);
     };
   }, [socket]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [admRes, bedsRes] = await Promise.all([
+      const [admRes, bedsRes, reqRes, tasksRes] = await Promise.all([
         axiosClient.get('/admissions'),
         axiosClient.get('/beds'),
+        axiosClient.get('/requests').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/nurse-tasks').catch(() => ({ data: [] })),
       ]);
       setAdmissions(Array.isArray(admRes) ? admRes : (admRes.data || []));
       setBeds(Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []));
+      setPatientRequests(Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []));
+      setNurseTasks(Array.isArray(tasksRes) ? tasksRes : (tasksRes.data || []));
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);
     } finally {
@@ -179,6 +187,30 @@ export const NurseInchargeDashboard = () => {
           >
             <LayoutGrid size={16} />
             <span>Ward Bed Matrix ({beds.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('REQUESTS')}
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'REQUESTS'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Activity size={16} />
+            <span>In-Bed Requests ({patientRequests.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('TASKS')}
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'TASKS'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Stethoscope size={16} />
+            <span>Treatment Tasks ({nurseTasks.length})</span>
           </button>
         </div>
 
@@ -425,6 +457,110 @@ export const NurseInchargeDashboard = () => {
               <div className="col-span-full p-8 text-center text-slate-500 text-xs">
                 Loading hospital bed matrix...
               </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 4: IN-BED PATIENT REQUESTS */}
+      {activeTab === 'REQUESTS' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Activity size={18} className="text-purple-600" />
+                In-Bed Patient Requests ({patientRequests.length})
+              </h3>
+              <p className="text-xs text-slate-500">
+                Real-time bedside care requests from admitted patients and guardians.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs">
+            {patientRequests.length > 0 ? (
+              patientRequests.map((req) => (
+                <div key={req._id} className="p-4 rounded-xl border border-slate-200 bg-purple-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-900 text-sm">{req.requestType || 'Care Request'}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${req.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {req.status}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">Category: {req.requestCategory || 'NURSE'}</span>
+                    </div>
+                    <p className="text-slate-700">
+                      Patient: <strong>{req.patientId?.firstName} {req.patientId?.lastName}</strong> (UHID: {req.patientId?.uhid || 'N/A'})
+                    </p>
+                    <p className="text-slate-500">{req.notes || req.description || 'No additional instructions'}</p>
+                  </div>
+
+                  {req.status !== 'COMPLETED' && (
+                    <Button
+                      size="sm"
+                      variant="success"
+                      onClick={async () => {
+                        try {
+                          await axiosClient.patch(`/requests/${req._id}/status`, { status: 'COMPLETED' });
+                          fetchData();
+                        } catch (e) {
+                          console.error('Failed to resolve request:', e);
+                        }
+                      }}
+                    >
+                      Mark Resolved
+                    </Button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-slate-400">No active in-bed patient requests found.</div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 5: TREATMENT TASKS */}
+      {activeTab === 'TASKS' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Stethoscope size={18} className="text-rose-600" />
+                Doctor-Prescribed Treatment Tasks ({nurseTasks.length})
+              </h3>
+              <p className="text-xs text-slate-500">
+                Active medication administration and injection schedules across wards.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs">
+            {nurseTasks.length > 0 ? (
+              nurseTasks.map((t) => (
+                <div key={t._id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-900 text-sm">{t.medicineName} ({t.dose})</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                        {t.taskType || 'INJECTION'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
+                        Route: {t.route}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'ADMINISTERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {t.status}
+                      </span>
+                    </div>
+                    <p className="text-slate-700">
+                      Patient: <strong>{t.patientId?.firstName} {t.patientId?.lastName}</strong> (UHID: {t.patientId?.uhid || 'N/A'})
+                    </p>
+                    <p className="text-slate-500">Dr. {t.doctorId?.name} · Instructions: {t.doctorInstructions || 'Administer as scheduled'}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-slate-400">No active treatment tasks found.</div>
             )}
           </div>
         </Card>

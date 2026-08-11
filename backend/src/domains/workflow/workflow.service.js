@@ -78,18 +78,18 @@ export class WorkflowService {
       if (activeRole === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
       const [records, admissions, emergencies, nurseTasks] = await Promise.all([
         PatientRequest.find(filter).populate('patientId').lean(),
-        activeRole === 'NURSE_INCHARGE' ? Admission.find({ ...scope, status: 'ADMISSION_REQUESTED' }).lean() : Promise.resolve([]),
+        Admission.find({ ...scope, status: 'ADMISSION_REQUESTED' }).lean(),
         Emergency.find({ ...scope, status: { $in: ['ACTIVE', 'RESPONDED'] } }).lean(),
         NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] }, ...(activeRole === 'NURSE' ? { $or: [{ assignedNurseId: user.id }, { assignedNurseId: null }] } : {}) }).lean(),
       ]);
-      records.forEach((item) => tasks.push(task('NURSING_WORK', item, '/nursing/requests', `Nursing request: ${item.requestType}`, { targetModule: 'nursing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+      records.forEach((item) => tasks.push(task('NURSING_WORK', item, '/nurse-incharge/dashboard?tab=REQUESTS', `Nursing request: ${item.requestType}`, { targetModule: 'nursing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       admissions.forEach((item) => tasks.push(task('IPD_WORK', item, '/nurse-incharge/dashboard?tab=REQUISITIONS', `Admission pending: ${item.patientName}`, { targetModule: 'ipd' })));
       emergencies.forEach((item) => tasks.push(task('EMERGENCY_WORK', item, '/emergency', `Emergency: ${item.emergencyType}`, { targetModule: 'emergency' })));
-      nurseTasks.forEach((item) => tasks.push(task('NURSE_TREATMENT', item, '/nursing/dashboard', `Treatment: ${item.medicineName}`, { targetModule: 'nursing' })));
+      nurseTasks.forEach((item) => tasks.push(task('NURSE_TREATMENT', item, '/nurse-incharge/dashboard?tab=TASKS', `Treatment: ${item.medicineName}`, { targetModule: 'nursing' })));
     }
     else if (['RECEPTIONIST', 'OPD_STAFF'].includes(activeRole)) {
       const records = await Appointment.find({ ...scope, status: 'BOOKED' }).populate('patientId').lean();
-      records.forEach((item) => tasks.push(task('RECEPTION_WORK', item, '/reception/tokens', `Appointment booked: ${item.patientId?.firstName || ''}`, { targetModule: 'reception', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+      records.forEach((item) => tasks.push(task('RECEPTION_WORK', item, '/reception/dashboard', `Appointment booked: ${item.patientId?.firstName || ''}`, { targetModule: 'reception', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
     else if (activeRole === 'HOSPITAL_ADMIN') {
       const records = await GuardianLink.find({ ...(hospitalId ? { hospitalId } : {}), accessStatus: 'PENDING' }).populate('patientId').lean();

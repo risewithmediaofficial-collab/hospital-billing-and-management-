@@ -678,29 +678,42 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
             </h3>
             <div className="space-y-3 text-xs">
               {myRequests.length > 0 ? (
-                myRequests.map((req) => (
-                  <div key={req._id} className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">{req.requestType}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 font-bold">
-                          {req.requestCategory}
-                        </span>
+                myRequests.map((req) => {
+                  const assignedNurseName = req.assignedNurseId?.name || req.assignedNurseId;
+                  const assignedCaretakerName = req.assignedCaretakerId?.name || req.assignedCaretakerId;
+                  const targetLabel = req.requestCategory === 'CARETAKER'
+                    ? (assignedCaretakerName ? `Assigned Caretaker: ${assignedCaretakerName}` : 'Duty Caretaker & Ward Nurse')
+                    : (assignedNurseName ? `Assigned Nurse: ${assignedNurseName}` : 'Ward Nursing Station');
+
+                  return (
+                    <div key={req._id} className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-slate-900 text-sm">{req.requestType}</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                            {req.requestCategory}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-800 font-bold">
+                            Dispatched to: {targetLabel}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Submitted: {new Date(req.submittedAt || req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {assignedNurseName && ` • Attending Nurse: ${assignedNurseName}`}
+                          {req.acceptedBy?.name && ` • Accepted by: ${req.acceptedBy.name}`}
+                          {req.completedBy?.name && ` • Resolved by: ${req.completedBy.name}`}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Submitted: {new Date(req.submittedAt || req.createdAt).toLocaleTimeString()}
-                        {req.acceptedBy && ` • Accepted by: ${req.acceptedBy.name}`}
-                      </p>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${
+                        req.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        req.status === 'ACCEPTED' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                        'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {req.status}
+                      </span>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                      req.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      req.status === 'ACCEPTED' ? 'bg-sky-50 text-sky-700 border-sky-200' :
-                      'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
-                      {req.status}
-                    </span>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-4 text-center text-slate-400">No active care requests submitted yet.</div>
               )}
