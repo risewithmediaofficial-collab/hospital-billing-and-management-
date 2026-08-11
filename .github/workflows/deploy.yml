@@ -31,17 +31,36 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy to VPS
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Deploy to VPS (Attempt 1)
+        id: deploy1
+        continue-on-error: true
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT || 22 }}
-          timeout: 120s
-          command_timeout: 15m
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          timeout: 180s
+          command_timeout: 20m
           script: |
-            cd /docker/hospital-billing
-            git pull origin main
-            docker compose up -d --build
+            cd /docker/hospital-billing || cd /var/www/hospital-billing || cd ~/hospital-billing
+            git pull origin main || git pull origin master
+            docker compose up -d --build || docker-compose up -d --build
+
+      - name: Deploy to VPS (Retry Attempt 2 if Attempt 1 timed out)
+        if: steps.deploy1.outcome == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          timeout: 180s
+          command_timeout: 20m
+          script: |
+            cd /docker/hospital-billing || cd /var/www/hospital-billing || cd ~/hospital-billing
+            git pull origin main || git pull origin master
+            docker compose up -d --build || docker-compose up -d --build
