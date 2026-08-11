@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
+import { useAvailability } from '../../hooks/useAvailability';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
 import { useSocket } from '../../providers/SocketProvider';
@@ -9,6 +11,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { UserPlus, Ticket, IdCard, Users, HelpCircle, Stethoscope, AlertTriangle } from 'lucide-react';
 
 export const ReceptionDashboard = () => {
+  const { isAvailable, isToggling, handleToggle } = useAvailability();
   const { socket } = useSocket();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isTokenOpen, setIsTokenOpen] = useState(false);
@@ -106,6 +109,14 @@ export const ReceptionDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <AvailabilityBanner
+        role="Receptionist"
+        isAvailable={isAvailable}
+        isToggling={isToggling}
+        onToggle={handleToggle}
+        pendingCount={0}
+      />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Front Desk Registration & Token Station</h2>

@@ -224,9 +224,9 @@ export const AppRoutes = () => {
       {/* 7. Pharmacist Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
-        <Route path="/pharmacy/dispense-queue" element={<MainLayout><GenericSubView title="Prescription Dispense Queue" subtitle="FEFO Batch Selection" iconName="Clock" /></MainLayout>} />
-        <Route path="/pharmacy/stock" element={<MainLayout><GenericSubView title="FEFO Stock Manager" subtitle="Batch Expiry Control" iconName="Boxes" /></MainLayout>} />
-        <Route path="/pharmacy/expiry-alerts" element={<MainLayout><GenericSubView title="Near-Expiry Batch Alerts" subtitle="30-Day Expiry Warnings" iconName="AlertTriangle" /></MainLayout>} />
+        <Route path="/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
+        <Route path="/pharmacy/expiry-alerts" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
       </Route>
 
       {/* 8. Lab Tech Sub-Routes */}

@@ -3,15 +3,26 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
-import { useAvailability } from '../../hooks/useAvailability';
+import { useScrollLock } from '../../hooks/useScrollLock';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
-  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText
+  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
 import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+
+const RECOMMENDED_MEDICINES = [
+  { name: 'Paracetamol 500mg', genericName: 'Paracetamol', category: 'Analgesic / Antipyretic', dosageForm: 'TABLET', strength: '500 mg', purchasePrice: 2, sellingPrice: 5 },
+  { name: 'Amoxicillin 250mg', genericName: 'Amoxicillin', category: 'Antibiotic', dosageForm: 'CAPSULE', strength: '250 mg', purchasePrice: 8, sellingPrice: 15 },
+  { name: 'Ibuprofen 400mg', genericName: 'Ibuprofen', category: 'NSAID / Anti-inflammatory', dosageForm: 'TABLET', strength: '400 mg', purchasePrice: 4, sellingPrice: 10 },
+  { name: 'Omeprazole 20mg', genericName: 'Omeprazole', category: 'Antacid / PPI', dosageForm: 'CAPSULE', strength: '20 mg', purchasePrice: 6, sellingPrice: 12 },
+  { name: 'Cetirizine 10mg', genericName: 'Cetirizine', category: 'Antihistamine', dosageForm: 'TABLET', strength: '10 mg', purchasePrice: 3, sellingPrice: 8 },
+  { name: 'Azithromycin 500mg', genericName: 'Azithromycin', category: 'Antibiotic', dosageForm: 'TABLET', strength: '500 mg', purchasePrice: 25, sellingPrice: 45 },
+  { name: 'Metformin 500mg', genericName: 'Metformin', category: 'Antidiabetic', dosageForm: 'TABLET', strength: '500 mg', purchasePrice: 5, sellingPrice: 12 },
+  { name: 'Amlodipine 5mg', genericName: 'Amlodipine', category: 'Antihypertensive', dosageForm: 'TABLET', strength: '5 mg', purchasePrice: 4, sellingPrice: 10 },
+];
 
 export const PharmacistDashboard = () => {
   const { user } = useAuthStore();
@@ -33,6 +44,8 @@ export const PharmacistDashboard = () => {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showSubReqModal, setShowSubReqModal] = useState(false);
   const [selectedRx, setSelectedRx] = useState(null);
+
+  useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal);
 
   // Forms
   const [medForm, setMedForm] = useState({
@@ -168,6 +181,15 @@ export const PharmacistDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Availability / Online Toggle Banner */}
+      <AvailabilityBanner
+        role="Pharmacist"
+        isAvailable={isAvailable}
+        isToggling={isToggling}
+        onToggle={handleToggle}
+        pendingCount={pending.length}
+      />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Pharmacy & Medicine Inventory Workstation</h2>
@@ -480,9 +502,37 @@ export const PharmacistDashboard = () => {
       {/* MODAL: ADD MEDICINE */}
       {showAddMedModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Add New Medicine SKU</h3>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Add New Medicine SKU</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddMedModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
             <form onSubmit={handleCreateMedicine} className="space-y-3 text-xs">
+              <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-100 space-y-1">
+                <label className="font-bold text-indigo-900 text-xs">Quick Auto-Fill Standard Recommendation *</label>
+                <select
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const rec = RECOMMENDED_MEDICINES.find(r => r.name === e.target.value);
+                    if (rec) setMedForm({ ...medForm, ...rec });
+                  }}
+                  className="w-full p-2 border border-indigo-200 bg-white rounded font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Click to choose standard medicine recommendation --</option>
+                  {RECOMMENDED_MEDICINES.map((r) => (
+                    <option key={r.name} value={r.name}>{r.name} ({r.genericName}) — {r.dosageForm} {r.strength}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700">Medicine Name *</label>
@@ -540,15 +590,29 @@ export const PharmacistDashboard = () => {
       {/* MODAL: ADD STOCK BATCH */}
       {showAddBatchModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Add New Batch Stock</h3>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Add New Batch Stock</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddBatchModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <form onSubmit={handleAddBatch} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700">Select Medicine SKU *</label>
-                <select required value={batchForm.medicineId} onChange={(e) => setBatchForm({ ...batchForm, medicineId: e.target.value })} className="w-full p-2 border rounded mt-1">
+                <select required value={batchForm.medicineId} onChange={(e) => setBatchForm({ ...batchForm, medicineId: e.target.value })} className="w-full p-2.5 border rounded mt-1 font-bold text-slate-900 bg-slate-50">
                   <option value="">-- Choose Medicine --</option>
                   {medicines.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name} ({m.genericName})</option>
+                    <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — SKU: {m.strength}</option>
+                  ))}
+                  {medicines.length === 0 && RECOMMENDED_MEDICINES.map((r, i) => (
+                    <option key={i} value={`rec_${i}`}>{r.name} ({r.genericName}) — Recommended Standard</option>
                   ))}
                 </select>
               </div>
@@ -596,8 +660,19 @@ export const PharmacistDashboard = () => {
       {/* MODAL: SUBSTITUTION REQUEST */}
       {showSubReqModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Request Doctor Approval for Medicine Substitution</h3>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Request Doctor Approval for Medicine Substitution</h3>
+              <button
+                type="button"
+                onClick={() => setShowSubReqModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <form onSubmit={handleRequestSubstitution} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700">Original Prescribed Medicine</label>
@@ -608,6 +683,9 @@ export const PharmacistDashboard = () => {
                 <select required value={subForm.suggestedMedicineId} onChange={(e) => setSubForm({ ...subForm, suggestedMedicineId: e.target.value })} className="w-full p-2 border rounded mt-1">
                   {medicines.map((m) => (
                     <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — ₹{m.sellingPrice}</option>
+                  ))}
+                  {medicines.length === 0 && RECOMMENDED_MEDICINES.map((r, i) => (
+                    <option key={i} value={`rec_${i}`}>{r.name} ({r.genericName}) — ₹{r.sellingPrice}</option>
                   ))}
                 </select>
               </div>
