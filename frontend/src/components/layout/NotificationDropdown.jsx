@@ -29,7 +29,14 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
   const handleNotificationClick = (notif) => {
     onClose();
-    if (notif.linkedPath) {
+    const isGuardianView = window.location.pathname.includes('/guardian') || (notif.targetRole === 'GUARDIAN');
+    if (isGuardianView) {
+      navigate('/guardian-portal/dashboard');
+      return;
+    }
+    if (notif.linkedPath && !notif.linkedPath.includes('/admin') && !notif.linkedPath.includes('/doctor')) {
+      navigate(notif.linkedPath);
+    } else if (notif.linkedPath) {
       navigate(notif.linkedPath);
     } else {
       navigate('/doctor/dashboard?tab=DEPT_RESPONSES');

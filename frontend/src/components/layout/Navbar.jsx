@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
@@ -7,7 +8,9 @@ import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 
 export const Navbar = ({ onToggleSidebar }) => {
+  const location = useLocation();
   const { user, logout } = useAuthStore();
+  const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
   const { notifications } = useDepartmentNotificationStore();
   const notificationCount = notifications.filter((notification) => !notification.isRead || notification.isPending).length;
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -78,7 +81,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           <div className="text-right hidden md:block">
             <p className="text-sm font-bold text-slate-800 leading-none">{user?.name}</p>
             <p className="text-[11px] font-semibold text-indigo-500 mt-0.5">
-              {ROLE_NAMES[user?.role] || user?.role}
+              {isGuardianView ? 'Guardian Portal' : (ROLE_NAMES[user?.role] || user?.role)}
             </p>
           </div>
 
