@@ -24,6 +24,7 @@ const pharmacySubstitutionRequestSchema = new mongoose.Schema(
     },
     doctorResponseNotes: { type: String, default: '' },
     respondedAt: { type: Date },
+    acknowledgedByPharmacist: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

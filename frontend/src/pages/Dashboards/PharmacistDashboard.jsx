@@ -49,6 +49,7 @@ export const PharmacistDashboard = () => {
   const [medicines, setMedicines] = useState([]);
   const [alerts, setAlerts] = useState({ lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
   const [stockAdjustments, setStockAdjustments] = useState([]);
+  const [substitutions, setSubstitutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -89,16 +90,18 @@ export const PharmacistDashboard = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [rxRes, medRes, alertRes, auditRes] = await Promise.all([
+      const [rxRes, medRes, alertRes, auditRes, subRes] = await Promise.all([
         axiosClient.get('/pharmacy/prescriptions'),
         axiosClient.get('/pharmacy/medicines'),
         axiosClient.get('/pharmacy/alerts'),
         axiosClient.get('/pharmacy/stock-movements'),
+        axiosClient.get('/pharmacy/substitutions/pending'),
       ]);
       setPrescriptions(rxRes.data || []);
       setMedicines(medRes.data || []);
       setAlerts(alertRes.data || { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
       setStockAdjustments(auditRes.data || []);
+      setSubstitutions(subRes.data || []);
     } catch (error) {
       console.error('Failed to load pharmacy data:', error);
     } finally {
@@ -122,7 +125,15 @@ export const PharmacistDashboard = () => {
   const pending = prescriptions.filter((item) => item.dispenseStatus === 'PENDING_DISPENSE' || item.dispenseStatus === 'PARTIALLY_DISPENSED');
   const dispensed = prescriptions.filter((item) => item.dispenseStatus === 'DISPENSED');
 
-  // Actions
+  const handleAcknowledgeSub = async (id) => {
+    try {
+      await axiosClient.patch(`/pharmacy/substitutions/${id}/acknowledge`);
+      await Promise.all([fetchData(), refreshPendingWork()]);
+    } catch (err) {
+      console.error('Failed to acknowledge substitution:', err);
+    }
+  };
+
   const handleDispense = async (id, external = false) => {
     try {
       await axiosClient.patch(`/pharmacy/prescriptions/${id}/dispense`, {
@@ -255,12 +266,43 @@ export const PharmacistDashboard = () => {
 
       {/* TAB 1: E-Prescription Queue */}
       {activeTab === 'queue' && (
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Pill size={18} className="text-indigo-500" />
-              Pending Prescriptions
-            </h3>
+        <div className="space-y-4">
+          {/* Doctor Substitution Responses Alert Banner */}
+          {substitutions.filter((s) => s.status !== 'PENDING' && !s.acknowledgedByPharmacist).length > 0 && (
+            <Card className="bg-emerald-50/70 border border-emerald-200">
+              <h3 className="text-sm font-extrabold text-emerald-900 flex items-center gap-2 mb-2">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                Doctor Responses to Substitution Requests ({substitutions.filter((s) => s.status !== 'PENDING' && !s.acknowledgedByPharmacist).length})
+              </h3>
+              <div className="divide-y divide-emerald-100 text-xs">
+                {substitutions.filter((s) => s.status !== 'PENDING' && !s.acknowledgedByPharmacist).map((sub) => (
+                  <div key={sub._id} className="py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        Patient: {sub.patientId?.firstName} {sub.patientId?.lastName} ({sub.patientId?.uhid})
+                      </p>
+                      <p className="text-slate-600">
+                        Original: <span className="font-semibold text-slate-800">{sub.originalMedicineName}</span> &rarr; Suggested: <span className="font-semibold text-slate-800">{sub.suggestedMedicineName}</span>
+                      </p>
+                      <p className="text-slate-500 mt-0.5">
+                        Dr. {sub.doctorId?.name || 'Doctor'} response: <span className={`font-bold ${sub.status === 'APPROVED' ? 'text-emerald-700' : 'text-rose-700'}`}>{sub.status}</span> &mdash; "{sub.doctorResponseNotes || 'No notes'}"
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => handleAcknowledgeSub(sub._id)}>
+                      Dismiss Alert
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Pill size={18} className="text-indigo-500" />
+                Pending Prescriptions
+              </h3>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 font-mono">FEFO Auto-Allocation</span>
               <button onClick={fetchData} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors" title="Refresh">
@@ -339,6 +381,7 @@ export const PharmacistDashboard = () => {
             </div>
           )}
         </Card>
+      </div>
       )}
 
       {/* TAB 2: Medicine SKUs Inventory */}

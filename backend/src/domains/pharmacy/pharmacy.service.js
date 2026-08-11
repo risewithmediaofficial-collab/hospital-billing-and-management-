@@ -547,6 +547,21 @@ export class PharmacyService {
     return req;
   }
 
+  static async acknowledgeSubstitution(requestId, user) {
+    const req = await PharmacySubstitutionRequest.findOne({ _id: requestId, hospitalId: user.hospitalId });
+    if (!req) throw new ApiError(404, 'Substitution request not found');
+
+    req.acknowledgedByPharmacist = true;
+    await req.save();
+
+    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
+      resourceId: req._id,
+      status: 'ACKNOWLEDGED',
+    });
+
+    return req;
+  }
+
   static async getPendingSubstitutions(user) {
     const filter = { hospitalId: user.hospitalId };
     if (user.role === 'DOCTOR') filter.doctorId = user.id;

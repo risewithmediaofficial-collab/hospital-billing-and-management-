@@ -14,6 +14,7 @@ import {
   dispensePrescription,
   requestSubstitution,
   respondSubstitution,
+  acknowledgeSubstitution,
   getPendingSubstitutions,
   getNurseTasks,
   updateNurseTaskStatus,
@@ -40,6 +41,7 @@ router.patch('/prescriptions/:id/dispense', requireModulePermission('pharmacy', 
 router.post('/substitutions/request', requestSubstitution);
 router.get('/substitutions/pending', getPendingSubstitutions);
 router.patch('/substitutions/:id/respond', respondSubstitution);
+router.patch('/substitutions/:id/acknowledge', acknowledgeSubstitution);
 
 // Nurse Administration Tasks
 router.get('/nurse-tasks', getNurseTasks);

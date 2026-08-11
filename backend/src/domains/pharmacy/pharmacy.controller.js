@@ -110,6 +110,15 @@ export const respondSubstitution = async (req, res, next) => {
   }
 };
 
+export const acknowledgeSubstitution = async (req, res, next) => {
+  try {
+    const result = await PharmacyService.acknowledgeSubstitution(req.params.id, req.user);
+    return sendSuccess(res, 200, 'Substitution acknowledged', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getPendingSubstitutions = async (req, res, next) => {
   try {
     const pending = await PharmacyService.getPendingSubstitutions(req.user);
