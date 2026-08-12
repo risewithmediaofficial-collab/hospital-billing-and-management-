@@ -345,9 +345,8 @@ export const DoctorDashboard = () => {
     if (!window.confirm('Are you sure you want to cancel this duplicate token / appointment?')) return;
     try {
       await axiosClient.patch(`/appointments/tokens/${tokenId}/status`, { status: 'CANCELLED' });
-      setLiveQueue((prev) => prev.filter((t) => t._id !== tokenId));
-      if (selectedToken?._id === tokenId) setSelectedToken(null);
-      fetchLiveQueue();
+      fetchOpdQueue();
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
     } catch (err) {
       console.error('Failed to cancel token:', err);
       alert(err.response?.data?.message || 'Failed to cancel duplicate token');
