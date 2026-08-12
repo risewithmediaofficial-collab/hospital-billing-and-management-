@@ -15,11 +15,13 @@ export class EmrService {
     if (!appointment) {
       throw new ApiError(404, 'Appointment not found for consultation', null, 'NOT_FOUND');
     }
-    if (String(appointment.doctorId) !== String(user.id || user._id)) {
+    const apptDocId = appointment.doctorId?._id ? String(appointment.doctorId._id) : (appointment.doctorId ? String(appointment.doctorId) : '');
+    const currentUserId = String(user.id || user._id || '');
+    if (apptDocId && currentUserId && apptDocId !== currentUserId && user.role === 'DOCTOR') {
       throw new ApiError(403, 'This appointment is assigned to another doctor', null, 'FORBIDDEN');
     }
 
-    // Check for any pending department requests for this patient/appointment
+    // Check for any department requests for this patient/appointment
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const departmentOrders = await DiagnosticOrder.find({
       $or: [
@@ -28,21 +30,6 @@ export class EmrService {
       ],
       chargeStatus: { $ne: 'CANCELLED' },
     });
-
-    const pendingOrders = departmentOrders.filter((ord) =>
-      ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS'].includes(ord.status)
-    );
-
-    if (pendingOrders.length > 0) {
-      throw new ApiError(
-        400,
-        `One or more department requests are still pending (${pendingOrders.length} pending: ${pendingOrders
-          .map((p) => p.testName)
-          .join(', ')}). Complete all required services and charges before finalizing the bill.`,
-        null,
-        'PENDING_DEPARTMENT_REQUESTS'
-      );
-    }
 
     const consultationFee = Number(data.consultationFee) || 150.0;
     const emergencyFee = Number(data.emergencyFee) || 0;
@@ -138,11 +125,11 @@ export class EmrService {
       });
     }
 
-    const completedDeptOrders = departmentOrders.filter(
-      (ord) => ['REPORT_UPLOADED', 'COMPLETED', 'DOCTOR_REVIEW'].includes(ord.status) && ord.chargeStatus !== 'CANCELLED'
+    const activeDeptOrders = departmentOrders.filter(
+      (ord) => ord.chargeStatus !== 'CANCELLED' && ord.chargeStatus !== 'INCLUDED_IN_FINAL_BILL'
     );
 
-    for (const ord of completedDeptOrders) {
+    for (const ord of activeDeptOrders) {
       const catMap = {
         XRAY: 'RADIOLOGY',
         MRI: 'RADIOLOGY',
