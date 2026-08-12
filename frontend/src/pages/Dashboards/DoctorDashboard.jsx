@@ -1056,7 +1056,7 @@ export const DoctorDashboard = () => {
         onSuccess={() => {
           fetchOpdQueue();
           fetchDepartmentOrders();
-          useDepartmentNotificationStore.getState().refreshPendingWork();
+          useDepartmentNotificationStore.getState().fetchPendingWork?.();
         }}
       />
 

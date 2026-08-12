@@ -45,6 +45,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   },
 
   fetchInitialNotifications: async () => get().fetchPendingWork(),
+  refreshPendingWork: async () => get().fetchPendingWork(),
   addNotification: () => get().fetchPendingWork(),
   resolvePending: () => get().fetchPendingWork(),
 
