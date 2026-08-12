@@ -191,6 +191,7 @@ export const DoctorDashboard = () => {
     }
   };
   const fetchLiveQueue = fetchOpdQueue;
+  // console.log("fetchlivequeue", fetchLiveQueue)
 
   const fetchSubstitutionRequests = async () => {
     try {
