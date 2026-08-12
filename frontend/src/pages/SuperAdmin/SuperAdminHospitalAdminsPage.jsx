@@ -33,9 +33,10 @@ export const SuperAdminHospitalAdminsPage = () => {
     const load = async () => {
       try {
         const res = await axiosClient.get('/saas/hospitals/overview');
-        setOverview(res.data || []);
+        const data = res.data?.data || res.data || [];
+        setOverview(data);
         const initial = {};
-        (res.data || []).forEach((h) => { initial[h.hospitalId] = true; });
+        data.forEach((h) => { initial[h.hospitalId] = true; });
         setExpanded(initial);
       } catch (err) {
         console.error(err);

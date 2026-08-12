@@ -41,11 +41,11 @@ export const SuperAdminHospitalsPage = () => {
   const fetchHospitals = async () => {
     try {
       const res = await axiosClient.get('/saas/hospitals/stats');
-      setHospitals(res.data || []);
+      setHospitals(res.data?.data || res.data || []);
     } catch {
       try {
         const fallback = await axiosClient.get('/saas/hospitals');
-        setHospitals(fallback.data || []);
+        setHospitals(fallback.data?.data || fallback.data || []);
       } catch (err) {
         console.error('Failed to load hospitals:', err);
       }

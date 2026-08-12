@@ -57,9 +57,18 @@ export const SuperAdminDashboardPage = () => {
         axiosClient.get('/saas/hospitals/pending'),
         axiosClient.get('/saas/subscriptions/alerts'),
       ]);
-      if (metricsRes.status === 'fulfilled') setMetrics(metricsRes.value.data);
-      if (pendingRes.status === 'fulfilled') setPendingCount((pendingRes.value.data || []).length);
-      if (alertsRes.status === 'fulfilled') setSubAlerts(alertsRes.value.data || {});
+      if (metricsRes.status === 'fulfilled') {
+        const payload = metricsRes.value.data?.data || metricsRes.value.data;
+        setMetrics(payload);
+      }
+      if (pendingRes.status === 'fulfilled') {
+        const pendingData = pendingRes.value.data?.data || pendingRes.value.data || [];
+        setPendingCount(Array.isArray(pendingData) ? pendingData.length : 0);
+      }
+      if (alertsRes.status === 'fulfilled') {
+        const alertsData = alertsRes.value.data?.data || alertsRes.value.data || {};
+        setSubAlerts(alertsData);
+      }
     } catch (err) {
       console.error('Failed to load platform metrics:', err);
     } finally {

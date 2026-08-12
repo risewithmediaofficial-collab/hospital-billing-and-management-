@@ -29,11 +29,12 @@ export const SuperAdminPendingApprovalsPage = () => {
     setIsLoading(true);
     try {
       const res = await axiosClient.get('/saas/hospitals/pending');
-      setHospitals(res.data || []);
+      setHospitals(res.data?.data || res.data || []);
     } catch {
       try {
         const fallback = await axiosClient.get('/saas/hospitals');
-        setHospitals((fallback.data || []).filter(
+        const list = fallback.data?.data || fallback.data || [];
+        setHospitals(list.filter(
           (h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')
         ));
       } catch (err) {
