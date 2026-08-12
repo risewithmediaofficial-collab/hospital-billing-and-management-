@@ -40,7 +40,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     return `/${user.hospitalDomain}${path}`;
   };
 
-  // Close when clicking outside dropdown container
+  // Fetch live notifications on opening dropdown & close when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -48,6 +48,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       }
     };
     if (isOpen) {
+      useNotificationStore.getState().fetchNotifications();
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);

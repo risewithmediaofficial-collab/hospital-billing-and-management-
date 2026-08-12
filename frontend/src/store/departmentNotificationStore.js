@@ -63,6 +63,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   getUnreadCountForNav: (navPath) => {
     const override = get().navCountOverrides[navPath];
     if (override !== undefined) return override;
+    if (get().byPath[navPath] !== undefined) return get().byPath[navPath];
     return get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length;
   },
 }));

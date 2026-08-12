@@ -16,6 +16,7 @@ import {
   respondSubstitution,
   acknowledgeSubstitution,
   getPendingSubstitutions,
+  sendBillingToDoctor,
   getNurseTasks,
   updateNurseTaskStatus,
 } from './pharmacy.controller.js';
@@ -36,6 +37,7 @@ router.get('/stock-movements', getStockAdjustments);
 // E-Prescriptions & Dispensing
 router.get('/prescriptions', getPrescriptions);
 router.patch('/prescriptions/:id/dispense', requireModulePermission('pharmacy', 'dispense'), dispensePrescription);
+router.patch('/prescriptions/:id/send-billing-to-doctor', sendBillingToDoctor);
 
 // Substitutions
 router.post('/substitutions/request', requestSubstitution);

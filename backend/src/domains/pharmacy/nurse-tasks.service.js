@@ -79,6 +79,15 @@ export class NurseTasksService {
         relatedTaskId: String(createdTasks[0]._id),
       });
       socketManager.emitToBranch(prescription.branchId || prescription.hospitalId, 'workflow:pending_changed', envelope);
+      try {
+        const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+        WorkflowEventService.emitSync(WORKFLOW_EVENTS.NURSE_REQUEST_RAISED, {
+          patientId: prescription.patientId,
+          taskCount: createdTasks.length,
+          doctorId: prescription.doctorId,
+          linkedPath: '/nursing/requests',
+        }, prescription.branchId || prescription.hospitalId);
+      } catch (e) {}
     }
 
     return createdTasks;

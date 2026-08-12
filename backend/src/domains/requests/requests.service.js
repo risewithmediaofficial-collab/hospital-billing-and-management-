@@ -3,7 +3,9 @@ import { Bed } from '../../models/Bed.js';
 import { Patient } from '../../models/Patient.js';
 import { Admission } from '../../models/Admission.js';
 import { User } from '../../models/User.js';
+import { Notification } from '../../models/Notification.js';
 import { socketManager } from '../../events/socketManager.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 
 const CARETAKER_TYPES = ['WATER', 'FOOD', 'CLEANING', 'RESTROOM', 'BLANKET', 'PILLOW', 'CARETAKER'];
@@ -170,36 +172,37 @@ export class RequestsService {
 
     // --- Broadcast real-time notifications ---
     try {
-      if (socketManager?.emitToBranch && resolvedBranchId) {
-        socketManager.emitToBranch(String(resolvedBranchId), 'patient_request:created', {
-          requestId: request._id,
-          requestType: request.requestType,
-          requestCategory: category,
-          priority: request.priority,
-          bedNumber: bed?.bedNumber || 'N/A',
-          roomNumber: bed?.roomNumber || 'General',
-          wardName: bed?.wardName || 'General Ward',
-          patientName,
-          createdAt: request.createdAt,
-        });
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.NURSE_REQUEST_RAISED, {
+        requestId: request._id,
+        relatedTaskId: String(request._id),
+        patientId: request.patientId?._id || request.patientId,
+        patientName,
+        uhid: populated.patientId?.uhid || 'N/A',
+        requestType: request.requestType,
+        requestCategory: category,
+        bedNumber: bed?.bedNumber || 'N/A',
+        wardName: bed?.wardName || 'General Ward',
+        hospitalId: request.hospitalId,
+        branchId: resolvedBranchId,
+        linkedPath: '/nurse-incharge/dashboard?tab=REQUESTS',
+        targetModule: 'nursing',
+      }, resolvedBranchId);
 
-        if (category === 'EMERGENCY') {
-          socketManager.emitToBranch(String(resolvedBranchId), 'emergency:broadcast', {
-            requestId: request._id,
-            codeType: 'CODE_BLUE',
-            patientName,
-            bedNumber: bed?.bedNumber || 'N/A',
-            wardName: bed?.wardName || 'General Ward',
-            roomNumber: bed?.roomNumber || 'General',
-            triggeredAt: new Date(),
-          });
-        }
+      if (category === 'EMERGENCY' && socketManager?.emitToBranch && resolvedBranchId) {
+        socketManager.emitToBranch(String(resolvedBranchId), 'emergency:broadcast', {
+          requestId: request._id,
+          codeType: 'CODE_BLUE',
+          patientName,
+          bedNumber: bed?.bedNumber || 'N/A',
+          wardName: bed?.wardName || 'General Ward',
+          roomNumber: bed?.roomNumber || 'General',
+          triggeredAt: new Date(),
+        });
       }
     } catch (socketErr) {
       console.error('[RequestsService] Socket broadcast failed (non-fatal):', socketErr.message);
     }
 
-    socketManager.emitToBranch(user.branchId, 'workflow:pending_changed', { resourceId: request._id, status: request.status });
     return populated;
   }
 
@@ -282,7 +285,23 @@ export class RequestsService {
       .populate('acceptedBy', 'name role')
       .populate('completedBy', 'name role');
 
-    // Broadcast update
+    // Automatically mark associated DB notifications as read & cleared so bell count reduces for everyone
+    try {
+      await Notification.updateMany(
+        {
+          $or: [
+            { relatedTaskId: String(request._id) },
+            { relatedRequestId: String(request._id) },
+          ],
+          isCleared: { $ne: true },
+        },
+        { isRead: true, isCleared: true, readAt: new Date(), clearedAt: new Date() }
+      );
+    } catch (notifErr) {
+      console.error('[RequestsService] Notification clear failed:', notifErr.message);
+    }
+
+    // Broadcast status update so real-time listeners update their UI
     socketManager.emitToBranch(user.branchId, 'patient_request:updated', {
       requestId: request._id,
       status: request.status,
@@ -290,6 +309,12 @@ export class RequestsService {
       acceptedAt: request.acceptedAt,
       completedAt: request.completedAt,
       escalationLevel: request.escalationLevel,
+    });
+
+    // Trigger sidebar pending-work badge refresh for ALL connected users in the branch
+    socketManager.emitToBranch(user.branchId, 'workflow:pending_changed', {
+      resourceId: request._id,
+      status: request.status,
     });
 
     return populated;

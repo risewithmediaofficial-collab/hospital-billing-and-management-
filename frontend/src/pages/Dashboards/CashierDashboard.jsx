@@ -106,7 +106,15 @@ export const CashierDashboard = () => {
       fetchAllReceipts();
     };
     socket.on('billing:invoice_created', handler);
-    return () => socket.off('billing:invoice_created', handler);
+    socket.on('workflow:pending_changed', handler);
+    socket.on('workflow:notification', handler);
+    socket.on('consultation:completed', handler);
+    return () => {
+      socket.off('billing:invoice_created', handler);
+      socket.off('workflow:pending_changed', handler);
+      socket.off('workflow:notification', handler);
+      socket.off('consultation:completed', handler);
+    };
   }, [socket, fetchUnpaidInvoices, fetchAllReceipts]);
 
   const handlePaymentSuccess = () => {

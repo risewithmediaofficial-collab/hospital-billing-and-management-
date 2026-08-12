@@ -168,6 +168,35 @@ export class EmrService {
       await ord.save();
     }
 
+    // Include pharmacy billed medicine items
+    try {
+      const { Prescription } = await import('../../models/Prescription.js');
+      const billedPrescriptions = await Prescription.find({
+        patientId: appointment.patientId,
+        dispenseStatus: { $in: ['BILLED_SENT_TO_DOCTOR', 'DISPENSED', 'PARTIALLY_DISPENSED'] },
+        chargeStatus: { $ne: 'INCLUDED_IN_FINAL_BILL' },
+      });
+
+      for (const rx of billedPrescriptions) {
+        for (const med of rx.medicines || []) {
+          const medPrice = Number(med.price || med.unitPrice) || 20.0;
+          const qty = Number(med.dispensedQty || med.durationDays || 1);
+          items.push({
+            description: `[Pharmacy Medicine] ${med.medicineName} (${med.dosageForm || 'Tab'})`,
+            category: 'PHARMACY',
+            qty,
+            unitPrice: medPrice,
+            totalPrice: medPrice * qty,
+          });
+        }
+        rx.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
+        rx.dispenseStatus = 'DISPENSED';
+        await rx.save();
+      }
+    } catch (e) {
+      console.error('Failed to include pharmacy billed medicines:', e);
+    }
+
     const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
 
     const invoice = await Invoice.create({
@@ -185,6 +214,39 @@ export class EmrService {
       balanceAmount: subtotal,
       status: PAYMENT_STATUS.UNPAID,
     });
+
+    // Notify Central Billing Desk (CASHIER / BILLING_STAFF)
+    try {
+      const { Patient } = await import('../../models/Patient.js');
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+
+      const patObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid').lean();
+      const patientName = patObj ? `${patObj.firstName} ${patObj.lastName}`.trim() : 'Patient';
+
+      await NotificationService.createNotification({
+        hospitalId: hospId,
+        branchId: brId,
+        recipientRole: 'CASHIER',
+        title: 'New Bill Pending',
+        message: `Consultation & billing finalized for ${patientName} (UHID: ${patObj?.uhid || 'N/A'}). Invoice ${invoiceNo} (₹${subtotal.toLocaleString()}) ready for payment collection.`,
+        notificationType: 'NEW_DATA',
+        targetModule: 'billing',
+        targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
+        relatedPatientId: appointment.patientId,
+        relatedTaskId: String(invoice._id),
+      });
+
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+        invoiceId: invoice._id,
+        invoiceNo,
+        patientName,
+        grandTotal: subtotal,
+        linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
+      }, brId);
+    } catch (e) {
+      console.error('Failed to notify central billing desk:', e);
+    }
 
     socketManager.emitToBranch(brId, 'billing:invoice_created', {
       invoiceId: invoice._id,

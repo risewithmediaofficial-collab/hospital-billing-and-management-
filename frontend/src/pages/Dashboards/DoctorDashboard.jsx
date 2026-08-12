@@ -336,8 +336,20 @@ export const DoctorDashboard = () => {
 
     setSelectedToken(targetToken);
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
-    setActiveTab('LIVE');
     setIsConsultationModalOpen(true);
+  };
+
+  const handleCancelToken = async (tokenId) => {
+    if (!window.confirm('Are you sure you want to cancel this duplicate token / appointment?')) return;
+    try {
+      await axiosClient.patch(`/appointments/tokens/${tokenId}/status`, { status: 'CANCELLED' });
+      setLiveQueue((prev) => prev.filter((t) => t._id !== tokenId));
+      if (selectedToken?._id === tokenId) setSelectedToken(null);
+      fetchLiveQueue();
+    } catch (err) {
+      console.error('Failed to cancel token:', err);
+      alert(err.response?.data?.message || 'Failed to cancel duplicate token');
+    }
   };
 
   // Toggle Doctor Availability (Online / Offline)
@@ -635,13 +647,26 @@ export const DoctorDashboard = () => {
                         <span className="px-2 py-0.5 rounded-md text-[10px] bg-emerald-600 text-white font-black">
                           TOKEN #{tok.tokenNumber}
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                          tok.status === 'IN_CONSULTATION'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
-                            : 'bg-amber-50 text-amber-700 border-amber-300'
-                        }`}>
-                          {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULT' : '⏳ WAITING'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
+                            tok.status === 'IN_CONSULTATION'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
+                              : 'bg-amber-50 text-amber-700 border-amber-300'
+                          }`}>
+                            {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULT' : '⏳ WAITING'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelToken(tok._id);
+                            }}
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                            title="Cancel Duplicate Token / Appointment"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
                       </div>
 
                       <p className="font-extrabold text-slate-900 text-xs tracking-tight">{pat.firstName} {pat.lastName}</p>

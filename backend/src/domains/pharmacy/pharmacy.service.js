@@ -428,9 +428,84 @@ export class PharmacyService {
     prescription.pharmacyNotes = dispenseData?.pharmacyNotes || 'Processed by Pharmacy';
     await prescription.save();
 
+    // Auto-clear associated DB notifications (e.g. PRESCRIPTION_ISSUED) so bell count reduces
+    try {
+      const { Notification } = await import('../../models/Notification.js');
+      await Notification.updateMany(
+        {
+          $or: [
+            { relatedTaskId: String(prescription._id) },
+            { relatedRequestId: String(prescription._id) },
+          ],
+          isCleared: { $ne: true },
+        },
+        { isRead: true, isCleared: true, readAt: new Date(), clearedAt: new Date() }
+      );
+    } catch (e) {}
+
+    // Emit workflow socket event
+    try {
+      const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PHARMACY_DISPENSED, {
+        prescriptionId: prescription._id,
+        patientId: prescription.patientId,
+        dispensedBy: user.name,
+        dispenseStatus: prescription.dispenseStatus,
+        branchId: prescription.branchId || user.branchId,
+      }, prescription.branchId || user.branchId);
+    } catch (e) {}
+
     socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'workflow:pending_changed', {
       resourceId: prescription._id,
       status: prescription.dispenseStatus,
+    });
+
+    return prescription;
+  }
+
+  static async sendBillingToDoctor(id, data, user) {
+    const prescription = await Prescription.findById(id).populate('patientId');
+    if (!prescription) {
+      throw new ApiError(404, 'Prescription not found', null, 'NOT_FOUND');
+    }
+
+    prescription.dispenseStatus = 'BILLED_SENT_TO_DOCTOR';
+    prescription.pharmacyNotes = data?.pharmacyNotes || 'Medicine bill calculated & sent for doctor review';
+    if (data?.totalMedicineCharge) prescription.totalMedicineCharge = Number(data.totalMedicineCharge);
+    if (Array.isArray(data?.items)) {
+      prescription.medicines = data.items;
+    }
+    await prescription.save();
+
+    const patientObj = prescription.patientId;
+    const patientName = patientObj ? `${patientObj.firstName} ${patientObj.lastName}`.trim() : 'Patient';
+
+    try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.createNotification({
+        hospitalId: prescription.hospitalId,
+        branchId: prescription.branchId,
+        recipientUserId: prescription.doctorId,
+        recipientRole: 'DOCTOR',
+        title: 'Pharmacy Medicine Billing Ready',
+        message: `Pharmacy calculated medicine bill for ${patientName} (UHID: ${patientObj?.uhid || 'N/A'}). Review and finalize bill in consultation workspace.`,
+        notificationType: 'ACTION_REQUIRED',
+        targetModule: 'doctor',
+        targetRoute: '/doctor/dashboard?tab=LIVE',
+        relatedPatientId: prescription.patientId,
+        relatedTaskId: String(prescription._id),
+      });
+    } catch (e) {}
+
+    socketManager.emitToUser(String(prescription.doctorId), 'pharmacy:billing_sent_to_doctor', {
+      prescriptionId: prescription._id,
+      patientId: prescription.patientId,
+      totalMedicineCharge: prescription.totalMedicineCharge,
+    });
+
+    socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'workflow:pending_changed', {
+      resourceId: prescription._id,
+      status: 'BILLED_SENT_TO_DOCTOR',
     });
 
     return prescription;

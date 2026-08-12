@@ -71,13 +71,25 @@ export const SuperAdminDashboardPage = () => {
     loadDashboardData();
 
     if (!socket) return;
-    socket.on('saas:pending_changed', loadDashboardData);
-    socket.on('workflow:notification', loadDashboardData);
+    const handleUpdate = () => loadDashboardData();
+    socket.on('saas:pending_changed', handleUpdate);
+    socket.on('workflow:notification', handleUpdate);
+    socket.on('workflow:pending_changed', handleUpdate);
+    socket.on('emergency:alert', handleUpdate);
+    socket.on('emergency:code_blue_triggered', handleUpdate);
+    socket.on('emergency:resolved', handleUpdate);
+    socket.on('patient_request:updated', handleUpdate);
+
     return () => {
-      socket.off('saas:pending_changed', loadDashboardData);
-      socket.off('workflow:notification', loadDashboardData);
+      socket.off('saas:pending_changed', handleUpdate);
+      socket.off('workflow:notification', handleUpdate);
+      socket.off('workflow:pending_changed', handleUpdate);
+      socket.off('emergency:alert', handleUpdate);
+      socket.off('emergency:code_blue_triggered', handleUpdate);
+      socket.off('emergency:resolved', handleUpdate);
+      socket.off('patient_request:updated', handleUpdate);
     };
-  }, [Boolean(socket)]);
+  }, [socket]);
 
   const navigateTo = (key) => {
     const path = STAT_CARD_ROUTES[key];

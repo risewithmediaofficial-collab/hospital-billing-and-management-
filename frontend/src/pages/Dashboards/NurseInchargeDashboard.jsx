@@ -48,7 +48,7 @@ export const NurseInchargeDashboard = () => {
   }, [location.search]);
 
   const { socket } = useSocket();
-  const setNavCount = useDepartmentNotificationStore((state) => state.setNavCount);
+  const { fetchPendingWork } = useDepartmentNotificationStore();
 
   useEffect(() => {
     fetchData();
@@ -82,7 +82,6 @@ export const NurseInchargeDashboard = () => {
       setBeds(Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []));
       const requests = Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []);
       setPatientRequests(requests);
-      setNavCount('/nurse-incharge/dashboard?tab=REQUESTS', requests.length);
       setNurseTasks(Array.isArray(tasksRes) ? tasksRes : (tasksRes.data || []));
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);
@@ -506,9 +505,15 @@ export const NurseInchargeDashboard = () => {
                       onClick={async () => {
                         try {
                           await axiosClient.patch(`/requests/${req._id}/status`, { status: 'COMPLETED' });
-                          fetchData();
+                          // Update local state: mark this request as COMPLETED
+                          setPatientRequests((prev) =>
+                            prev.map((r) => r._id === req._id ? { ...r, status: 'COMPLETED' } : r)
+                          );
+                          // Sync server-side pending work count (sidebar badge + bell count)
+                          fetchPendingWork();
                         } catch (e) {
                           console.error('Failed to resolve request:', e);
+                          fetchData();
                         }
                       }}
                     >

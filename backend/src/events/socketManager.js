@@ -93,9 +93,13 @@ class SocketManager {
 
   emitEmergency(event, data) {
     if (this.io) {
+      // Single broadcast to ALL connected clients — avoid emitting code_blue_triggered twice
       this.io.emit('emergency:alert', data);
       this.io.emit('emergency:code_blue_triggered', data);
-      this.io.emit(event, data);
+      // Only emit the named event if it's different from the events already emitted above
+      if (event !== 'emergency:alert' && event !== 'emergency:code_blue_triggered') {
+        this.io.emit(event, data);
+      }
     }
   }
 

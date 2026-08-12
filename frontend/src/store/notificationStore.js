@@ -67,7 +67,11 @@ export const useNotificationStore = create((set, get) => ({
 
   clearAllNotifications: async () => {
     set({ notifications: [], unreadCount: 0 });
-    try { await axiosClient.delete('/notifications/clear-all'); }
-    catch (error) { await get().fetchNotifications(); }
+    try {
+      await axiosClient.delete('/notifications/clear-all');
+      await get().fetchNotifications();
+    } catch (error) {
+      await get().fetchNotifications();
+    }
   },
 }));

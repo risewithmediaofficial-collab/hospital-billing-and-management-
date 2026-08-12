@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useNotificationStore } from '../../store/notificationStore';
 import { useEmergencyStore } from '../../store/emergencyStore';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
@@ -97,6 +98,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
   const { addNotification, fetchInitialNotifications, fetchPendingWork, getUnreadCountForNav } = useDepartmentNotificationStore();
+  const { fetchNotifications } = useNotificationStore();
   const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
   const location = useLocation();
   const navRef = useRef(null);
@@ -278,8 +280,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
     };
 
     const handleEmergencyAlert = (data) => {
+      // Use the actual MongoDB _id from the payload so resolveEmergency API call works
+      const resolvedId = data.emergencyId || data._id || data.id || `emg_${Date.now()}`;
       addEmergency({
-        id: data.id || `emg_${Date.now()}`,
+        ...data,
+        _id: resolvedId,
+        id: resolvedId,
+        emergencyId: resolvedId,
         event: 'EMERGENCY',
         title: data.title || '🚨 Emergency Alert',
         message: data.message || 'Code Blue triggered',
@@ -287,37 +294,34 @@ export const Sidebar = ({ isOpen, onClose }) => {
         linkedPath: '/emergency',
         timestamp: data.timestamp || new Date(),
       });
-      addNotification({
-        id: `emg_notif_${Date.now()}`,
-        event: 'EMERGENCY',
-        title: data.title || '🚨 Emergency Alert',
-        message: data.message || 'Code Blue triggered',
-        patientName: data.patientName || data.payload?.patientName || 'Unknown Patient',
-        linkedPath: '/emergency',
-        timestamp: data.timestamp || new Date(),
-      });
+      // Refresh the bell notification count (emergency notifications are persisted to DB)
+      fetchNotifications();
     };
 
+    // Only listen to 'emergency:alert' here — SocketProvider already handles 'emergency:code_blue_triggered'
+    // for the global CodeBlue modal. Listening to both in Sidebar would double-add emergencies.
     socket.on('emergency:alert', handleEmergencyAlert);
-    socket.on('emergency:code_blue_triggered', handleEmergencyAlert);
     socket.on('queue:patient_added', handleDoctorQueueNotification);
     socket.on('token:generated', handleDoctorQueueNotification);
     socket.on('appointment:created', handleDoctorQueueNotification);
     socket.on('patient_request:created', handleNursingRequestNotification);
     socket.on('workflow:notification', handleWorkflowEvent);
     socket.on('workflow:pending_changed', fetchPendingWork);
+    // Also refresh bell count on any patient request status update
+    socket.on('patient_request:updated', () => fetchNotifications());
 
     return () => {
       socket.off('emergency:alert', handleEmergencyAlert);
-      socket.off('emergency:code_blue_triggered', handleEmergencyAlert);
       socket.off('queue:patient_added', handleDoctorQueueNotification);
       socket.off('token:generated', handleDoctorQueueNotification);
       socket.off('appointment:created', handleDoctorQueueNotification);
       socket.off('patient_request:created', handleNursingRequestNotification);
       socket.off('workflow:notification', handleWorkflowEvent);
       socket.off('workflow:pending_changed', fetchPendingWork);
+      socket.off('patient_request:updated');
     };
-  }, [socket, addNotification, addEmergency, fetchPendingWork, location.pathname, location.search]);
+  }, [socket, addNotification, addEmergency, fetchPendingWork, fetchNotifications, location.pathname, location.search]);
+
 
   useEffect(() => {
     if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;

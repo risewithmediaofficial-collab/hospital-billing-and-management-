@@ -154,22 +154,14 @@ export class AppointmentsService {
     const todayStr = new Date().toISOString().split('T')[0];
     const targetDocId = doctorId || user?.id || user?._id;
 
-    let filter = {};
+    const filter = {
+      status: { $in: ['WAITING', 'IN_CONSULTATION', 'HOLD'] },
+    };
 
-    if (user?.role === 'DOCTOR') {
-      filter = {
-        $or: [
-          { doctorId: targetDocId },
-          ...(hospitalId ? [{ hospitalId }] : [])
-        ],
-        status: { $nin: ['CANCELLED'] }
-      };
-    } else if (targetDocId) {
-      filter = { doctorId: targetDocId };
+    if (targetDocId) {
+      filter.doctorId = targetDocId;
     } else if (hospitalId) {
-      filter = { hospitalId };
-    } else {
-      filter = { appointmentDate: todayStr };
+      filter.hospitalId = hospitalId;
     }
 
     return await Appointment.find(filter)

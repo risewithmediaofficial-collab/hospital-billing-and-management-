@@ -224,7 +224,6 @@ export const ROLE_NAVIGATION = {
     { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
     { title: 'Registered Patients', path: '/reception/registered-patients?tab=REGISTERED', icon: 'UserCheck', module: 'patients' },
     { title: 'Queued / Active OPD', path: '/reception/registered-patients?tab=QUEUED', icon: 'Hourglass', module: 'opd' },
-    { title: 'Completed & Billed', path: '/reception/registered-patients?tab=COMPLETED', icon: 'CheckCircle2', module: 'patients' },
     { title: 'All Hospital Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],

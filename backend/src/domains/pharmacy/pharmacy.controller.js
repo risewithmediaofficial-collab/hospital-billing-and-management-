@@ -128,6 +128,15 @@ export const getPendingSubstitutions = async (req, res, next) => {
   }
 };
 
+export const sendBillingToDoctor = async (req, res, next) => {
+  try {
+    const result = await PharmacyService.sendBillingToDoctor(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Pharmacy medicine bill sent to doctor for review', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // --- NURSE TASKS CONTROLLERS ---
 
 export const getNurseTasks = async (req, res, next) => {

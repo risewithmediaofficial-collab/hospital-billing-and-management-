@@ -6,7 +6,7 @@ import { ShieldAlert, CheckCircle2, MapPin, User, Clock, AlertTriangle, Activity
 import { axiosClient } from '../../api/axiosClient';
 
 export const EmergencyConsoleView = () => {
-  const { emergencies, resolveEmergency, fetchActiveEmergencies } = useEmergencyStore();
+  const { emergencies, resolveEmergency, fetchActiveEmergencies, isResolving } = useEmergencyStore();
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('ACTIVE'); // 'ACTIVE' | 'HISTORY'
 
@@ -107,10 +107,16 @@ export const EmergencyConsoleView = () => {
                   <div className="pt-2 border-t border-red-200 flex justify-end">
                     <Button
                       variant="primary"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold w-full sm:w-auto"
+                      className={`text-xs font-bold w-full sm:w-auto transition-all ${
+                        isResolving(emg._id || emg.emergencyId)
+                          ? 'bg-slate-400 text-white cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
+                      disabled={isResolving(emg._id || emg.emergencyId)}
                       onClick={() => resolveEmergency(emg._id || emg.emergencyId, 'Emergency resolved by medical response unit.')}
                     >
-                      <CheckCircle2 size={14} /> Mark as Stabilized & Resolved
+                      <CheckCircle2 size={14} />
+                      {isResolving(emg._id || emg.emergencyId) ? 'Resolving...' : 'Mark as Stabilized & Resolved'}
                     </Button>
                   </div>
                 </div>

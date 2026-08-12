@@ -8,7 +8,7 @@ import { useAvailability } from '../../hooks/useAvailability';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
-  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info
+  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info, Receipt
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
@@ -143,6 +143,25 @@ export const PharmacistDashboard = () => {
       await Promise.all([fetchData(), refreshPendingWork()]);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to dispense');
+    }
+  };
+
+  const handleSendBillingToDoctor = async (rx) => {
+    const defaultAmount = (rx.medicines || []).reduce((acc, m) => acc + ((Number(m.price) || 25) * (Number(m.durationDays) || 1)), 0);
+    const inputAmount = window.prompt(`Calculate medicine bill for Prescription ${rx.prescriptionNo} (₹):`, defaultAmount);
+    if (inputAmount === null) return;
+    const totalMedicineCharge = Number(inputAmount) || defaultAmount;
+
+    try {
+      await axiosClient.patch(`/pharmacy/prescriptions/${rx._id}/send-billing-to-doctor`, {
+        totalMedicineCharge,
+        pharmacyNotes: `Medicine bill ₹${totalMedicineCharge} calculated by pharmacy`,
+      });
+      alert(`Medicine bill (₹${totalMedicineCharge}) sent to Dr. ${rx.doctorId?.name || 'Doctor'} for review & final billing.`);
+      await Promise.all([fetchData(), refreshPendingWork()]);
+    } catch (err) {
+      console.error('Failed to send billing to doctor:', err);
+      alert(err.response?.data?.message || 'Failed to send billing to doctor');
     }
   };
 
@@ -345,6 +364,9 @@ export const PharmacistDashboard = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button variant="primary" size="sm" onClick={() => handleSendBillingToDoctor(rx)}>
+                      <Receipt size={14} className="mr-1" /> Bill & Send to Doctor
+                    </Button>
                     <Button variant="success" size="sm" onClick={() => handleDispense(rx._id, false)}>
                       <CheckCircle2 size={14} className="mr-1" /> Dispense (FEFO)
                     </Button>

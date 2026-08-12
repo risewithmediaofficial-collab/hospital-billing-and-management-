@@ -109,7 +109,8 @@ const buildTodayMetrics = async (hospitalId = null) => {
     pendingLab,
     pendingRad,
     pendingBilling,
-    emergencies,
+    activeEmgCount,
+    activeEmgReqCount,
   ] = await Promise.all([
     Patient.countDocuments({ ...base, createdAt: { $gte: todayStart, $lte: todayEnd } }),
     Appointment.countDocuments({ ...base, appointmentDate: today }),
@@ -131,8 +132,11 @@ const buildTodayMetrics = async (hospitalId = null) => {
       status: { $in: ['REQUESTED', 'IN_PROGRESS'] },
     }),
     Invoice.countDocuments({ ...base, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }),
-    Emergency.countDocuments({ ...base, status: { $in: ['ACTIVE', 'RESPONDING', 'ON_SITE'] } }),
+    Emergency.countDocuments({ ...base, status: { $in: ['ACTIVE', 'RESPONDED'] } }),
+    PatientRequest.countDocuments({ ...base, requestCategory: 'EMERGENCY', status: { $in: ['SUBMITTED', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ESCALATED'] } }),
   ]);
+
+  const emergencies = (activeEmgCount || 0) + (activeEmgReqCount || 0);
 
   return {
     todayRegistrations: registrations,
@@ -913,7 +917,7 @@ export class SaasService {
     return hospital;
   }
 
-  static async assignPlanToHospital(hospitalId, { planCode, billingCycle = 'MONTHLY' }, user) {
+  static async assignPlanToHospital(hospitalId, { planCode, billingCycle = 'MONTHLY', paymentAmount, paymentMethod, paymentRef, paidAt, renewalNote }, user) {
     const hospital = await Hospital.findById(hospitalId);
     if (!hospital) throw new ApiError(404, 'Hospital tenant not found', null, 'NOT_FOUND');
 
@@ -922,6 +926,9 @@ export class SaasService {
     if (!plan) throw new ApiError(404, `Subscription plan '${planCode}' not found`, null, 'NOT_FOUND');
 
     const months = billingCycle === 'YEARLY' ? 12 : 1;
+    const previousPlan = hospital.plan;
+    const previousEndDate = hospital.subscriptionEndDate;
+
     hospital.plan = plan.code;
     hospital.subscriptionPlanId = plan._id;
     hospital.isTrial = false;
@@ -932,6 +939,8 @@ export class SaasService {
     hospital.staffLimits = plan.staffLimits;
     hospital.usageLimits = plan.usageLimits;
     hospital.enabledModules = plan.availableModules;
+    // Reset subscription warning flags on renewal
+    hospital.subscriptionWarningsSent = { '7_days': false, '3_days': false, '1_day': false, '0_days': false };
     await hospital.save();
 
     const { NotificationService } = await import('../notifications/notification.service.js');
@@ -943,13 +952,23 @@ export class SaasService {
       type: 'SUBSCRIPTION_ACTIVATED',
     });
 
+    // Build payment trail for audit log
+    const paymentDetails = [];
+    if (paymentAmount) paymentDetails.push(`Amount: ₹${Number(paymentAmount).toLocaleString('en-IN')}`);
+    if (paymentMethod) paymentDetails.push(`Method: ${paymentMethod}`);
+    if (paymentRef) paymentDetails.push(`Ref: ${paymentRef}`);
+    if (paidAt) paymentDetails.push(`Paid On: ${new Date(paidAt).toLocaleDateString('en-IN')}`);
+    if (renewalNote) paymentDetails.push(`Note: ${renewalNote}`);
+    const paymentTrail = paymentDetails.length ? ` | Payment — ${paymentDetails.join(' | ')}` : '';
+    const previousInfo = previousPlan ? ` | Previous: ${previousPlan} (until ${previousEndDate ? new Date(previousEndDate).toLocaleDateString('en-IN') : 'N/A'})` : '';
+
     await AuditLog.create({
       hospitalId: hospital._id,
       userId: user.id,
       userRole: user.role,
       action: 'SUBSCRIPTION_PURCHASED',
       module: 'SAAS',
-      details: `Plan '${plan.name}' assigned to ${hospital.name} until ${hospital.subscriptionEndDate.toLocaleDateString()}`,
+      details: `Plan '${plan.name}' (${billingCycle}) manually assigned to ${hospital.name} until ${hospital.subscriptionEndDate.toLocaleDateString('en-IN')}${previousInfo}${paymentTrail}`,
     });
 
     return hospital;

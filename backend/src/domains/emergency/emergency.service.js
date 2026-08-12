@@ -72,9 +72,19 @@ export class EmergencyService {
   }
 
   static async resolveEmergency(id, data, user) {
+    // Validate MongoDB ObjectId format before querying
+    const mongoose = (await import('mongoose')).default;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, `Invalid emergency ID format: '${id}'. The ID must be a valid MongoDB ObjectId. Please reload the emergency console to fetch live data.`, null, 'INVALID_ID');
+    }
+
     const emergency = await Emergency.findById(id);
     if (!emergency) {
-      throw new ApiError(404, 'Emergency record not found', null, 'NOT_FOUND');
+      throw new ApiError(404, 'Emergency record not found. It may have already been resolved.', null, 'NOT_FOUND');
+    }
+
+    if (emergency.status === 'RESOLVED') {
+      return emergency; // Already resolved — return current state, no-op
     }
 
     emergency.status = 'RESOLVED';
@@ -101,6 +111,14 @@ export class EmergencyService {
       resolutionNotes: emergency.resolutionNotes,
       resolvedAt: emergency.resolvedAt,
     }, emergency.branchId);
+
+    try {
+      const { socketManager } = await import('../../events/socketManager.js');
+      socketManager.emitEmergency('emergency:resolved', {
+        emergencyId: emergency._id,
+        status: 'RESOLVED',
+      });
+    } catch (e) {}
 
     return emergency;
   }

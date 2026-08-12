@@ -46,11 +46,12 @@ export class WorkflowService {
 
     // STRICT ROLE ISOLATION — Each role gets ONLY its own department notifications
     if (activeRole === 'DOCTOR') {
+      const docId = user.id || user._id || identity.id || identity._id;
       const [appointments, reports, doctorRequests, subRequests] = await Promise.all([
-        Appointment.find({ ...scope, doctorId: user.id, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
-        DiagnosticOrder.find({ ...scope, doctorId: user.id, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
-        PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, $or: [{ assignedDoctorId: user.id }, { assignedDoctorId: null }] }).populate('patientId').lean(),
-        PharmacySubstitutionRequest.find({ ...scope, doctorId: user.id, status: 'PENDING' }).populate('patientId').lean(),
+        Appointment.find({ ...scope, doctorId: docId, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
+        DiagnosticOrder.find({ ...scope, doctorId: docId, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
+        PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] }).populate('patientId').lean(),
+        PharmacySubstitutionRequest.find({ ...scope, doctorId: docId, status: 'PENDING' }).populate('patientId').lean(),
       ]);
       appointments.forEach((item) => tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard?tab=LIVE', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       reports.forEach((item) => tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Review response: ${item.testName}`, { targetModule: 'doctor' })));

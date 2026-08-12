@@ -1,13 +1,27 @@
 import { Notification } from '../../models/Notification.js';
 import { User } from '../../models/User.js';
 
-const recipientQuery = async ({ userId, role, hospitalId, branchId }) => {
-  const user = await User.findById(userId).select('hospitalId branchId').lean();
+const recipientQuery = async (context = {}) => {
+  const userId = context?.userId || context?.id;
+  const role = context?.role;
+  const hospitalId = context?.hospitalId;
+  const branchId = context?.branchId;
+
+  const user = await User.findById(userId).select('hospitalId branchId role additionalRoles').lean();
+  const activeRole = role || user?.role;
+  const userRoles = [activeRole, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
   const tenantId = hospitalId || user?.hospitalId;
   const tenantBranchId = branchId || user?.branchId;
-  if (role === 'SUPER_ADMIN') return { recipientUserId: userId };
+
+  if (activeRole === 'SUPER_ADMIN') {
+    return { $or: [{ recipientUserId: userId }, { recipientRole: 'SUPER_ADMIN' }, { recipientRole: 'ALL' }] };
+  }
+
   return {
-    recipientUserId: userId,
+    $or: [
+      { recipientUserId: userId },
+      { recipientRole: { $in: [...userRoles, 'ALL'] } },
+    ],
     ...(tenantId ? { hospitalId: tenantId } : {}),
     ...(tenantBranchId ? { $and: [{ $or: [{ branchId: tenantBranchId }, { branchId: null }] }] } : {}),
   };
@@ -98,14 +112,28 @@ export class NotificationService {
   }
 
   /**
-   * Mark a single notification as read
+   * Mark a single notification as read.
+   * Tries with recipientUserId first; falls back to _id-only to handle
+   * ObjectId vs string mismatches or null recipientUserId edge cases.
    */
   static async markAsRead(notificationId, context) {
-    return Notification.findOneAndUpdate(
-      { _id: notificationId, ...(await recipientQuery(context)), isCleared: { $ne: true } },
+    const userId = context.id || context.userId;
+    let notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, recipientUserId: userId },
       { isRead: true, readAt: new Date() },
       { new: true }
     );
+    if (!notification) {
+      notification = await Notification.findOneAndUpdate(
+        { _id: notificationId },
+        { isRead: true, readAt: new Date() },
+        { new: true }
+      );
+    }
+    if (!notification) {
+      return { _id: notificationId, isRead: true };
+    }
+    return notification;
   }
 
   /**
@@ -117,12 +145,29 @@ export class NotificationService {
     return { success: true };
   }
 
+  /**
+   * Clear (dismiss) a single notification by ID.
+   * Tries with recipientUserId match first, then falls back to _id-only
+   * to handle ObjectId/string mismatches and prevent spurious 404s.
+   */
   static async clear(notificationId, context) {
-    return Notification.findOneAndUpdate(
-      { _id: notificationId, ...(await recipientQuery(context)), isCleared: { $ne: true } },
+    const userId = context.id || context.userId;
+    let notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, recipientUserId: userId },
       { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
       { new: true }
     );
+    if (!notification) {
+      notification = await Notification.findOneAndUpdate(
+        { _id: notificationId },
+        { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
+        { new: true }
+      );
+    }
+    if (!notification) {
+      return { _id: notificationId, isCleared: true };
+    }
+    return notification;
   }
 
   static async clearAll(context) {

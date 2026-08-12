@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Stethoscope, ConciergeBell, Activity, TestTube, Scan, Pill, CreditCard,
   UserCircle, BedDouble, Users, Calendar, IndianRupee, ShieldAlert, ClipboardList,
-  Eye, EyeOff, Search, Key, Edit, CheckCircle2, Lock, X, ArrowDown
+  Eye, EyeOff, Search, Key, Edit, CheckCircle2, Lock, X, ArrowDown,
+  RefreshCw, AlertTriangle, Zap, TrendingUp, Globe, BadgeCheck, Clock,
 } from 'lucide-react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
@@ -28,6 +29,332 @@ const HOSPITAL_DASHBOARD_CARDS = [
   { key: 'inactiveStaff', title: 'INACTIVE STAFF', icon: Users, color: 'amber', roleFilter: 'ALL_INACTIVE' },
 ];
 
+const PLAN_META = {
+  BASIC:     { label: 'Basic Plan',     icon: Zap,        bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    price: { MONTHLY: 4000,  YEARLY: 40000  } },
+  STANDARD:  { label: 'Standard Plan',  icon: TrendingUp, bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  price: { MONTHLY: 30000, YEARLY: 300000 } },
+  UNLIMITED: { label: 'Unlimited Plan', icon: Globe,      bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', price: { MONTHLY: 50000, YEARLY: 500000 } },
+};
+
+const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Cheque', 'UPI', 'NEFT / RTGS', 'Credit Card', 'Other'];
+
+// ── Renew Subscription Modal ─────────────────────────────────────────────────
+const RenewSubscriptionModal = ({ hospital, onClose, onRenewed }) => {
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(hospital.plan || 'BASIC');
+  const [billingCycle, setBillingCycle] = useState('MONTHLY');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [renewalNote, setRenewalNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    axiosClient.get('/saas/plans').then((r) => {
+      const fetched = r.data || [];
+      setPlans(fetched);
+    }).catch(() => {});
+  }, []);
+
+  // Auto-fill price when plan or cycle changes
+  useEffect(() => {
+    const meta = PLAN_META[selectedPlan];
+    if (meta) {
+      setPaymentAmount(String(meta.price[billingCycle] || ''));
+    }
+  }, [selectedPlan, billingCycle]);
+
+  const handleSubmit = async () => {
+    if (!selectedPlan) { setError('Please select a plan.'); return; }
+    setIsSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      await axiosClient.post(`/saas/hospitals/${hospital._id}/assign-plan`, {
+        planCode: selectedPlan,
+        billingCycle,
+        paymentAmount: paymentAmount ? Number(paymentAmount) : undefined,
+        paymentMethod,
+        paymentRef: paymentRef.trim() || undefined,
+        paidAt,
+        renewalNote: renewalNote.trim() || undefined,
+      });
+      setSuccess(`✅ ${PLAN_META[selectedPlan]?.label || selectedPlan} activated successfully! Hospital renewed.`);
+      setTimeout(() => {
+        onRenewed();
+        onClose();
+      }, 1600);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to assign plan. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const selectedMeta = PLAN_META[selectedPlan];
+  const PlanIcon = selectedMeta?.icon || Zap;
+  const daysAdded = billingCycle === 'YEARLY' ? 365 : 30;
+  const newExpiry = new Date(Date.now() + daysAdded * 24 * 60 * 60 * 1000);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-indigo-100">
+              <RefreshCw size={18} className="text-indigo-700" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Renew / Assign Plan</h3>
+              <p className="text-xs text-slate-500">{hospital.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Current Status */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1">
+          <p className="font-bold text-slate-700 uppercase text-[10px] tracking-wider">Current Subscription Status</p>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">Active Plan:</span>
+            <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${PLAN_META[hospital.plan]?.bg || 'bg-slate-100'} ${PLAN_META[hospital.plan]?.text || 'text-slate-700'}`}>
+              {hospital.plan || 'BASIC'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">Expires:</span>
+            <span className="font-mono font-bold text-slate-900">{hospital.subscriptionEndDate ? formatDate(hospital.subscriptionEndDate) : 'N/A'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">Status:</span>
+            <span className={`font-bold ${hospital.status === 'APPROVED' ? 'text-emerald-700' : 'text-rose-700'}`}>{hospital.status}</span>
+          </div>
+        </div>
+
+        {/* Plan Selector */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select Plan</label>
+          <div className="grid grid-cols-3 gap-2">
+            {['BASIC', 'STANDARD', 'UNLIMITED'].map((code) => {
+              const meta = PLAN_META[code];
+              const Icon = meta.icon;
+              const isSelected = selectedPlan === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setSelectedPlan(code)}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${meta.border} ${meta.bg} ${meta.text} shadow-sm scale-[1.02]`
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span>{code}</span>
+                  <span className="text-[10px] font-normal text-slate-500">
+                    ₹{(meta.price.MONTHLY / 1000).toFixed(0)}K/mo
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Billing Cycle */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Billing Cycle</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: 'MONTHLY', label: 'Monthly', sub: '30 days' },
+              { key: 'YEARLY', label: 'Yearly', sub: '365 days — Save ~17%' },
+            ].map(({ key, label, sub }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setBillingCycle(key)}
+                className={`flex flex-col items-start px-4 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${
+                  billingCycle === key
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-700 shadow-sm'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <span>{label}</span>
+                <span className="text-[10px] font-normal text-slate-500">{sub}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* New Expiry Preview */}
+        {selectedPlan && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${selectedMeta?.bg || 'bg-slate-50'} ${selectedMeta?.text || 'text-slate-700'} border ${selectedMeta?.border || 'border-slate-200'}`}>
+            <BadgeCheck size={14} />
+            <span>New expiry: <strong>{newExpiry.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></span>
+          </div>
+        )}
+
+        {/* Payment Details */}
+        <div className="space-y-3">
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Payment Details</label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Amount Received (₹)</label>
+              <input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="e.g. 4000"
+                className="w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 border-slate-200"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 border-slate-200"
+              >
+                {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Date</label>
+              <input
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 border-slate-200"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Reference / Txn ID</label>
+              <input
+                type="text"
+                value={paymentRef}
+                onChange={(e) => setPaymentRef(e.target.value)}
+                placeholder="UTR / Cheque No / Ref"
+                className="w-full px-3 py-2 border rounded-lg text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 border-slate-200"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Internal Note (Optional)</label>
+            <textarea
+              value={renewalNote}
+              onChange={(e) => setRenewalNote(e.target.value)}
+              placeholder="e.g. Payment received in person by owner. Renewal for Aug 2026."
+              rows={2}
+              className="w-full px-3 py-2 border rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 border-slate-200 resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Feedback */}
+        {error && (
+          <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <AlertTriangle size={14} /> {error}
+          </div>
+        )}
+        {success && (
+          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 size={14} /> {success}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2 pt-1 border-t">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+          <Button
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            <RefreshCw size={13} className={isSubmitting ? 'animate-spin' : ''} />
+            {isSubmitting ? 'Activating...' : 'Activate & Renew Plan'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Subscription Status Bar ──────────────────────────────────────────────────
+const SubscriptionStatusBar = ({ hospital, onRenewClick }) => {
+  const now = new Date();
+  const endDate = hospital.subscriptionEndDate ? new Date(hospital.subscriptionEndDate) : null;
+  const daysLeft = endDate ? Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)) : null;
+  const isExpired = daysLeft !== null && daysLeft <= 0;
+  const isExpiringSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
+  const isTrial = hospital.isTrial;
+  const meta = PLAN_META[hospital.plan] || PLAN_META.BASIC;
+  const PlanIcon = meta.icon;
+
+  let statusColor = 'bg-emerald-50 border-emerald-200 text-emerald-800';
+  let statusLabel = 'Active';
+  let statusIcon = <BadgeCheck size={13} className="text-emerald-600" />;
+
+  if (isExpired) {
+    statusColor = 'bg-rose-50 border-rose-200 text-rose-800';
+    statusLabel = 'Expired';
+    statusIcon = <AlertTriangle size={13} className="text-rose-600" />;
+  } else if (isExpiringSoon) {
+    statusColor = 'bg-amber-50 border-amber-200 text-amber-800';
+    statusLabel = `Expiring in ${daysLeft}d`;
+    statusIcon = <Clock size={13} className="text-amber-600" />;
+  } else if (isTrial) {
+    statusColor = 'bg-purple-50 border-purple-200 text-purple-800';
+    statusLabel = 'Trial';
+    statusIcon = <Clock size={13} className="text-purple-600" />;
+  }
+
+  return (
+    <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs ${statusColor}`}>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-1.5 font-bold">
+          <PlanIcon size={14} />
+          <span>{meta.label}</span>
+        </div>
+        <div className="text-[11px] opacity-80">
+          Start: <strong>{hospital.subscriptionStartDate ? formatDate(hospital.subscriptionStartDate) : '—'}</strong>
+        </div>
+        <div className="text-[11px] opacity-80">
+          Expires: <strong>{endDate ? formatDate(endDate) : '—'}</strong>
+        </div>
+        {daysLeft !== null && (
+          <div className="flex items-center gap-1 text-[11px] font-semibold">
+            {statusIcon}
+            <span>{statusLabel}</span>
+            {!isExpired && daysLeft > 0 && <span className="opacity-70">({daysLeft} days left)</span>}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onRenewClick}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all shadow-sm
+          ${isExpired || isExpiringSoon
+            ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700'
+            : 'bg-white border-current opacity-80 hover:opacity-100 hover:shadow'}`}
+      >
+        <RefreshCw size={12} />
+        {isExpired ? 'Renew Now' : 'Change / Renew Plan'}
+      </button>
+    </div>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export const SuperAdminHospitalDashboard = () => {
   const { hospitalId } = useParams();
   const navigate = useNavigate();
@@ -35,9 +362,9 @@ export const SuperAdminHospitalDashboard = () => {
   const [detail, setDetail] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Active Tab & Role Filter State
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'patients' | 'revenue'
-  const [roleFilter, setRoleFilter] = useState('DOCTOR'); // Default to DOCTOR as requested
+  // Active Tab & Role Filter State — default ALL to show all 10 staff
+  const [activeTab, setActiveTab] = useState('staff');
+  const [roleFilter, setRoleFilter] = useState('ALL'); // FIX: was 'DOCTOR', now 'ALL'
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState({});
 
@@ -47,6 +374,9 @@ export const SuperAdminHospitalDashboard = () => {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState('');
   const [passwordUpdateError, setPasswordUpdateError] = useState('');
+
+  // Renewal Modal
+  const [showRenewModal, setShowRenewModal] = useState(false);
 
   const detailsTableRef = useRef(null);
 
@@ -77,7 +407,6 @@ export const SuperAdminHospitalDashboard = () => {
     setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Clicking ANY card box filters staff/patient table directly on this page & scrolls down smoothly
   const handleCardClick = (card) => {
     if (card.viewTab) {
       setActiveTab(card.viewTab);
@@ -181,7 +510,6 @@ export const SuperAdminHospitalDashboard = () => {
 
   const totalRevenue = stats.totalHospitalRevenue || hospital.totalHospitalRevenue || 0;
 
-  // Header Title Generator based on Selected Role Filter
   const getTableTitle = () => {
     if (roleFilter === 'DOCTOR') return { title: `Doctor Performance & Consultation Reports (${filteredStaff.length})`, icon: Stethoscope, color: 'text-emerald-600' };
     if (roleFilter === 'RECEPTIONIST') return { title: `Receptionist Staff Credentials & Duty Reports (${filteredStaff.length})`, icon: ConciergeBell, color: 'text-blue-600' };
@@ -190,7 +518,7 @@ export const SuperAdminHospitalDashboard = () => {
     if (roleFilter === 'RADIOLOGIST') return { title: `Radiology Staff Credentials & RIS Reports (${filteredStaff.length})`, icon: Scan, color: 'text-purple-600' };
     if (roleFilter === 'PHARMACIST') return { title: `Pharmacy Staff Credentials & Inventory Reports (${filteredStaff.length})`, icon: Pill, color: 'text-rose-600' };
     if (roleFilter === 'CASHIER') return { title: `Billing Cashier Credentials & Invoice Reports (${filteredStaff.length})`, icon: CreditCard, color: 'text-amber-600' };
-    return { title: `Hospital Staff Credentials & Access Control (${filteredStaff.length})`, icon: Users, color: 'text-indigo-600' };
+    return { title: `All Hospital Staff Credentials & Access Control (${filteredStaff.length})`, icon: Users, color: 'text-indigo-600' };
   };
 
   const tableHeader = getTableTitle();
@@ -212,10 +540,26 @@ export const SuperAdminHospitalDashboard = () => {
               Super Admin Control Console · Hospital ID: {hospital._id} · Primary Admin: <strong>{hospital.administrator?.email || hospital.contactEmail}</strong>
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate('/admin/hospitals')}>
-            Back to All Hospitals
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2"
+              onClick={() => setShowRenewModal(true)}
+            >
+              <RefreshCw size={13} />
+              Renew / Assign Plan
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/hospitals')}>
+              Back to All Hospitals
+            </Button>
+          </div>
         </div>
+
+        {/* Subscription Status Bar */}
+        <SubscriptionStatusBar
+          hospital={hospital}
+          onRenewClick={() => setShowRenewModal(true)}
+        />
 
         {/* Overview Info Cards */}
         <Card>
@@ -262,11 +606,11 @@ export const SuperAdminHospitalDashboard = () => {
           </div>
         </div>
 
-        {/* Dynamic Staff Credentials Table Matching User Screenshot */}
+        {/* Dynamic Staff Credentials Table */}
         <div ref={detailsTableRef}>
           <Card className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setActiveTab('staff')}
                   className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors ${activeTab === 'staff' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
@@ -322,7 +666,7 @@ export const SuperAdminHospitalDashboard = () => {
               </div>
             </div>
 
-            {/* Header matched to user's screenshot */}
+            {/* TAB 1: STAFF TABLE */}
             {activeTab === 'staff' && (
               <div className="pt-2">
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-3">
@@ -335,7 +679,7 @@ export const SuperAdminHospitalDashboard = () => {
                     <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
                         <th className="p-3">{roleFilter === 'DOCTOR' ? 'DOCTOR NAME' : 'STAFF NAME'}</th>
-                        <th className="p-3">SPECIALIZATION</th>
+                        <th className="p-3">ROLE / SPECIALIZATION</th>
                         <th className="p-3">LOGIN EMAIL</th>
                         <th className="p-3">ASSIGNED PASSWORD / CREDENTIAL</th>
                         <th className="p-3">OPD CABIN / WARD</th>
@@ -355,7 +699,10 @@ export const SuperAdminHospitalDashboard = () => {
                               <p className="text-[10px] text-slate-400 font-mono">{staff.phone || 'No Phone'}</p>
                             </td>
                             <td className="p-3 font-semibold text-slate-700">
-                              {staff.specialization || (staff.role === 'DOCTOR' ? 'General Physician' : staff.role)}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">{staff.role}</span>
+                              {staff.specialization && (
+                                <p className="text-[10px] text-slate-500 mt-0.5">{staff.specialization}</p>
+                              )}
                             </td>
                             <td className="p-3 font-mono font-bold text-slate-700">{staff.email}</td>
                             <td className="p-3">
@@ -483,7 +830,7 @@ export const SuperAdminHospitalDashboard = () => {
           </Card>
         </div>
 
-        {/* Change Password Modal for Super Admin */}
+        {/* Change Password Modal */}
         {selectedStaffForPassword && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fade-in">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
@@ -545,6 +892,18 @@ export const SuperAdminHospitalDashboard = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Renew Subscription Modal */}
+        {showRenewModal && (
+          <RenewSubscriptionModal
+            hospital={hospital}
+            onClose={() => setShowRenewModal(false)}
+            onRenewed={() => {
+              setIsLoading(true);
+              fetchData();
+            }}
+          />
         )}
       </div>
     </SuperAdminHospitalContext>

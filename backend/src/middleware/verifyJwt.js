@@ -6,7 +6,19 @@ import { User } from '../models/User.js';
 import { hasPermission } from '../config/permissions.js';
 
 const moduleForRequest = (url) => {
-  const routes = [['/patients', 'patients'], ['/appointments', 'appointments'], ['/emr', 'doctor'], ['/beds', 'beds'], ['/requests', 'requests'], ['/billing', 'billing'], ['/diagnostics', 'diagnostics'], ['/admissions', 'ipd'], ['/emergency', 'emergency']];
+  const routes = [
+    ['/patients', 'patients'],
+    ['/appointments', 'appointments'],
+    ['/emr', 'doctor'],
+    ['/beds', 'beds'],
+    ['/requests', 'requests'],
+    ['/billing', 'billing'],
+    ['/diagnostics', 'diagnostics'],
+    ['/admissions', 'ipd'],
+    ['/emergency', 'emergency'],
+    ['/pharmacy', 'pharmacy'],
+    ['/inventory', 'pharmacy'],
+  ];
   return routes.find(([prefix]) => url.startsWith(`/api/v1${prefix}`))?.[1];
 };
 

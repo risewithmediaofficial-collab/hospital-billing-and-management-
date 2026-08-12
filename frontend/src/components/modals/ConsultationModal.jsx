@@ -7,7 +7,7 @@ import { useSocket } from '../../providers/SocketProvider';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Stethoscope, X, AlertCircle, Plus, Trash2, CheckCircle2,
-  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban, Pill
+  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban, Pill, Syringe, Activity
 } from 'lucide-react';
 
 export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }) => {
@@ -48,6 +48,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
+  const [pharmacyBilledPrescriptions, setPharmacyBilledPrescriptions] = useState([]);
+
   const fetchInventory = async () => {
     try {
       const res = await axiosClient.get('/pharmacy/medicines');
@@ -68,6 +70,21 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       console.error('Failed to load department orders:', err);
     } finally {
       setIsLoadingOrders(false);
+    }
+  }, [patient]);
+
+  const fetchPharmacyBilled = useCallback(async () => {
+    const patId = patient?._id || patient?.id;
+    if (!patId) return;
+    try {
+      const res = await axiosClient.get(`/pharmacy/prescriptions?patientId=${patId}`);
+      const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+      const billed = list.filter(
+        (rx) => (rx.dispenseStatus === 'BILLED_SENT_TO_DOCTOR' || (rx.totalMedicineCharge > 0 && rx.dispenseStatus !== 'DISPENSED')) && rx.chargeStatus !== 'INCLUDED_IN_FINAL_BILL'
+      );
+      setPharmacyBilledPrescriptions(billed);
+    } catch (err) {
+      console.error('Failed to load pharmacy billed prescriptions:', err);
     }
   }, [patient]);
 
@@ -98,22 +115,28 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       setShowConfirmModal(false);
       fetchInventory();
       fetchDepartmentOrders();
+      fetchPharmacyBilled();
     }
-  }, [isOpen, token, fetchDepartmentOrders]);
+  }, [isOpen, token, fetchDepartmentOrders, fetchPharmacyBilled]);
 
   useEffect(() => {
     if (!socket || !isOpen) return;
     const handleUpdate = (data) => {
       const patId = patient?._id || patient?.id;
-      if (data.patientId === patId || data.patientId?._id === patId) fetchDepartmentOrders();
+      if (data.patientId === patId || data.patientId?._id === patId) {
+        fetchDepartmentOrders();
+        fetchPharmacyBilled();
+      }
     };
     socket.on('investigation:status_updated', handleUpdate);
     socket.on('diagnostics:report_ready', handleUpdate);
+    socket.on('pharmacy:billing_sent_to_doctor', handleUpdate);
     return () => {
       socket.off('investigation:status_updated', handleUpdate);
       socket.off('diagnostics:report_ready', handleUpdate);
+      socket.off('pharmacy:billing_sent_to_doctor', handleUpdate);
     };
-  }, [socket, isOpen, patient, fetchDepartmentOrders]);
+  }, [socket, isOpen, patient, fetchDepartmentOrders, fetchPharmacyBilled]);
 
   if (!isOpen || !token || !patient) return null;
 
@@ -127,7 +150,16 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   );
   const totalDepartmentCharges = completedDeptOrders.reduce((sum, ord) => sum + (ord.totalDepartmentCharge || ord.price || 0), 0);
   const totalDoctorProcedureCharges = doctorProcedureCharges.reduce((sum, proc) => sum + (Number(proc.amount) || 0), 0);
-  const grandTotal = Number(consultationFee || 0) + Number(emergencyFee || 0) + totalDoctorProcedureCharges + totalDepartmentCharges;
+  const totalPharmacyCharges = pharmacyBilledPrescriptions.reduce((acc, rx) => {
+    if (rx.totalMedicineCharge) return acc + Number(rx.totalMedicineCharge);
+    const itemTotal = (rx.medicines || []).reduce(
+      (sum, m) => sum + (Number(m.price || m.unitPrice || 20) * Number(m.dispensedQty || m.durationDays || 1)),
+      0
+    );
+    return acc + itemTotal;
+  }, 0);
+
+  const grandTotal = Number(consultationFee || 0) + Number(emergencyFee || 0) + totalDoctorProcedureCharges + totalDepartmentCharges + totalPharmacyCharges;
 
   const handleAddMedicineRow = () =>
     setPrescriptions((prev) => [
@@ -142,6 +174,23 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         timing: 'AFTER_FOOD',
         treatmentType: 'ORAL_TAKE_HOME',
         instructions: '',
+        externalPurchaseRequired: false,
+      },
+    ]);
+
+  const handleAddInjectionTaskRow = () =>
+    setPrescriptions((prev) => [
+      ...prev,
+      {
+        medicineName: 'Inj. Paracetamol / IV Treatment',
+        genericName: 'Injectable Treatment',
+        dosageForm: 'INJECTION',
+        dosage: '1 Ampoule IV Stat',
+        frequency: 'STAT_IMMEDIATE',
+        durationDays: 1,
+        timing: 'STAT',
+        treatmentType: 'NURSE_ADMINISTERED',
+        instructions: 'Administer IV Stat by Duty Nurse',
         externalPurchaseRequired: false,
       },
     ]);
@@ -278,11 +327,16 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
 
             {/* Structured Prescriptions */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className={labelClass}>Structured Prescription Entry (Integrated Stock Check)</label>
-                <Button size="sm" variant="outline" type="button" onClick={handleAddMedicineRow} className="gap-1 font-bold text-xs">
-                  <Plus size={12} /> Add Medicine
-                </Button>
+              <div className="flex justify-between items-center flex-wrap gap-2">
+                <label className={labelClass}>Structured Prescription & Nurse Treatment Entry</label>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" type="button" onClick={handleAddMedicineRow} className="gap-1 font-bold text-xs">
+                    <Plus size={12} /> Add Oral Medicine
+                  </Button>
+                  <Button size="sm" variant="primary" type="button" onClick={handleAddInjectionTaskRow} className="gap-1 font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">
+                    <Syringe size={13} /> Prescribe Injection / Nurse Task
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -390,6 +444,41 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                 })}
               </div>
             </div>
+
+            {/* PHARMACY BILLED MEDICINES SUMMARY */}
+            {pharmacyBilledPrescriptions.length > 0 && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-xs">
+                <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                  <span className="font-extrabold text-amber-900 flex items-center gap-1.5 text-sm">
+                    <Pill size={16} className="text-amber-600" /> Pharmacy Billed Medicines Summary ({pharmacyBilledPrescriptions.length})
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-600 text-white">
+                    BILLED BY PHARMACY & SENT FOR REVIEW
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {pharmacyBilledPrescriptions.map((rx) => {
+                    const rxCharge = rx.totalMedicineCharge
+                      ? Number(rx.totalMedicineCharge)
+                      : (rx.medicines || []).reduce(
+                          (s, m) => s + ((Number(m.price || m.unitPrice || m.sellingPrice) || 25) * (Number(m.dispensedQty || m.durationDays) || 1)),
+                          0
+                        );
+                    return (
+                      <div key={rx._id} className="flex items-center justify-between text-slate-800 bg-white p-2 rounded border border-amber-100">
+                        <div>
+                          <p className="font-bold">{rx.medicines?.map((m) => m.medicineName).join(', ') || 'Prescription Medicines'}</p>
+                          <p className="text-[10px] text-slate-500">Status: {rx.dispenseStatus} &bull; Notes: {rx.pharmacyNotes || 'None'}</p>
+                        </div>
+                        <span className="font-mono font-black text-amber-900">
+                          {formatCurrency(rxCharge)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Bill Preview */}
             <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
