@@ -152,6 +152,8 @@ export class EmrService {
       });
 
       ord.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
+      ord.status = 'REVIEWED';
+      if (!ord.reviewedAt) ord.reviewedAt = new Date();
       await ord.save();
     }
 

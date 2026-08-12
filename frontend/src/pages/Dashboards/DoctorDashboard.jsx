@@ -259,9 +259,11 @@ export const DoctorDashboard = () => {
   });
 
   const doctorUserId = String(user?.id || user?._id || '');
-  const departmentResponses = departmentOrders.filter((ord) =>
-    (!doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId)
-  );
+  const departmentResponses = departmentOrders.filter((ord) => {
+    const isDocMatch = !doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId;
+    const isResolved = ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL' || ord.status === 'REVIEWED' || !!ord.reviewedAt;
+    return isDocMatch && !isResolved;
+  });
   const sentPatientInvestigations = patientInvestigations.filter((ord) => !['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status));
 
   const filteredDeptOrders = departmentResponses.filter((ord) => {
@@ -1051,7 +1053,11 @@ export const DoctorDashboard = () => {
         onClose={() => setIsConsultationModalOpen(false)}
         token={selectedToken}
         patient={currentPatient}
-        onSuccess={fetchOpdQueue}
+        onSuccess={() => {
+          fetchOpdQueue();
+          fetchDepartmentOrders();
+          useDepartmentNotificationStore.getState().refreshPendingWork();
+        }}
       />
 
       <RequestInvestigationModal
