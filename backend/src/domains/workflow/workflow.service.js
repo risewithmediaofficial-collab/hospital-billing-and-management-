@@ -44,8 +44,13 @@ export class WorkflowService {
     const scope = { ...(hospitalId ? { hospitalId } : {}), ...(branchId ? { branchId } : {}) };
     const tasks = [];
 
-    // STRICT ROLE ISOLATION — Each role gets ONLY its own department notifications
-    if (activeRole === 'DOCTOR') {
+    const userRoles = new Set([
+      activeRole,
+      ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
+      ...(Array.isArray(identity?.additionalRoles) ? identity.additionalRoles : []),
+    ].filter(Boolean));
+
+    if (userRoles.has('DOCTOR')) {
       const docId = user.id || user._id || identity.id || identity._id;
       const [appointments, reports, doctorRequests, subRequests] = await Promise.all([
         Appointment.find({ ...scope, doctorId: docId, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
@@ -58,45 +63,53 @@ export class WorkflowService {
       doctorRequests.forEach((item) => tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard', `Patient request: ${item.requestType}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       subRequests.forEach((item) => tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Substitution approval: ${item.originalMedicineName}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
-    else if (['LAB_TECH', 'LABORATORY_STAFF'].includes(activeRole)) {
-      const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: LAB_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean();
-      records.forEach((item) => tasks.push(task('LAB_WORK', item, '/laboratory/dashboard', `Lab pending: ${item.testName}`, { targetModule: 'laboratory' })));
-    }
-    else if (['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(activeRole)) {
-      const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: RADIOLOGY_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean();
-      records.forEach((item) => tasks.push(task('RADIOLOGY_WORK', item, '/radiology/dashboard', `Radiology pending: ${item.testName}`, { targetModule: 'radiology' })));
-    }
-    else if (['PHARMACIST', 'PHARMACY_STAFF'].includes(activeRole)) {
-      const prescriptions = await Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean();
-      prescriptions.forEach((item) => tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dispense-queue', `Dispense prescription: ${item.prescriptionNo}`, { targetModule: 'pharmacy', status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-    }
-    else if (['CASHIER', 'BILLING_STAFF'].includes(activeRole)) {
+
+    if (Array.from(userRoles).some((r) => ['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(r))) {
       const records = await Invoice.find({ ...scope, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }).populate('patientId').lean();
       records.forEach((item) => tasks.push(task('BILLING_WORK', item, '/billing/dashboard', `Collect payment: ${item.invoiceNo}`, { targetModule: 'billing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: `Balance: ${item.balanceAmount}` })));
     }
-    else if (['NURSE', 'NURSE_INCHARGE'].includes(activeRole)) {
+
+    if (Array.from(userRoles).some((r) => ['LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'].includes(r))) {
+      const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: LAB_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean();
+      records.forEach((item) => tasks.push(task('LAB_WORK', item, '/laboratory/dashboard', `Lab pending: ${item.testName}`, { targetModule: 'laboratory' })));
+    }
+
+    if (Array.from(userRoles).some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) {
+      const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: RADIOLOGY_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean();
+      records.forEach((item) => tasks.push(task('RADIOLOGY_WORK', item, '/radiology/dashboard', `Radiology pending: ${item.testName}`, { targetModule: 'radiology' })));
+    }
+
+    if (Array.from(userRoles).some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) {
+      const prescriptions = await Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean();
+      prescriptions.forEach((item) => tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dispense-queue', `Dispense prescription: ${item.prescriptionNo}`, { targetModule: 'pharmacy', status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+    }
+
+    if (Array.from(userRoles).some((r) => ['NURSE', 'NURSE_INCHARGE', 'NURSING'].includes(r))) {
       const filter = { ...scope, requestCategory: 'NURSE', status: { $in: ACTIVE_REQUEST_STATUSES } };
-      if (activeRole === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
+      if (!userRoles.has('NURSE_INCHARGE')) filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
       const [records, admissions, emergencies, nurseTasks] = await Promise.all([
         PatientRequest.find(filter).populate('patientId').lean(),
         Admission.find({ ...scope, status: 'ADMISSION_REQUESTED' }).lean(),
         Emergency.find({ ...scope, status: { $in: ['ACTIVE', 'RESPONDED'] } }).lean(),
-        NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] }, ...(activeRole === 'NURSE' ? { $or: [{ assignedNurseId: user.id }, { assignedNurseId: null }] } : {}) }).lean(),
+        NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] }, ...(!userRoles.has('NURSE_INCHARGE') ? { $or: [{ assignedNurseId: user.id }, { assignedNurseId: null }] } : {}) }).lean(),
       ]);
       records.forEach((item) => tasks.push(task('NURSING_WORK', item, '/nurse-incharge/dashboard?tab=REQUESTS', `Nursing request: ${item.requestType}`, { targetModule: 'nursing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
       admissions.forEach((item) => tasks.push(task('IPD_WORK', item, '/nurse-incharge/dashboard?tab=REQUISITIONS', `Admission pending: ${item.patientName}`, { targetModule: 'ipd' })));
       emergencies.forEach((item) => tasks.push(task('EMERGENCY_WORK', item, '/emergency', `Emergency: ${item.emergencyType}`, { targetModule: 'emergency' })));
       nurseTasks.forEach((item) => tasks.push(task('NURSE_TREATMENT', item, '/nurse-incharge/dashboard?tab=TASKS', `Treatment: ${item.medicineName}`, { targetModule: 'nursing' })));
     }
-    else if (['RECEPTIONIST', 'OPD_STAFF'].includes(activeRole)) {
+
+    if (Array.from(userRoles).some((r) => ['RECEPTIONIST', 'OPD_STAFF', 'FRONT_DESK'].includes(r))) {
       const records = await Appointment.find({ ...scope, status: 'BOOKED' }).populate('patientId').lean();
       records.forEach((item) => tasks.push(task('RECEPTION_WORK', item, '/reception/dashboard', `Appointment booked: ${item.patientId?.firstName || ''}`, { targetModule: 'reception', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
     }
-    else if (activeRole === 'HOSPITAL_ADMIN') {
+
+    if (userRoles.has('HOSPITAL_ADMIN')) {
       const records = await GuardianLink.find({ ...(hospitalId ? { hospitalId } : {}), accessStatus: 'PENDING' }).populate('patientId').lean();
       records.forEach((item) => tasks.push(task('ADMIN_APPROVAL', item, '/hospital-admin/dashboard?tab=notifications', 'Guardian access approval', { targetModule: 'dashboard', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, status: item.accessStatus })));
     }
-    else if (activeRole === 'SUPER_ADMIN') {
+
+    if (userRoles.has('SUPER_ADMIN')) {
       const records = await Hospital.find({ status: 'PENDING_APPROVAL' }).lean();
       records.forEach((item) => tasks.push(task('SUPER_ADMIN_APPROVAL', item, '/admin/hospitals', `Hospital approval: ${item.name}`, { targetModule: 'saas', patientName: item.name, status: item.status })));
     }
