@@ -190,6 +190,7 @@ export const DoctorDashboard = () => {
       console.error('Failed to load doctor OPD queue:', err);
     }
   };
+  const fetchLiveQueue = fetchOpdQueue;
 
   const fetchSubstitutionRequests = async () => {
     try {
