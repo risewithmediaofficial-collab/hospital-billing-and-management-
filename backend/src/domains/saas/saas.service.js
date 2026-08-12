@@ -10,6 +10,8 @@ import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
 import { Emergency } from '../../models/Emergency.js';
 import { Consultation } from '../../models/Consultation.js';
 import { AuditLog } from '../../models/AuditLog.js';
+import { PatientRequest } from '../../models/PatientRequest.js';
+import { SubscriptionPlan } from '../../models/SubscriptionPlan.js';
 import { ROLES } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
 
@@ -93,6 +95,8 @@ const buildPatientCounts = async (hospitalId = null) => {
   return { totalPatients, opdPatients, ipdPatients };
 };
 
+const safeCount = (model, query) => (model ? model.countDocuments(query).catch(() => 0) : Promise.resolve(0));
+
 const buildTodayMetrics = async (hospitalId = null) => {
   const today = todayDateStr();
   const todayStart = startOfToday();
@@ -112,28 +116,28 @@ const buildTodayMetrics = async (hospitalId = null) => {
     activeEmgCount,
     activeEmgReqCount,
   ] = await Promise.all([
-    Patient.countDocuments({ ...base, createdAt: { $gte: todayStart, $lte: todayEnd } }),
-    Appointment.countDocuments({ ...base, appointmentDate: today }),
-    Consultation.countDocuments({ ...base, createdAt: { $gte: todayStart, $lte: todayEnd } }),
-    Admission.countDocuments({ ...base, admittedAt: { $gte: todayStart, $lte: todayEnd } }),
-    Admission.countDocuments({ ...base, dischargedAt: { $gte: todayStart, $lte: todayEnd } }),
+    safeCount(Patient, { ...base, createdAt: { $gte: todayStart, $lte: todayEnd } }),
+    safeCount(Appointment, { ...base, appointmentDate: today }),
+    safeCount(Consultation, { ...base, createdAt: { $gte: todayStart, $lte: todayEnd } }),
+    safeCount(Admission, { ...base, admittedAt: { $gte: todayStart, $lte: todayEnd } }),
+    safeCount(Admission, { ...base, dischargedAt: { $gte: todayStart, $lte: todayEnd } }),
     Invoice.aggregate([
       { $match: { ...base, createdAt: { $gte: todayStart, $lte: todayEnd } } },
       { $group: { _id: null, total: { $sum: '$paidAmount' } } },
-    ]),
-    DiagnosticOrder.countDocuments({
+    ]).catch(() => []),
+    safeCount(DiagnosticOrder, {
       ...base,
       testCategory: { $in: ['LABORATORY', 'BLOOD_TEST', 'URINE_TEST', 'URINE_ANALYSIS', 'CULTURE_TEST'] },
       status: { $in: ['REQUESTED', 'SAMPLE_COLLECTED', 'IN_PROGRESS'] },
     }),
-    DiagnosticOrder.countDocuments({
+    safeCount(DiagnosticOrder, {
       ...base,
       testCategory: { $in: ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'ECG', 'ECHO', 'EEG'] },
       status: { $in: ['REQUESTED', 'IN_PROGRESS'] },
     }),
-    Invoice.countDocuments({ ...base, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }),
-    Emergency.countDocuments({ ...base, status: { $in: ['ACTIVE', 'RESPONDED'] } }),
-    PatientRequest.countDocuments({ ...base, requestCategory: 'EMERGENCY', status: { $in: ['SUBMITTED', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ESCALATED'] } }),
+    safeCount(Invoice, { ...base, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }),
+    safeCount(Emergency, { ...base, status: { $in: ['ACTIVE', 'RESPONDED'] } }),
+    safeCount(PatientRequest, { ...base, requestCategory: 'EMERGENCY', status: { $in: ['SUBMITTED', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ESCALATED'] } }),
   ]);
 
   const emergencies = (activeEmgCount || 0) + (activeEmgReqCount || 0);
