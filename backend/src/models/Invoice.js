@@ -35,5 +35,9 @@ const invoiceSchema = new mongoose.Schema(
 
 // Invoice number is unique per hospital, not globally (multi-hospital SaaS)
 invoiceSchema.index({ hospitalId: 1, invoiceNo: 1 }, { unique: true });
+invoiceSchema.index({ hospitalId: 1, isDeleted: 1, createdAt: -1 });
+invoiceSchema.index({ hospitalId: 1, status: 1, isDeleted: 1 });
+invoiceSchema.index({ hospitalId: 1, patientId: 1, createdAt: -1 });
+invoiceSchema.index({ hospitalId: 1, doctorId: 1, createdAt: -1 });
 
 export const Invoice = mongoose.model('Invoice', invoiceSchema);

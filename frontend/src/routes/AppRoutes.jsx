@@ -20,36 +20,46 @@ import { HospitalNotFoundPage } from '../pages/HospitalNotFoundPage';
 
 import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
 import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
-
-import { SuperAdminDashboardPage } from '../pages/SuperAdmin/SuperAdminDashboardPage';
-import { SuperAdminHospitalsPage } from '../pages/SuperAdmin/SuperAdminHospitalsPage';
-import { SuperAdminHospitalAdminsPage } from '../pages/SuperAdmin/SuperAdminHospitalAdminsPage';
-import { SuperAdminHospitalDashboard } from '../pages/SuperAdmin/SuperAdminHospitalDashboard';
-import { SuperAdminStaffPage, SuperAdminDoctorsPage } from '../pages/SuperAdmin/SuperAdminStaffPage';
-import { SuperAdminAuditLogsPage } from '../pages/SuperAdmin/SuperAdminAuditLogsPage';
-import { SuperAdminSubscriptionsPage } from '../pages/SuperAdmin/SuperAdminSubscriptionsPage';
-import { SuperAdminReportsPage } from '../pages/SuperAdmin/SuperAdminReportsPage';
-import { SuperAdminPendingApprovalsPage } from '../pages/SuperAdmin/SuperAdminPendingApprovalsPage';
-
-import { HospitalAdminDashboard } from '../pages/Dashboards/HospitalAdminDashboard';
-import { HospitalAdminManagementViews } from '../pages/Dashboards/HospitalAdminManagementViews';
-import { DoctorDashboard } from '../pages/Dashboards/DoctorDashboard';
-import { NurseDashboard } from '../pages/Dashboards/NurseDashboard';
-import { NurseInchargeDashboard } from '../pages/Dashboards/NurseInchargeDashboard';
-import { ReceptionDashboard } from '../pages/Dashboards/ReceptionDashboard';
-import { PharmacistDashboard } from '../pages/Dashboards/PharmacistDashboard';
-import { LabTechDashboard } from '../pages/Dashboards/LabTechDashboard';
-import { RadiologistDashboard } from '../pages/Dashboards/RadiologistDashboard';
-import { CashierDashboard } from '../pages/Dashboards/CashierDashboard';
-import { PatientDashboard } from '../pages/Dashboards/PatientDashboard';
-import { GuardianDashboard } from '../pages/Dashboards/GuardianDashboard';
-import { InventoryDashboard } from '../pages/Dashboards/InventoryDashboard';
-import { HRDashboard } from '../pages/Dashboards/HRDashboard';
-import { RegisteredPatientsView } from '../pages/Reception/RegisteredPatientsView';
-import { PatientRegistrationPage } from '../pages/Reception/PatientRegistrationPage';
-
 import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
-import { EmergencyConsoleView } from '../pages/Emergency/EmergencyConsoleView';
+
+// Route-based Code Splitting: Lazy-loaded pages to minimize initial bundle size
+const SuperAdminDashboardPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminDashboardPage').then(m => ({ default: m.SuperAdminDashboardPage })));
+const SuperAdminHospitalsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalsPage').then(m => ({ default: m.SuperAdminHospitalsPage })));
+const SuperAdminHospitalAdminsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalAdminsPage').then(m => ({ default: m.SuperAdminHospitalAdminsPage })));
+const SuperAdminHospitalDashboard = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalDashboard').then(m => ({ default: m.SuperAdminHospitalDashboard })));
+const SuperAdminStaffPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminStaffPage })));
+const SuperAdminDoctorsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminDoctorsPage })));
+const SuperAdminAuditLogsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminAuditLogsPage').then(m => ({ default: m.SuperAdminAuditLogsPage })));
+const SuperAdminSubscriptionsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminSubscriptionsPage').then(m => ({ default: m.SuperAdminSubscriptionsPage })));
+const SuperAdminReportsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminReportsPage').then(m => ({ default: m.SuperAdminReportsPage })));
+const SuperAdminPendingApprovalsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminPendingApprovalsPage').then(m => ({ default: m.SuperAdminPendingApprovalsPage })));
+
+const HospitalAdminDashboard = React.lazy(() => import('../pages/Dashboards/HospitalAdminDashboard').then(m => ({ default: m.HospitalAdminDashboard })));
+const HospitalAdminManagementViews = React.lazy(() => import('../pages/Dashboards/HospitalAdminManagementViews').then(m => ({ default: m.HospitalAdminManagementViews })));
+const DoctorDashboard = React.lazy(() => import('../pages/Dashboards/DoctorDashboard').then(m => ({ default: m.DoctorDashboard })));
+const NurseDashboard = React.lazy(() => import('../pages/Dashboards/NurseDashboard').then(m => ({ default: m.NurseDashboard })));
+const NurseInchargeDashboard = React.lazy(() => import('../pages/Dashboards/NurseInchargeDashboard').then(m => ({ default: m.NurseInchargeDashboard })));
+const ReceptionDashboard = React.lazy(() => import('../pages/Dashboards/ReceptionDashboard').then(m => ({ default: m.ReceptionDashboard })));
+const PharmacistDashboard = React.lazy(() => import('../pages/Dashboards/PharmacistDashboard').then(m => ({ default: m.PharmacistDashboard })));
+const LabTechDashboard = React.lazy(() => import('../pages/Dashboards/LabTechDashboard').then(m => ({ default: m.LabTechDashboard })));
+const RadiologistDashboard = React.lazy(() => import('../pages/Dashboards/RadiologistDashboard').then(m => ({ default: m.RadiologistDashboard })));
+const CashierDashboard = React.lazy(() => import('../pages/Dashboards/CashierDashboard').then(m => ({ default: m.CashierDashboard })));
+const PatientDashboard = React.lazy(() => import('../pages/Dashboards/PatientDashboard').then(m => ({ default: m.PatientDashboard })));
+const GuardianDashboard = React.lazy(() => import('../pages/Dashboards/GuardianDashboard').then(m => ({ default: m.GuardianDashboard })));
+const InventoryDashboard = React.lazy(() => import('../pages/Dashboards/InventoryDashboard').then(m => ({ default: m.InventoryDashboard })));
+const HRDashboard = React.lazy(() => import('../pages/Dashboards/HRDashboard').then(m => ({ default: m.HRDashboard })));
+const RegisteredPatientsView = React.lazy(() => import('../pages/Reception/RegisteredPatientsView').then(m => ({ default: m.RegisteredPatientsView })));
+const PatientRegistrationPage = React.lazy(() => import('../pages/Reception/PatientRegistrationPage').then(m => ({ default: m.PatientRegistrationPage })));
+const EmergencyConsoleView = React.lazy(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
+
+const RouteLoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-xs font-semibold text-slate-500 tracking-wide">Loading workspace...</p>
+    </div>
+  </div>
+);
 
 const TenantDomainRedirect = () => {
   const { hospitalDomain } = useParams();
@@ -102,7 +112,8 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
 
 export const AppRoutes = () => {
   return (
-    <Routes>
+    <React.Suspense fallback={<RouteLoadingSpinner />}>
+      <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
@@ -465,6 +476,7 @@ export const AppRoutes = () => {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  </React.Suspense>
   );
 };
 

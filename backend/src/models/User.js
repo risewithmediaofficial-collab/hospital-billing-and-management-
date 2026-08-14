@@ -104,4 +104,8 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
+userSchema.index({ hospitalId: 1, role: 1, isActive: 1 });
+userSchema.index({ hospitalId: 1, status: 1 });
+userSchema.index({ hospitalId: 1, email: 1 });
+
 export const User = mongoose.model('User', userSchema);

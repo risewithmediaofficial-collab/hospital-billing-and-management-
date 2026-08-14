@@ -162,8 +162,15 @@ export const SuperAdminHospitalsPage = () => {
     setShowPassword(false);
     setShowConfirmPassword(false);
     setCredentialsForm({
+      hospitalName: hosp.name || '',
+      domain: hosp.domain || hosp.subdomain || '',
       name: hosp.contactName || '',
+      phone: hosp.contactPhone || hosp.phone || '',
       email: hosp.contactEmail || '',
+      street: hosp.address?.street || '',
+      city: hosp.address?.city || '',
+      state: hosp.address?.state || '',
+      postalCode: hosp.address?.postalCode || '',
       password: '',
       confirmPassword: '',
     });
@@ -185,21 +192,29 @@ export const SuperAdminHospitalsPage = () => {
     setIsLoading(true);
     try {
       const payload = {
+        hospitalName: credentialsForm.hospitalName,
+        domain: credentialsForm.domain,
         name: credentialsForm.name,
         email: credentialsForm.email,
+        phone: credentialsForm.phone,
+        contactPhone: credentialsForm.phone,
+        street: credentialsForm.street,
+        city: credentialsForm.city,
+        state: credentialsForm.state,
+        postalCode: credentialsForm.postalCode,
       };
       if (pass) {
         payload.password = pass;
       }
 
       await axiosClient.patch(`/saas/hospitals/${editingHospital._id}/admin-credentials`, payload);
-      setActionMessage(`Admin credentials for '${editingHospital.name}' updated successfully!`);
+      setActionMessage(`Details and credentials for '${editingHospital.name}' updated successfully!`);
       setIsEditCredentialsOpen(false);
       setEditingHospital(null);
       fetchHospitals();
     } catch (err) {
-      const errorMsg = err.message || err.error?.message || (typeof err === 'string' ? err : 'Failed to update credentials');
-      setActionMessage(`Failed to update credentials: ${errorMsg}`);
+      const errorMsg = err.message || err.error?.message || (typeof err === 'string' ? err : 'Failed to update hospital details');
+      setActionMessage(`Failed to update hospital details: ${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -446,15 +461,18 @@ export const SuperAdminHospitalsPage = () => {
 
       {isDirectCreateOpen && (
         <div className="modal-overlay animate-fade-in">
-          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-container max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-neutral-100 border"><Key size={18} /></div>
-                <h3 className="text-base font-bold">{provisionedCreds ? 'Credentials Ready' : 'Provision New Hospital'}</h3>
+                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100"><Key size={18} /></div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">{provisionedCreds ? 'Credentials Ready' : 'Provision New Hospital'}</h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Register hospital, select SaaS plan & provision master credentials</p>
+                </div>
               </div>
               <button onClick={() => { setIsDirectCreateOpen(false); setProvisionedCreds(null); }} className="modal-close-btn">×</button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body overflow-y-auto pr-2">
               {provisionedCreds ? (
                 <div className="space-y-4 text-xs">
                   <div className="p-4 rounded-xl bg-neutral-50 border font-mono space-y-1">
@@ -465,22 +483,117 @@ export const SuperAdminHospitalsPage = () => {
                   <Button variant="primary" className="w-full" onClick={() => { setIsDirectCreateOpen(false); setProvisionedCreds(null); }}>Done</Button>
                 </div>
               ) : (
-                <form onSubmit={handleDirectCreate} className="space-y-3 text-xs">
-                  <Input label="Hospital Name" value={directForm.hospitalName} onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })} placeholder="Enter hospital name" required />
-                  <Input label="Subdomain" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="hospitalcode" required />
-                  <Input label="Contact Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="Your Name" required />
-                  <Input label="Admin Email" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="email@gmail.com" required />
-                  <Input label="Street / Area Address" value={directForm.street} onChange={(e) => setDirectForm({ ...directForm, street: e.target.value })} placeholder="123 Medical Boulevard" />
-                  <div className="grid grid-cols-3 gap-2">
-                    <Input label="City" value={directForm.city} onChange={(e) => setDirectForm({ ...directForm, city: e.target.value })} placeholder="Chennai" />
-                    <Input label="State" value={directForm.state} onChange={(e) => setDirectForm({ ...directForm, state: e.target.value })} placeholder="Tamil Nadu" />
-                    <Input label="PIN Code" value={directForm.postalCode} onChange={(e) => setDirectForm({ ...directForm, postalCode: e.target.value })} placeholder="600001" />
+                <form onSubmit={handleDirectCreate} className="space-y-3.5 text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      label="Hospital Name"
+                      value={directForm.hospitalName}
+                      onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })}
+                      placeholder="e.g. City Care Hospital"
+                      required
+                    />
+                    <Input
+                      label="Subdomain / URL Slug"
+                      value={directForm.subdomain}
+                      onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      placeholder="e.g. citycare"
+                      required
+                    />
                   </div>
-                  <Input label="Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="••••••••" />
-                  <Input label="Confirm Admin Password" type="password" value={directForm.confirmAdminPassword} onChange={(e) => setDirectForm({ ...directForm, confirmAdminPassword: e.target.value })} placeholder="••••••••" />
+
+                  {/* SaaS Subscription Plan Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>SaaS Subscription Plan</span>
+                      <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">Select Tier</span>
+                    </label>
+                    <select
+                      value={directForm.plan || 'ENTERPRISE'}
+                      onChange={(e) => setDirectForm({ ...directForm, plan: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="BASIC">⚡ Basic Plan (₹4,000/mo — OPD/IPD Essential Suite)</option>
+                      <option value="STANDARD">🚀 Standard Plan (₹30,000/mo — Multi-Department & Diagnostics)</option>
+                      <option value="ENTERPRISE">👑 Unlimited / Enterprise Plan (₹50,000/mo — Full Unrestricted Suite)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      label="Owner / Contact Person Name"
+                      value={directForm.contactName}
+                      onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })}
+                      placeholder="e.g. Dr. Ramesh Kumar"
+                      required
+                    />
+                    <Input
+                      label="Contact Phone / Mobile Number"
+                      value={directForm.contactPhone}
+                      onChange={(e) => setDirectForm({ ...directForm, contactPhone: e.target.value })}
+                      placeholder="+91 98765 43210"
+                      required
+                    />
+                  </div>
+
+                  <Input
+                    label="Hospital Admin Email"
+                    type="email"
+                    value={directForm.contactEmail}
+                    onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })}
+                    placeholder="admin@hospital.com"
+                    required
+                  />
+
+                  <Input
+                    label="Street / Area Address"
+                    value={directForm.street}
+                    onChange={(e) => setDirectForm({ ...directForm, street: e.target.value })}
+                    placeholder="123 Medical Boulevard, Central Area"
+                  />
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input
+                      label="City"
+                      value={directForm.city}
+                      onChange={(e) => setDirectForm({ ...directForm, city: e.target.value })}
+                      placeholder="Chennai"
+                    />
+                    <Input
+                      label="State"
+                      value={directForm.state}
+                      onChange={(e) => setDirectForm({ ...directForm, state: e.target.value })}
+                      placeholder="Tamil Nadu"
+                    />
+                    <Input
+                      label="PIN Code"
+                      value={directForm.postalCode}
+                      onChange={(e) => setDirectForm({ ...directForm, postalCode: e.target.value })}
+                      placeholder="600001"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <Input
+                      label="Admin Initial Password"
+                      type="password"
+                      value={directForm.adminPassword}
+                      onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })}
+                      placeholder="••••••••"
+                      required
+                    />
+                    <Input
+                      label="Confirm Admin Password"
+                      type="password"
+                      value={directForm.confirmAdminPassword}
+                      onChange={(e) => setDirectForm({ ...directForm, confirmAdminPassword: e.target.value })}
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+
                   <div className="flex gap-2 pt-2">
                     <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsDirectCreateOpen(false)}>Cancel</Button>
-                    <Button type="submit" variant="primary" className="w-1/2" isLoading={isLoading}>Provision</Button>
+                    <Button type="submit" variant="primary" className="w-1/2" isLoading={isLoading}>Provision Hospital</Button>
                   </div>
                 </form>
               )}
@@ -491,100 +604,154 @@ export const SuperAdminHospitalsPage = () => {
 
       {isEditCredentialsOpen && editingHospital && (
         <div className="modal-overlay animate-fade-in">
-          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-container max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100"><Key size={18} /></div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Hospital Admin Credentials</h3>
+                  <h3 className="text-base font-bold text-slate-900">Edit Hospital & Administrator Details</h3>
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">{editingHospital.name} ({editingHospital.code})</p>
                 </div>
               </div>
               <button onClick={() => { setIsEditCredentialsOpen(false); setEditingHospital(null); }} className="modal-close-btn">×</button>
             </div>
-            <div className="modal-body">
-              <form onSubmit={handleUpdateCredentials} className="space-y-4 text-xs">
-                <Input
-                  label="Hospital Admin Name"
-                  value={credentialsForm.name}
-                  onChange={(e) => setCredentialsForm({ ...credentialsForm, name: e.target.value })}
-                  placeholder="Enter name"
-                  required
-                />
+            <div className="modal-body overflow-y-auto pr-2">
+              <form onSubmit={handleUpdateCredentials} className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="Hospital Name"
+                    value={credentialsForm.hospitalName}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, hospitalName: e.target.value })}
+                    placeholder="Enter hospital name"
+                    required
+                  />
+                  <Input
+                    label="Domain / Subdomain Slug"
+                    value={credentialsForm.domain}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, domain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                    placeholder="e.g. srivijayalakshmi"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="Owner / Contact Person Name"
+                    value={credentialsForm.name}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, name: e.target.value })}
+                    placeholder="e.g. NARASIMHARAJU BG"
+                    required
+                  />
+                  <Input
+                    label="Contact Phone / Mobile No."
+                    value={credentialsForm.phone}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, phone: e.target.value })}
+                    placeholder="+91 94889 69682"
+                    required
+                  />
+                </div>
+
                 <Input
                   label="Hospital Admin Email"
                   type="email"
                   value={credentialsForm.email}
                   onChange={(e) => setCredentialsForm({ ...credentialsForm, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder="admin@example.com"
                   required
                 />
-                <div className="relative">
+
+                <Input
+                  label="Street / Area Address"
+                  value={credentialsForm.street}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, street: e.target.value })}
+                  placeholder="12, Old Subjail Road, New Pet"
+                />
+
+                <div className="grid grid-cols-3 gap-2">
                   <Input
-                    label="Current Password"
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    value={editingHospital.initialAdminPassword || 'HospitalAdmin123!'}
-                    disabled
-                    className="pr-10 bg-slate-50 border-slate-200 select-all font-mono"
+                    label="City"
+                    value={credentialsForm.city}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, city: e.target.value })}
+                    placeholder="Krishnagiri"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                    title={showCurrentPassword ? "Hide password" : "Show password"}
-                  >
-                    {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                  <Input
+                    label="State"
+                    value={credentialsForm.state}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, state: e.target.value })}
+                    placeholder="Tamil Nadu"
+                  />
+                  <Input
+                    label="PIN Code"
+                    value={credentialsForm.postalCode}
+                    onChange={(e) => setCredentialsForm({ ...credentialsForm, postalCode: e.target.value })}
+                    placeholder="635001"
+                  />
                 </div>
 
-                <div className="relative">
-                  <Input
-                    label="New Password (Leave blank to keep current)"
-                    type={showPassword ? 'text' : 'password'}
-                    value={credentialsForm.password}
-                    onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
-                    placeholder="••••••••"
-                    className="pr-10 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                    title={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                <div className="border-t border-slate-200 pt-3 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Security & Password Management</h4>
+                  <div className="relative">
+                    <Input
+                      label="Current Password Hint"
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={editingHospital.initialAdminPassword || 'HospitalAdmin123!'}
+                      disabled
+                      className="pr-10 bg-slate-50 border-slate-200 select-all font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                      title={showCurrentPassword ? "Hide password" : "Show password"}
+                    >
+                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
 
-                <div className="relative">
-                  <Input
-                    label="Confirm New Password"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={credentialsForm.confirmPassword}
-                    onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
-                    placeholder="••••••••"
-                    className="pr-10 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                    title={showConfirmPassword ? "Hide password" : "Show password"}
-                  >
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="relative">
+                      <Input
+                        label="New Password (Leave blank to keep)"
+                        type={showPassword ? 'text' : 'password'}
+                        value={credentialsForm.password}
+                        onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
+                        placeholder="••••••••"
+                        className="pr-10 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
 
-                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl space-y-1">
-                  <p className="font-bold flex items-center gap-1"><span className="text-sm">💡</span> Password Reminder</p>
-                  <p className="text-[10px]">
-                    If you change the password here, the administrator will need to use the new password on their next login attempt.
-                  </p>
+                    <div className="relative">
+                      <Input
+                        label="Confirm New Password"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={credentialsForm.confirmPassword}
+                        onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
+                        placeholder="••••••••"
+                        className="pr-10 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" className="w-1/2" onClick={() => { setIsEditCredentialsOpen(false); setEditingHospital(null); }}>Cancel</Button>
-                  <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Update Credentials</Button>
+                  <Button type="submit" variant="primary" className="w-1/2" isLoading={isLoading}>Save Changes</Button>
                 </div>
               </form>
             </div>

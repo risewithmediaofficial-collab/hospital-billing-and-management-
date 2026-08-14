@@ -119,4 +119,10 @@ const hospitalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// High-speed compound indexes for multi-tenant SaaS resolution
+hospitalSchema.index({ domain: 1, isDeleted: 1 });
+hospitalSchema.index({ subdomain: 1, isDeleted: 1 });
+hospitalSchema.index({ status: 1, isDeleted: 1 });
+hospitalSchema.index({ code: 1, isDeleted: 1 });
+
 export const Hospital = mongoose.model('Hospital', hospitalSchema);

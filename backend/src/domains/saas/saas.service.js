@@ -1173,8 +1173,41 @@ export class SaasService {
       throw new ApiError(404, 'Hospital not found');
     }
 
-    const { name, email, password } = data;
+    const {
+      name,
+      hospitalName,
+      domain,
+      subdomain,
+      email,
+      phone,
+      contactPhone,
+      password,
+      street,
+      city,
+      state,
+      postalCode,
+    } = data;
+
     const cleanEmail = email ? email.toLowerCase().trim() : '';
+    const cleanPhone = (phone || contactPhone || '').trim();
+    const cleanDomain = (domain || subdomain || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+
+    // Check domain uniqueness if changed
+    if (cleanDomain && cleanDomain !== hospital.domain && cleanDomain !== hospital.subdomain) {
+      const existingDomain = await Hospital.findOne({
+        _id: { $ne: hospital._id },
+        $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }]
+      });
+      if (existingDomain) {
+        throw new ApiError(400, `Hospital domain/subdomain '${cleanDomain}' is already taken.`);
+      }
+      hospital.domain = cleanDomain;
+      hospital.subdomain = cleanDomain;
+    }
+
+    if (hospitalName && String(hospitalName).trim()) {
+      hospital.name = String(hospitalName).trim();
+    }
 
     const hospitalObjId = hospital._id;
     const hospitalStrId = String(hospital._id);
@@ -1206,12 +1239,13 @@ export class SaasService {
         passwordHash,
         assignedPasswordHint: pass,
         role: ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN',
-        phone: hospital.contactPhone || '+1 (555) 000-0000',
+        phone: cleanPhone || hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
       });
     } else {
       if (name) adminUser.name = name;
       if (cleanEmail) adminUser.email = cleanEmail;
+      if (cleanPhone) adminUser.phone = cleanPhone;
       if (!adminUser.phone) adminUser.phone = hospital.contactPhone || '+1 (555) 000-0000';
       if (!adminUser.role) adminUser.role = ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN';
       if (cleanPassword) {
@@ -1223,9 +1257,21 @@ export class SaasService {
 
     if (name) hospital.contactName = name;
     if (cleanEmail) hospital.contactEmail = cleanEmail;
+    if (cleanPhone) hospital.contactPhone = cleanPhone;
     if (!hospital.contactPhone) hospital.contactPhone = adminUser.phone || '+1 (555) 000-0000';
     if (!hospital.licenseNumber) hospital.licenseNumber = 'LIC-' + (hospital.code || 'DEFAULT');
     if (cleanPassword) hospital.initialAdminPassword = cleanPassword;
+
+    if (street !== undefined || city !== undefined || state !== undefined || postalCode !== undefined) {
+      hospital.address = {
+        street: street !== undefined ? street : hospital.address?.street || '',
+        city: city !== undefined ? city : hospital.address?.city || '',
+        state: state !== undefined ? state : hospital.address?.state || '',
+        postalCode: postalCode !== undefined ? postalCode : hospital.address?.postalCode || '',
+        country: 'India',
+      };
+    }
+
     await hospital.save();
 
     return {
@@ -1233,6 +1279,7 @@ export class SaasService {
       adminUser: {
         name: adminUser.name,
         email: adminUser.email,
+        phone: adminUser.phone,
         role: adminUser.role,
         assignedPasswordHint: adminUser.assignedPasswordHint
       }

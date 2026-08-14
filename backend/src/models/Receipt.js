@@ -24,5 +24,8 @@ const receiptSchema = new mongoose.Schema(
 
 // Receipt number is unique per hospital, not globally (multi-hospital SaaS)
 receiptSchema.index({ hospitalId: 1, receiptNo: 1 }, { unique: true });
+receiptSchema.index({ hospitalId: 1, isDeleted: 1, createdAt: -1 });
+receiptSchema.index({ hospitalId: 1, invoiceId: 1 });
+receiptSchema.index({ hospitalId: 1, patientId: 1, createdAt: -1 });
 
 export const Receipt = mongoose.model('Receipt', receiptSchema);
