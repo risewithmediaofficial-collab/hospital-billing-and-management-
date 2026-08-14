@@ -394,8 +394,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
         {/* Brand Header */}
         <div className="h-16 px-5 flex items-center justify-between gap-3 border-b border-slate-200 flex-shrink-0 bg-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0 shadow-sm">
-              H
+            <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm border border-slate-200 bg-white">
+              <img src="/rwmlogo.jpeg" alt="Logo" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
             </div>
             <div className="min-w-0">
               <span className="font-extrabold text-slate-800 text-sm tracking-tight leading-none block">

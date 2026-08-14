@@ -250,6 +250,11 @@ export const OfficialReceiptModal = ({
               </div>
             </div>
           </div>
+
+          <div className="pt-3 border-t border-dashed border-slate-300 flex items-center justify-between text-[9px] text-slate-500 font-sans">
+            <span>Powered by <strong className="text-slate-900 font-bold">Risewithmedia.com</strong></span>
+            <span className="font-mono font-semibold text-indigo-600">hms.risewithmedia.com</span>
+          </div>
         </div>
 
         {/* MODAL ACTION BUTTONS (Hidden during print) */}

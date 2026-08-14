@@ -346,6 +346,11 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
               </div>
             </div>
           </div>
+
+          <div style="margin-top: 14px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center; font-size: 8.5px; color: #64748b; font-family: sans-serif;">
+            <span>Powered by <strong style="color: #0f172a;">Risewithmedia.com</strong></span>
+            <span style="font-family: monospace; font-weight: 600; color: #4338ca;">hms.risewithmedia.com</span>
+          </div>
         </div>
       </body>
     </html>
