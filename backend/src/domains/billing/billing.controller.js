@@ -45,3 +45,34 @@ export const getReceipts = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getDeletedReceipts = async (req, res, next) => {
+  try {
+    const deletedReceipts = await BillingService.getDeletedReceipts(req.user);
+    return sendSuccess(res, 200, 'Deleted receipts archive retrieved successfully', deletedReceipts);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { deletionReason } = req.body;
+    const result = await BillingService.deleteReceipt(id, deletionReason, req.user);
+    return sendSuccess(res, 200, 'Bill deleted successfully', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { deletionReason } = req.body;
+    const result = await BillingService.deleteInvoice(id, deletionReason, req.user);
+    return sendSuccess(res, 200, 'Pending bill / invoice cancelled successfully', result);
+  } catch (error) {
+    next(error);
+  }
+};

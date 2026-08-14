@@ -15,7 +15,7 @@ const ALL_MODULE_NAVIGATION = [
   { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
   { title: 'Patients Management', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
   { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
-  { title: 'Appointments Desk', path: '/reception/dashboard', icon: 'Calendar', module: 'appointments' },
+  { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments' },
   { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
   { title: 'Nursing Workstation', path: '/nursing/dashboard', icon: 'Activity', module: 'nursing' },
   { title: 'Patient Vitals & MAR', path: '/nursing/vitals', icon: 'ClipboardList', module: 'nursing' },
@@ -344,10 +344,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const formatTenantPath = (path) => {
     if (!path) return path;
-    let targetPath = path;
-    if (user?.role === 'DOCTOR' && (path === '/reception/dashboard' || path.includes('/reception/dashboard'))) {
-      targetPath = '/doctor/dashboard?tab=LIVE';
-    }
+    const targetPath = path;
     // SUPER_ADMIN has no hospital domain; absolute paths stay absolute
     if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return targetPath;
     // Already has the tenant prefix — leave it

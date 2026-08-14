@@ -27,7 +27,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await axiosClient.get('/workflow/pending');
-      const snapshot = response.data || { total: 0, byPath: {}, tasks: [] };
+      const snapshot = response?.data || response || { total: 0, byPath: {}, tasks: [] };
       const tasks = (snapshot.tasks || []).map((item) => ({
         ...item,
         patientName: item.patientName || 'Patient',

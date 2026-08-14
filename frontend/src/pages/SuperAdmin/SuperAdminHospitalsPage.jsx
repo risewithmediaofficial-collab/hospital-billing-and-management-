@@ -33,7 +33,9 @@ export const SuperAdminHospitalsPage = () => {
 
   const [directForm, setDirectForm] = useState({
     hospitalName: '', subdomain: '', plan: 'ENTERPRISE',
-    contactName: '', contactEmail: '', contactPhone: '', adminPassword: '', confirmAdminPassword: '',
+    contactName: '', contactEmail: '', contactPhone: '',
+    street: '', city: '', state: '', postalCode: '',
+    adminPassword: '', confirmAdminPassword: '',
   });
 
   useEffect(() => { fetchHospitals(); }, []);
@@ -468,6 +470,12 @@ export const SuperAdminHospitalsPage = () => {
                   <Input label="Subdomain" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="hospitalcode" required />
                   <Input label="Contact Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="Your Name" required />
                   <Input label="Admin Email" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="email@gmail.com" required />
+                  <Input label="Street / Area Address" value={directForm.street} onChange={(e) => setDirectForm({ ...directForm, street: e.target.value })} placeholder="123 Medical Boulevard" />
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input label="City" value={directForm.city} onChange={(e) => setDirectForm({ ...directForm, city: e.target.value })} placeholder="Chennai" />
+                    <Input label="State" value={directForm.state} onChange={(e) => setDirectForm({ ...directForm, state: e.target.value })} placeholder="Tamil Nadu" />
+                    <Input label="PIN Code" value={directForm.postalCode} onChange={(e) => setDirectForm({ ...directForm, postalCode: e.target.value })} placeholder="600001" />
+                  </div>
                   <Input label="Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="••••••••" />
                   <Input label="Confirm Admin Password" type="password" value={directForm.confirmAdminPassword} onChange={(e) => setDirectForm({ ...directForm, confirmAdminPassword: e.target.value })} placeholder="••••••••" />
                   <div className="flex gap-2 pt-2">

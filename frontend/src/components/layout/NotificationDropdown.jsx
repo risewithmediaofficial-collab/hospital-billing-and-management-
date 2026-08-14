@@ -67,8 +67,12 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
     const target = notif.linkedPath || notif.targetRoute;
     const userRole = user?.role || 'GUEST';
+    const userRoles = [
+      userRole,
+      ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
+    ].filter(Boolean);
 
-    // Verify target path matches user's role prefix before navigating
+    // Verify target path matches any of user's active/additional role prefixes
     const rolePrefixes = {
       PHARMACIST: ['/pharmacy', '/emergency'],
       PHARMACY_STAFF: ['/pharmacy', '/emergency'],
@@ -82,12 +86,17 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       NURSE_INCHARGE: ['/nursing', '/nurse-incharge', '/emergency'],
       RECEPTIONIST: ['/reception', '/emergency'],
       OPD_STAFF: ['/reception', '/emergency'],
-      DOCTOR: ['/doctor', '/emergency'],
-    }[userRole] || ['/'];
+      DOCTOR: ['/doctor', '/emergency', '/reception'],
+      HOSPITAL_ADMIN: ['/admin', '/hospital-admin', '/doctor', '/reception', '/billing', '/pharmacy', '/laboratory', '/radiology', '/emergency'],
+      SUPER_ADMIN: ['/admin', '/hospital-admin', '/emergency'],
+    };
 
-    const isAllowedPath = target && rolePrefixes.some((prefix) => target.includes(prefix));
+    const allowedPrefixes = userRoles.flatMap((r) => rolePrefixes[r] || ['/']);
+    const isAllowedPath = target && allowedPrefixes.some((prefix) => target.includes(prefix));
 
     if (isAllowedPath) {
+      navigate(formatTenantPath(target));
+    } else if (target) {
       navigate(formatTenantPath(target));
     } else {
       const fallback = defaultRoleDashboard[userRole] || '/';

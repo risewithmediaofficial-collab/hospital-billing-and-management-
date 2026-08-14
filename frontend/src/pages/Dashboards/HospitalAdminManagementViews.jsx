@@ -8,14 +8,24 @@ import { useSocket } from '../../providers/SocketProvider';
 import {
   Stethoscope, Activity, ConciergeBell, CreditCard, TestTube, Scan, Pill,
   Users, ClipboardList, BedDouble, ShieldAlert, Edit, Key, Eye, UserCog,
-  CheckCircle, AlertCircle, TrendingUp, Clock, FileSpreadsheet, ShieldCheck
+  CheckCircle, AlertCircle, TrendingUp, Clock, FileSpreadsheet, ShieldCheck,
+  Trash2, Archive, Search
 } from 'lucide-react';
 
 export const HospitalAdminManagementViews = ({ viewType }) => {
   const { socket } = useSocket();
   const [staffList, setStaffList] = useState([]);
   const [patients, setPatients] = useState([]);
-  const [billingSummary, setBillingSummary] = useState({ totalRevenue: 0, totalBills: 0, pendingBills: 0 });
+  const [receiptsList, setReceiptsList] = useState([]);
+  const [deletedReceiptsList, setDeletedReceiptsList] = useState([]);
+  const [deletedBillingSearch, setDeletedBillingSearch] = useState('');
+  const [billingSummary, setBillingSummary] = useState({
+    totalRevenue: 0,
+    totalBills: 0,
+    totalDeletedRevenue: 0,
+    deletedBillsCount: 0,
+    pendingBills: 0,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [filterRole, setFilterRole] = useState(null);
 
@@ -34,19 +44,34 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
         )
       );
     };
+
+    const handleBillingUpdate = () => {
+      fetchData();
+    };
+
     socket.on('doctor:availability_changed', handleDoctorAvailability);
+    socket.on('billing:invoice_created', handleBillingUpdate);
+    socket.on('billing:payment_collected', handleBillingUpdate);
+    socket.on('billing:receipt_deleted', handleBillingUpdate);
+    socket.on('workflow:pending_changed', handleBillingUpdate);
+
     return () => {
       socket.off('doctor:availability_changed', handleDoctorAvailability);
+      socket.off('billing:invoice_created', handleBillingUpdate);
+      socket.off('billing:payment_collected', handleBillingUpdate);
+      socket.off('billing:receipt_deleted', handleBillingUpdate);
+      socket.off('workflow:pending_changed', handleBillingUpdate);
     };
   }, [socket]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [staffRes, patientsRes, billingRes] = await Promise.all([
+      const [staffRes, patientsRes, billingRes, deletedBillingRes] = await Promise.all([
         axiosClient.get('/auth/staff').catch(() => ({ data: [] })),
         axiosClient.get('/patients').catch(() => []),
         axiosClient.get('/billing/receipts').catch(() => ({ data: [] })),
+        axiosClient.get('/billing/deleted-receipts').catch(() => ({ data: [] })),
       ]);
 
       const staffData = (staffRes.data || staffRes || []).filter(s => !['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'].includes(s.role) && s.email !== 'superadmin@gmail.com');
@@ -56,10 +81,18 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       setPatients(pList);
 
       const receipts = billingRes.data || billingRes || [];
-      const revenue = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || Number(r.grandTotal) || 0), 0);
+      const deletedReceipts = deletedBillingRes.data || deletedBillingRes || [];
+      setReceiptsList(receipts);
+      setDeletedReceiptsList(deletedReceipts);
+
+      const revenue = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+      const deletedRevenue = deletedReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+
       setBillingSummary({
         totalRevenue: revenue,
         totalBills: receipts.length,
+        totalDeletedRevenue: deletedRevenue,
+        deletedBillsCount: deletedReceipts.length,
         pendingBills: Math.max(0, 15 - receipts.length),
       });
     } catch (err) {
@@ -314,6 +347,28 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       case 'billing': {
         const billingStaff = getFilteredStaff(['CASHIER', 'BILLING_STAFF']);
 
+        const getCashierStats = (cashierId) => {
+          const cReceipts = receiptsList.filter((r) => {
+            const cid = r.cashierId?._id || r.cashierId?.id || r.cashierId;
+            return String(cid) === String(cashierId);
+          });
+          const collected = cReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+          return { collected, count: cReceipts.length };
+        };
+
+        const filteredDeletedReceipts = deletedReceiptsList.filter((rc) => {
+          const pat = rc.patientId || rc.invoiceId?.patientId || {};
+          const name = `${pat.firstName || ''} ${pat.lastName || ''}`.toLowerCase();
+          const uhid = (pat.uhid || '').toLowerCase();
+          const rcNo = (rc.receiptNo || '').toLowerCase();
+          const invNo = (rc.invoiceId?.invoiceNo || '').toLowerCase();
+          const reason = (rc.deletionReason || '').toLowerCase();
+          const deletedBy = (rc.deletedByName || rc.deletedBy?.name || '').toLowerCase();
+          const cashier = (rc.cashierId?.name || '').toLowerCase();
+          const q = deletedBillingSearch.toLowerCase();
+          return name.includes(q) || uhid.includes(q) || rcNo.includes(q) || invNo.includes(q) || reason.includes(q) || deletedBy.includes(q) || cashier.includes(q);
+        });
+
         return (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -323,7 +378,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Billing & Revenue Management Desk
                 </h2>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Executive Financial Analytics, Billing Cashier Roster & Collection Summaries
+                  Executive Financial Analytics, Cashier Collections & Voided Bills Audit Trail
                 </p>
               </div>
               <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
@@ -332,16 +387,17 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Revenue Today" value={`₹${billingSummary.totalRevenue.toLocaleString()}`} subtitle="Invoices & Cashier Receipts" icon={CreditCard} color="emerald" />
-              <StatCard title="Invoices Issued" value={`${billingSummary.totalBills} Bills`} subtitle="OPD & IPD Billing" icon={FileSpreadsheet} color="purple" />
-              <StatCard title="Billing Personnel" value={`${billingStaff.length} Cashiers`} subtitle="Active Counters" icon={Users} color="sky" />
-              <StatCard title="Pending Unpaid Bills" value={`${billingSummary.pendingBills} Invoices`} subtitle="Awaiting Payment Clearance" icon={AlertCircle} color="amber" />
+              <StatCard title="Active Revenue (Net)" value={`₹${billingSummary.totalRevenue.toLocaleString()}`} subtitle="Valid Paid Receipts (Excludes Voided)" icon={CreditCard} color="emerald" />
+              <StatCard title="Active Receipts Issued" value={`${billingSummary.totalBills} Receipts`} subtitle="Cleared Patient Bills" icon={FileSpreadsheet} color="purple" />
+              <StatCard title="Deleted / Voided Bills" value={`${billingSummary.deletedBillsCount || 0} Voided`} subtitle={`₹${(billingSummary.totalDeletedRevenue || 0).toLocaleString()} Excluded from Revenue`} icon={Trash2} color="rose" />
+              <StatCard title="Billing Personnel" value={`${billingStaff.length} Cashiers`} subtitle="Assigned Billing Desks" icon={Users} color="sky" />
             </div>
 
+            {/* Cashiers Roster & Real Collections */}
             <Card>
               <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center gap-2">
                 <ShieldCheck size={18} className="text-indigo-600" />
-                Billing Cashiers & Clerks Roster ({billingStaff.length})
+                Billing Cashiers & Counter Performance ({billingStaff.length})
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -349,31 +405,138 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     <tr>
                       <th className="p-3">Cashier Name</th>
                       <th className="p-3">Login Email</th>
-                      <th className="p-3">Collections Today</th>
-                      <th className="p-3">Receipts Printed</th>
+                      <th className="p-3">Total Active Collections</th>
+                      <th className="p-3">Receipts Processed</th>
                       <th className="p-3">Status</th>
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {billingStaff.map((b) => (
-                      <tr key={b._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">{b.name}</td>
-                        <td className="p-3 font-mono text-neutral-500">{b.email}</td>
-                        <td className="p-3 font-bold text-emerald-700">₹{(billingSummary.totalRevenue / Math.max(1, billingStaff.length)).toFixed(0)}</td>
-                        <td className="p-3 font-bold text-neutral-800">24 Receipts</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {b.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
+                    {billingStaff.map((b) => {
+                      const stats = getCashierStats(b._id);
+                      return (
+                        <tr key={b._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">{b.name}</td>
+                          <td className="p-3 font-mono text-neutral-500">{b.email}</td>
+                          <td className="p-3 font-bold text-emerald-700 font-mono">₹{stats.collected.toLocaleString()}</td>
+                          <td className="p-3 font-bold text-neutral-800">{stats.count} Receipts</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {b.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* Deleted Bills & Audit Trail Table */}
+            <Card className="border-rose-200 bg-rose-50/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-rose-200">
+                <div>
+                  <h3 className="text-base font-bold text-rose-950 flex items-center gap-2">
+                    <Trash2 size={18} className="text-rose-600" />
+                    Deleted Bills & Voided Receipts Audit Trail ({deletedReceiptsList.length})
+                  </h3>
+                  <p className="text-xs text-rose-700/80">
+                    Complete oversight of all voided patient bills, who billed them, who deleted them, reasons, and timestamps.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <input
+                    type="text"
+                    placeholder="Search deleted bills, cashier, reason..."
+                    value={deletedBillingSearch}
+                    onChange={(e) => setDeletedBillingSearch(e.target.value)}
+                    className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 border-rose-300 focus:border-rose-500"
+                  />
+                  <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="border border-rose-200 rounded-xl overflow-hidden bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-rose-100/60 text-rose-900 uppercase text-[10px] border-b border-rose-200">
+                    <tr>
+                      <th className="p-3">Receipt / Invoice</th>
+                      <th className="p-3">Patient Details</th>
+                      <th className="p-3 text-right">Voided Amount</th>
+                      <th className="p-3">Billed By</th>
+                      <th className="p-3">Deleted By</th>
+                      <th className="p-3">Mandatory Deletion Reason</th>
+                      <th className="p-3 text-center">Date & Time Deleted</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rose-100 text-slate-800">
+                    {filteredDeletedReceipts.length > 0 ? (
+                      filteredDeletedReceipts.map((rc) => {
+                        const pat = rc.patientId || rc.invoiceId?.patientId || {};
+                        const rcDocObj = rc.invoiceId?.doctorId || rc.invoiceId?.consultation?.doctorId;
+                        const rcDocName = rc.invoiceId?.doctorName || rcDocObj?.name || rc.invoiceId?.consultation?.doctorId?.name;
+                        return (
+                          <tr key={rc._id} className="hover:bg-rose-50/40">
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-700 text-xs line-through">{rc.receiptNo}</span>
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                  VOIDED
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
+                              <p className="text-slate-500 text-[10px] font-mono">
+                                UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
+                              </p>
+                              {rcDocName && (
+                                <p className="text-slate-500 text-[10px] font-medium mt-0.5">
+                                  Dr: {rcDocName.startsWith('Dr.') ? rcDocName : `Dr. ${rcDocName}`}
+                                </p>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-mono font-bold text-rose-600 text-sm">
+                              ₹{(rc.amountPaid || 0).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-slate-800 text-[11px]">{rc.cashierId?.name || 'Cashier'}</p>
+                              <p className="text-[10px] text-slate-400">{rc.cashierId?.email || 'Counter'}</p>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-rose-700 text-[11px]">{rc.deletedByName || rc.deletedBy?.name || 'Staff'}</p>
+                              <p className="text-[10px] text-slate-400">{rc.deletedBy?.role || 'Authorized User'}</p>
+                            </td>
+                            <td className="p-3 max-w-xs">
+                              <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 font-medium text-[11px]">
+                                {rc.deletionReason || 'Reason not specified'}
+                              </div>
+                            </td>
+                            <td className="p-3 text-center text-slate-500 text-[11px]">
+                              {rc.deletedAt
+                                ? new Date(rc.deletedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                : new Date(rc.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
+                          {deletedReceiptsList.length === 0
+                            ? 'No deleted bills in the hospital record. All billing collections are 100% active.'
+                            : 'No matching deleted bills found for this search.'}
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -21,9 +21,10 @@ export const useNotificationStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       const result = await axiosClient.get('/notifications');
+      const data = result?.data || result || {};
       set({
-        notifications: (result.notifications || []).map(normalize),
-        unreadCount: Number(result.unreadCount) || 0,
+        notifications: (data.notifications || []).map(normalize),
+        unreadCount: Number(data.unreadCount) || 0,
       });
     } catch (error) {
       console.error('Failed to load notifications:', error);

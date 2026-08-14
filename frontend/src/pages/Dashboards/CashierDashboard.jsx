@@ -4,6 +4,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ProcessPaymentModal } from '../../components/modals/ProcessPaymentModal';
+import { OfficialReceiptModal } from '../../components/modals/OfficialReceiptModal';
 import { Modal } from '../../components/ui/Modal';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
@@ -11,7 +12,8 @@ import { useSocket } from '../../providers/SocketProvider';
 import {
   CreditCard, Receipt, Lock, IndianRupee, Stethoscope,
   User, Pill, CheckCircle, Clock, RefreshCw, AlertCircle,
-  Search, Printer, MessageCircle, Eye, FileText, Phone, CheckCircle2
+  Search, Printer, MessageCircle, Eye, FileText, Phone, CheckCircle2,
+  Trash2, Archive, ShieldAlert, X, XCircle
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -55,6 +57,14 @@ export const CashierDashboard = () => {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [unpaidInvoices, setUnpaidInvoices] = useState([]);
   const [allReceipts, setAllReceipts] = useState([]);
+  const [deletedReceipts, setDeletedReceipts] = useState([]);
+  const [receiptSubTab, setReceiptSubTab] = useState('ACTIVE'); // 'ACTIVE' | 'DELETED'
+  const [receiptToDelete, setReceiptToDelete] = useState(null);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [invoiceDeletionReason, setInvoiceDeletionReason] = useState('');
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [receiptSearchTerm, setReceiptSearchTerm] = useState('');
@@ -93,34 +103,93 @@ export const CashierDashboard = () => {
     }
   }, []);
 
+  const fetchDeletedReceipts = useCallback(async () => {
+    try {
+      const res = await axiosClient.get('/billing/deleted-receipts');
+      setDeletedReceipts(res.data || []);
+    } catch (err) {
+      console.error('Failed to load deleted receipts history:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUnpaidInvoices();
     fetchAllReceipts();
-  }, [fetchUnpaidInvoices, fetchAllReceipts]);
+    fetchDeletedReceipts();
+  }, [fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
-  // Real-time: refresh whenever doctor finalizes a new consultation or payment occurs
+  // Real-time: refresh whenever doctor finalizes a new consultation, payment occurs, or bill is deleted
   useEffect(() => {
     if (!socket) return;
     const handler = () => {
       fetchUnpaidInvoices();
       fetchAllReceipts();
+      fetchDeletedReceipts();
     };
     socket.on('billing:invoice_created', handler);
+    socket.on('billing:invoice_deleted', handler);
+    socket.on('billing:payment_collected', handler);
+    socket.on('billing:receipt_deleted', handler);
     socket.on('workflow:pending_changed', handler);
     socket.on('workflow:notification', handler);
     socket.on('consultation:completed', handler);
     return () => {
       socket.off('billing:invoice_created', handler);
+      socket.off('billing:invoice_deleted', handler);
+      socket.off('billing:payment_collected', handler);
+      socket.off('billing:receipt_deleted', handler);
       socket.off('workflow:pending_changed', handler);
       socket.off('workflow:notification', handler);
       socket.off('consultation:completed', handler);
     };
-  }, [socket, fetchUnpaidInvoices, fetchAllReceipts]);
+  }, [socket, fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
   const handlePaymentSuccess = () => {
     fetchUnpaidInvoices();
     fetchAllReceipts();
+    fetchDeletedReceipts();
     setIsPaymentOpen(false);
+  };
+
+  const handleConfirmDeleteBill = async () => {
+    if (!receiptToDelete || !deletionReason.trim()) return;
+    setIsDeleting(true);
+    try {
+      await axiosClient.delete(`/billing/receipts/${receiptToDelete._id}`, {
+        data: { deletionReason: deletionReason.trim() },
+      });
+      setReceiptToDelete(null);
+      setDeletionReason('');
+      fetchAllReceipts();
+      fetchDeletedReceipts();
+      fetchUnpaidInvoices();
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to delete bill record.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete || !invoiceDeletionReason.trim()) return;
+    setIsDeletingInvoice(true);
+    try {
+      await axiosClient.delete(`/billing/invoices/${invoiceToDelete._id}`, {
+        data: { deletionReason: invoiceDeletionReason.trim() },
+      });
+      setInvoiceToDelete(null);
+      setInvoiceDeletionReason('');
+      if (selectedInvoice?._id === invoiceToDelete._id) {
+        setSelectedInvoice(null);
+      }
+      fetchUnpaidInvoices();
+      fetchAllReceipts();
+      fetchDeletedReceipts();
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to cancel/delete pending bill.');
+    } finally {
+      setIsDeletingInvoice(false);
+    }
   };
 
   const handleSendReceiptWhatsApp = (rc) => {
@@ -143,6 +212,18 @@ export const CashierDashboard = () => {
     const phone = (pat.phone || '').toLowerCase();
     const search = receiptSearchTerm.toLowerCase();
     return name.includes(search) || uhid.includes(search) || rcNo.includes(search) || invNo.includes(search) || phone.includes(search);
+  });
+
+  const filteredDeletedReceipts = deletedReceipts.filter((rc) => {
+    const pat = rc.patientId || rc.invoiceId?.patientId || {};
+    const name = `${pat.firstName || ''} ${pat.lastName || ''}`.toLowerCase();
+    const uhid = (pat.uhid || '').toLowerCase();
+    const rcNo = (rc.receiptNo || '').toLowerCase();
+    const invNo = (rc.invoiceId?.invoiceNo || '').toLowerCase();
+    const reason = (rc.deletionReason || '').toLowerCase();
+    const deletedBy = (rc.deletedByName || rc.deletedBy?.name || '').toLowerCase();
+    const search = receiptSearchTerm.toLowerCase();
+    return name.includes(search) || uhid.includes(search) || rcNo.includes(search) || invNo.includes(search) || reason.includes(search) || deletedBy.includes(search);
   });
 
   const patient    = selectedInvoice?.patientId;
@@ -209,13 +290,27 @@ export const CashierDashboard = () => {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-mono font-bold text-indigo-700 text-[11px]">{pat.uhid || '—'}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                          inv.status === 'PARTIALLY_PAID'
-                            ? 'bg-amber-50 text-amber-600 border-amber-200'
-                            : 'bg-red-50 text-red-600 border-red-200'
-                        }`}>
-                          {inv.status === 'PARTIALLY_PAID' ? 'PARTIAL' : 'UNPAID'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                            inv.status === 'PARTIALLY_PAID'
+                              ? 'bg-amber-50 text-amber-600 border-amber-200'
+                              : 'bg-red-50 text-red-600 border-red-200'
+                          }`}>
+                            {inv.status === 'PARTIALLY_PAID' ? 'PARTIAL' : 'UNPAID'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInvoiceToDelete(inv);
+                              setInvoiceDeletionReason('');
+                            }}
+                            className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-100/80 border border-slate-200 hover:border-rose-300 transition-all cursor-pointer"
+                            title="Cancel & Delete this Pending Bill"
+                          >
+                            <X size={12} strokeWidth={2.5} />
+                          </button>
+                        </div>
                       </div>
                       <p className="font-bold text-slate-900 text-sm">{pat.firstName} {pat.lastName}</p>
                       {docNameStr && (
@@ -249,9 +344,23 @@ export const CashierDashboard = () => {
                 Itemised Bill & Treatment Summary
               </h3>
               {selectedInvoice && (
-                <Button size="sm" variant="success" className="font-bold" onClick={() => setIsPaymentOpen(true)}>
-                  Collect Payment & Issue Receipt
-                </Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceToDelete(selectedInvoice);
+                      setInvoiceDeletionReason('');
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                    title="Cancel & Delete this Pending Bill"
+                  >
+                    <X size={14} className="text-rose-600" />
+                    <span>Cancel Bill</span>
+                  </button>
+                  <Button size="sm" variant="success" className="font-bold" onClick={() => setIsPaymentOpen(true)}>
+                    Collect Payment & Issue Receipt
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -412,102 +521,238 @@ export const CashierDashboard = () => {
                 <Receipt size={18} className="text-emerald-600" />
                 Permanent Receipts & Payment Records
               </h3>
-              <p className="text-xs text-slate-500">Stored history of all billed receipts, patient billing archives & WhatsApp sharing</p>
+              <p className="text-xs text-slate-500">Stored history of all billed receipts, deleted bills archive & WhatsApp sharing</p>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <input
-                type="text"
-                placeholder="Search patient, UHID, receipt, phone..."
-                value={receiptSearchTerm}
-                onChange={(e) => setReceiptSearchTerm(e.target.value)}
-                className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900"
-              />
-              <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+            <div className="flex items-center gap-3">
+              {/* Sub-tab Switcher */}
+              <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setReceiptSubTab('ACTIVE')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                    receiptSubTab === 'ACTIVE'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Active Receipts ({allReceipts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReceiptSubTab('DELETED')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                    receiptSubTab === 'DELETED'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-xs'
+                      : 'text-slate-600 hover:text-rose-700'
+                  }`}
+                >
+                  <Archive size={13} />
+                  <span>Deleted Archive ({deletedReceipts.length})</span>
+                </button>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="Search patient, UHID, receipt..."
+                  value={receiptSearchTerm}
+                  onChange={(e) => setReceiptSearchTerm(e.target.value)}
+                  className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900"
+                />
+                <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+              </div>
             </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-600 uppercase text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Receipt No</th>
-                  <th className="p-3">Patient Details</th>
-                  <th className="p-3 text-center">Tender Mode</th>
-                  <th className="p-3 text-right">Amount Paid</th>
-                  <th className="p-3 text-center">Date & Time</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800">
-                {filteredReceipts.length > 0 ? (
-                  filteredReceipts.map((rc) => {
-                    const pat = rc.patientId || rc.invoiceId?.patientId || {};
-                    const rcDocObj = rc.invoiceId?.doctorId || rc.invoiceId?.consultation?.doctorId;
-                    const rcDocName = rc.invoiceId?.doctorName || rcDocObj?.name || rc.invoiceId?.consultation?.doctorId?.name;
-                    return (
-                      <tr key={rc._id} className="hover:bg-slate-50">
-                        <td className="p-3">
-                          <p className="font-mono font-bold text-indigo-700 text-xs">{rc.receiptNo}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
-                          <p className="text-slate-500 text-[10px] font-mono">
-                            UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
-                          </p>
-                          {rcDocName && (
-                            <p className="text-indigo-600 text-[10px] font-bold mt-0.5">
-                              <Stethoscope size={10} className="inline mr-0.5 text-indigo-500" />
-                              {rcDocName.startsWith('Dr.') ? rcDocName : `Dr. ${rcDocName}`}
+          {/* ACTIVE RECEIPTS VIEW */}
+          {receiptSubTab === 'ACTIVE' && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-600 uppercase text-[10px] border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Receipt No</th>
+                    <th className="p-3">Patient Details</th>
+                    <th className="p-3 text-center">Tender Mode</th>
+                    <th className="p-3 text-right">Amount Paid</th>
+                    <th className="p-3 text-center">Date & Time</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-800">
+                  {filteredReceipts.length > 0 ? (
+                    filteredReceipts.map((rc) => {
+                      const pat = rc.patientId || rc.invoiceId?.patientId || {};
+                      const rcDocObj = rc.invoiceId?.doctorId || rc.invoiceId?.consultation?.doctorId;
+                      const rcDocName = rc.invoiceId?.doctorName || rcDocObj?.name || rc.invoiceId?.consultation?.doctorId?.name;
+                      return (
+                        <tr key={rc._id} className="hover:bg-slate-50">
+                          <td className="p-3">
+                            <p className="font-mono font-bold text-indigo-700 text-xs">{rc.receiptNo}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
+                          </td>
+                          <td className="p-3">
+                            <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
+                            <p className="text-slate-500 text-[10px] font-mono">
+                              UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
                             </p>
-                          )}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            {rc.paymentMode}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-600 text-sm">
-                          {formatCurrency(rc.amountPaid)}
-                        </td>
-                        <td className="p-3 text-center text-slate-500 text-[11px]">
-                          {new Date(rc.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                        </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedReceiptForView(rc)}
-                              className="px-3 py-1.5 rounded-xl font-bold text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
-                            >
-                              <Eye size={13} className="text-indigo-600" />
-                              <span>View Bill</span>
-                            </button>
+                            {rcDocName && (
+                              <p className="text-indigo-600 text-[10px] font-bold mt-0.5">
+                                <Stethoscope size={10} className="inline mr-0.5 text-indigo-500" />
+                                {rcDocName.startsWith('Dr.') ? rcDocName : `Dr. ${rcDocName}`}
+                              </p>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {rc.paymentMode}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-600 text-sm">
+                            {formatCurrency(rc.amountPaid)}
+                          </td>
+                          <td className="p-3 text-center text-slate-500 text-[11px]">
+                            {new Date(rc.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptForView(rc)}
+                                className="px-2.5 py-1.5 rounded-xl font-bold text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95"
+                              >
+                                <Eye size={13} className="text-indigo-600" />
+                                <span>View Bill</span>
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleSendReceiptWhatsApp(rc)}
-                              className="px-3 py-1.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
-                            >
-                              <MessageCircle size={13} className="text-white fill-white/20" />
-                              <span>WhatsApp</span>
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => handleSendReceiptWhatsApp(rc)}
+                                className="px-2.5 py-1.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95"
+                              >
+                                <MessageCircle size={13} className="text-white fill-white/20" />
+                                <span>WhatsApp</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReceiptToDelete(rc);
+                                  setDeletionReason('');
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl font-bold text-xs text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95"
+                                title="Delete & Void this Bill"
+                              >
+                                <Trash2 size={13} className="text-rose-600" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500 text-xs">
+                        No matching paid receipts found. Processed bills will stay stored here permanently.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* DELETED BILLS ARCHIVE VIEW */}
+          {receiptSubTab === 'DELETED' && (
+            <div className="space-y-3">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+                <ShieldAlert size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Audit Archive & Revenue Exclusion Notice</p>
+                  <p className="text-[11px] text-amber-700">
+                    All voided bills below are stored permanently for audit trail and compliance purposes. Their revenue is automatically deducted from all total revenue, cashier summaries, and hospital reports.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-rose-50/70 text-rose-800 uppercase text-[10px] border-b border-rose-200">
+                    <tr>
+                      <th className="p-3">Receipt / Invoice</th>
+                      <th className="p-3">Patient Details</th>
+                      <th className="p-3 text-right">Voided Amount</th>
+                      <th className="p-3">Billed By</th>
+                      <th className="p-3">Deleted By</th>
+                      <th className="p-3">Deletion Reason</th>
+                      <th className="p-3 text-center">Date Deleted</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-slate-800">
+                    {filteredDeletedReceipts.length > 0 ? (
+                      filteredDeletedReceipts.map((rc) => {
+                        const pat = rc.patientId || rc.invoiceId?.patientId || {};
+                        const rcDocObj = rc.invoiceId?.doctorId || rc.invoiceId?.consultation?.doctorId;
+                        const rcDocName = rc.invoiceId?.doctorName || rcDocObj?.name || rc.invoiceId?.consultation?.doctorId?.name;
+                        return (
+                          <tr key={rc._id} className="hover:bg-slate-50">
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-700 text-xs line-through">{rc.receiptNo}</span>
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                  VOIDED
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
+                              <p className="text-slate-500 text-[10px] font-mono">
+                                UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
+                              </p>
+                              {rcDocName && (
+                                <p className="text-slate-500 text-[10px] font-medium mt-0.5">
+                                  Dr: {rcDocName.startsWith('Dr.') ? rcDocName : `Dr. ${rcDocName}`}
+                                </p>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-mono font-bold text-rose-600 text-sm">
+                              {formatCurrency(rc.amountPaid)}
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-slate-800 text-[11px]">{rc.cashierId?.name || 'Cashier'}</p>
+                              <p className="text-[10px] text-slate-400">{rc.cashierId?.email || 'Counter'}</p>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-rose-700 text-[11px]">{rc.deletedByName || rc.deletedBy?.name || 'Staff'}</p>
+                              <p className="text-[10px] text-slate-400">{rc.deletedBy?.role || 'Authorized User'}</p>
+                            </td>
+                            <td className="p-3 max-w-xs">
+                              <div className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 font-medium text-[11px]">
+                                {rc.deletionReason || 'Reason not recorded'}
+                              </div>
+                            </td>
+                            <td className="p-3 text-center text-slate-500 text-[11px]">
+                              {rc.deletedAt
+                                ? new Date(rc.deletedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                : new Date(rc.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
+                          No deleted bills found in the archive. All active records remain intact.
                         </td>
                       </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-500 text-xs">
-                      No matching paid receipts found. Processed bills will stay stored here permanently.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -522,101 +767,236 @@ export const CashierDashboard = () => {
 
       {/* View Historical Receipt & Printable Bill Modal */}
       {selectedReceiptForView && (
-        <Modal
+        <OfficialReceiptModal
           isOpen={Boolean(selectedReceiptForView)}
           onClose={() => setSelectedReceiptForView(null)}
-          title={`Receipt #${selectedReceiptForView.receiptNo}`}
-          subtitle="Patient Billing Record & 80mm Thermal Receipt View"
-          icon={Receipt}
-          maxWidth="max-w-xl"
+          receipt={selectedReceiptForView}
+          invoice={selectedReceiptForView.invoiceId}
+        />
+      )}
+
+      {/* Delete / Void Bill Confirmation Modal */}
+      {receiptToDelete && (
+        <Modal
+          isOpen={Boolean(receiptToDelete)}
+          onClose={() => {
+            if (!isDeleting) {
+              setReceiptToDelete(null);
+              setDeletionReason('');
+            }
+          }}
+          title={`Delete & Void Bill #${receiptToDelete.receiptNo}`}
+          subtitle="Mandatory Reason & Audit Trail Required"
+          icon={Trash2}
+          maxWidth="max-w-lg"
         >
-          <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-                <CheckCircle2 size={24} />
+          <div className="space-y-4 text-xs text-slate-800">
+            <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-2.5">
+              <ShieldAlert size={18} className="text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-900">Revenue Exclusion & Audit Warning</p>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Deleting this bill will permanently void it, immediately exclude its {formatCurrency(receiptToDelete.amountPaid)} from hospital revenue, and record an immutable audit log entry for the Hospital Administration.
+                </p>
               </div>
-              <h4 className="font-extrabold text-slate-900 text-base">Payment Record Cleared</h4>
-              <p className="text-slate-500 text-[11px]">
-                Paid on {new Date(selectedReceiptForView.createdAt).toLocaleString()}
-              </p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 font-medium">
               <div className="flex justify-between">
                 <span className="text-slate-500">Patient:</span>
                 <span className="font-bold text-slate-900">
-                  {selectedReceiptForView.patientId?.firstName || selectedReceiptForView.invoiceId?.patientId?.firstName}{' '}
-                  {selectedReceiptForView.patientId?.lastName || selectedReceiptForView.invoiceId?.patientId?.lastName}
+                  {receiptToDelete.patientId?.firstName || receiptToDelete.invoiceId?.patientId?.firstName}{' '}
+                  {receiptToDelete.patientId?.lastName || receiptToDelete.invoiceId?.patientId?.lastName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Receipt No:</span>
+                <span className="font-mono font-bold text-indigo-700">{receiptToDelete.receiptNo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Billed Amount:</span>
+                <span className="font-mono font-bold text-emerald-600">{formatCurrency(receiptToDelete.amountPaid)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Original Cashier:</span>
+                <span className="text-slate-700">{receiptToDelete.cashierId?.name || user?.name || 'Counter Staff'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block font-bold text-slate-700 text-xs">
+                Reason for Deletion <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={deletionReason}
+                onChange={(e) => setDeletionReason(e.target.value)}
+                placeholder="Enter detailed reason for voiding this bill (e.g. duplicate payment, patient cancelled consultation, wrong payment mode)..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+
+              {/* Quick suggestion chips */}
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Quick Reason Presets:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Duplicate Bill Entry',
+                    'Patient Cancelled Consultation',
+                    'Incorrect Payment Amount',
+                    'Wrong Tender Mode Selected',
+                    'Test / Training Entry',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDeletionReason(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ${
+                        deletionReason === preset
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setReceiptToDelete(null);
+                  setDeletionReason('');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting || !deletionReason.trim()}
+                onClick={handleConfirmDeleteBill}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <Trash2 size={13} />
+                <span>{isDeleting ? 'Voiding Bill…' : 'Confirm Deletion (Void Bill)'}</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Cancel / Delete Pending Invoice Modal */}
+      {invoiceToDelete && (
+        <Modal
+          isOpen={Boolean(invoiceToDelete)}
+          onClose={() => {
+            if (!isDeletingInvoice) {
+              setInvoiceToDelete(null);
+              setInvoiceDeletionReason('');
+            }
+          }}
+          title={`Cancel Pending Bill #${invoiceToDelete.invoiceNo}`}
+          subtitle="Mandatory Reason & Hospital Audit Required"
+          icon={XCircle}
+          maxWidth="max-w-lg"
+        >
+          <div className="space-y-4 text-xs text-slate-800">
+            <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-2.5">
+              <ShieldAlert size={18} className="text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-900">Pending Bill Cancellation</p>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Cancelling this bill will remove it from the active cashier queue and record an immutable audit log entry with your cancellation reason for the Hospital Administration.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 font-medium">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Patient:</span>
+                <span className="font-bold text-slate-900">
+                  {invoiceToDelete.patientId?.firstName} {invoiceToDelete.patientId?.lastName}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">UHID:</span>
-                <span className="font-mono font-bold text-indigo-700">
-                  {selectedReceiptForView.patientId?.uhid || selectedReceiptForView.invoiceId?.patientId?.uhid}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Mobile Phone:</span>
-                <span className="font-mono text-slate-700">
-                  {selectedReceiptForView.patientId?.phone || selectedReceiptForView.invoiceId?.patientId?.phone || 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-200 pt-2">
-                <span className="text-slate-500">Attending Doctor:</span>
-                <span className="font-bold text-slate-900">
-                  {(() => {
-                    const dName = selectedReceiptForView.invoiceId?.doctorName ||
-                                  selectedReceiptForView.invoiceId?.doctorId?.name ||
-                                  selectedReceiptForView.invoiceId?.consultation?.doctorId?.name;
-                    return dName ? (dName.startsWith('Dr.') ? dName : `Dr. ${dName}`) : 'Consultant Specialist';
-                  })()}
-                </span>
+                <span className="font-mono font-bold text-indigo-700">{invoiceToDelete.patientId?.uhid || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Invoice No:</span>
-                <span className="font-mono text-slate-900">{selectedReceiptForView.invoiceId?.invoiceNo || 'INV'}</span>
+                <span className="font-mono font-bold text-slate-900">{invoiceToDelete.invoiceNo}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Tender Mode:</span>
-                <span className="font-bold text-indigo-700">{selectedReceiptForView.paymentMode}</span>
-              </div>
-              <div className="flex justify-between font-extrabold text-sm border-t border-slate-200 pt-2 text-slate-900">
-                <span>Amount Paid:</span>
-                <span className="text-emerald-600">{formatCurrency(selectedReceiptForView.amountPaid)}</span>
+                <span className="text-slate-500">Pending Amount:</span>
+                <span className="font-mono font-bold text-rose-600">{formatCurrency(invoiceToDelete.balanceAmount || invoiceToDelete.grandTotal)}</span>
               </div>
             </div>
 
-            {selectedReceiptForView.invoiceId?.items?.length > 0 && (
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <p className="p-2.5 bg-slate-100 font-bold text-slate-700 uppercase text-[10px]">Treatment Item Breakdown</p>
-                <div className="divide-y divide-slate-200">
-                  {selectedReceiptForView.invoiceId.items.map((it, idx) => (
-                    <div key={idx} className="p-2.5 flex justify-between items-center text-[11px]">
-                      <span>{it.description} ({it.qty}x)</span>
-                      <span className="font-mono font-bold text-slate-900">{formatCurrency(it.totalPrice)}</span>
-                    </div>
+            <div className="space-y-2">
+              <label className="block font-bold text-slate-700 text-xs">
+                Reason for Cancellation / Deletion <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={invoiceDeletionReason}
+                onChange={(e) => setInvoiceDeletionReason(e.target.value)}
+                placeholder="Enter detailed reason for cancelling this pending bill (e.g. patient left without treatment, doctor consultation cancelled, wrong charges)..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+              />
+
+              {/* Quick suggestion chips */}
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Quick Reason Presets:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Patient Left Without Consultation',
+                    'Doctor Cancelled Consultation',
+                    'Duplicate Bill Generated',
+                    'Incorrect Charges / Treatment Item',
+                    'Patient Requested Cancellation',
+                    'Test / Training Entry',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setInvoiceDeletionReason(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ${
+                        invoiceDeletionReason === preset
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset}
+                    </button>
                   ))}
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
               <button
                 type="button"
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                onClick={() => window.print()}
+                disabled={isDeletingInvoice}
+                onClick={() => {
+                  setInvoiceToDelete(null);
+                  setInvoiceDeletionReason('');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
               >
-                <Printer size={15} className="text-slate-600" />
-                <span>Print Thermal Receipt</span>
+                Keep Pending
               </button>
-
               <button
                 type="button"
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                onClick={() => handleSendReceiptWhatsApp(selectedReceiptForView)}
+                disabled={isDeletingInvoice || !invoiceDeletionReason.trim()}
+                onClick={handleConfirmDeleteInvoice}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm"
               >
-                <MessageCircle size={15} className="text-white fill-white/20" />
-                <span>Send via WhatsApp</span>
+                <X size={14} />
+                <span>{isDeletingInvoice ? 'Cancelling Bill…' : 'Confirm Cancellation (Delete Bill)'}</span>
               </button>
             </div>
           </div>

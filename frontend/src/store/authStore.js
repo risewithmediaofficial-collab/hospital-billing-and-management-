@@ -120,9 +120,11 @@ export const useAuthStore = create((set, get) => ({
     }
     try {
       const response = await axiosClient.get('/auth/me');
-      const userData = response.data?.data || response.data;
-      localStorage.setItem('hpmbs_user', JSON.stringify(userData));
-      set({ user: userData, isAuthenticated: true, isLoading: false });
+      const userData = response?.data || response?.user || response;
+      if (userData && (userData.id || userData._id || userData.role)) {
+        localStorage.setItem('hpmbs_user', JSON.stringify(userData));
+        set({ user: userData, isAuthenticated: true, isLoading: false });
+      }
     } catch (err) {
       localStorage.removeItem('hpmbs_access_token');
       localStorage.removeItem('hpmbs_user');

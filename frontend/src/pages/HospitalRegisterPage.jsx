@@ -360,6 +360,44 @@ export const HospitalRegisterPage = () => {
                   />
                 </div>
 
+                {/* Hospital Physical Address & Location */}
+                <div className="space-y-3 p-3.5 rounded-2xl bg-indigo-50/40 border border-indigo-100">
+                  <p className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                    <Building2 size={14} className="text-indigo-600" />
+                    Hospital Address (Printed on Invoices & Official Receipts)
+                  </p>
+                  <Input
+                    label="Street / Building / Area Address"
+                    value={formData.street || ''}
+                    onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                    placeholder="e.g. 123 Healthcare Boulevard, Medical Enclave"
+                    required
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <Input
+                      label="City / Town"
+                      value={formData.city || ''}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      placeholder="e.g. Chennai"
+                      required
+                    />
+                    <Input
+                      label="State / Province"
+                      value={formData.state || ''}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      placeholder="e.g. Tamil Nadu"
+                      required
+                    />
+                    <Input
+                      label="PIN / Postal Code"
+                      value={formData.postalCode || ''}
+                      onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                      placeholder="e.g. 600001"
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="relative">
                     <Input

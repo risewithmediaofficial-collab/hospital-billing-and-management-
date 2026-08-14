@@ -24,6 +24,11 @@ const invoiceSchema = new mongoose.Schema(
     paidAmount: { type: Number, default: 0 },
     balanceAmount: { type: Number, required: true },
     status: { type: String, enum: Object.values(PAYMENT_STATUS), default: PAYMENT_STATUS.UNPAID, index: true },
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    deletedByName: { type: String, default: '' },
+    deletionReason: { type: String, default: '' },
   },
   { timestamps: true }
 );

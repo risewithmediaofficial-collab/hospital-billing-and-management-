@@ -52,7 +52,8 @@ const hospitalSchema = new mongoose.Schema(
       street: { type: String, default: '' },
       city: { type: String, default: '' },
       state: { type: String, default: '' },
-      country: { type: String, default: '' },
+      country: { type: String, default: 'India' },
+      postalCode: { type: String, default: '' },
     },
     initialAdminPassword: { type: String, default: 'HospitalAdmin123!' },
 

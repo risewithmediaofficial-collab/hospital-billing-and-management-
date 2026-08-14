@@ -23,6 +23,7 @@ export class BillingService {
     const invoices = await Invoice.find({
       hospitalId,
       status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
+      isDeleted: { $ne: true },
     })
       .populate('patientId')
       .populate('doctorId', 'name specialization cabinNo')
@@ -165,27 +166,50 @@ export class BillingService {
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
     }
 
+    const populatedReceipt = await Receipt.findById(receipt._id)
+      .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
+      .populate({
+        path: 'invoiceId',
+        populate: [
+          { path: 'patientId' },
+          { path: 'doctorId', select: 'name specialization cabinNo' },
+        ],
+      })
+      .populate('patientId')
+      .populate('cashierId', 'name email role');
+
     return {
-      receipt,
+      receipt: populatedReceipt || receipt,
       invoice,
     };
   }
 
   static async getInvoices(user) {
-    return await Invoice.find({ branchId: user.branchId }).populate('patientId').sort({ createdAt: -1 });
+    const query = { isDeleted: { $ne: true } };
+    if (user.branchId) query.branchId = user.branchId;
+    else if (user.hospitalId) query.hospitalId = user.hospitalId;
+    return await Invoice.find(query)
+      .populate('patientId')
+      .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
+      .sort({ createdAt: -1 });
   }
 
   static async getReceipts(user) {
-    const receipts = await Receipt.find({ branchId: user.branchId })
+    const query = { isDeleted: { $ne: true } };
+    if (user.branchId) query.branchId = user.branchId;
+    else if (user.hospitalId) query.hospitalId = user.hospitalId;
+
+    const receipts = await Receipt.find(query)
+      .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
       .populate({
         path: 'invoiceId',
         populate: [
           { path: 'patientId' },
-          { path: 'doctorId', select: 'name specialization' },
+          { path: 'doctorId', select: 'name specialization cabinNo' },
         ],
       })
       .populate('patientId')
-      .populate('cashierId')
+      .populate('cashierId', 'name email role')
       .sort({ createdAt: -1 });
 
     const enriched = await Promise.all(
@@ -193,7 +217,7 @@ export class BillingService {
         const rcObj = rc.toObject();
         if (rcObj.invoiceId && !rcObj.invoiceId.doctorId && rcObj.invoiceId.patientId) {
           const consult = await Consultation.findOne({ patientId: rcObj.invoiceId.patientId._id || rcObj.invoiceId.patientId })
-            .populate('doctorId', 'name specialization')
+            .populate('doctorId', 'name specialization cabinNo')
             .sort({ createdAt: -1 });
           if (consult) {
             rcObj.invoiceId.consultation = consult.toObject();
@@ -204,5 +228,212 @@ export class BillingService {
     );
 
     return enriched;
+  }
+
+  /**
+   * Fetch all voided/deleted bills for the hospital
+   */
+  static async getDeletedReceipts(user) {
+    let hospitalId = user?.hospitalId;
+    if (!hospitalId && user?.role === 'SUPER_ADMIN') {
+      const { Hospital } = await import('../../models/Hospital.js');
+      const h = await Hospital.findOne({});
+      hospitalId = h?._id;
+    }
+
+    const query = { isDeleted: true };
+    if (user.branchId) query.branchId = user.branchId;
+    else if (hospitalId) query.hospitalId = hospitalId;
+
+    const deletedReceipts = await Receipt.find(query)
+      .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
+      .populate({
+        path: 'invoiceId',
+        populate: [
+          { path: 'patientId' },
+          { path: 'doctorId', select: 'name specialization cabinNo' },
+        ],
+      })
+      .populate('patientId')
+      .populate('cashierId', 'name email role')
+      .populate('deletedBy', 'name email role')
+      .sort({ deletedAt: -1, updatedAt: -1 });
+
+    return deletedReceipts;
+  }
+
+  /**
+   * Delete / void a receipt with mandatory reason and audit log
+   */
+  static async deleteReceipt(receiptId, deletionReason, user) {
+    if (!deletionReason || !deletionReason.trim()) {
+      throw new ApiError(400, 'A valid reason is required to delete a bill record.', null, 'REASON_REQUIRED');
+    }
+
+    const receipt = await Receipt.findById(receiptId)
+      .populate('patientId')
+      .populate('cashierId', 'name email');
+
+    if (!receipt) {
+      throw new ApiError(404, 'Receipt record not found', null, 'NOT_FOUND');
+    }
+
+    if (receipt.isDeleted) {
+      throw new ApiError(400, 'This receipt has already been deleted.', null, 'ALREADY_DELETED');
+    }
+
+    // Soft delete receipt
+    receipt.isDeleted = true;
+    receipt.deletedAt = new Date();
+    receipt.deletedBy = user.id || user._id;
+    receipt.deletedByName = user.name || 'Staff';
+    receipt.deletionReason = deletionReason.trim();
+    await receipt.save();
+
+    // Rollback invoice payment amounts
+    let invoice = null;
+    if (receipt.invoiceId) {
+      invoice = await Invoice.findById(receipt.invoiceId);
+      if (invoice) {
+        invoice.paidAmount = Math.max(0, (invoice.paidAmount || 0) - receipt.amountPaid);
+        invoice.balanceAmount = Math.max(0, invoice.grandTotal - invoice.paidAmount);
+        if (invoice.balanceAmount > 0) {
+          invoice.status = invoice.paidAmount > 0 ? PAYMENT_STATUS.PARTIALLY_PAID : PAYMENT_STATUS.UNPAID;
+        }
+        invoice.isDeleted = true;
+        invoice.deletionReason = deletionReason.trim();
+        invoice.deletedAt = new Date();
+        invoice.deletedBy = user.id || user._id;
+        await invoice.save();
+      }
+    }
+
+    // Immutable Audit Log for Hospital Admin
+    try {
+      const { AuditLog } = await import('../../models/AuditLog.js');
+      await AuditLog.create({
+        hospitalId: receipt.hospitalId || user.hospitalId,
+        userId: user.id || user._id,
+        userRole: user.role,
+        action: 'BILL_DELETED',
+        module: 'BILLING',
+        resourceId: String(receipt._id),
+        previousState: {
+          receiptNo: receipt.receiptNo,
+          amountPaid: receipt.amountPaid,
+          paymentMode: receipt.paymentMode,
+          cashierName: receipt.cashierId?.name || 'Cashier',
+          cashierEmail: receipt.cashierId?.email || '',
+        },
+        newState: {
+          isDeleted: true,
+          deletedByName: user.name,
+          deletedByRole: user.role,
+          deletionReason: deletionReason.trim(),
+          deletedAt: receipt.deletedAt,
+        },
+        details: `Receipt #${receipt.receiptNo} of ₹${receipt.amountPaid} originally billed by ${receipt.cashierId?.name || 'Cashier'} was deleted by ${user.name} (${user.role}). Reason: ${deletionReason.trim()}`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write billing deletion audit log:', auditErr);
+    }
+
+    // Real-time notification & pending status broadcast
+    const branchId = receipt.branchId || user.branchId;
+    if (branchId) {
+      socketManager.emitToBranch(branchId, 'billing:receipt_deleted', {
+        receiptId: receipt._id,
+        receiptNo: receipt.receiptNo,
+        amountPaid: receipt.amountPaid,
+        deletedByName: user.name,
+        deletionReason: deletionReason.trim(),
+      });
+      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: receipt._id });
+    }
+
+    return {
+      success: true,
+      message: `Receipt #${receipt.receiptNo} deleted successfully`,
+      receipt,
+      invoice,
+    };
+  }
+
+  /**
+   * Cancel / delete a pending unpaid invoice with mandatory reason and audit log
+   */
+  static async deleteInvoice(invoiceId, deletionReason, user) {
+    if (!deletionReason || !deletionReason.trim()) {
+      throw new ApiError(400, 'A valid reason is required to cancel or delete an invoice.', null, 'REASON_REQUIRED');
+    }
+
+    const invoice = await Invoice.findById(invoiceId)
+      .populate('patientId')
+      .populate('doctorId', 'name email');
+
+    if (!invoice) {
+      throw new ApiError(404, 'Invoice record not found', null, 'NOT_FOUND');
+    }
+
+    if (invoice.isDeleted) {
+      throw new ApiError(400, 'This invoice has already been cancelled or deleted.', null, 'ALREADY_DELETED');
+    }
+
+    // Soft delete invoice
+    invoice.isDeleted = true;
+    invoice.status = PAYMENT_STATUS.CANCELLED || 'CANCELLED';
+    invoice.deletedAt = new Date();
+    invoice.deletedBy = user.id || user._id;
+    invoice.deletedByName = user.name || 'Staff';
+    invoice.deletionReason = deletionReason.trim();
+    await invoice.save();
+
+    // Immutable Audit Log for Hospital Admin
+    try {
+      const { AuditLog } = await import('../../models/AuditLog.js');
+      await AuditLog.create({
+        hospitalId: invoice.hospitalId || user.hospitalId,
+        userId: user.id || user._id,
+        userRole: user.role,
+        action: 'INVOICE_CANCELLED',
+        module: 'BILLING',
+        resourceId: String(invoice._id),
+        previousState: {
+          invoiceNo: invoice.invoiceNo,
+          grandTotal: invoice.grandTotal,
+          balanceAmount: invoice.balanceAmount,
+          patientName: `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim(),
+        },
+        newState: {
+          isDeleted: true,
+          status: 'CANCELLED',
+          deletedByName: user.name,
+          deletedByRole: user.role,
+          deletionReason: deletionReason.trim(),
+          deletedAt: invoice.deletedAt,
+        },
+        details: `Pending Invoice #${invoice.invoiceNo} (₹${invoice.grandTotal}) for patient ${invoice.patientId?.firstName || ''} was cancelled/deleted by ${user.name} (${user.role}). Reason: ${deletionReason.trim()}`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write invoice deletion audit log:', auditErr);
+    }
+
+    // Real-time broadcast
+    const branchId = invoice.branchId || user.branchId;
+    if (branchId) {
+      socketManager.emitToBranch(branchId, 'billing:invoice_deleted', {
+        invoiceId: invoice._id,
+        invoiceNo: invoice.invoiceNo,
+        deletedByName: user.name,
+        deletionReason: deletionReason.trim(),
+      });
+      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: invoice._id });
+    }
+
+    return {
+      success: true,
+      message: `Invoice #${invoice.invoiceNo} cancelled successfully`,
+      invoice,
+    };
   }
 }

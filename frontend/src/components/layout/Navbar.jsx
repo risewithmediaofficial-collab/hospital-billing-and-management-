@@ -25,7 +25,27 @@ export const Navbar = ({ onToggleSidebar }) => {
     if (!socket) return;
     const refresh = () => fetchNotifications();
     socket.on('workflow:notification', refresh);
-    return () => socket.off('workflow:notification', refresh);
+    socket.on('notification:created', refresh);
+    socket.on('notification:cleared', refresh);
+    socket.on('notification:read', refresh);
+    socket.on('queue:patient_added', refresh);
+    socket.on('token:generated', refresh);
+    socket.on('appointment:created', refresh);
+    socket.on('patient_request:created', refresh);
+    socket.on('patient_request:updated', refresh);
+    socket.on('workflow:pending_changed', refresh);
+    return () => {
+      socket.off('workflow:notification', refresh);
+      socket.off('notification:created', refresh);
+      socket.off('notification:cleared', refresh);
+      socket.off('notification:read', refresh);
+      socket.off('queue:patient_added', refresh);
+      socket.off('token:generated', refresh);
+      socket.off('appointment:created', refresh);
+      socket.off('patient_request:created', refresh);
+      socket.off('patient_request:updated', refresh);
+      socket.off('workflow:pending_changed', refresh);
+    };
   }, [user?.id, user?._id, socket, fetchNotifications]);
 
   const hasNotificationsPermission = (() => {
@@ -36,7 +56,8 @@ export const Navbar = ({ onToggleSidebar }) => {
     const notif = permissions.notifications;
     if (Array.isArray(notif) && notif.length > 0) return true;
     if (typeof notif === 'object' && notif !== null && (notif.view || notif['*'])) return true;
-    return false;
+    // By default, all authenticated hospital staff have notification access
+    return !['PATIENT', 'GUARDIAN'].includes(user.role);
   })();
 
   return (
