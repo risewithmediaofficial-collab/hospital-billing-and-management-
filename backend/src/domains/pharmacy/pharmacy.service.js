@@ -16,8 +16,17 @@ export class PharmacyService {
   // --- INVENTORY MANAGEMENT ---
 
   static async getMedicines(user, query = {}) {
-    const filter = { hospitalId: user.hospitalId, isActive: true };
-    if (user.branchId) filter.branchId = user.branchId;
+    const filter = { isActive: true };
+    if (user?.role === 'SUPER_ADMIN') {
+      if (query.hospitalId && query.hospitalId !== 'ALL') {
+        filter.hospitalId = query.hospitalId;
+      } else if (query.all !== 'true' && user._hospitalContextApplied && user.hospitalId) {
+        filter.hospitalId = user.hospitalId;
+      }
+    } else {
+      if (user?.hospitalId) filter.hospitalId = user.hospitalId;
+      if (user?.branchId) filter.branchId = user.branchId;
+    }
 
     if (query.category) filter.category = query.category;
     if (query.dosageForm) filter.dosageForm = query.dosageForm;
@@ -31,7 +40,8 @@ export class PharmacyService {
     // Attach batch & stock details
     const medicineIds = medicines.map((m) => m._id);
     const now = new Date();
-    const batchFilter = { hospitalId: user.hospitalId, medicineId: { $in: medicineIds }, isActive: true };
+    const batchFilter = { medicineId: { $in: medicineIds }, isActive: true };
+    if (filter.hospitalId) batchFilter.hospitalId = filter.hospitalId;
     if (query.location) batchFilter.location = query.location;
 
     const batches = await MedicineBatch.find(batchFilter).sort({ expiryDate: 1 }).lean();

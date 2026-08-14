@@ -341,13 +341,21 @@ export class DiagnosticsService {
   }
 
   static async getOrders(query = {}, user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
+    const filter = {};
+    if (user?.role === 'SUPER_ADMIN') {
+      if (query.hospitalId && query.hospitalId !== 'ALL') {
+        filter.hospitalId = query.hospitalId;
+      } else if (query.all !== 'true' && user._hospitalContextApplied && user.hospitalId) {
+        filter.hospitalId = user.hospitalId;
+      }
+    } else {
+      let hospitalId = user?.hospitalId;
+      if (!hospitalId) {
+        const defaultHosp = await Hospital.findOne({});
+        hospitalId = defaultHosp?._id;
+      }
+      if (hospitalId) filter.hospitalId = hospitalId;
     }
-
-    const filter = { hospitalId };
 
     if (query.testCategory) {
       if (query.testCategory === 'RADIOLOGY') {

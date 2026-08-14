@@ -59,16 +59,17 @@ export const SuperAdminReportsPage = () => {
     setIsLoading(true);
     try {
       const targetHospId = hospitalId || (selectedHospitalId !== 'ALL' ? selectedHospitalId : null);
-      const queryParams = targetHospId ? `?hospitalId=${targetHospId}` : '';
+      const queryParams = targetHospId ? `?hospitalId=${targetHospId}` : '?all=true&hospitalId=ALL';
+      const reqHeaders = targetHospId ? { 'X-Hospital-Context': targetHospId } : { 'X-Hospital-Context': '' };
 
       const [hospRes, diagRes, pharmRes, staffRes, invRes, patRes, nurseRes] = await Promise.all([
-        axiosClient.get('/saas/hospitals').catch(() => ({ data: [] })),
-        axiosClient.get(`/diagnostics/orders${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/pharmacy/medicines${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/auth/staff${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/billing/receipts${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/patients${queryParams}`).catch(() => ({ data: [] })),
-        axiosClient.get(`/pharmacy/nurse-tasks${queryParams}`).catch(() => ({ data: [] })),
+        axiosClient.get('/saas/hospitals', { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/diagnostics/orders${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/pharmacy/medicines${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/auth/staff${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/billing/receipts${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/patients${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
+        axiosClient.get(`/pharmacy/nurse-tasks${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
       ]);
 
       const hospList = hospRes.data || [];
@@ -250,7 +251,7 @@ export const SuperAdminReportsPage = () => {
               {filtered.map((s) => {
                 const isShown = showPasswords[s._id];
                 const pwdHint = s.assignedPasswordHint || s.credentialHint || `${s.role ? s.role.charAt(0) + s.role.slice(1).toLowerCase() : 'Staff'}123!`;
-                const hospName = hospMap[String(s.hospitalId?._id || s.hospitalId)] || 'Platform Hospital';
+                const hospName = s.hospitalId?.name || hospMap[String(s.hospitalId?._id || s.hospitalId)] || 'Platform Hospital';
 
                 return (
                   <tr key={s._id} className="hover:bg-slate-50">
@@ -269,15 +270,15 @@ export const SuperAdminReportsPage = () => {
                       <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
                         <Key size={13} className="text-amber-500 shrink-0" />
                         <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
-                          {isShown === false ? '••••••••••••' : pwdHint}
+                          {isShown ? pwdHint : '••••••••••••'}
                         </span>
                         <button
                           type="button"
                           onClick={() => toggleShowPassword(s._id)}
-                          className="text-slate-400 hover:text-slate-700 ml-1"
-                          title="Toggle Mask"
+                          className="text-slate-400 hover:text-slate-700 ml-1 transition-colors"
+                          title={isShown ? "Hide Password" : "Show Password"}
                         >
-                          {isShown === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                          {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
                         </button>
                       </div>
                     </td>

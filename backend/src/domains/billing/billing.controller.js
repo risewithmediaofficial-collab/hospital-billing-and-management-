@@ -39,7 +39,7 @@ export const getInvoices = async (req, res, next) => {
 
 export const getReceipts = async (req, res, next) => {
   try {
-    const receipts = await BillingService.getReceipts(req.user);
+    const receipts = await BillingService.getReceipts(req.user, req.query);
     return sendSuccess(res, 200, 'Receipts retrieved successfully', receipts);
   } catch (error) {
     next(error);

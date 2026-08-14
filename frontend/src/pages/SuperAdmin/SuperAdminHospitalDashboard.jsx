@@ -709,15 +709,15 @@ export const SuperAdminHospitalDashboard = () => {
                               <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
                                 <Key size={13} className="text-amber-500 shrink-0" />
                                 <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
-                                  {isShown === false ? '••••••••••••' : pwdHint}
+                                  {isShown ? pwdHint : '••••••••••••'}
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => toggleShowPassword(staff._id)}
-                                  className="text-slate-400 hover:text-slate-700 ml-1"
-                                  title="Toggle Mask"
+                                  className="text-slate-400 hover:text-slate-700 ml-1 transition-colors"
+                                  title={isShown ? "Hide Password" : "Show Password"}
                                 >
-                                  {isShown === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                                  {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
                                 </button>
                               </div>
                             </td>

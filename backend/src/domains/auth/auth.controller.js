@@ -120,7 +120,7 @@ export const updateStaffPassword = async (req, res, next) => {
 
 export const getHospitalStaff = async (req, res, next) => {
   try {
-    const staff = await AuthService.getHospitalStaff(req.user);
+    const staff = await AuthService.getHospitalStaff(req.user, req.query);
     return sendSuccess(res, 200, 'Hospital staff retrieved successfully', staff);
   } catch (error) {
     next(error);

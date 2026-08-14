@@ -194,10 +194,20 @@ export class BillingService {
       .sort({ createdAt: -1 });
   }
 
-  static async getReceipts(user) {
+  static async getReceipts(user, queryParams = {}) {
     const query = { isDeleted: { $ne: true } };
-    if (user.branchId) query.branchId = user.branchId;
-    else if (user.hospitalId) query.hospitalId = user.hospitalId;
+    if (user?.role === 'SUPER_ADMIN') {
+      if (queryParams.all === 'true' || queryParams.hospitalId === 'ALL') {
+        // No hospitalId restriction — return all receipts across all hospitals
+      } else if (queryParams.hospitalId) {
+        query.hospitalId = queryParams.hospitalId;
+      } else if (user._hospitalContextApplied && user.hospitalId) {
+        query.hospitalId = user.hospitalId;
+      }
+    } else {
+      if (user.branchId) query.branchId = user.branchId;
+      else if (user.hospitalId) query.hospitalId = user.hospitalId;
+    }
 
     const receipts = await Receipt.find(query)
       .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')

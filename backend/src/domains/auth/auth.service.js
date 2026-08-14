@@ -725,16 +725,25 @@ export class AuthService {
     };
   }
 
-  static async getHospitalStaff(requestingUser) {
+  static async getHospitalStaff(requestingUser, queryParams = {}) {
     const query = { role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] } };
-    if (requestingUser.role !== 'SUPER_ADMIN' && requestingUser.hospitalId) {
-      const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
-      query.hospitalId = hId;
-    } else if (requestingUser.role === 'SUPER_ADMIN' && requestingUser._hospitalContextApplied && requestingUser.hospitalId) {
-      const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
-      query.hospitalId = hId;
+    if (requestingUser.role !== 'SUPER_ADMIN') {
+      if (requestingUser.hospitalId) {
+        const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
+        query.hospitalId = hId;
+      }
+    } else {
+      // Super Admin: check if requesting all hospitals combined or specific hospital
+      if (queryParams.all === 'true' || queryParams.hospitalId === 'ALL') {
+        // No hospitalId restriction — return all staff across all hospitals
+      } else if (queryParams.hospitalId) {
+        query.hospitalId = queryParams.hospitalId;
+      } else if (requestingUser._hospitalContextApplied && requestingUser.hospitalId) {
+        const hId = typeof requestingUser.hospitalId === 'object' ? requestingUser.hospitalId._id : requestingUser.hospitalId;
+        query.hospitalId = hId;
+      }
     }
-    return await User.find(query).select('-passwordHash').sort({ createdAt: -1 });
+    return await User.find(query).populate('hospitalId', 'name code domain').select('-passwordHash').sort({ createdAt: -1 });
   }
 
   static async getMe(userId) {

@@ -18,7 +18,9 @@ export const SuperAdminStaffPage = ({ roleFilter = null, title = 'All Staff' }) 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axiosClient.get('/auth/staff');
+        const res = await axiosClient.get('/auth/staff?all=true&hospitalId=ALL', {
+          headers: { 'X-Hospital-Context': '' },
+        });
         setStaff(res.data || []);
       } catch (err) {
         console.error(err);

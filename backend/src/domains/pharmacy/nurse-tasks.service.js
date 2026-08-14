@@ -94,9 +94,19 @@ export class NurseTasksService {
   }
 
   static async getNurseTasks(user, query = {}) {
-    const filter = { hospitalId: user.hospitalId };
-    if (user.branchId) filter.branchId = user.branchId;
-    if (user.role === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
+    const filter = {};
+    if (user?.role === 'SUPER_ADMIN') {
+      if (query.hospitalId && query.hospitalId !== 'ALL') {
+        filter.hospitalId = query.hospitalId;
+      } else if (query.all !== 'true' && user._hospitalContextApplied && user.hospitalId) {
+        filter.hospitalId = user.hospitalId;
+      }
+    } else {
+      if (user?.hospitalId) filter.hospitalId = user.hospitalId;
+      if (user?.branchId) filter.branchId = user.branchId;
+      if (user?.role === 'NURSE') filter.$or = [{ assignedNurseId: user.id }, { assignedNurseId: null }];
+    }
+
     if (query.patientId) filter.patientId = query.patientId;
     if (query.status) filter.status = query.status;
 
