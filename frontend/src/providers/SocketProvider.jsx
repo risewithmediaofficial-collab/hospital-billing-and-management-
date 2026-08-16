@@ -21,6 +21,7 @@ export const SocketProvider = ({ children }) => {
     const socketInstance = io('/', {
       auth: { token },
       autoConnect: true,
+      transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
     });
 

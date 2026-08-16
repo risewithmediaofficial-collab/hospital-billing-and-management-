@@ -96,7 +96,8 @@ export const LoginPage = () => {
   const handleStaffLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await login(email, password, hospitalDomain);
+      const cleanEmail = email ? email.trim() : '';
+      const user = await login(cleanEmail, password, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
@@ -106,7 +107,9 @@ export const LoginPage = () => {
   const handlePatientLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await patientLogin(patientMobile, patientDob, hospitalDomain);
+      const cleanMobile = patientMobile ? patientMobile.trim() : '';
+      const cleanDob = patientDob ? patientDob.trim() : '';
+      const user = await patientLogin(cleanMobile, cleanDob, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
@@ -116,7 +119,10 @@ export const LoginPage = () => {
   const handleGuardianLogin = async (e) => {
     e.preventDefault();
     try {
-      const user = await guardianLogin(guardianMobile, guardianPatientMobile, guardianUHID, hospitalDomain);
+      const cleanGuardianMobile = guardianMobile ? guardianMobile.trim() : '';
+      const cleanPatientMobile = guardianPatientMobile ? guardianPatientMobile.trim() : '';
+      const cleanUHID = guardianUHID ? guardianUHID.trim() : '';
+      const user = await guardianLogin(cleanGuardianMobile, cleanPatientMobile, cleanUHID, hospitalDomain);
       handleRouteRedirect(user);
     } catch (err) {
       // Error state handled in authStore
@@ -209,6 +215,9 @@ export const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@hospital.com or staff ID"
                   autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                 />
 
