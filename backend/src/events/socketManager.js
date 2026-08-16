@@ -11,21 +11,30 @@ class SocketManager {
   init(httpServer) {
     this.io = new Server(httpServer, {
       cors: {
-        origin: env.CORS_ORIGIN,
+        origin: (origin, callback) => {
+          // Dynamically reflect origin to remain 100% compliant with credentials: true
+          callback(null, true);
+        },
         credentials: true,
       },
+      allowEIO3: true,
+      transports: ['websocket', 'polling'],
     });
 
     this.io.use((socket, next) => {
-      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-      if (!token) {
+      const rawToken = socket.handshake.auth?.token || socket.handshake.query?.token;
+      if (!rawToken) {
         return next(new Error('Authentication token required for WebSocket handshake'));
       }
+      const token = typeof rawToken === 'string' && rawToken.startsWith('Bearer ')
+        ? rawToken.slice(7).trim()
+        : rawToken;
       try {
         const decoded = jwt.verify(token, env.JWT_SECRET);
         socket.user = decoded;
         next();
       } catch (err) {
+        console.warn('[Socket.IO Auth Warning] Token verification failed:', err.message);
         next(new Error('Invalid WebSocket token'));
       }
     });

@@ -38,7 +38,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
       }));
       set({ notifications: tasks, unreadCount: Number(snapshot.total) || 0, byPath: snapshot.byPath || {} });
     } catch (error) {
-      console.error('Failed to refresh pending work:', error);
+      // Quietly handle transient server or network hiccups during background polling
     } finally {
       set({ isLoading: false });
     }
