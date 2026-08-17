@@ -27,6 +27,8 @@ export const updateMedicine = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
 export const getBatches = async (req, res, next) => {
   try {
     const batches = await PharmacyService.getBatches(req.user, req.query);
