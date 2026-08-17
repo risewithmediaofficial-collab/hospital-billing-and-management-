@@ -119,6 +119,22 @@ const hospitalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+hospitalSchema.set('toJSON', {
+  transform: function (doc, ret) {
+    delete ret.initialAdminPassword;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+hospitalSchema.set('toObject', {
+  transform: function (doc, ret) {
+    delete ret.initialAdminPassword;
+    delete ret.__v;
+    return ret;
+  },
+});
+
 // High-speed compound indexes for multi-tenant SaaS resolution
 hospitalSchema.index({ domain: 1, isDeleted: 1 });
 hospitalSchema.index({ subdomain: 1, isDeleted: 1 });

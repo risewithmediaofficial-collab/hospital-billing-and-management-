@@ -74,12 +74,8 @@ export const PatientRegistrationPage = () => {
 
   const handleInlineSubmit = async (e, issueToken = false, force = false) => {
     if (e) e.preventDefault();
-    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim() || !formData.guardianPhone.trim()) {
-      setError('First name, last name, patient mobile number, and guardian mobile number are required.');
-      return;
-    }
-    if (formData.phone.trim() === formData.guardianPhone.trim()) {
-      setError('Guardian mobile number must be different from the patient mobile number.');
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim()) {
+      setError('First name, last name, and patient mobile number are required.');
       return;
     }
     setIsLoading(true);
@@ -91,7 +87,7 @@ export const PatientRegistrationPage = () => {
       const res = await axiosClient.post('/patients', payload);
       const newPat = res.data;
       setLastCreatedPatient(newPat);
-      setSuccessMessage(`Patient registered with UHID ${newPat.uhid}. Patient login: ${newPat.patientCredentials?.username}. Guardian login: ${newPat.guardianCredentials?.username}.`);
+      setSuccessMessage(`Patient registered with UHID ${newPat.uhid}. Patient login: ${newPat.patientCredentials?.username}${newPat.guardianCredentials?.username ? ` | Guardian login: ${newPat.guardianCredentials?.username}` : ''}`);
       
       // Reset form
       setFormData({
@@ -363,34 +359,34 @@ export const PatientRegistrationPage = () => {
                 />
               </div>
 
-              {/* Guardian / Attendant Auto-Provisioning Section */}
-              <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200/80 space-y-3">
+              {/* Guardian / Attendant Section (Optional for Inpatient / Minors) */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-extrabold text-purple-900 flex items-center gap-1.5 uppercase tracking-wider">
-                    <UserCheck size={16} className="text-purple-600" />
-                    Guardian / Attendant Account
+                  <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                    <UserCheck size={16} className="text-indigo-600" />
+                    Guardian / Attendant Information
                   </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">
-                    AUTO-LINKED TO GUARDIAN PORTAL
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                    OPTIONAL (NOT REQUIRED FOR OPD)
                   </span>
                 </div>
-                <p className="text-[11px] text-purple-700">
-                  Patient login: patient mobile for username and password. Guardian login: patient mobile as username and guardian mobile as password.
+                <p className="text-[11px] text-slate-500">
+                  Optional. Only needed if patient is being recommended for IPD inpatient stay or for minor patients.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <Input
-                    label="Guardian / Relative Name"
+                    label="Guardian / Relative Name (Optional)"
                     value={formData.guardianName}
                     onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
-                    placeholder="Your Name"
+                    placeholder="e.g. John Doe (Optional)"
                   />
                   <Input
-                    label="Guardian Mobile Number"
+                    label="Guardian Mobile Number (Optional)"
                     icon={Phone}
                     value={formData.guardianPhone}
                     onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
-                    placeholder="+91 98765 43210"
+                    placeholder="Optional"
                   />
 
                   <div>
@@ -398,7 +394,7 @@ export const PatientRegistrationPage = () => {
                     <select
                       value={formData.guardianRelationship}
                       onChange={(e) => setFormData({ ...formData, guardianRelationship: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                     >
                       <option value="FATHER">Father</option>
                       <option value="MOTHER">Mother</option>

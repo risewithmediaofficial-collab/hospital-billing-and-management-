@@ -77,8 +77,18 @@ export class NotificationService {
 
       const recipients = await User.find(userQuery).select('_id').lean();
       if (recipients.length === 0) return null;
+
+      // Deduplicate recipient IDs to avoid duplicate insertions
+      const seenIds = new Set();
+      const uniqueRecipients = recipients.filter((r) => {
+        const idStr = String(r._id);
+        if (seenIds.has(idStr)) return false;
+        seenIds.add(idStr);
+        return true;
+      });
+
       const notifications = await Notification.insertMany(
-        recipients.map((recipient) => ({ ...base, recipientUserId: recipient._id }))
+        uniqueRecipients.map((recipient) => ({ ...base, recipientUserId: recipient._id }))
       );
       return notifications[0] || null;
     } catch (err) {

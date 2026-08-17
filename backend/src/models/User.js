@@ -104,6 +104,32 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
+userSchema.set('toJSON', {
+  transform: function (doc, ret) {
+    delete ret.passwordHash;
+    delete ret.assignedPasswordHint;
+    delete ret.passwordResetToken;
+    delete ret.passwordResetExpires;
+    delete ret.emailVerificationToken;
+    delete ret.emailVerificationExpires;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+userSchema.set('toObject', {
+  transform: function (doc, ret) {
+    delete ret.passwordHash;
+    delete ret.assignedPasswordHint;
+    delete ret.passwordResetToken;
+    delete ret.passwordResetExpires;
+    delete ret.emailVerificationToken;
+    delete ret.emailVerificationExpires;
+    delete ret.__v;
+    return ret;
+  },
+});
+
 userSchema.index({ hospitalId: 1, role: 1, isActive: 1 });
 userSchema.index({ hospitalId: 1, status: 1 });
 userSchema.index({ hospitalId: 1, email: 1 });

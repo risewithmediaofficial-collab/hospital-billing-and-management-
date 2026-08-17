@@ -108,11 +108,8 @@ export class PatientsService {
 
     const patientPhone = String(data.phone || '').trim();
     const guardianPhone = String(data.guardianPhone || '').trim();
-    if (!patientPhone || !guardianPhone) {
-      throw new ApiError(422, 'Patient mobile number and guardian mobile number are required.', null, 'VALIDATION_ERROR');
-    }
-    if (patientPhone === guardianPhone) {
-      throw new ApiError(422, 'Guardian mobile number must be different from the patient mobile number.', null, 'VALIDATION_ERROR');
+    if (!patientPhone) {
+      throw new ApiError(422, 'Patient mobile number is required.', null, 'VALIDATION_ERROR');
     }
 
     // --- DUPLICATE CHECK (unless allowForce is set) ---

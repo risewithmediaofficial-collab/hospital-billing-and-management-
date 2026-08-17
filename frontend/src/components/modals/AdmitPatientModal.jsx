@@ -2,26 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
-import { X, BedDouble, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, BedDouble, CheckCircle, AlertCircle, UserCheck } from 'lucide-react';
 
 export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
   useScrollLock(isOpen);
   const [wardType, setWardType] = useState('GENERAL');
   const [targetWardName, setTargetWardName] = useState('Ward 3B - Inpatient');
   const [admissionReason, setAdmissionReason] = useState('');
+  const [guardianName, setGuardianName] = useState('');
+  const [guardianPhone, setGuardianPhone] = useState('');
+  const [guardianRelationship, setGuardianRelationship] = useState('FAMILY');
   const [isLoading, setIsLoading] = useState(false);
   const [isRequested, setIsRequested] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && patient) {
       setWardType('GENERAL');
       setTargetWardName('Ward 3B - Inpatient');
       setAdmissionReason('');
+      setGuardianName(patient?.emergencyContact?.name && patient?.emergencyContact?.name !== 'Self / N/A' ? patient.emergencyContact.name : '');
+      setGuardianPhone(patient?.emergencyContact?.phone && patient?.emergencyContact?.phone !== '+1 (555) 000-0000' ? patient.emergencyContact.phone : '');
+      setGuardianRelationship(patient?.emergencyContact?.relation || 'FAMILY');
       setIsRequested(false);
       setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, patient]);
 
   if (!isOpen || !patient) return null;
 
@@ -35,6 +41,9 @@ export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
         wardType,
         targetWardName,
         admissionReason: admissionReason.trim() || 'Inpatient observation and treatment',
+        guardianName: guardianName.trim() || undefined,
+        guardianPhone: guardianPhone.trim() || undefined,
+        guardianRelationship: guardianRelationship || undefined,
       });
       setIsRequested(true);
       if (onSuccess) onSuccess();
@@ -137,6 +146,49 @@ export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
                   autoComplete="off"
                   required
                 />
+              </div>
+
+              {/* Optional Guardian Details for IPD */}
+              <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-950 flex items-center gap-1.5 text-xs">
+                    <UserCheck size={14} className="text-purple-600" />
+                    Guardian / Attendant Contact
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-purple-100">
+                    OPTIONAL (NOT COMPULSORY)
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Guardian Name (Optional)"
+                    value={guardianName}
+                    onChange={(e) => setGuardianName(e.target.value)}
+                    className="p-1.5 border border-purple-200 rounded text-xs bg-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Guardian Phone (Optional)"
+                    value={guardianPhone}
+                    onChange={(e) => setGuardianPhone(e.target.value)}
+                    className="p-1.5 border border-purple-200 rounded text-xs bg-white"
+                  />
+                  <select
+                    value={guardianRelationship}
+                    onChange={(e) => setGuardianRelationship(e.target.value)}
+                    className="p-1.5 border border-purple-200 rounded text-xs bg-white"
+                  >
+                    <option value="FATHER">Father</option>
+                    <option value="MOTHER">Mother</option>
+                    <option value="SPOUSE">Spouse</option>
+                    <option value="SIBLING">Sibling</option>
+                    <option value="CHILD">Child</option>
+                    <option value="LEGAL_GUARDIAN">Legal Guardian</option>
+                    <option value="CARETAKER">Caretaker / Attendant</option>
+                    <option value="OTHER">Other Relative / Friend</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-1">

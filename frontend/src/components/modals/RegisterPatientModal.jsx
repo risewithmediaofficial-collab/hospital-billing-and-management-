@@ -150,10 +150,9 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                 </div>
               </div>
 
-              <Input label="Phone Number" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required placeholder="+1 (555) 000-0000" />
-              <Input label="Guardian Mobile Number" value={formData.guardianPhone} onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })} required placeholder="Guardian mobile is used as guardian password" />
+              <Input label="Phone Number" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required placeholder="+91 98765 43210" />
               <Input label="Chief Complaint / Reason for Visit" value={formData.chiefComplaints} onChange={(e) => setFormData({ ...formData, chiefComplaints: e.target.value })} placeholder="e.g. Fever, Chest tightness, Routine OPD checkup" />
-              <Input label="Residential Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} required placeholder="Street address, city" />
+              <Input label="Residential Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Street address, city" />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200">
                 <Button

@@ -59,6 +59,9 @@ export const WORKFLOW_EVENTS = {
   EMERGENCY_RAISED:        'EMERGENCY_RAISED',
   EMERGENCY_RESOLVED:      'EMERGENCY_RESOLVED',
 
+  // Doctor → IPD / Ward Admission
+  IPD_ADMISSION_RECOMMENDED: 'IPD_ADMISSION_RECOMMENDED',
+
   // Staff Availability
   STAFF_WENT_OFFLINE:      'STAFF_WENT_OFFLINE',
   STAFF_CAME_ONLINE:       'STAFF_CAME_ONLINE',
@@ -66,6 +69,7 @@ export const WORKFLOW_EVENTS = {
 
 // ─── Which roles get notified for each event ─────────────────────────────────
 const TARGET_ROLES = {
+  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: ['RECEPTIONIST', 'NURSE_INCHARGE', 'NURSE', 'HOSPITAL_ADMIN'],
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:  ['RECEPTIONIST'],
@@ -160,6 +164,9 @@ const MESSAGE_TEMPLATES = {
 
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
     (p) => ({ title: '✅ Emergency Resolved', message: `Emergency at ${p.location} has been resolved by ${p.resolvedBy}.`, type: 'SYSTEM_ALERT' }),
+
+  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]:
+    (p) => ({ title: '🏥 IPD Admission Recommended', message: `Dr. ${p.doctorName || 'Doctor'} recommended IPD Inpatient Admission for ${p.patientName} (${p.uhid}) to ${p.wardType || 'General Ward'}. Priority: ${p.priority || 'Normal'}. Reason: ${p.reason || 'Clinical Observation'}`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:
     (p) => ({ title: '⚠️ Staff Offline', message: `${p.staffName} (${p.role}) has gone offline. Patients cannot be assigned to them until they go back online.`, type: 'SYSTEM_ALERT' }),
@@ -278,24 +285,49 @@ export class WorkflowEventService {
           metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
         });
       } else {
-        // Per-role persistent notifications
-        for (const role of roles) {
-          const isPersonal = role === 'DOCTOR' && payload.doctorId;
-          await NotificationService.createNotification({
-            recipientUserId: isPersonal ? payload.doctorId : null,
-            recipientRole: isPersonal ? null : role,
+        // Collect all target recipient user IDs across all roles in this event to avoid duplicate rows for multi-role staff
+        const { User } = await import('../models/User.js');
+        const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
+        if (['NEW_DATA', 'WORKFLOW'].includes(DB_NOTIFICATION_TYPES[type] || type)) userQuery.isAvailable = { $ne: false };
+        if (effectiveHospitalId) userQuery.hospitalId = effectiveHospitalId;
+        if (effectiveBranchId) userQuery.$or = [{ branchId: effectiveBranchId }, { branchId: null }];
+
+        const orConditions = [
+          { role: { $in: roles } },
+          { additionalRoles: { $in: roles } },
+        ];
+        if (payload.doctorId) {
+          orConditions.push({ _id: payload.doctorId });
+        }
+        userQuery.$and = [{ $or: orConditions }];
+
+        const recipients = await User.find(userQuery).select('_id').lean();
+        const uniqueIds = Array.from(new Set(recipients.map((r) => String(r._id))));
+
+        if (uniqueIds.length > 0) {
+          const { Notification } = await import('../models/Notification.js');
+          const baseNotif = {
             hospitalId: effectiveHospitalId,
             branchId: effectiveBranchId,
             title,
             message,
+            notificationType: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
             type: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
             link: payload.linkedPath || '',
+            targetRoute: payload.linkedPath || '',
             targetModule: payload.targetModule || '',
             relatedPatientId: payload.patientId || null,
             relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
+            isRead: false,
+            status: 'ACTIVE',
             metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
-          });
+          };
+
+          await Notification.insertMany(
+            uniqueIds.map((userId) => ({ ...baseNotif, recipientUserId: userId }))
+          );
         }
+
         if (payload.senderUserId && unavailableRoles.length > 0) {
           await NotificationService.createNotification({
             recipientUserId: payload.senderUserId,

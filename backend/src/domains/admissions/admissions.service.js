@@ -51,10 +51,15 @@ export class AdmissionsService {
       status: 'ADMISSION_REQUESTED',
     });
 
-    // Update Patient.admissionStatus
+    // Update Patient.admissionStatus and optional guardian info
+    const patientUpdates = { admissionStatus: 'ACTIVE_ADMISSION', activeAdmissionId: admission._id };
+    if (data.guardianName) patientUpdates['emergencyContact.name'] = data.guardianName.trim();
+    if (data.guardianPhone) patientUpdates['emergencyContact.phone'] = data.guardianPhone.trim();
+    if (data.guardianRelationship) patientUpdates['emergencyContact.relation'] = data.guardianRelationship;
+
     await Patient.updateOne(
       { _id: patient._id },
-      { $set: { admissionStatus: 'ACTIVE_ADMISSION', activeAdmissionId: admission._id }, $inc: { admissionCount: 1 } }
+      { $set: patientUpdates, $inc: { admissionCount: 1 } }
     );
 
     // Update GlobalPatient membership hasActiveAdmission flag

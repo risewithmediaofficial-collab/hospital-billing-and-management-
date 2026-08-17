@@ -119,6 +119,14 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     }
   };
 
+  // Deduplicate notifications by ID and content signature
+  const uniqueNotifications = notifications.filter((notif, index, self) => {
+    const key = `${notif.title || ''}|${notif.message || ''}|${notif.relatedTaskId || ''}|${notif.createdAt ? new Date(notif.createdAt).getMinutes() : ''}`;
+    return index === self.findIndex((t) => (
+      t.id === notif.id || `${t.title || ''}|${t.message || ''}|${t.relatedTaskId || ''}|${t.createdAt ? new Date(t.createdAt).getMinutes() : ''}` === key
+    ));
+  });
+
   return (
     <div
       ref={dropdownRef}
@@ -145,9 +153,9 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       {/* Bell history controls. Pending-work badges are managed independently. */}
       <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
         <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
-          Notifications ({notifications.length})
+          Notifications ({uniqueNotifications.length})
         </span>
-        {notifications.length > 0 && (
+        {uniqueNotifications.length > 0 && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -163,8 +171,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
       {/* Notification List */}
       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-        {notifications.length > 0 ? (
-          notifications.map((notif) => (
+        {uniqueNotifications.length > 0 ? (
+          uniqueNotifications.map((notif) => (
             <div
               key={notif.id}
               onClick={() => handleNotificationClick(notif)}

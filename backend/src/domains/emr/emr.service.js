@@ -88,7 +88,46 @@ export class EmrService {
       }, appointment.branchId);
     }
 
-    // Consolidated Invoice logic
+    // IPD Recommendation handling & Requisition to Inpatient Ward
+    if (data.ipdRecommendation?.isRecommended) {
+      try {
+        const { AdmissionsService } = await import('../admissions/admissions.service.js');
+        const gInfo = data.ipdRecommendation.guardianInfo || {};
+
+        // If optional guardian info was provided, update patient record
+        if (gInfo.name || gInfo.phone) {
+          const updateFields = {};
+          if (gInfo.name) updateFields['emergencyContact.name'] = gInfo.name.trim();
+          if (gInfo.phone) updateFields['emergencyContact.phone'] = gInfo.phone.trim();
+          if (gInfo.relationship) updateFields['emergencyContact.relation'] = gInfo.relationship;
+          if (gInfo.address) updateFields.address = gInfo.address.trim();
+          await Patient.updateOne({ _id: appointment.patientId }, { $set: updateFields });
+        }
+
+        // Trigger official admission requisition
+        await AdmissionsService.requestAdmission({
+          patientId: appointment.patientId,
+          wardType: data.ipdRecommendation.recommendedWard || 'GENERAL',
+          targetWardName: data.ipdRecommendation.recommendedWard || 'Ward 3B - Inpatient',
+          admissionReason: data.ipdRecommendation.admissionReason || data.chiefComplaints || 'Doctor Inpatient Admission Recommendation',
+        }, user);
+
+        const patientObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
+        WorkflowEventService.emitSync(WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED, {
+          patientId: appointment.patientId,
+          patientName: patientObj ? `${patientObj.firstName} ${patientObj.lastName}`.trim() : 'Patient',
+          uhid: patientObj?.uhid || 'N/A',
+          doctorName: user.name || 'Doctor',
+          wardType: data.ipdRecommendation.recommendedWard || 'General Ward',
+          priority: data.ipdRecommendation.priority || 'ROUTINE',
+          reason: data.ipdRecommendation.admissionReason || data.chiefComplaints || 'Clinical Inpatient Stay',
+          senderUserId: user.id || user._id,
+          linkedPath: '/reception/dashboard',
+        }, appointment.branchId);
+      } catch (err) {
+        console.error('Failed to trigger IPD admission requisition:', err);
+      }
+    }
     const hospId = user.hospitalId || appointment.hospitalId;
     const brId = user.branchId || appointment.branchId;
     const year = new Date().getFullYear();
@@ -166,21 +205,39 @@ export class EmrService {
         chargeStatus: { $ne: 'INCLUDED_IN_FINAL_BILL' },
       });
 
-      for (const rx of billedPrescriptions) {
-        for (const med of rx.medicines || []) {
+      if (billedPrescriptions.length > 0) {
+        for (const rx of billedPrescriptions) {
+          for (const med of rx.medicines || []) {
+            if (med.itemStatus === 'PURCHASED_EXTERNALLY') continue;
+            const medPrice = Number(med.price || med.unitPrice) || 20.0;
+            const qty = Number(med.dispensedQty || med.quantity || med.durationDays || 1);
+            const lineTotal = Number(med.totalPrice) || (medPrice * qty);
+            items.push({
+              description: `[Pharmacy] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
+              category: 'PHARMACY',
+              qty,
+              unitPrice: medPrice,
+              totalPrice: lineTotal,
+            });
+          }
+          rx.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
+          rx.dispenseStatus = 'DISPENSED';
+          await rx.save();
+        }
+      } else if (prescription && data.prescriptions && Array.isArray(data.prescriptions)) {
+        for (const med of data.prescriptions) {
+          if (med.externalPurchaseRequired || med.itemStatus === 'PURCHASED_EXTERNALLY' || !med.medicineName?.trim()) continue;
           const medPrice = Number(med.price || med.unitPrice) || 20.0;
-          const qty = Number(med.dispensedQty || med.durationDays || 1);
+          const qty = Number(med.quantity || med.dispensedQty || (Number(med.durationDays) || 5) * 2);
+          const lineTotal = Number(med.totalPrice) || (medPrice * qty);
           items.push({
-            description: `[Pharmacy Medicine] ${med.medicineName} (${med.dosageForm || 'Tab'})`,
+            description: `[Prescription Medicine] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
             category: 'PHARMACY',
             qty,
             unitPrice: medPrice,
-            totalPrice: medPrice * qty,
+            totalPrice: lineTotal,
           });
         }
-        rx.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
-        rx.dispenseStatus = 'DISPENSED';
-        await rx.save();
       }
     } catch (e) {
       console.error('Failed to include pharmacy billed medicines:', e);

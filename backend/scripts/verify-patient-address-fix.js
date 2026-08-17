@@ -27,7 +27,7 @@ function request(method, path, body, headers = {}) {
 }
 
 console.log("Login as Hospital Admin...");
-const login = await request("POST", "/auth/login", { email: "admin@citygeneral.com", password: "0000" });
+const login = await request("POST", "/auth/login", { email: "testhospital@gmail.com", password: "0000" });
 if (login.status !== 200) { console.error("Login FAILED:", login.status, JSON.stringify(login.body)); process.exit(1); }
 const token = login.body.token;
 console.log("Login OK - Role:", login.body.user?.role);

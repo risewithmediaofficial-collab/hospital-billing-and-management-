@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
 import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { PharmacyBillingModal } from '../../components/modals/PharmacyBillingModal';
 
 const RECOMMENDED_MEDICINES = [
   { name: 'Paracetamol 500mg', genericName: 'Paracetamol', category: 'Analgesic / Antipyretic', dosageForm: 'TABLET', strength: '500 mg', purchasePrice: 2, sellingPrice: 5 },
@@ -60,8 +61,11 @@ export const PharmacistDashboard = () => {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showSubReqModal, setShowSubReqModal] = useState(false);
   const [selectedRx, setSelectedRx] = useState(null);
+  const [billingPrescription, setBillingPrescription] = useState(null);
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
+  const [isBillingSubmitting, setIsBillingSubmitting] = useState(false);
 
-  useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal);
+  useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal || isBillingModalOpen);
 
   // Forms
   const [medForm, setMedForm] = useState({
@@ -87,36 +91,50 @@ export const PharmacistDashboard = () => {
     prescriptionId: '', originalMedicineName: '', suggestedMedicineId: '', reason: 'Brand out of stock, offering bioequivalent generic'
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [rxRes, medRes, alertRes, auditRes, subRes] = await Promise.all([
-        axiosClient.get('/pharmacy/prescriptions'),
+      const [medsRes, rxsRes, batchesRes, adjRes, subsRes, alertRes] = await Promise.all([
         axiosClient.get('/pharmacy/medicines'),
+        axiosClient.get('/pharmacy/prescriptions'),
+        axiosClient.get('/pharmacy/batches'),
+        axiosClient.get('/pharmacy/stock/adjustments'),
+        axiosClient.get('/pharmacy/substitutions'),
         axiosClient.get('/pharmacy/alerts'),
-        axiosClient.get('/pharmacy/stock-movements'),
-        axiosClient.get('/pharmacy/substitutions/pending'),
       ]);
-      setPrescriptions(rxRes.data || []);
-      setMedicines(medRes.data || []);
+      setMedicines(medsRes.data || []);
+      setPrescriptions(rxsRes.data || []);
+      setBatches(batchesRes.data || []);
+      setAdjustments(adjRes.data || []);
+      setSubstitutions(subsRes.data || []);
       setAlerts(alertRes.data || { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
-      setStockAdjustments(auditRes.data || []);
-      setSubstitutions(subRes.data || []);
-    } catch (error) {
-      console.error('Failed to load pharmacy data:', error);
+    } catch (err) {
+      console.error('Failed to load pharmacy data:', err);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, []);
 
   useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Socket: refresh pending prescriptions in real-time when new ones arrive or doctor responds
+  useEffect(() => {
     if (!socket) return;
-    const refresh = () => { fetchData(); refreshPendingWork(); };
+    const refresh = () => {
+      fetchData();
+      refreshPendingWork();
+    };
+    socket.on('pharmacy:new_prescription', refresh);
+    socket.on('prescription:created', refresh);
+    socket.on('pharmacy:substitution_responded', refresh);
     socket.on('workflow:notification', refresh);
     socket.on('workflow:pending_changed', refresh);
     return () => {
+      socket.off('pharmacy:new_prescription', refresh);
+      socket.off('prescription:created', refresh);
+      socket.off('pharmacy:substitution_responded', refresh);
       socket.off('workflow:notification', refresh);
       socket.off('workflow:pending_changed', refresh);
     };
@@ -134,34 +152,79 @@ export const PharmacistDashboard = () => {
     }
   };
 
-  const handleDispense = async (id, external = false) => {
-    try {
-      await axiosClient.patch(`/pharmacy/prescriptions/${id}/dispense`, {
-        items: external ? [{ purchasedExternally: true, note: 'Purchased by patient externally' }] : [],
-        pharmacyNotes: external ? 'Marked external purchase' : 'Dispensed via FEFO',
-      });
-      await Promise.all([fetchData(), refreshPendingWork()]);
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to dispense');
-    }
+  const handleOpenBillingModal = (rx) => {
+    setBillingPrescription(rx);
+    setIsBillingModalOpen(true);
   };
 
-  const handleSendBillingToDoctor = async (rx) => {
-    const defaultAmount = (rx.medicines || []).reduce((acc, m) => acc + ((Number(m.price) || 25) * (Number(m.durationDays) || 1)), 0);
-    const inputAmount = window.prompt(`Calculate medicine bill for Prescription ${rx.prescriptionNo} (₹):`, defaultAmount);
-    if (inputAmount === null) return;
-    const totalMedicineCharge = Number(inputAmount) || defaultAmount;
-
+  const handleModalSendToDoctor = async ({ items, totalMedicineCharge, pharmacyNotes }) => {
+    if (!billingPrescription) return;
+    setIsBillingSubmitting(true);
     try {
-      await axiosClient.patch(`/pharmacy/prescriptions/${rx._id}/send-billing-to-doctor`, {
+      await axiosClient.patch(`/pharmacy/prescriptions/${billingPrescription._id}/send-billing-to-doctor`, {
+        items,
         totalMedicineCharge,
-        pharmacyNotes: `Medicine bill ₹${totalMedicineCharge} calculated by pharmacy`,
+        pharmacyNotes,
       });
-      alert(`Medicine bill (₹${totalMedicineCharge}) sent to Dr. ${rx.doctorId?.name || 'Doctor'} for review & final billing.`);
+      setIsBillingModalOpen(false);
+      setBillingPrescription(null);
       await Promise.all([fetchData(), refreshPendingWork()]);
     } catch (err) {
       console.error('Failed to send billing to doctor:', err);
       alert(err.response?.data?.message || 'Failed to send billing to doctor');
+    } finally {
+      setIsBillingSubmitting(false);
+    }
+  };
+
+  const handleModalDispense = async ({ items, totalMedicineCharge, pharmacyNotes }) => {
+    if (!billingPrescription) return;
+    setIsBillingSubmitting(true);
+    try {
+      await axiosClient.patch(`/pharmacy/prescriptions/${billingPrescription._id}/dispense`, {
+        items,
+        totalMedicineCharge,
+        pharmacyNotes,
+      });
+      setIsBillingModalOpen(false);
+      setBillingPrescription(null);
+      await Promise.all([fetchData(), refreshPendingWork()]);
+    } catch (err) {
+      console.error('Failed to dispense:', err);
+      alert(err.response?.data?.message || 'Failed to dispense');
+    } finally {
+      setIsBillingSubmitting(false);
+    }
+  };
+
+  const handleModalExternalPurchase = async ({ isExternal, pharmacyNotes }) => {
+    if (!billingPrescription) return;
+    setIsBillingSubmitting(true);
+    try {
+      await axiosClient.patch(`/pharmacy/prescriptions/${billingPrescription._id}/dispense`, {
+        isExternal: true,
+        pharmacyNotes,
+      });
+      setIsBillingModalOpen(false);
+      setBillingPrescription(null);
+      await Promise.all([fetchData(), refreshPendingWork()]);
+    } catch (err) {
+      console.error('Failed to mark external purchase:', err);
+      alert(err.response?.data?.message || 'Failed to mark external purchase');
+    } finally {
+      setIsBillingSubmitting(false);
+    }
+  };
+
+  const handleDispense = async (id, external = false) => {
+    try {
+      await axiosClient.patch(`/pharmacy/prescriptions/${id}/dispense`, {
+        isExternal: external,
+        pharmacyNotes: external ? 'Marked external purchase (No Hospital Charge)' : 'Dispensed via FEFO',
+      });
+      await Promise.all([fetchData(), refreshPendingWork()]);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to dispense');
     }
   };
 
@@ -364,11 +427,8 @@ export const PharmacistDashboard = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 shrink-0">
-                    <Button variant="primary" size="sm" onClick={() => handleSendBillingToDoctor(rx)}>
-                      <Receipt size={14} className="mr-1" /> Bill & Send to Doctor
-                    </Button>
-                    <Button variant="success" size="sm" onClick={() => handleDispense(rx._id, false)}>
-                      <CheckCircle2 size={14} className="mr-1" /> Dispense (FEFO)
+                    <Button variant="primary" size="sm" onClick={() => handleOpenBillingModal(rx)}>
+                      <Receipt size={14} className="mr-1" /> Calculate Bill & Dispense
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handleDispense(rx._id, true)}>
                       External Purchase
@@ -789,6 +849,20 @@ export const PharmacistDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Pharmacy Billing & Dispensing Pricing Calculator Modal */}
+      <PharmacyBillingModal
+        isOpen={isBillingModalOpen}
+        onClose={() => {
+          setIsBillingModalOpen(false);
+          setBillingPrescription(null);
+        }}
+        prescription={billingPrescription}
+        onSendToDoctor={handleModalSendToDoctor}
+        onDispense={handleModalDispense}
+        onExternalPurchase={handleModalExternalPurchase}
+        isSubmitting={isBillingSubmitting}
+      />
     </div>
   );
 };

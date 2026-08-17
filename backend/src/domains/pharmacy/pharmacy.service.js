@@ -335,6 +335,7 @@ export class PharmacyService {
     const prescription = await Prescription.findOne({ _id: prescriptionId, hospitalId: user.hospitalId });
     if (!prescription) throw new ApiError(404, 'Prescription not found');
 
+    const isAllExternal = dispenseData?.isExternal === true || dispenseData?.external === true;
     const now = new Date();
     const itemsToDispense = dispenseData?.items || prescription.medicines;
 
@@ -343,13 +344,14 @@ export class PharmacyService {
 
     for (const item of prescription.medicines) {
       const dispenseReq = itemsToDispense.find(
-        (i) => String(i.medicineName).toLowerCase() === String(item.medicineName).toLowerCase()
-      ) || item;
+        (i) => String(i.medicineName || '').toLowerCase() === String(item.medicineName || '').toLowerCase()
+      ) || {};
 
-      if (dispenseReq.purchasedExternally) {
+      if (isAllExternal || dispenseReq.purchasedExternally || item.externalPurchaseRequired) {
         item.itemStatus = 'PURCHASED_EXTERNALLY';
         item.externalPurchaseRequired = true;
-        item.externalPurchaseNote = dispenseReq.note || 'Patient purchased externally';
+        item.externalPurchaseNote = dispenseData?.pharmacyNotes || dispenseReq.note || 'Patient purchased externally';
+        anyDispensed = true;
         continue;
       }
 
@@ -359,9 +361,17 @@ export class PharmacyService {
         $or: [{ name: item.medicineName }, { genericName: item.genericName || item.medicineName }],
       });
 
+      const requestedQty = Number(dispenseReq.dispensedQty || dispenseReq.qty || dispenseReq.quantity) || ((item.durationDays || 5) * 2);
+      const unitPrice = Number(dispenseReq.unitPrice || dispenseReq.price) || (medicine?.sellingPrice || 20.0);
+
       if (!medicine) {
-        item.itemStatus = 'UNAVAILABLE';
-        overallDispensed = false;
+        // If medicine SKU not in inventory, treat as dispensed custom / external item
+        item.itemStatus = 'DISPENSED';
+        item.dispensedQty = requestedQty;
+        item.price = unitPrice;
+        item.unitPrice = unitPrice;
+        item.totalPrice = unitPrice * requestedQty;
+        anyDispensed = true;
         continue;
       }
 
@@ -374,7 +384,6 @@ export class PharmacyService {
         expiryDate: { $gt: now },
       }).sort({ expiryDate: 1 });
 
-      const requestedQty = (item.durationDays || 5) * 2; // Default dosage calculation if not specified
       let qtyNeeded = requestedQty;
       let qtyDispensed = 0;
       let usedBatchNo = '';
@@ -412,6 +421,8 @@ export class PharmacyService {
         anyDispensed = true;
         item.dispensedQty = qtyDispensed;
         item.batchNumberUsed = usedBatchNo;
+        item.unitPrice = unitPrice;
+        item.totalPrice = unitPrice * qtyDispensed;
         item.itemStatus = qtyDispensed >= requestedQty ? 'DISPENSED' : 'PARTIALLY_DISPENSED';
         if (qtyDispensed < requestedQty) overallDispensed = false;
 
@@ -423,7 +434,7 @@ export class PharmacyService {
           doctorId: prescription.doctorId,
           description: `${item.medicineName} (${item.dosageForm || 'Tab'}) [Batch: ${usedBatchNo}]`,
           qty: qtyDispensed,
-          unitPrice: medicine.sellingPrice,
+          unitPrice,
           taxPercentage: medicine.taxPercentage,
         });
       } else {
@@ -432,11 +443,24 @@ export class PharmacyService {
       }
     }
 
-    prescription.dispenseStatus = overallDispensed ? 'DISPENSED' : anyDispensed ? 'PARTIALLY_DISPENSED' : 'PENDING_DISPENSE';
+    const allAreExternal = prescription.medicines.every((m) => m.itemStatus === 'PURCHASED_EXTERNALLY');
+    if (isAllExternal || allAreExternal) {
+      prescription.dispenseStatus = 'DISPENSED';
+      prescription.totalMedicineCharge = 0;
+    } else {
+      prescription.dispenseStatus = overallDispensed ? 'DISPENSED' : anyDispensed ? 'PARTIALLY_DISPENSED' : 'PENDING_DISPENSE';
+    }
+
     prescription.dispensedBy = user.id;
     prescription.dispensedAt = new Date();
-    prescription.pharmacyNotes = dispenseData?.pharmacyNotes || 'Processed by Pharmacy';
+    prescription.pharmacyNotes = dispenseData?.pharmacyNotes || (isAllExternal ? 'Purchased externally by patient' : 'Processed by Pharmacy');
     await prescription.save();
+
+    // Fetch patient name & UHID for clean notification
+    const { Patient } = await import('../../models/Patient.js');
+    const pat = await Patient.findById(prescription.patientId).select('firstName lastName uhid').lean();
+    const patientName = pat ? `${pat.firstName} ${pat.lastName}`.trim() : 'Patient';
+    const patientUhid = pat?.uhid || 'N/A';
 
     // Auto-clear associated DB notifications (e.g. PRESCRIPTION_ISSUED) so bell count reduces
     try {
@@ -459,9 +483,12 @@ export class PharmacyService {
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.PHARMACY_DISPENSED, {
         prescriptionId: prescription._id,
         patientId: prescription.patientId,
-        dispensedBy: user.name,
+        patientName,
+        uhid: patientUhid,
+        doctorId: prescription.doctorId,
+        dispensedBy: user.name || 'Pharmacist',
         dispenseStatus: prescription.dispenseStatus,
-        branchId: prescription.branchId || user.branchId,
+        linkedPath: '/doctor/dashboard?tab=LIVE',
       }, prescription.branchId || user.branchId);
     } catch (e) {}
 

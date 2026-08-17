@@ -7,7 +7,8 @@ import { useSocket } from '../../providers/SocketProvider';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Stethoscope, X, AlertCircle, Plus, Trash2, CheckCircle2,
-  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban, Pill, Syringe, Activity
+  TestTube, AlertTriangle, Receipt, RotateCcw, Check, Ban, Pill, Syringe, Activity,
+  BedDouble, UserCheck, Phone
 } from 'lucide-react';
 
 export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }) => {
@@ -18,6 +19,19 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [historyOfPresentIllness, setHistoryOfPresentIllness] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
   const [adviceToPatient, setAdviceToPatient] = useState('');
+
+  // IPD Recommendation & Optional Guardian State
+  const [recommendIpd, setRecommendIpd] = useState(false);
+  const [ipdData, setIpdData] = useState({
+    recommendedWard: 'GENERAL_WARD',
+    priority: 'ROUTINE',
+    admissionReason: '',
+    estimatedStayDays: 3,
+    guardianName: patient?.emergencyContact?.name && patient?.emergencyContact?.name !== 'Self / N/A' ? patient.emergencyContact.name : '',
+    guardianPhone: patient?.emergencyContact?.phone && patient?.emergencyContact?.phone !== '+1 (555) 000-0000' ? patient.emergencyContact.phone : '',
+    guardianRelationship: patient?.emergencyContact?.relation || 'FAMILY',
+    guardianAddress: '',
+  });
 
   const [consultationFee, setConsultationFee] = useState(150);
   const [emergencyFee, setEmergencyFee] = useState(0);
@@ -201,6 +215,21 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       const u = [...prev];
       u[index][field] = value;
 
+      if (field === 'durationDays' && !u[index].quantityManuallyEdited) {
+        const d = Number(value) || 5;
+        const freqMultiplier = u[index].frequency === 'THRICE_DAILY' ? 3 : u[index].frequency === 'ONCE_DAILY' ? 1 : 2;
+        u[index].quantity = d * freqMultiplier;
+      }
+
+      if (field === 'quantity') {
+        u[index].quantityManuallyEdited = true;
+      }
+
+      const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+      const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 20);
+      u[index].totalPrice = q * p;
+      u[index].price = p;
+
       // Auto set treatment type based on dosage form
       if (field === 'dosageForm') {
         if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
@@ -221,6 +250,10 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].genericName = med.genericName;
         u[index].dosageForm = med.dosageForm;
         u[index].strength = med.strength;
+        u[index].unitPrice = med.sellingPrice || 20;
+        u[index].price = med.sellingPrice || 20;
+        const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+        u[index].totalPrice = q * (med.sellingPrice || 20);
         u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
         if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
           u[index].treatmentType = 'NURSE_ADMINISTERED';
@@ -250,6 +283,21 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         doctorProcedureCharges,
         followUpDate: followUpDate || undefined,
         adviceToPatient,
+        ipdRecommendation: recommendIpd
+          ? {
+              isRecommended: true,
+              recommendedWard: ipdData.recommendedWard,
+              priority: ipdData.priority,
+              admissionReason: ipdData.admissionReason || chiefComplaints || 'Doctor Inpatient Admission Recommendation',
+              estimatedStayDays: Number(ipdData.estimatedStayDays) || 3,
+              guardianInfo: {
+                name: ipdData.guardianName,
+                phone: ipdData.guardianPhone,
+                relationship: ipdData.guardianRelationship,
+                address: ipdData.guardianAddress,
+              },
+            }
+          : { isRecommended: false },
       });
       await axiosClient.patch(`/appointments/tokens/${token._id}/status`, { status: 'COMPLETED' });
       setShowConfirmModal(false);
@@ -427,6 +475,42 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                         </div>
                       )}
 
+                      {/* Quantity, Unit Price & Auto-Calculated Total Row */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 items-center text-xs">
+                        <div>
+                          <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Quantity (Units / Tabs):</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2))}
+                            onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-black text-slate-900 bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Unit Price (₹):</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              value={med.unitPrice !== undefined ? med.unitPrice : 20}
+                              onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
+                              className="w-full pl-5 pr-2 py-1 border border-slate-300 rounded text-xs font-bold text-slate-900 bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider block">Line Total:</span>
+                          <span className="font-mono font-black text-sm text-indigo-700">
+                            ₹{((Number(med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2)))) * Number(med.unitPrice !== undefined ? med.unitPrice : 20)).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
                       <div className="flex items-center justify-between pt-1">
                         <input
                           type="text"
@@ -435,7 +519,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                           onChange={(e) => handleMedicineChange(idx, 'instructions', e.target.value)}
                           className="w-4/5 p-1.5 border rounded text-xs"
                         />
-                        <button type="button" onClick={() => handleRemoveMedicineRow(idx)} className="text-red-500 hover:text-red-700">
+                        <button type="button" onClick={() => handleRemoveMedicineRow(idx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-rose-50" title="Remove medicine">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -480,11 +564,211 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
               </div>
             )}
 
-            {/* Bill Preview */}
-            <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
-              <div className="flex justify-between font-extrabold text-indigo-900 text-sm">
+            {/* Clinical Advice & Follow-Up */}
+            <div className={sectionBg}>
+              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
+                <Activity size={16} className="text-emerald-600" /> Doctor Advice & Follow-Up Plan
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Doctor Advice to Patient</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Rest for 3 days, drink plenty of fluids, avoid heavy lifting..."
+                    value={adviceToPatient}
+                    onChange={(e) => setAdviceToPatient(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Next Follow-Up Date</label>
+                  <input
+                    type="date"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* IPD ADMISSION RECOMMENDATION SECTION */}
+            <div className="p-4 rounded-xl bg-purple-50/70 border-2 border-purple-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={recommendIpd}
+                    onChange={(e) => setRecommendIpd(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+                  />
+                  <span className="font-extrabold text-purple-950 text-sm flex items-center gap-1.5">
+                    <BedDouble size={17} className="text-purple-600" />
+                    Recommend Inpatient (IPD) Admission / Ward Transfer
+                  </span>
+                </label>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${recommendIpd ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-200 text-slate-600'}`}>
+                  {recommendIpd ? 'IPD ADMISSION REQUESTED' : 'OPD ONLY'}
+                </span>
+              </div>
+
+              {recommendIpd && (
+                <div className="space-y-3 pt-2 border-t border-purple-200 animate-fade-in text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-900 mb-1 uppercase tracking-wider">
+                        Recommended Ward *
+                      </label>
+                      <select
+                        value={ipdData.recommendedWard}
+                        onChange={(e) => setIpdData({ ...ipdData, recommendedWard: e.target.value })}
+                        className="w-full p-2 bg-white border border-purple-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                      >
+                        <option value="GENERAL_WARD">General Inpatient Ward (Ward 3B)</option>
+                        <option value="ICU">Intensive Care Unit (ICU)</option>
+                        <option value="CCU">Coronary Care Unit (CCU)</option>
+                        <option value="POST_OP">Post-Operative Recovery Ward</option>
+                        <option value="PEDIATRIC_WARD">Pediatric Inpatient Ward</option>
+                        <option value="MATERNITY_WARD">Maternity / Labor Ward</option>
+                        <option value="EMERGENCY_OBSERVATION">Emergency Observation Ward</option>
+                        <option value="PRIVATE_ROOM">Private Deluxe Room</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-900 mb-1 uppercase tracking-wider">
+                        Admission Priority *
+                      </label>
+                      <select
+                        value={ipdData.priority}
+                        onChange={(e) => setIpdData({ ...ipdData, priority: e.target.value })}
+                        className="w-full p-2 bg-white border border-purple-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                      >
+                        <option value="ROUTINE">Routine / Elective Admission</option>
+                        <option value="URGENT">Urgent (Within 2 Hours)</option>
+                        <option value="EMERGENCY">Emergency (Immediate Bed Transfer)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-900 mb-1 uppercase tracking-wider">
+                        Estimated Stay (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={ipdData.estimatedStayDays}
+                        onChange={(e) => setIpdData({ ...ipdData, estimatedStayDays: e.target.value })}
+                        className="w-full p-2 bg-white border border-purple-300 rounded-lg font-bold text-slate-800"
+                        placeholder="e.g. 3"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-purple-900 mb-1 uppercase tracking-wider">
+                      Clinical Reason & Admission Indication
+                    </label>
+                    <textarea
+                      rows="2"
+                      value={ipdData.admissionReason}
+                      onChange={(e) => setIpdData({ ...ipdData, admissionReason: e.target.value })}
+                      placeholder="e.g. Severe acute condition requiring continuous IV therapy, vitals monitoring, and inpatient care..."
+                      className="w-full p-2 bg-white border border-purple-300 rounded-lg text-slate-800 text-xs"
+                    />
+                  </div>
+
+                  {/* OPTIONAL GUARDIAN DETAILS FOR IPD */}
+                  <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-950 flex items-center gap-1.5 text-xs">
+                        <UserCheck size={14} className="text-purple-600" />
+                        Guardian / Attendant Information (Optional for Inpatient Admission)
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        OPTIONAL — NOT COMPULSORY
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Guardian Name (Optional)"
+                        value={ipdData.guardianName}
+                        onChange={(e) => setIpdData({ ...ipdData, guardianName: e.target.value })}
+                        className="p-1.5 border border-slate-200 rounded text-xs"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Guardian Mobile (Optional)"
+                        value={ipdData.guardianPhone}
+                        onChange={(e) => setIpdData({ ...ipdData, guardianPhone: e.target.value })}
+                        className="p-1.5 border border-slate-200 rounded text-xs"
+                      />
+                      <select
+                        value={ipdData.guardianRelationship}
+                        onChange={(e) => setIpdData({ ...ipdData, guardianRelationship: e.target.value })}
+                        className="p-1.5 border border-slate-200 rounded text-xs bg-white"
+                      >
+                        <option value="FATHER">Father</option>
+                        <option value="MOTHER">Mother</option>
+                        <option value="SPOUSE">Spouse</option>
+                        <option value="SIBLING">Sibling</option>
+                        <option value="CHILD">Child</option>
+                        <option value="LEGAL_GUARDIAN">Legal Guardian</option>
+                        <option value="CARETAKER">Caretaker / Attendant</option>
+                        <option value="OTHER">Other Relative / Friend</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Comprehensive Itemized Bill Breakdown */}
+            <div className="p-4 rounded-xl bg-indigo-50/90 border-2 border-indigo-200 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-indigo-200/80 pb-2">
+                <span className="font-extrabold text-indigo-950 flex items-center gap-1.5 text-sm">
+                  <Receipt size={16} className="text-indigo-600" /> Itemized Consultation Bill Breakdown
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                  Dispatched to Cashier
+                </span>
+              </div>
+
+              <div className="space-y-1 text-xs text-slate-700">
+                <div className="flex justify-between">
+                  <span>• Doctor Consultation Fee:</span>
+                  <span className="font-mono font-bold text-slate-900">{formatCurrency(consultationFee || 0)}</span>
+                </div>
+                {Number(emergencyFee) > 0 && (
+                  <div className="flex justify-between text-rose-700 font-bold">
+                    <span>• Emergency Surcharge:</span>
+                    <span className="font-mono">{formatCurrency(emergencyFee)}</span>
+                  </div>
+                )}
+                {totalDoctorProcedureCharges > 0 && (
+                  <div className="flex justify-between">
+                    <span>• Doctor Procedures:</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(totalDoctorProcedureCharges)}</span>
+                  </div>
+                )}
+                {totalDepartmentCharges > 0 && (
+                  <div className="flex justify-between">
+                    <span>• Department Investigations ({completedDeptOrders.length} tests):</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(totalDepartmentCharges)}</span>
+                  </div>
+                )}
+                {totalPharmacyCharges > 0 && (
+                  <div className="flex justify-between">
+                    <span>• Pharmacy Prescribed Medicines:</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(totalPharmacyCharges)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-indigo-200 text-sm font-black text-indigo-950">
                 <span>Grand Total Consultation Bill:</span>
-                <span className="font-mono">{formatCurrency(grandTotal)}</span>
+                <span className="text-xl font-mono text-indigo-700 font-black">{formatCurrency(grandTotal)}</span>
               </div>
             </div>
           </div>
