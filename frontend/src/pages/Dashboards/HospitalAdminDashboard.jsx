@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -6,12 +7,15 @@ import { Input } from '../../components/ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
+import { useAuthStore } from '../../store/authStore';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../utils/constants';
 import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog } from 'lucide-react';
 import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
 import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
 
 const ROLE_OPTIONS = [
+  { code: 'HOSPITAL_ADMIN', label: 'Hospital Administrator' },
   { code: 'DOCTOR', label: 'Doctor / Consultant' },
   { code: 'NURSE', label: 'Nurse / Ward Staff' },
   { code: 'NURSE_INCHARGE', label: 'Nurse In-Charge' },
@@ -32,6 +36,27 @@ const ROLE_OPTIONS = [
 ];
 
 const DEFAULT_ROLE_PERMISSIONS = {
+  HOSPITAL_ADMIN: {
+    dashboard: ['view', 'manage'],
+    departments: ['view', 'manage'],
+    staffManagement: ['view', 'create', 'edit', 'delete', 'managePermissions'],
+    patients: ['view', 'create', 'edit', 'delete'],
+    patientRegistration: ['view', 'create', 'edit'],
+    doctorConsultation: ['view', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits'],
+    appointments: ['view', 'create', 'edit', 'cancel', 'book', 'doctorAvailability'],
+    tokens: ['view', 'create', 'edit', 'cancel', 'assign', 'moveQueue', 'print', 'markCompleted'],
+    nursing: ['view', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency'],
+    ipd: ['view', 'manage'],
+    laboratory: ['view', 'accept', 'edit', 'upload', 'print', 'requestTest'],
+    radiology: ['view', 'accept', 'edit', 'upload', 'print', 'requestTest'],
+    pharmacy: ['view', 'create', 'edit', 'dispense', 'print'],
+    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'deleteInvoice'],
+    emergency: ['view', 'create', 'respond', 'resolve'],
+    reports: ['view', 'generate', 'export'],
+    notifications: ['view'],
+    auditLogs: ['view'],
+    hospitalSettings: ['view', 'edit'],
+  },
   DOCTOR: {
     dashboard: ['view'],
     doctorConsultation: ['view', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits'],
@@ -201,6 +226,8 @@ export const HospitalAdminDashboard = () => {
   const [staffForm, setStaffForm] = useState(initialStaffForm);
   const [copyFromStaffId, setCopyFromStaffId] = useState('');
 
+  const { user } = useAuthStore();
+  const { setMode } = useWorkspaceModeStore();
   const { socket } = useSocket();
   const [staffList, setStaffList] = useState([]);
   const [hospitalData, setHospitalData] = useState(null);
@@ -208,6 +235,24 @@ export const HospitalAdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const formatTenantPath = (path) => {
+    if (!path) return path;
+    if (user?.role === 'SUPER_ADMIN') return path;
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+
+    if (!domain) {
+      if (path.startsWith('/admin')) return path.replace(/^\/admin/, '/hospital-admin');
+      return path;
+    }
+    if (path.startsWith(`/${domain}`)) return path;
+    return `/${domain}${path}`;
+  };
 
   useEffect(() => {
     fetchStaff();
@@ -514,6 +559,39 @@ export const HospitalAdminDashboard = () => {
           <span className="sm:hidden">Create Staff Account</span>
           <span className="hidden sm:inline">Create Staff Account & Access Configuration</span>
         </Button>
+      </div>
+
+      {/* Solo Doctor / Clinic Owner Quick Launch Work Mode Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-700/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 shrink-0 border border-white/10">
+            <Stethoscope size={22} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black tracking-wide flex items-center gap-2">
+              Practicing Doctor & Clinic Operations Mode
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Solo Doctor Ready
+              </span>
+            </h3>
+            <p className="text-xs text-indigo-200 mt-0.5">
+              Consult patients, issue OPD tokens, diagnose with EMR, and collect bills & receipts
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('WORK');
+              navigate(formatTenantPath('/doctor/dashboard'));
+            }}
+            className="px-4 py-2 rounded-xl bg-white text-indigo-900 font-extrabold text-xs shadow-md hover:bg-indigo-50 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Stethoscope size={15} /> Open Clinical EMR Workstation &rarr;
+          </button>
+        </div>
       </div>
 
       {/* SaaS Subscription & 7-Day Trial Dashboard Widget */}

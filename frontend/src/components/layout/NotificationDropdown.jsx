@@ -40,11 +40,16 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     return `/${user.hospitalDomain}${path}`;
   };
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   // Fetch live notifications on opening dropdown & close when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        onClose();
+        onCloseRef.current?.();
       }
     };
     if (isOpen) {
@@ -52,7 +57,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

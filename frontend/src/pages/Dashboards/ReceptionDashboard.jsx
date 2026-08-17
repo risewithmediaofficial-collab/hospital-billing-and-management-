@@ -6,11 +6,16 @@ import { AvailabilityBanner } from '../../components/ui/AvailabilityBanner';
 import { useAvailability } from '../../hooks/useAvailability';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
+import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
+import { useAuthStore } from '../../store/authStore';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { axiosClient } from '../../api/axiosClient';
 import { UserPlus, Ticket, IdCard, Users, HelpCircle, Stethoscope, AlertTriangle } from 'lucide-react';
 
 export const ReceptionDashboard = () => {
+  const { user } = useAuthStore();
+  const { isDualModeEligible } = useWorkspaceModeStore();
   const { isAvailable, isToggling, handleToggle } = useAvailability();
   const { socket } = useSocket();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -116,6 +121,11 @@ export const ReceptionDashboard = () => {
         onToggle={handleToggle}
         pendingCount={0}
       />
+
+      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
+      {isDualModeEligible(user) && (
+        <SoloDoctorFlowBar activeStepOverride="token" />
+      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

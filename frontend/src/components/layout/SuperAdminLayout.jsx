@@ -32,7 +32,7 @@ export const SuperAdminLayout = ({ children, noPadding = false }) => {
     const refresh = () => fetchNotifications();
     socket.on('workflow:notification', refresh);
     return () => socket.off('workflow:notification', refresh);
-  }, [socket, fetchNotifications]);
+  }, [socket]);
 
   const isDrilldown = Boolean(hospitalId);
 

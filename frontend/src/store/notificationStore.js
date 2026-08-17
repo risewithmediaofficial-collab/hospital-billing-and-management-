@@ -62,16 +62,20 @@ export const useNotificationStore = create((set, get) => ({
         unreadCount: Math.max(0, state.unreadCount - (removed && !removed.isRead ? 1 : 0)),
       };
     });
-    try { await axiosClient.delete(`/notifications/${encodeURIComponent(id)}`); }
-    catch (error) { await get().fetchNotifications(); }
+    try {
+      await axiosClient.delete(`/notifications/${encodeURIComponent(id)}`);
+    } catch (error) {
+      console.error('Failed to clear notification:', error);
+      await get().fetchNotifications();
+    }
   },
 
   clearAllNotifications: async () => {
     set({ notifications: [], unreadCount: 0 });
     try {
       await axiosClient.delete('/notifications/clear-all');
-      await get().fetchNotifications();
     } catch (error) {
+      console.error('Failed to clear all notifications:', error);
       await get().fetchNotifications();
     }
   },

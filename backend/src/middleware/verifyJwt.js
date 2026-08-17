@@ -75,7 +75,8 @@ export const verifyJwt = async (req, res, next) => {
       req.method !== 'GET' &&
       !req.originalUrl.startsWith('/api/v1/saas') &&
       !req.originalUrl.startsWith('/api/v1/workflow') &&
-      !req.originalUrl.startsWith('/api/v1/auth')
+      !req.originalUrl.startsWith('/api/v1/auth') &&
+      !req.originalUrl.startsWith('/api/v1/notifications')
     ) {
       return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot modify hospital operational data.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');
     }

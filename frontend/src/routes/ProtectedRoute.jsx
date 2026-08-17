@@ -74,18 +74,22 @@ export const ProtectedRoute = ({ allowedRoles = [] }) => {
   const hasPerm = currentModule ? checkModulePermission(user?.permissions, currentModule) : false;
 
   if (allowedRoles.length > 0 && user && !hasRoleMatch && !hasPerm) {
+    if (userRoles.includes('HOSPITAL_ADMIN') && location.pathname.startsWith('/admin')) {
+      const target = user.hospitalDomain ? `/${user.hospitalDomain}/admin/dashboard` : '/hospital-admin/dashboard';
+      return <Navigate to={target} replace />;
+    }
     return <Navigate to="/403" replace />;
   }
 
-  if (user?.role === 'SUPER_ADMIN') {
+  if (userRoles.includes('SUPER_ADMIN')) {
     return <Outlet />;
   }
 
-  if (currentModule && user?.role === 'HOSPITAL_ADMIN' && user.enabledModules?.[currentModule] === false) {
+  if (currentModule && userRoles.includes('HOSPITAL_ADMIN') && user.enabledModules?.[currentModule] === false) {
     return <Navigate to="/403" replace />;
   }
 
-  if (currentModule && user?.role !== 'HOSPITAL_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+  if (currentModule && !userRoles.includes('HOSPITAL_ADMIN') && !userRoles.includes('SUPER_ADMIN')) {
     const allowed = checkModulePermission(user?.permissions, currentModule);
     if (!allowed) return <Navigate to="/403" replace />;
   }

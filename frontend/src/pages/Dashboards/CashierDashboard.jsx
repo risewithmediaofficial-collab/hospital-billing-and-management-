@@ -16,6 +16,8 @@ import {
   Trash2, Archive, ShieldAlert, X, XCircle
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 
 // Map category codes to friendly labels + colors
 const CATEGORY_STYLES = {
@@ -38,6 +40,7 @@ const CategoryBadge = ({ cat }) => {
 
 export const CashierDashboard = () => {
   const { user } = useAuthStore();
+  const { isDualModeEligible } = useWorkspaceModeStore();
   const { socket } = useSocket();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
@@ -249,6 +252,11 @@ export const CashierDashboard = () => {
           <RefreshCw size={14} /> Refresh Data
         </Button>
       </div>
+
+      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
+      {isDualModeEligible(user) && (
+        <SoloDoctorFlowBar activeStepOverride="billing" />
+      )}
 
       {/* Stats - visible when on UNPAID tab */}
       {activeTab === 'UNPAID' && (

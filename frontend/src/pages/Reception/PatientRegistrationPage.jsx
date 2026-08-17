@@ -6,6 +6,9 @@ import { Input } from '../../components/ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
+import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
+import { useAuthStore } from '../../store/authStore';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import {
   UserPlus,
   Users,
@@ -23,9 +26,12 @@ import {
 
 export const PatientRegistrationPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { isDualModeEligible } = useWorkspaceModeStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTokenOpen, setIsTokenOpen] = useState(false);
   const [selectedPatientForToken, setSelectedPatientForToken] = useState(null);
+  const [duplicates, setDuplicates] = useState([]);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -66,17 +72,23 @@ export const PatientRegistrationPage = () => {
     }
   };
 
-  const handleInlineSubmit = async (e, issueToken = false) => {
+  const handleInlineSubmit = async (e, issueToken = false, force = false) => {
     if (e) e.preventDefault();
     if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim() || !formData.guardianPhone.trim()) {
       setError('First name, last name, patient mobile number, and guardian mobile number are required.');
       return;
     }
+    if (formData.phone.trim() === formData.guardianPhone.trim()) {
+      setError('Guardian mobile number must be different from the patient mobile number.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
+    setDuplicates([]);
     setSuccessMessage(null);
     try {
-      const res = await axiosClient.post('/patients', formData);
+      const payload = { ...formData, allowForce: force };
+      const res = await axiosClient.post('/patients', payload);
       const newPat = res.data;
       setLastCreatedPatient(newPat);
       setSuccessMessage(`Patient registered with UHID ${newPat.uhid}. Patient login: ${newPat.patientCredentials?.username}. Guardian login: ${newPat.guardianCredentials?.username}.`);
@@ -94,7 +106,14 @@ export const PatientRegistrationPage = () => {
         setIsTokenOpen(true);
       }
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.error?.message || 'Failed to register patient. Please try again.');
+      const status = err.response?.status || err.status || err.statusCode;
+      const respData = err.response?.data?.data || err.data;
+      if (status === 409 && Array.isArray(respData) && respData.length > 0) {
+        setDuplicates(respData);
+        setError('A patient with matching details already exists in this hospital database. Review the duplicate below or confirm to register as a new person.');
+      } else {
+        setError(err.response?.data?.error?.message || err.error?.message || 'Failed to register patient. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +165,11 @@ export const PatientRegistrationPage = () => {
         </div>
       </div>
 
+      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
+      {isDualModeEligible(user) && (
+        <SoloDoctorFlowBar activeStepOverride="register" />
+      )}
+
       {/* Success Notification Banner */}
       {successMessage && (
         <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between gap-3 shadow-xs">
@@ -174,6 +198,66 @@ export const PatientRegistrationPage = () => {
         <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
           <AlertCircle size={16} className="shrink-0 text-rose-600" />
           {error}
+        </div>
+      )}
+
+      {/* Duplicate Conflict Review Box */}
+      {duplicates.length > 0 && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-xs text-amber-900 flex items-center gap-1.5">
+              <AlertCircle size={16} className="text-amber-600" />
+              Existing Patient(s) with Matching Details Found ({duplicates.length})
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200/80 text-amber-800 border border-amber-300">
+              POSSIBLE DUPLICATE
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {duplicates.map((dup) => (
+              <div key={dup._id} className="p-3 bg-white rounded-lg border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+                <div>
+                  <p className="font-bold text-slate-900 flex items-center gap-2">
+                    <span>{dup.firstName} {dup.lastName}</span>
+                    <span className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 text-[11px] font-black">{dup.uhid}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Phone: <span className="font-bold text-slate-700">{dup.phone}</span> &bull; DOB: {dup.dob ? new Date(dup.dob).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="font-bold text-xs text-indigo-700 border-indigo-300 hover:bg-indigo-50 gap-1"
+                    onClick={() => {
+                      setSelectedPatientForToken(dup);
+                      setIsTokenOpen(true);
+                      setDuplicates([]);
+                      setError(null);
+                    }}
+                  >
+                    <Ticket size={14} /> Use This Patient & Issue Token
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <p className="text-[11px] text-amber-800">
+              Is this a different individual with the same mobile or name?
+            </p>
+            <Button
+              size="sm"
+              variant="primary"
+              className="bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs"
+              onClick={(e) => handleInlineSubmit(e, false, true)}
+            >
+              Confirm & Register Anyway
+            </Button>
+          </div>
         </div>
       )}
 

@@ -1,23 +1,45 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLE_NAMES } from '../../utils/constants';
-import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff } from 'lucide-react';
+import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 
 export const Navbar = ({ onToggleSidebar }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
   const { socket } = useSocket();
   const { unreadCount: notificationCount, fetchNotifications } = useNotificationStore();
   const { isAvailable, isToggling, handleToggle } = useAvailability();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const canSetAvailability = user && !['PATIENT', 'GUARDIAN', 'SUPER_ADMIN', 'HOSPITAL_ADMIN'].includes(user.role);
+
+  const handleSwitchMode = (targetMode) => {
+    setMode(targetMode);
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+
+    if (targetMode === 'WORK') {
+      const target = domain ? `/${domain}/doctor/dashboard` : '/doctor/dashboard';
+      navigate(target);
+    } else if (targetMode === 'ADMIN') {
+      if (user?.role === 'SUPER_ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        const target = domain ? `/${domain}/admin/dashboard` : '/hospital-admin/dashboard';
+        navigate(target);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!user?.id && !user?._id) return;
@@ -46,7 +68,7 @@ export const Navbar = ({ onToggleSidebar }) => {
       socket.off('patient_request:updated', refresh);
       socket.off('workflow:pending_changed', refresh);
     };
-  }, [user?.id, user?._id, socket, fetchNotifications]);
+  }, [user?.id, user?._id, socket]);
 
   const hasNotificationsPermission = (() => {
     if (!user) return false;
@@ -86,6 +108,41 @@ export const Navbar = ({ onToggleSidebar }) => {
           </div>
         </div>
       </div>
+
+      {/* Center: Dual-Mode Switcher for Multi-Role / Hospital Admin */}
+      {isDualModeEligible(user) && (
+        <div className="flex items-center p-1 bg-slate-100/90 border border-slate-200/80 rounded-xl shadow-2xs">
+          <button
+            type="button"
+            onClick={() => handleSwitchMode('WORK')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
+              currentMode === 'WORK'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+            title="Switch to Clinical, Front Desk & Billing Workstations"
+          >
+            <Stethoscope size={14} className={currentMode === 'WORK' ? 'text-white' : 'text-indigo-600'} />
+            <span className="hidden sm:inline">Work Mode</span>
+            <span className="sm:hidden">Work</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchMode('ADMIN')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
+              currentMode === 'ADMIN'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+            title="Switch to Hospital Admin, Staff Roles & Tariffs"
+          >
+            <Building2 size={14} className={currentMode === 'ADMIN' ? 'text-white' : 'text-slate-600'} />
+            <span className="hidden sm:inline">Admin Mode</span>
+            <span className="sm:hidden">Admin</span>
+          </button>
+        </div>
+      )}
 
       {/* Right: Notifications + User Info + Logout */}
       <div className="flex items-center gap-2 sm:gap-3">

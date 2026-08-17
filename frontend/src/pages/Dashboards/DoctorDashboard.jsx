@@ -7,7 +7,9 @@ import { Modal } from '../../components/ui/Modal';
 import { ConsultationModal } from '../../components/modals/ConsultationModal';
 import { RequestInvestigationModal } from '../../components/modals/RequestInvestigationModal';
 import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
+import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -38,6 +40,7 @@ import {
 export const DoctorDashboard = () => {
   const location = useLocation();
   const { user } = useAuthStore();
+  const { isDualModeEligible } = useWorkspaceModeStore();
   const { socket } = useSocket();
   const { notifications, markAsRead, addNotification, resolvePending } = useDepartmentNotificationStore();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
@@ -485,6 +488,11 @@ export const DoctorDashboard = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
+      {isDualModeEligible(user) && (
+        <SoloDoctorFlowBar activeStepOverride={activeTab === 'LIVE' ? 'token' : 'consult'} />
+      )}
 
       {/* ── OVERVIEW (Clinical EMR Desk) ── Header + Stat Cards + Live Queue Workspace */}
       {activeTab === 'OVERVIEW' && (

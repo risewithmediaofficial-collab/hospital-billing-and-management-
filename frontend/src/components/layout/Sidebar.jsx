@@ -1,15 +1,44 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useEmergencyStore } from '../../store/emergencyStore';
+import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
 import * as Icons from 'lucide-react';
 
 let savedSidebarScrollTop = 0;
+
+export const WORK_MODE_NAVIGATION = [
+  // Clinical Workstation
+  { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Calendar', module: 'appointments', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Dept Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+
+  // Front Desk & Billing
+  { title: 'Register Patient', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
+  { title: 'Tokens & Live Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Patients Directory', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
+
+  // Inpatient & Ward
+  { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Ward & Bed Matrix', path: '/nurse-incharge/dashboard?tab=BEDS', icon: 'LayoutGrid', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN'] },
+
+  // Support & Diagnostics
+  { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF', 'HOSPITAL_ADMIN'] },
+
+  // Emergency
+  { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services', requiredRoles: ['*'] },
+];
 
 const ALL_MODULE_NAVIGATION = [
   { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
@@ -100,8 +129,29 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { addNotification, fetchInitialNotifications, fetchPendingWork, getUnreadCountForNav } = useDepartmentNotificationStore();
   const { fetchNotifications } = useNotificationStore();
   const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
+  const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const navRef = useRef(null);
+
+  const handleSwitchMode = (targetMode) => {
+    setMode(targetMode);
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+
+    if (targetMode === 'WORK') {
+      const target = domain ? `/${domain}/doctor/dashboard` : '/doctor/dashboard';
+      navigate(target);
+    } else if (targetMode === 'ADMIN') {
+      if (user?.role === 'SUPER_ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        const target = domain ? `/${domain}/admin/dashboard` : '/hospital-admin/dashboard';
+        navigate(target);
+      }
+    }
+  };
 
   useLayoutEffect(() => {
     const restore = () => {
@@ -146,10 +196,30 @@ export const Sidebar = ({ isOpen, onClose }) => {
   ].filter(Boolean);
 
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
+  const isDual = isDualModeEligible(user);
 
   let menuItems = [];
   if (isGuardianView) {
     menuItems = ROLE_NAVIGATION.GUARDIAN || [];
+  } else if (isDual && currentMode === 'ADMIN') {
+    const adminNavs = ROLE_NAVIGATION.HOSPITAL_ADMIN || [];
+    menuItems = adminNavs.filter((item) => {
+      if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
+        return false;
+      }
+      return true;
+    });
+  } else if (isDual && currentMode === 'WORK') {
+    // Work Mode: All active operational desks for clinical and front-desk workflows
+    menuItems = WORK_MODE_NAVIGATION.filter((item) => {
+      if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
+        return false;
+      }
+      if (item.requiredRoles.includes('*')) return true;
+      // If user is HOSPITAL_ADMIN or has any matching required role
+      if (user.role === 'HOSPITAL_ADMIN' || user.role === 'SUPER_ADMIN') return true;
+      return item.requiredRoles.some((r) => userRoles.includes(r));
+    });
   } else if (user?.role === 'HOSPITAL_ADMIN') {
     const adminNavs = ROLE_NAVIGATION.HOSPITAL_ADMIN || [];
     menuItems = adminNavs.filter((item) => {
@@ -318,9 +388,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('patient_request:created', handleNursingRequestNotification);
       socket.off('workflow:notification', handleWorkflowEvent);
       socket.off('workflow:pending_changed', fetchPendingWork);
-      socket.off('patient_request:updated');
     };
-  }, [socket, addNotification, addEmergency, fetchPendingWork, fetchNotifications, location.pathname, location.search]);
+  }, [socket]);
 
 
   useEffect(() => {
@@ -345,11 +414,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const formatTenantPath = (path) => {
     if (!path) return path;
     const targetPath = path;
-    // SUPER_ADMIN has no hospital domain; absolute paths stay absolute
-    if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return targetPath;
-    // Already has the tenant prefix — leave it
-    if (targetPath.startsWith(`/${user.hospitalDomain}`)) return targetPath;
-    return `/${user.hospitalDomain}${targetPath}`;
+    if (user?.role === 'SUPER_ADMIN') return targetPath;
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+
+    if (!domain) {
+      if (targetPath.startsWith('/admin')) {
+        return targetPath.replace(/^\/admin/, '/hospital-admin');
+      }
+      return targetPath;
+    }
+    if (targetPath.startsWith(`/${domain}`)) return targetPath;
+    return `/${domain}${targetPath}`;
   };
 
   const isItemActive = (itemPath) => {
@@ -419,9 +496,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
         {/* Role Identity Badge */}
         <div className="px-3 pt-3 pb-1 shrink-0">
           <div className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
-            <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
-              Active User Role
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
+                Active User Role
+              </p>
+              {isDual && (
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${currentMode === 'WORK' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white'}`}>
+                  {currentMode === 'WORK' ? 'Work Mode' : 'Admin Mode'}
+                </span>
+              )}
+            </div>
             <p className="font-bold text-indigo-700 mt-0.5 truncate text-sm">
               {isGuardianView ? 'Guardian Portal' : primaryRoleName}
             </p>
@@ -430,12 +514,42 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 + {additionalRoleNames}
               </p>
             )}
+
+            {/* Dual Mode Switcher in Sidebar Header */}
+            {isDual && (
+              <div className="grid grid-cols-2 gap-1 p-1 bg-white/90 rounded-lg border border-indigo-200/80 mt-2 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('WORK')}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all ${
+                    currentMode === 'WORK'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                  title="Clinical & Patient Care Desks"
+                >
+                  <Icons.Stethoscope size={12} /> Work
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('ADMIN')}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all ${
+                    currentMode === 'ADMIN'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                  title="Hospital Admin & Settings"
+                >
+                  <Icons.Building2 size={12} /> Admin
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Divider label */}
         <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-          Main Menu
+          {isDual && currentMode === 'WORK' ? 'Workstation Desks' : 'Main Menu'}
         </p>
 
         {/* Navigation Links */}
@@ -445,13 +559,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
           className="flex-1 min-h-0 px-3 pb-3 space-y-0.5 overflow-y-auto"
           aria-label="Sidebar navigation"
         >
-          {menuItems.map((item) => {
+          {menuItems.map((item, index) => {
             const IconComponent = Icons[item.icon] || Icons.Circle;
             const label = item.title || item.name || 'Navigation Item';
             const active = isItemActive(item.path);
             const navUnreadCount = getUnreadCountForNav(item.path);
             const isEmergencyItem = item.path === '/emergency';
             const isReceiptsHistory = item.path.includes('tab=RECEIPTS') || item.path.includes('/billing/receipts');
+
+            const prevItem = index > 0 ? menuItems[index - 1] : null;
+            const showCategoryDivider = item.category && (!prevItem || prevItem.category !== item.category);
 
             const handleNavClick = (e) => {
               if (isGuardianView && (isEmergencyItem || label === 'Emergency Assistance')) {
@@ -462,19 +579,24 @@ export const Sidebar = ({ isOpen, onClose }) => {
             };
 
             return (
-              <Link
-                key={item.path}
-                to={formatTenantPath(item.path)}
-                onClick={handleNavClick}
-                aria-current={active ? 'page' : undefined}
-                className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
-                  active
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold border-l-indigo-500'
-                    : isEmergencyItem && activeCount > 0
-                    ? 'bg-red-50 text-red-700 font-bold border-l-red-600 animate-pulse'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
-                }`}
-              >
+              <React.Fragment key={item.path}>
+                {showCategoryDivider && (
+                  <p className="px-3 pt-3 pb-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    {item.category}
+                  </p>
+                )}
+                <Link
+                  to={formatTenantPath(item.path)}
+                  onClick={handleNavClick}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
+                    active
+                      ? 'bg-indigo-50 text-indigo-700 font-semibold border-l-indigo-500'
+                      : isEmergencyItem && activeCount > 0
+                      ? 'bg-red-50 text-red-700 font-bold border-l-red-600 animate-pulse'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
+                  }`}
+                >
                 <div className="flex items-center gap-3 min-w-0">
                   <IconComponent
                     size={16}
@@ -506,7 +628,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
                     {totalReceiptsCount}
                   </span>
                 )}
-              </Link>
+                </Link>
+              </React.Fragment>
             );
           })}
         </nav>
