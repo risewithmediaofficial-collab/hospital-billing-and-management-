@@ -29,15 +29,25 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     DOCTOR: '/doctor/dashboard?tab=DEPT_RESPONSES',
     GUARDIAN: '/guardian-portal/dashboard',
     PATIENT: '/patient-portal',
-    HOSPITAL_ADMIN: '/hospital-admin/dashboard',
+    HOSPITAL_ADMIN: '/admin/dashboard',
     SUPER_ADMIN: '/admin/hospitals',
   };
 
   const formatTenantPath = (path) => {
     if (!path) return path;
-    if (user?.role === 'SUPER_ADMIN' || !user?.hospitalDomain) return path;
-    if (path.startsWith(`/${user.hospitalDomain}`)) return path;
-    return `/${user.hospitalDomain}${path}`;
+    if (user?.role === 'SUPER_ADMIN') return path;
+    const domain = user?.hospitalDomain || window.location.pathname.split('/')[1];
+    const isReserved = ['admin', 'hospital-admin', 'login', 'doctor', 'nurse', 'nursing', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', '403', '404'].includes(domain);
+    const tenantDomain = user?.hospitalDomain || (!isReserved && domain ? domain : null);
+
+    let cleanPath = path;
+    if (tenantDomain && cleanPath.startsWith('/hospital-admin')) {
+      cleanPath = cleanPath.replace(/^\/hospital-admin/, '/admin');
+    }
+
+    if (!tenantDomain) return cleanPath;
+    if (cleanPath.startsWith(`/${tenantDomain}`)) return cleanPath;
+    return `/${tenantDomain}${cleanPath}`;
   };
 
   const onCloseRef = useRef(onClose);

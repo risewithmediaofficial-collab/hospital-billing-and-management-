@@ -351,7 +351,13 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/patients" element={<MainLayout><HospitalAdminManagementViews viewType="patients" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/opd" element={<MainLayout><HospitalAdminManagementViews viewType="opd" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/ipd" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/emergency" element={<MainLayout><HospitalAdminManagementViews viewType="emergency" /></MainLayout>} />
+        {/* Legacy /:hospitalDomain/hospital-admin/* tenant aliases */}
+        <Route path="/:hospitalDomain/hospital-admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
       </Route>
 
       {/* Doctor tenant routes */}

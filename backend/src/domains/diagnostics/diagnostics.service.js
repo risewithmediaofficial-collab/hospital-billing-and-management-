@@ -513,7 +513,13 @@ export class DiagnosticsService {
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
     WorkflowEventService.emitSync(
       isRadio ? WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY : WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB,
-      { orderId: order._id, doctorName: user?.name || 'Doctor', patientName: order.patientName, testName: order.testName },
+      {
+        orderId: order._id,
+        doctorName: user?.name || 'Doctor',
+        patientName: order.patientName,
+        testName: order.testName,
+        linkedPath: isRadio ? '/radiology/dashboard?tab=COMPLETED' : '/laboratory/dashboard?tab=COMPLETED',
+      },
       order.branchId,
     );
 
