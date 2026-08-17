@@ -31,7 +31,9 @@ export class EmrService {
       chargeStatus: { $ne: 'CANCELLED' },
     });
 
-    const consultationFee = Number(data.consultationFee) || 150.0;
+    const consultationFee = data.consultationFee !== undefined && data.consultationFee !== null && data.consultationFee !== ''
+      ? Number(data.consultationFee)
+      : 0;
     const emergencyFee = Number(data.emergencyFee) || 0;
     const doctorProcedureCharges = Array.isArray(data.doctorProcedureCharges) ? data.doctorProcedureCharges : [];
 
@@ -209,9 +211,9 @@ export class EmrService {
         for (const rx of billedPrescriptions) {
           for (const med of rx.medicines || []) {
             if (med.itemStatus === 'PURCHASED_EXTERNALLY') continue;
-            const medPrice = Number(med.price || med.unitPrice) || 20.0;
+            const medPrice = Number(med.price !== undefined ? med.price : (med.unitPrice !== undefined ? med.unitPrice : 0));
             const qty = Number(med.dispensedQty || med.quantity || med.durationDays || 1);
-            const lineTotal = Number(med.totalPrice) || (medPrice * qty);
+            const lineTotal = Number(med.totalPrice !== undefined ? med.totalPrice : (medPrice * qty));
             items.push({
               description: `[Pharmacy] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
               category: 'PHARMACY',
@@ -227,11 +229,12 @@ export class EmrService {
       } else if (prescription && data.prescriptions && Array.isArray(data.prescriptions)) {
         for (const med of data.prescriptions) {
           if (med.externalPurchaseRequired || med.itemStatus === 'PURCHASED_EXTERNALLY' || !med.medicineName?.trim()) continue;
-          const medPrice = Number(med.price || med.unitPrice) || 20.0;
-          const qty = Number(med.quantity || med.dispensedQty || (Number(med.durationDays) || 5) * 2);
-          const lineTotal = Number(med.totalPrice) || (medPrice * qty);
+          const medPrice = Number(med.price !== undefined ? med.price : (med.unitPrice !== undefined ? med.unitPrice : 0));
+          const isNurse = med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm);
+          const qty = isNurse ? 1 : Number(med.quantity || med.dispensedQty || (Number(med.durationDays) || 5) * 2);
+          const lineTotal = isNurse ? medPrice : Number(med.totalPrice !== undefined ? med.totalPrice : (medPrice * qty));
           items.push({
-            description: `[Prescription Medicine] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
+            description: `[${isNurse ? 'Nurse Treatment' : 'Prescription Medicine'}] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
             category: 'PHARMACY',
             qty,
             unitPrice: medPrice,

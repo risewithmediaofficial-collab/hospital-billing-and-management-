@@ -14,6 +14,7 @@ export const PharmacyBillingModal = ({
   onSendToDoctor,
   onDispense,
   onExternalPurchase,
+  onRequestSubstitution,
   isSubmitting = false,
 }) => {
   const [items, setItems] = useState([]);
@@ -23,7 +24,7 @@ export const PharmacyBillingModal = ({
     if (prescription && isOpen) {
       const initialItems = (prescription.medicines || []).map((med) => {
         const defaultQty = Number(med.dispensedQty || med.quantity) || ((Number(med.durationDays) || 5) * 2);
-        const defaultUnitPrice = Number(med.price || med.unitPrice) || 20.0;
+        const defaultUnitPrice = Number(med.price !== undefined ? med.price : (med.unitPrice !== undefined ? med.unitPrice : 0));
         return {
           medicineName: med.medicineName || 'Medicine',
           genericName: med.genericName || '',
@@ -44,8 +45,8 @@ export const PharmacyBillingModal = ({
           medicineName: 'Paracetamol 500mg',
           dosageForm: 'TABLET',
           qty: 10,
-          unitPrice: 20.0,
-          totalPrice: 200.0,
+          unitPrice: 0.0,
+          totalPrice: 0.0,
           isCustom: false,
         }
       ]);
@@ -90,8 +91,8 @@ export const PharmacyBillingModal = ({
         medicineName: 'Syringe 5ml / Medical Consumable',
         dosageForm: 'CONSUMABLE',
         qty: 1,
-        unitPrice: 15.0,
-        totalPrice: 15.0,
+        unitPrice: 0.0,
+        totalPrice: 0.0,
         isCustom: true,
       },
     ]);
@@ -109,27 +110,23 @@ export const PharmacyBillingModal = ({
     : 'Patient';
   const uhid = prescription.patientId?.uhid || prescription.uhid || 'N/A';
 
-  const handleConfirmSendToDoctor = () => {
-    onSendToDoctor({
-      items,
-      totalMedicineCharge,
-      pharmacyNotes: pharmacyNotes.trim() || `Medicine bill ₹${totalMedicineCharge} calculated by pharmacy`,
-    });
-  };
-
-  const handleConfirmDispense = () => {
-    onDispense({
-      items,
-      totalMedicineCharge,
-      pharmacyNotes: pharmacyNotes.trim() || 'Dispensed via Pharmacy FEFO',
-    });
+  const handleConfirmFinalizeToBilling = () => {
+    if (onDispense) {
+      onDispense({
+        items,
+        totalMedicineCharge,
+        pharmacyNotes: pharmacyNotes.trim() || `Medicine bill ₹${totalMedicineCharge} sent directly to Cashier / Billing Desk`,
+      });
+    }
   };
 
   const handleConfirmExternal = () => {
-    onExternalPurchase({
-      isExternal: true,
-      pharmacyNotes: pharmacyNotes.trim() || 'Purchased externally by patient (No Hospital Charge)',
-    });
+    if (onExternalPurchase) {
+      onExternalPurchase({
+        isExternal: true,
+        pharmacyNotes: pharmacyNotes.trim() || 'Purchased externally by patient (₹0 Hospital Charge — Forwarded to Billing)',
+      });
+    }
   };
 
   return (
@@ -295,18 +292,38 @@ export const PharmacyBillingModal = ({
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleConfirmExternal}
-            disabled={isSubmitting}
-            className="text-amber-800 border-amber-300 hover:bg-amber-50 font-bold gap-1.5"
-            title="Mark as purchased outside without hospital charges"
-          >
-            <ShoppingCart size={13} />
-            External Purchase (₹0 Charge)
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleConfirmExternal}
+              disabled={isSubmitting}
+              className="text-amber-800 border-amber-300 hover:bg-amber-50 font-bold gap-1.5"
+              title="Mark as purchased outside (₹0 Hospital Charge) and forward patient to Billing Desk"
+            >
+              <ShoppingCart size={13} />
+              External Purchase (Send ₹0 to Billing)
+            </Button>
+
+            {onRequestSubstitution && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onRequestSubstitution(prescription, items[0]?.medicineName || '');
+                  onClose();
+                }}
+                disabled={isSubmitting}
+                className="text-indigo-700 hover:bg-indigo-50 font-bold gap-1.5"
+                title="Ask Doctor if you can substitute with a different company/brand medicine"
+              >
+                <AlertTriangle size={13} className="text-amber-500" />
+                Ask Doctor for Equivalent Brand
+              </Button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <Button
@@ -323,13 +340,13 @@ export const PharmacyBillingModal = ({
               type="button"
               variant="primary"
               size="sm"
-              onClick={handleConfirmSendToDoctor}
+              onClick={handleConfirmFinalizeToBilling}
               isLoading={isSubmitting}
-              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 font-extrabold shadow-xs"
-              title="Send itemized calculated bill to Doctor for inclusion in patient consultation final invoice"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 font-extrabold text-white shadow-xs"
+              title="Finalize medicine bill and dispatch directly to Cashier / Billing Department for collection"
             >
               <Receipt size={14} />
-              Send Bill to Doctor (₹{totalMedicineCharge.toFixed(2)})
+              Finalize & Send Bill to Cashier (₹{totalMedicineCharge.toFixed(2)})
             </Button>
           </div>
         </div>

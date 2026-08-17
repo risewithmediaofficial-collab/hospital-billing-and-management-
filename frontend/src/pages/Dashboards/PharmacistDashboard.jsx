@@ -70,13 +70,13 @@ export const PharmacistDashboard = () => {
   // Forms
   const [medForm, setMedForm] = useState({
     name: '', genericName: '', brandName: '', category: 'Antibiotic', dosageForm: 'TABLET',
-    strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: 10, sellingPrice: 15,
-    taxPercentage: 12, minimumStockLevel: 20, reorderQuantity: 100, prescriptionRequired: true
+    strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: 0, sellingPrice: 0,
+    taxPercentage: 0, minimumStockLevel: 20, reorderQuantity: 100, prescriptionRequired: true
   });
 
   const [batchForm, setBatchForm] = useState({
     medicineId: '', batchNumber: '', location: 'MAIN_PHARMACY', mfgDate: '', expiryDate: '',
-    purchasePrice: 10, sellingPrice: 15, quantity: 100, storageLocation: 'Rack 1', reason: 'Initial Stock'
+    purchasePrice: 0, sellingPrice: 0, quantity: 100, storageLocation: 'Rack 1', reason: 'Initial Stock'
   });
 
   const [transferForm, setTransferForm] = useState({
@@ -88,7 +88,8 @@ export const PharmacistDashboard = () => {
   });
 
   const [subForm, setSubForm] = useState({
-    prescriptionId: '', originalMedicineName: '', suggestedMedicineId: '', reason: 'Brand out of stock, offering bioequivalent generic'
+    prescriptionId: '', originalMedicineName: '', suggestedMedicineId: '',
+    reason: 'Original medicine brand is out of stock in pharmacy. Can we provide equivalent generic from a different company?'
   });
 
   const fetchData = useCallback(async () => {
@@ -861,6 +862,15 @@ export const PharmacistDashboard = () => {
         onSendToDoctor={handleModalSendToDoctor}
         onDispense={handleModalDispense}
         onExternalPurchase={handleModalExternalPurchase}
+        onRequestSubstitution={(rx, medName) => {
+          setSubForm({
+            prescriptionId: rx._id,
+            originalMedicineName: medName || rx.medicines?.[0]?.medicineName || '',
+            suggestedMedicineId: medicines[0]?._id || '',
+            reason: `Prescribed medicine "${medName || rx.medicines?.[0]?.medicineName || 'Medicine'}" is out of stock in hospital pharmacy. Requesting approval to substitute with equivalent medicine from a different manufacturer/company.`
+          });
+          setShowSubReqModal(true);
+        }}
         isSubmitting={isBillingSubmitting}
       />
     </div>

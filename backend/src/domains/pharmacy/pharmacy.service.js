@@ -443,12 +443,39 @@ export class PharmacyService {
       }
     }
 
+    // Handle any extra custom items / consumables added by pharmacist
+    let extraCharge = 0;
+    if (Array.isArray(dispenseData?.items)) {
+      for (const extraItem of dispenseData.items) {
+        if (extraItem.isCustom || !prescription.medicines.some(m => String(m.medicineName || '').toLowerCase() === String(extraItem.medicineName || '').toLowerCase())) {
+          const cQty = Number(extraItem.qty || 1);
+          const cPrice = Number(extraItem.unitPrice || 0);
+          const cTotal = cQty * cPrice;
+          if (cTotal > 0) {
+            extraCharge += cTotal;
+            await PharmacyService.addPharmacyChargeToBill({
+              hospitalId: user.hospitalId,
+              branchId: user.branchId,
+              patientId: prescription.patientId,
+              doctorId: prescription.doctorId,
+              description: `[Pharmacy Item] ${extraItem.medicineName} (${extraItem.dosageForm || 'Consumable'})`,
+              qty: cQty,
+              unitPrice: cPrice,
+              taxPercentage: 0,
+            });
+          }
+        }
+      }
+    }
+
     const allAreExternal = prescription.medicines.every((m) => m.itemStatus === 'PURCHASED_EXTERNALLY');
     if (isAllExternal || allAreExternal) {
       prescription.dispenseStatus = 'DISPENSED';
       prescription.totalMedicineCharge = 0;
     } else {
       prescription.dispenseStatus = overallDispensed ? 'DISPENSED' : anyDispensed ? 'PARTIALLY_DISPENSED' : 'PENDING_DISPENSE';
+      const medTotal = (prescription.medicines || []).reduce((sum, m) => sum + (Number(m.totalPrice) || 0), 0);
+      prescription.totalMedicineCharge = medTotal + extraCharge;
     }
 
     prescription.dispensedBy = user.id;
@@ -477,9 +504,34 @@ export class PharmacyService {
       );
     } catch (e) {}
 
-    // Emit workflow socket event
+    // Notify Central Billing / Cashier Desk
     try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
       const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+
+      await NotificationService.createNotification({
+        hospitalId: user.hospitalId,
+        branchId: user.branchId,
+        recipientRole: 'CASHIER',
+        title: (isAllExternal || allAreExternal) ? 'Pharmacy Clearance (External Purchase)' : 'Pharmacy Dispensed & Billed',
+        message: (isAllExternal || allAreExternal)
+          ? `Patient ${patientName} (${patientUhid}) marked for external medicine purchase (₹0). Ready for consultation billing & receipt.`
+          : `Pharmacy medicines billed (₹${prescription.totalMedicineCharge || 0}) for ${patientName} (${patientUhid}). Ready for cashier payment.`,
+        notificationType: 'NEW_DATA',
+        targetModule: 'billing',
+        targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
+        relatedPatientId: prescription.patientId,
+        relatedTaskId: String(prescription._id),
+      });
+
+      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PAYMENT_PENDING, {
+        patientId: prescription.patientId,
+        patientName,
+        uhid: patientUhid,
+        pharmacyCharge: prescription.totalMedicineCharge || 0,
+        linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
+      }, prescription.branchId || user.branchId);
+
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.PHARMACY_DISPENSED, {
         prescriptionId: prescription._id,
         patientId: prescription.patientId,
@@ -491,6 +543,10 @@ export class PharmacyService {
         linkedPath: '/doctor/dashboard?tab=LIVE',
       }, prescription.branchId || user.branchId);
     } catch (e) {}
+
+    socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'billing:invoice_updated', {
+      patientId: prescription.patientId,
+    });
 
     socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'workflow:pending_changed', {
       resourceId: prescription._id,
@@ -629,8 +685,29 @@ export class PharmacyService {
       strength: suggestedMed.strength,
       availableQty: availQty,
       priceDifference: suggestedMed.sellingPrice,
-      reason: reason || 'Prescribed brand is out of stock',
+      reason: reason || 'Prescribed brand is out of stock in pharmacy, offering bioequivalent alternative',
     });
+
+    try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      const { Patient } = await import('../../models/Patient.js');
+      const patient = await Patient.findById(prescription.patientId).select('firstName lastName uhid').lean();
+      const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient';
+
+      await NotificationService.createNotification({
+        hospitalId: user.hospitalId,
+        branchId: user.branchId,
+        recipientUserId: prescription.doctorId,
+        recipientRole: 'DOCTOR',
+        title: 'Medicine Substitution Request',
+        message: `Pharmacy requested substitution for ${patientName} (${patient?.uhid || 'N/A'}): Replace "${originalMedicineName}" with "${suggestedMed.name}" (${suggestedMed.manufacturer ? `Brand/Mfg: ${suggestedMed.manufacturer}` : 'Alternative Company'}). Reason: ${req.reason}`,
+        notificationType: 'ACTION_REQUIRED',
+        targetModule: 'doctor',
+        targetRoute: '/doctor/dashboard?tab=LIVE',
+        relatedPatientId: prescription.patientId,
+        relatedTaskId: String(req._id),
+      });
+    } catch (e) {}
 
     socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:notification', {
       type: 'SUBSTITUTION_REQUEST',

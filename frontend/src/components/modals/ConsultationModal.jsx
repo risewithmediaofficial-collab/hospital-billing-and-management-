@@ -33,7 +33,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
     guardianAddress: '',
   });
 
-  const [consultationFee, setConsultationFee] = useState(150);
+  const [consultationFee, setConsultationFee] = useState(0);
   const [emergencyFee, setEmergencyFee] = useState(0);
   const [doctorProcedureCharges, setDoctorProcedureCharges] = useState([]);
 
@@ -49,6 +49,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       treatmentType: 'ORAL_TAKE_HOME',
       instructions: '',
       externalPurchaseRequired: false,
+      unitPrice: 0,
+      quantity: 10,
+      totalPrice: 0,
     },
   ]);
 
@@ -108,7 +111,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       setHistoryOfPresentIllness('');
       setFollowUpDate('');
       setAdviceToPatient('');
-      setConsultationFee(150);
+      setConsultationFee(0);
       setEmergencyFee(0);
       setDoctorProcedureCharges([]);
       setPrescriptions([
@@ -123,6 +126,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
           treatmentType: 'ORAL_TAKE_HOME',
           instructions: '',
           externalPurchaseRequired: false,
+          unitPrice: 0,
+          quantity: 10,
+          totalPrice: 0,
         },
       ]);
       setErrorMsg(null);
@@ -189,6 +195,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         treatmentType: 'ORAL_TAKE_HOME',
         instructions: '',
         externalPurchaseRequired: false,
+        unitPrice: 0,
+        quantity: 10,
+        totalPrice: 0,
       },
     ]);
 
@@ -206,6 +215,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         treatmentType: 'NURSE_ADMINISTERED',
         instructions: 'Administer IV Stat by Duty Nurse',
         externalPurchaseRequired: false,
+        unitPrice: 0,
+        quantity: 1,
+        totalPrice: 0,
       },
     ]);
 
@@ -214,6 +226,16 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
     setPrescriptions((prev) => {
       const u = [...prev];
       u[index][field] = value;
+
+      // Auto set treatment type based on dosage form
+      if (field === 'dosageForm') {
+        if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
+          u[index].treatmentType = 'NURSE_ADMINISTERED';
+          u[index].quantity = 1;
+        } else {
+          u[index].treatmentType = 'ORAL_TAKE_HOME';
+        }
+      }
 
       if (field === 'durationDays' && !u[index].quantityManuallyEdited) {
         const d = Number(value) || 5;
@@ -225,19 +247,12 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].quantityManuallyEdited = true;
       }
 
-      const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
-      const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 20);
-      u[index].totalPrice = q * p;
+      const isNurseAdministered = u[index].treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
+      const q = isNurseAdministered ? 1 : Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+      const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 0);
+      u[index].totalPrice = isNurseAdministered ? p : (q * p);
       u[index].price = p;
 
-      // Auto set treatment type based on dosage form
-      if (field === 'dosageForm') {
-        if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
-          u[index].treatmentType = 'NURSE_ADMINISTERED';
-        } else {
-          u[index].treatmentType = 'ORAL_TAKE_HOME';
-        }
-      }
       return u;
     });
 
@@ -250,20 +265,24 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].genericName = med.genericName;
         u[index].dosageForm = med.dosageForm;
         u[index].strength = med.strength;
-        u[index].unitPrice = med.sellingPrice || 20;
-        u[index].price = med.sellingPrice || 20;
-        const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
-        u[index].totalPrice = q * (med.sellingPrice || 20);
-        u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
+        const p = Number(med.sellingPrice) || 0;
+        u[index].unitPrice = p;
+        u[index].price = p;
         if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
           u[index].treatmentType = 'NURSE_ADMINISTERED';
+          u[index].quantity = 1;
+          u[index].totalPrice = p;
+        } else {
+          const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+          u[index].totalPrice = q * p;
         }
+        u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
         return u;
       });
     }
   };
 
-  const handleAddProcedureRow = () => setDoctorProcedureCharges((prev) => [...prev, { description: '', amount: 100 }]);
+  const handleAddProcedureRow = () => setDoctorProcedureCharges((prev) => [...prev, { description: '', amount: 0 }]);
   const handleRemoveProcedureRow = (index) => setDoctorProcedureCharges((prev) => prev.filter((_, idx) => idx !== index));
   const handleProcedureChange = (index, field, value) => setDoctorProcedureCharges((prev) => { const u = [...prev]; u[index][field] = value; return u; });
 
@@ -278,7 +297,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         chiefComplaints,
         historyOfPresentIllness,
         prescriptions: validPrescriptions,
-        consultationFee: Number(consultationFee) || 150,
+        consultationFee: Number(consultationFee) || 0,
         emergencyFee: Number(emergencyFee) || 0,
         doctorProcedureCharges,
         followUpDate: followUpDate || undefined,
@@ -475,41 +494,80 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                         </div>
                       )}
 
-                      {/* Quantity, Unit Price & Auto-Calculated Total Row */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 items-center text-xs">
-                        <div>
-                          <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Quantity (Units / Tabs):</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2))}
-                            onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
-                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-black text-slate-900 bg-white"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Unit Price (₹):</label>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
+                      {/* Injections & Nurse Tasks vs Oral Medicines Calculation Row */}
+                      {med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm) ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-200 items-center text-xs">
+                          <div>
+                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Required Dose / Volume:</label>
                             <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              value={med.unitPrice !== undefined ? med.unitPrice : 20}
-                              onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
-                              className="w-full pl-5 pr-2 py-1 border border-slate-300 rounded text-xs font-bold text-slate-900 bg-white"
+                              type="text"
+                              placeholder="e.g. 1 Ampoule / 2ml / 1 Vial"
+                              value={med.dosage || ''}
+                              onChange={(e) => handleMedicineChange(idx, 'dosage', e.target.value)}
+                              className="w-full px-2 py-1 border border-indigo-300 rounded text-xs font-bold text-slate-900 bg-white"
                             />
                           </div>
-                        </div>
 
-                        <div className="text-right">
-                          <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider block">Line Total:</span>
-                          <span className="font-mono font-black text-sm text-indigo-700">
-                            ₹{((Number(med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2)))) * Number(med.unitPrice !== undefined ? med.unitPrice : 20)).toFixed(2)}
-                          </span>
+                          <div>
+                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Administration Fee / Price (₹):</label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                value={med.unitPrice !== undefined ? med.unitPrice : 0}
+                                onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
+                                placeholder="0"
+                                className="w-full pl-5 pr-2 py-1 border border-indigo-300 rounded text-xs font-bold text-slate-900 bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="font-bold text-indigo-700 text-[10px] uppercase tracking-wider block">Injection Charge:</span>
+                            <span className="font-mono font-black text-sm text-indigo-700">
+                              ₹{(Number(med.unitPrice || 0)).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 items-center text-xs">
+                          <div>
+                            <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Quantity (Units / Tabs):</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2))}
+                              onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-black text-slate-900 bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Unit Price (₹):</label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                value={med.unitPrice !== undefined ? med.unitPrice : 0}
+                                onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
+                                placeholder="0"
+                                className="w-full pl-5 pr-2 py-1 border border-slate-300 rounded text-xs font-bold text-slate-900 bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider block">Line Total:</span>
+                            <span className="font-mono font-black text-sm text-indigo-700">
+                              ₹{((Number(med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2)))) * Number(med.unitPrice !== undefined ? med.unitPrice : 0)).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between pt-1">
                         <input
