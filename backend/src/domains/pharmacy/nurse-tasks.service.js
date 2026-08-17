@@ -15,8 +15,11 @@ export class NurseTasksService {
       .select('assignedNurseId dutyNurseId').lean();
     const assignedNurseId = admission?.assignedNurseId || admission?.dutyNurseId || null;
 
+    const pendingNurseTasks = [];
+
     for (const item of prescription.medicines || []) {
-      if (item.treatmentType === 'NURSE_ADMINISTERED') {
+      if (item.treatmentType === 'NURSE_ADMINISTERED' || item.treatmentType === 'DOCTOR_ADMINISTERED_NOW') {
+        const isDoctorAdministered = item.treatmentType === 'DOCTOR_ADMINISTERED_NOW';
         const medicine = await Medicine.findOne({
           hospitalId: prescription.hospitalId,
           $or: [{ name: item.medicineName }, { genericName: item.genericName || item.medicineName }],
@@ -27,7 +30,7 @@ export class NurseTasksService {
           branchId: prescription.branchId,
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
-          assignedNurseId,
+          assignedNurseId: isDoctorAdministered ? null : assignedNurseId,
           prescriptionId: prescription._id,
           consultationId: prescription.consultationId,
           taskType:
@@ -43,20 +46,32 @@ export class NurseTasksService {
           dose: item.dosage || '1 Dose',
           route: item.dosageForm === 'INJECTION' ? 'IV' : 'Oral',
           frequency: item.frequency || 'ONCE',
-          doctorInstructions: item.specialInstructions || item.instructions || '',
+          doctorInstructions: item.specialInstructions || item.instructions || (isDoctorAdministered ? 'Administered directly in cabin by consulting doctor' : ''),
           allergyInformation: 'Check patient record for allergies',
           scheduledTime: item.startDate || new Date(),
-          status: 'PENDING',
+          status: isDoctorAdministered ? 'ADMINISTERED' : 'PENDING',
+          administrationDetails: isDoctorAdministered
+            ? {
+                administeredAt: new Date(),
+                administeredQty: 1,
+                nurseName: `Dr. ${user?.name || 'Doctor'} (Self-Administered)`,
+                siteOrRoute: item.instructions || 'In-Cabin',
+                notes: 'Administered directly by consulting doctor during OPD consultation',
+              }
+            : undefined,
         });
 
         createdTasks.push(task);
+        if (!isDoctorAdministered) {
+          pendingNurseTasks.push(task);
+        }
       }
     }
 
-    if (createdTasks.length > 0) {
+    if (pendingNurseTasks.length > 0) {
       const envelope = {
         type: 'NEW_NURSE_TASKS',
-        count: createdTasks.length,
+        count: pendingNurseTasks.length,
         patientId: prescription.patientId,
         linkedPath: '/nursing/dashboard',
       };
@@ -71,19 +86,19 @@ export class NurseTasksService {
         recipientUserId: assignedNurseId,
         recipientRole: assignedNurseId ? null : 'NURSE',
         title: 'New nurse treatment task',
-        message: `${createdTasks.length} nurse-administered treatment task${createdTasks.length === 1 ? '' : 's'} received from the consulting doctor.`,
+        message: `${pendingNurseTasks.length} nurse-administered treatment task${pendingNurseTasks.length === 1 ? '' : 's'} received from the consulting doctor.`,
         notificationType: 'NEW_DATA',
         targetModule: 'nursing',
         targetRoute: '/nursing/dashboard',
         relatedPatientId: prescription.patientId,
-        relatedTaskId: String(createdTasks[0]._id),
+        relatedTaskId: String(pendingNurseTasks[0]._id),
       });
       socketManager.emitToBranch(prescription.branchId || prescription.hospitalId, 'workflow:pending_changed', envelope);
       try {
         const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
         WorkflowEventService.emitSync(WORKFLOW_EVENTS.NURSE_REQUEST_RAISED, {
           patientId: prescription.patientId,
-          taskCount: createdTasks.length,
+          taskCount: pendingNurseTasks.length,
           doctorId: prescription.doctorId,
           linkedPath: '/nursing/requests',
         }, prescription.branchId || prescription.hospitalId);

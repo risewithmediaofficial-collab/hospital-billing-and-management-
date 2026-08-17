@@ -22,7 +22,7 @@ const prescriptionSchema = new mongoose.Schema(
         startDate: { type: Date, default: Date.now },
         treatmentType: {
           type: String,
-          enum: ['ORAL_TAKE_HOME', 'NURSE_ADMINISTERED'],
+          enum: ['ORAL_TAKE_HOME', 'NURSE_ADMINISTERED', 'DOCTOR_ADMINISTERED_NOW', 'EXTERNAL_PURCHASE_OUTSIDE'],
           default: 'ORAL_TAKE_HOME',
         },
         specialInstructions: { type: String, default: '' },
@@ -33,14 +33,19 @@ const prescriptionSchema = new mongoose.Schema(
         batchNumberUsed: { type: String, default: '' },
         itemStatus: {
           type: String,
-          enum: ['PENDING', 'DISPENSED', 'PARTIALLY_DISPENSED', 'UNAVAILABLE', 'PURCHASED_EXTERNALLY', 'SUBSTITUTED'],
+          enum: ['PENDING', 'DISPENSED', 'PARTIALLY_DISPENSED', 'UNAVAILABLE', 'PURCHASED_EXTERNALLY', 'SUBSTITUTED', 'ADMINISTERED_BY_DOCTOR'],
           default: 'PENDING',
         },
       },
     ],
+    pharmacyMode: {
+      type: String,
+      enum: ['IN_HOUSE_PHARMACY', 'EXTERNAL_NO_INHOUSE_PHARMACY'],
+      default: 'IN_HOUSE_PHARMACY',
+    },
     dispenseStatus: {
       type: String,
-      enum: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED', 'DISPENSED', 'CANCELLED'],
+      enum: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED', 'DISPENSED', 'CANCELLED', 'BILLED_SENT_TO_DOCTOR'],
       default: 'PENDING_DISPENSE',
       index: true,
     },

@@ -36,6 +36,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [consultationFee, setConsultationFee] = useState(0);
   const [emergencyFee, setEmergencyFee] = useState(0);
   const [doctorProcedureCharges, setDoctorProcedureCharges] = useState([]);
+  const [pharmacyMode, setPharmacyMode] = useState('IN_HOUSE_PHARMACY'); // 'IN_HOUSE_PHARMACY' | 'EXTERNAL_NO_INHOUSE_PHARMACY'
 
   const [prescriptions, setPrescriptions] = useState([
     {
@@ -212,8 +213,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         frequency: 'STAT_IMMEDIATE',
         durationDays: 1,
         timing: 'STAT',
-        treatmentType: 'NURSE_ADMINISTERED',
-        instructions: 'Administer IV Stat by Duty Nurse',
+        treatmentType: 'DOCTOR_ADMINISTERED_NOW',
+        instructions: 'Administer in-cabin by doctor',
         externalPurchaseRequired: false,
         unitPrice: 0,
         quantity: 1,
@@ -227,13 +228,17 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       const u = [...prev];
       u[index][field] = value;
 
-      // Auto set treatment type based on dosage form
+      // Auto set treatment type based on dosage form if not manually chosen
       if (field === 'dosageForm') {
         if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
-          u[index].treatmentType = 'NURSE_ADMINISTERED';
+          if (!['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
+            u[index].treatmentType = 'DOCTOR_ADMINISTERED_NOW';
+          }
           u[index].quantity = 1;
         } else {
-          u[index].treatmentType = 'ORAL_TAKE_HOME';
+          if (!['ORAL_TAKE_HOME', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
+            u[index].treatmentType = 'ORAL_TAKE_HOME';
+          }
         }
       }
 
@@ -247,10 +252,17 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].quantityManuallyEdited = true;
       }
 
-      const isNurseAdministered = u[index].treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
-      const q = isNurseAdministered ? 1 : Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+      const isSingleOrNurseTask = ['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType) || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
+      const isOutside = u[index].treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || u[index].externalPurchaseRequired || pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY';
+      
+      const q = isSingleOrNurseTask ? 1 : Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
       const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 0);
-      u[index].totalPrice = isNurseAdministered ? p : (q * p);
+      
+      if (isOutside && !isSingleOrNurseTask) {
+        u[index].totalPrice = 0;
+      } else {
+        u[index].totalPrice = isSingleOrNurseTask ? p : (q * p);
+      }
       u[index].price = p;
 
       return u;
@@ -269,12 +281,14 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].unitPrice = p;
         u[index].price = p;
         if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
-          u[index].treatmentType = 'NURSE_ADMINISTERED';
+          if (!['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
+            u[index].treatmentType = 'DOCTOR_ADMINISTERED_NOW';
+          }
           u[index].quantity = 1;
           u[index].totalPrice = p;
         } else {
           const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
-          u[index].totalPrice = q * p;
+          u[index].totalPrice = pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 0 : q * p;
         }
         u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
         return u;
@@ -319,6 +333,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         chiefComplaints: chiefComplaints.trim() || 'General Consultation',
         historyOfPresentIllness,
         prescriptions: validPrescriptions,
+        pharmacyMode,
         consultationFee: Number(consultationFee) || 0,
         emergencyFee: Number(emergencyFee) || 0,
         doctorProcedureCharges: validProcedureCharges,
@@ -416,17 +431,50 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
 
             {/* Structured Prescriptions */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center flex-wrap gap-2">
-                <label className={labelClass}>Structured Prescription & Nurse Treatment Entry</label>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+                <div>
+                  <label className={labelClass}>Structured Prescription & Treatment Entry</label>
+                  <p className="text-[11px] text-slate-500">Supports solo doctor in-cabin treatments, multi-specialty ward nurse routing, and clinics without pharmacy.</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Hospital Pharmacy vs Outside Rx Mode Switch */}
+                  <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPharmacyMode('IN_HOUSE_PHARMACY')}
+                      className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all ${pharmacyMode === 'IN_HOUSE_PHARMACY' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                      title="Prescriptions are queued to in-house hospital pharmacy for stock dispensing & hospital billing"
+                    >
+                      🏥 In-House Pharmacy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPharmacyMode('EXTERNAL_NO_INHOUSE_PHARMACY')}
+                      className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all ${pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                      title="Small Clinic / Outside Prescription Mode: Doctor writes prescription for patient to buy outside with ₹0 hospital medicine fee"
+                    >
+                      📄 Outside Rx (₹0 Added)
+                    </button>
+                  </div>
+
                   <Button size="sm" variant="outline" type="button" onClick={handleAddMedicineRow} className="gap-1 font-bold text-xs">
-                    <Plus size={12} /> Add Oral Medicine
+                    <Plus size={12} /> Add Oral Med
                   </Button>
                   <Button size="sm" variant="primary" type="button" onClick={handleAddInjectionTaskRow} className="gap-1 font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">
-                    <Syringe size={13} /> Prescribe Injection / Nurse Task
+                    <Syringe size={13} /> Add Injection / Treatment
                   </Button>
                 </div>
               </div>
+
+              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
+                  <span>
+                    📄 <strong>Outside Prescription Mode Active</strong>: Prescribed medicines will be printed for patient take-home. <strong>₹0 medicine charges</strong> will be added to the hospital bill.
+                  </span>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-950 font-bold px-2 py-0.5 rounded">Clinic / No-Pharmacy Setup</span>
+                </div>
+              )}
 
               <div className="space-y-3">
                 {prescriptions.map((med, idx) => {
@@ -484,14 +532,27 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                         </div>
 
                         <div>
-                          <label className="font-bold text-slate-600">Treatment Routing</label>
+                          <label className="font-bold text-slate-600">Treatment & Dispense Routing</label>
                           <select
                             value={med.treatmentType}
                             onChange={(e) => handleMedicineChange(idx, 'treatmentType', e.target.value)}
-                            className="w-full p-2 border rounded text-xs font-bold mt-1 bg-indigo-50 text-indigo-900"
+                            className="w-full p-2 border rounded text-xs font-bold mt-1 bg-indigo-50/80 text-indigo-950 border-indigo-200"
                           >
-                            <option value="ORAL_TAKE_HOME">Oral / Take-Home (Queue to Pharmacy)</option>
-                            <option value="NURSE_ADMINISTERED">Nurse-Administered (Injection / IV / Dressing Task)</option>
+                            {['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm) ? (
+                              <>
+                                <option value="DOCTOR_ADMINISTERED_NOW">💉 Administer Now by Doctor (In-Cabin / Solo Clinic)</option>
+                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Dispatch to Nurse (Hospital Ward / Daycare)</option>
+                                <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Purchase (Patient Buys Outside - ₹0 Bill)</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="ORAL_TAKE_HOME">
+                                  {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? '📄 Outside Prescription (Take-Home - ₹0 Bill)' : '🏥 In-House Hospital Pharmacy Dispense'}
+                                </option>
+                                <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Pharmacy (Patient Buys Outside - ₹0 Bill)</option>
+                                <option value="DOCTOR_ADMINISTERED_NOW">💉 In-Cabin Dose by Doctor (Solo Practice)</option>
+                              </>
+                            )}
                           </select>
                         </div>
                       </div>
@@ -517,7 +578,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       )}
 
                       {/* Injections & Nurse Tasks vs Oral Medicines Calculation Row */}
-                      {med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm) ? (
+                      {med.treatmentType === 'NURSE_ADMINISTERED' || med.treatmentType === 'DOCTOR_ADMINISTERED_NOW' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-200 items-center text-xs">
                           <div>
                             <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Required Dose / Volume:</label>

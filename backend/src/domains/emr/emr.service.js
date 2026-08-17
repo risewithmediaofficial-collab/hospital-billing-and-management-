@@ -91,6 +91,26 @@ export class EmrService {
       const rxCount = await Prescription.countDocuments({ hospitalId: hospId });
       const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
 
+      const isExternalPharmacy = data.pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ||
+        sanitizedPrescriptions.every(p => p.treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || p.externalPurchaseRequired || ['INJECTION', 'IV_FLUID'].includes(p.dosageForm));
+
+      const finalMedicines = sanitizedPrescriptions.map(p => {
+        if (isExternalPharmacy || p.treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || p.externalPurchaseRequired) {
+          return {
+            ...p,
+            externalPurchaseRequired: true,
+            itemStatus: 'PURCHASED_EXTERNALLY',
+          };
+        }
+        if (p.treatmentType === 'DOCTOR_ADMINISTERED_NOW') {
+          return {
+            ...p,
+            itemStatus: 'ADMINISTERED_BY_DOCTOR',
+          };
+        }
+        return p;
+      });
+
       prescription = await Prescription.create({
         hospitalId: hospId,
         branchId: brId,
@@ -98,21 +118,29 @@ export class EmrService {
         patientId: appointment.patientId,
         doctorId: user.id || user._id,
         prescriptionNo: rxNo,
-        medicines: sanitizedPrescriptions,
+        medicines: finalMedicines,
+        pharmacyMode: isExternalPharmacy ? 'EXTERNAL_NO_INHOUSE_PHARMACY' : 'IN_HOUSE_PHARMACY',
+        dispenseStatus: isExternalPharmacy ? 'DISPENSED' : 'PENDING_DISPENSE',
+        totalMedicineCharge: 0,
       });
 
       // Automatically extract nurse-administered treatments (injections, IV fluids, dressings) into Nurse Tasks
       nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user);
 
-      const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
-        prescriptionId: prescription._id,
-        senderUserId: user.id || user._id,
-        patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
-        uhid: patient?.uhid || 'N/A',
-        doctorName: user.name || 'Doctor',
-        linkedPath: '/pharmacy/dispense-queue',
-      }, brId);
+      // Only notify hospital pharmacy desk if there are in-house take-home medicines
+      const needsHospitalPharmacyDispense = !isExternalPharmacy && finalMedicines.some(m => m.treatmentType === 'ORAL_TAKE_HOME' && !m.externalPurchaseRequired);
+
+      if (needsHospitalPharmacyDispense) {
+        const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
+        WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
+          prescriptionId: prescription._id,
+          senderUserId: user.id || user._id,
+          patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
+          uhid: patient?.uhid || 'N/A',
+          doctorName: user.name || 'Doctor',
+          linkedPath: '/pharmacy/dispense-queue',
+        }, brId);
+      }
     }
 
     // IPD Recommendation handling & Requisition to Inpatient Ward
