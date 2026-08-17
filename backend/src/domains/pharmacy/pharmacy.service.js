@@ -674,6 +674,27 @@ export class PharmacyService {
     return req;
   }
 
+  static async getBatches(user, query = {}) {
+    const filter = { hospitalId: user.hospitalId, isActive: true };
+    if (query.medicineId) filter.medicineId = query.medicineId;
+    if (query.location) filter.location = query.location;
+    return MedicineBatch.find(filter)
+      .populate('medicineId', 'name genericName dosageForm sellingPrice')
+      .sort({ expiryDate: 1 })
+      .lean();
+  }
+
+  static async getSubstitutions(user, query = {}) {
+    const filter = { hospitalId: user.hospitalId };
+    if (user.role === 'DOCTOR') filter.doctorId = user.id;
+    return PharmacySubstitutionRequest.find(filter)
+      .populate('patientId', 'firstName lastName uhid')
+      .populate('doctorId', 'name')
+      .populate('pharmacistId', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
   static async getPendingSubstitutions(user) {
     const filter = { hospitalId: user.hospitalId };
     if (user.role === 'DOCTOR') filter.doctorId = user.id;

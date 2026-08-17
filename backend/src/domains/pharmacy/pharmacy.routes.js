@@ -5,6 +5,7 @@ import {
   getMedicines,
   createMedicine,
   updateMedicine,
+  getBatches,
   addBatch,
   adjustStock,
   transferStock,
@@ -16,6 +17,7 @@ import {
   respondSubstitution,
   acknowledgeSubstitution,
   getPendingSubstitutions,
+  getSubstitutions,
   sendBillingToDoctor,
   getNurseTasks,
   updateNurseTaskStatus,
@@ -28,11 +30,13 @@ router.use(verifyJwt);
 router.get('/medicines', getMedicines);
 router.post('/medicines', requireModulePermission('pharmacy', 'edit'), createMedicine);
 router.put('/medicines/:id', requireModulePermission('pharmacy', 'edit'), updateMedicine);
+router.get('/batches', getBatches);
 router.post('/batches', requireModulePermission('pharmacy', 'edit'), addBatch);
 router.post('/stock/adjust', requireModulePermission('pharmacy', 'edit'), adjustStock);
 router.post('/stock/transfer', requireModulePermission('pharmacy', 'edit'), transferStock);
 router.get('/alerts', getDashboardAlerts);
 router.get('/stock-movements', getStockAdjustments);
+router.get('/stock/adjustments', getStockAdjustments);
 
 // E-Prescriptions & Dispensing
 router.get('/prescriptions', getPrescriptions);
@@ -41,6 +45,7 @@ router.patch('/prescriptions/:id/send-billing-to-doctor', sendBillingToDoctor);
 
 // Substitutions
 router.post('/substitutions/request', requestSubstitution);
+router.get('/substitutions', getSubstitutions);
 router.get('/substitutions/pending', getPendingSubstitutions);
 router.patch('/substitutions/:id/respond', respondSubstitution);
 router.patch('/substitutions/:id/acknowledge', acknowledgeSubstitution);

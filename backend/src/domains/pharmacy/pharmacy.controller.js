@@ -27,6 +27,22 @@ export const updateMedicine = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+export const getBatches = async (req, res, next) => {
+  try {
+    const batches = await PharmacyService.getBatches(req.user, req.query);
+    return sendSuccess(res, 200, 'Medicine batches retrieved', batches);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSubstitutions = async (req, res, next) => {
+  try {
+    const subs = await PharmacyService.getSubstitutions(req.user, req.query);
+    return sendSuccess(res, 200, 'Substitutions retrieved', subs);
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const addBatch = async (req, res, next) => {

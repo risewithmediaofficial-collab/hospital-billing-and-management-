@@ -95,12 +95,12 @@ export const PharmacistDashboard = () => {
     setIsLoading(true);
     try {
       const [medsRes, rxsRes, batchesRes, adjRes, subsRes, alertRes] = await Promise.all([
-        axiosClient.get('/pharmacy/medicines'),
-        axiosClient.get('/pharmacy/prescriptions'),
-        axiosClient.get('/pharmacy/batches'),
-        axiosClient.get('/pharmacy/stock/adjustments'),
-        axiosClient.get('/pharmacy/substitutions'),
-        axiosClient.get('/pharmacy/alerts'),
+        axiosClient.get('/pharmacy/medicines').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/prescriptions').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/batches').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/stock/adjustments').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/substitutions').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/alerts').catch(() => ({ data: { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] } })),
       ]);
       setMedicines(medsRes.data || []);
       setPrescriptions(rxsRes.data || []);
@@ -140,7 +140,7 @@ export const PharmacistDashboard = () => {
     };
   }, [socket, refreshPendingWork]);
 
-  const pending = prescriptions.filter((item) => item.dispenseStatus === 'PENDING_DISPENSE' || item.dispenseStatus === 'PARTIALLY_DISPENSED');
+  const pending = prescriptions.filter((item) => item.dispenseStatus === 'PENDING_DISPENSE' || item.dispenseStatus === 'PARTIALLY_DISPENSED' || item.dispenseStatus === 'PENDING');
   const dispensed = prescriptions.filter((item) => item.dispenseStatus === 'DISPENSED');
 
   const handleAcknowledgeSub = async (id) => {
