@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const prescriptionSchema = new mongoose.Schema(
   {
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
-    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true },
     consultationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation', required: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

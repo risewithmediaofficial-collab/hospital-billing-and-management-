@@ -4,7 +4,7 @@ import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 const consultationSchema = new mongoose.Schema(
   {
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
-    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true },
     appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', required: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

@@ -4,7 +4,7 @@ import { PAYMENT_MODES } from '../config/constants.js';
 const receiptSchema = new mongoose.Schema(
   {
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
-    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true },
     invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
     cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

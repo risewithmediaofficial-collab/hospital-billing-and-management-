@@ -52,12 +52,19 @@ export class EmrService {
         unitPrice: Number(p.unitPrice) || 0,
         price: Number(p.unitPrice) || 0,
         quantity: Number(p.quantity) || 1,
-        totalPrice: Number(p.totalPrice) || 0,
-      }));
+    const hospId = user.hospitalId || appointment.hospitalId;
+    let brId = user.branchId || appointment.branchId;
+    if (!brId) {
+      try {
+        const { Branch } = await import('../../models/Branch.js');
+        const defaultBranch = (await Branch.findOne({ hospitalId: hospId, isDefault: true }).lean()) || (await Branch.findOne({ hospitalId: hospId }).lean());
+        if (defaultBranch) brId = defaultBranch._id;
+      } catch (e) {}
+    }
 
     const consultation = await Consultation.create({
-      hospitalId: user.hospitalId || appointment.hospitalId,
-      branchId: user.branchId || appointment.branchId,
+      hospitalId: hospId,
+      branchId: brId,
       appointmentId: appointment._id,
       patientId: appointment.patientId,
       doctorId: user.id || user._id,
@@ -81,12 +88,12 @@ export class EmrService {
     let prescription = null;
     let nurseTasks = [];
     if (sanitizedPrescriptions.length > 0) {
-      const rxCount = await Prescription.countDocuments({ hospitalId: user.hospitalId || appointment.hospitalId });
+      const rxCount = await Prescription.countDocuments({ hospitalId: hospId });
       const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
 
       prescription = await Prescription.create({
-        hospitalId: user.hospitalId || appointment.hospitalId,
-        branchId: user.branchId || appointment.branchId,
+        hospitalId: hospId,
+        branchId: brId,
         consultationId: consultation._id,
         patientId: appointment.patientId,
         doctorId: user.id || user._id,
@@ -105,7 +112,7 @@ export class EmrService {
         uhid: patient?.uhid || 'N/A',
         doctorName: user.name || 'Doctor',
         linkedPath: '/pharmacy/dispense-queue',
-      }, appointment.branchId);
+      }, brId);
     }
 
     // IPD Recommendation handling & Requisition to Inpatient Ward
