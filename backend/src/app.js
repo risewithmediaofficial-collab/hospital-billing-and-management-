@@ -25,6 +25,7 @@ import doctorUpdatesRoutes from './domains/doctor-updates/doctor-updates.routes.
 import workflowRoutes from './domains/workflow/workflow.routes.js';
 import pharmacyRoutes from './domains/pharmacy/pharmacy.routes.js';
 import notificationRoutes from './domains/notifications/notification.routes.js';
+import hospitalAdminRoutes from './domains/auth/hospital-admin.routes.js';
 
 import { SaasService } from './domains/saas/saas.service.js';
 
@@ -85,6 +86,7 @@ app.use('/api/v1/doctor-updates', doctorUpdatesRoutes);
 app.use('/api/v1/workflow', workflowRoutes);
 app.use('/api/v1/pharmacy', pharmacyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/hospital-admin', hospitalAdminRoutes);
 
 // Automated Trial & Subscription Expiry Background Evaluator (Runs every 10 minutes)
 setInterval(() => {
@@ -107,3 +109,4 @@ app.use(errorHandler);
 
 export default app;
 // Server reloaded: 2026-08-06
+

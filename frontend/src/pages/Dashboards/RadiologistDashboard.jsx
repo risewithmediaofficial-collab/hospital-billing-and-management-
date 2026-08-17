@@ -151,69 +151,107 @@ export const RadiologistDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* PACS Scan Queue with Active / Completed Tabs */}
-        <Card className="lg:col-span-1">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-              <button
-                onClick={() => setActiveTab('ACTIVE')}
-                className={`px-3 py-1 rounded font-bold transition-all ${
-                  activeTab === 'ACTIVE' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Incoming ({incomingOrders.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('PROGRESS')}
-                className={`px-3 py-1 rounded font-bold transition-all ${
-                  activeTab === 'PROGRESS' ? 'bg-violet-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Accepted / In Progress ({progressOrders.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('COMPLETED')}
-                className={`px-3 py-1 rounded font-bold transition-all ${
-                  activeTab === 'COMPLETED' ? 'bg-emerald-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Completed & Sent ({completedOrders.length})
-              </button>
+        {/* PACS Scan Queue with Active / In-Progress / Completed Tabs */}
+        <Card className="lg:col-span-1 flex flex-col">
+          {/* Header with Title and DICOM PACS status */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                <FileImage size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 leading-none">Scan Queue</h3>
+                <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Radiology & Imaging</p>
+              </div>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
-              DICOM PACS
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> DICOM PACS
             </span>
           </div>
 
-          <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+          {/* Clean Segmented Tab Navigation with Counts */}
+          <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl mb-3 border border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+              }`}
+            >
+              <span className="truncate">Incoming</span>
+              <span className={`inline-flex items-center justify-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-black ${
+                activeTab === 'ACTIVE' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {incomingOrders.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('PROGRESS')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                activeTab === 'PROGRESS'
+                  ? 'bg-white text-violet-700 shadow-sm border border-slate-200/80'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+              }`}
+            >
+              <span className="truncate">In Progress</span>
+              <span className={`inline-flex items-center justify-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-black ${
+                activeTab === 'PROGRESS' ? 'bg-violet-100 text-violet-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {progressOrders.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('COMPLETED')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                activeTab === 'COMPLETED'
+                  ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+              }`}
+            >
+              <span className="truncate">Completed</span>
+              <span className={`inline-flex items-center justify-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-black ${
+                activeTab === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {completedOrders.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 flex-1">
             {currentQueue.length > 0 ? (
               currentQueue.map((ord) => (
                 <div
                   key={ord._id}
                   onClick={() => setSelectedOrder(ord)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
                     selectedOrder?._id === ord._id
-                      ? 'bg-indigo-50 border-indigo-400 shadow-sm'
-                      : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                      ? 'bg-indigo-50/80 border-indigo-400 shadow-sm ring-1 ring-indigo-400'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
                       ord.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     }`}>
                       {ord.testName}
                     </span>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border ${
                       ord.priority === 'EMERGENCY' ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
                       {ord.priority}
                     </span>
                   </div>
-                  <p className="font-bold text-slate-900 text-sm mt-1">{ord.patientName} ({ord.patientAge})</p>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-xs text-indigo-700 font-mono">UHID: {ord.uhid}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                      ord.status === 'COMPLETED' || ord.status === 'REPORT_UPLOADED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  <p className="font-bold text-slate-900 text-sm mt-1.5">{ord.patientName} ({ord.patientAge})</p>
+                  <div className="flex justify-between items-center mt-1.5 text-xs">
+                    <span className="text-indigo-700 font-mono font-bold text-[11px]">UHID: {ord.uhid}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${
+                      ord.status === 'COMPLETED' || ord.status === 'REPORT_UPLOADED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
                       {ord.status}
                     </span>
@@ -221,8 +259,12 @@ export const RadiologistDashboard = () => {
                 </div>
               ))
             ) : (
-              <div className="p-6 text-center text-slate-500 text-xs">
-                {activeTab === 'ACTIVE' ? 'No active scan requests in PACS queue.' : 'No completed scans in history yet.'}
+              <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center justify-center">
+                <FileImage size={24} className="text-slate-300 mb-2" />
+                <p className="font-bold text-slate-600">No requests in queue</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {activeTab === 'ACTIVE' ? 'No active scan requests in PACS queue.' : activeTab === 'PROGRESS' ? 'No scans currently being processed.' : 'No completed scans in history yet.'}
+                </p>
               </div>
             )}
           </div>

@@ -13,6 +13,7 @@ import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../util
 import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog } from 'lucide-react';
 import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
 import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
+import { AdminExtraPage } from './AdminExtraPage';
 
 const ROLE_OPTIONS = [
   { code: 'HOSPITAL_ADMIN', label: 'Hospital Administrator' },
@@ -180,7 +181,18 @@ const computeCombinedRoleDefaults = (primaryRole, additionalRoles = []) => {
   return combined;
 };
 
+// Wrapper handles tab routing BEFORE hooks are called in the main dashboard
 export const HospitalAdminDashboard = () => {
+  const location = useLocation();
+  const tabParam = new URLSearchParams(location.search).get('tab');
+  if (tabParam) return <AdminExtraPage />;
+  return <HospitalAdminDashboardInner />;
+};
+
+const HospitalAdminDashboardInner = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
@@ -236,8 +248,6 @@ export const HospitalAdminDashboard = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const formatTenantPath = (path) => {
     if (!path) return path;

@@ -51,6 +51,7 @@ const HRDashboard = React.lazy(() => import('../pages/Dashboards/HRDashboard').t
 const RegisteredPatientsView = React.lazy(() => import('../pages/Reception/RegisteredPatientsView').then(m => ({ default: m.RegisteredPatientsView })));
 const PatientRegistrationPage = React.lazy(() => import('../pages/Reception/PatientRegistrationPage').then(m => ({ default: m.PatientRegistrationPage })));
 const EmergencyConsoleView = React.lazy(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
+const AdminExtraPage = React.lazy(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
@@ -192,10 +193,10 @@ export const AppRoutes = () => {
         <Route path="/hospital-admin/opd-management" element={<MainLayout><HospitalAdminManagementViews viewType="opd" /></MainLayout>} />
         <Route path="/hospital-admin/ipd-management" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
         <Route path="/hospital-admin/emergency-management" element={<MainLayout><HospitalAdminManagementViews viewType="emergency" /></MainLayout>} />
-        <Route path="/hospital-admin/tariffs" element={<MainLayout><GenericSubView title="Tariffs & Price Master" subtitle="Service Tariffs and Room Charges" iconName="Receipt" /></MainLayout>} />
-        <Route path="/hospital-admin/reports" element={<MainLayout><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics" iconName="BarChart3" /></MainLayout>} />
-        <Route path="/hospital-admin/plan-details" element={<MainLayout><GenericSubView title="Plan Details" subtitle="Subscription, enabled modules, and staff limits" iconName="BadgeCheck" /></MainLayout>} />
-        <Route path="/hospital-admin/usage-limits" element={<MainLayout><GenericSubView title="Usage and Limits" subtitle="Current plan usage and remaining capacity" iconName="Gauge" /></MainLayout>} />
+        <Route path="/hospital-admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
       </Route>
 
       {/* 3. Doctor Sub-Routes */}
@@ -335,10 +336,10 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/opd-management" element={<MainLayout><HospitalAdminManagementViews viewType="opd" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/ipd-management" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/emergency-management" element={<MainLayout><HospitalAdminManagementViews viewType="emergency" /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/tariffs" element={<MainLayout><GenericSubView title="Tariffs & Price Master" subtitle="Service Tariffs and Room Charges" iconName="Receipt" /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/reports" element={<MainLayout><GenericSubView title="Operational & Revenue Reports" subtitle="Executive Analytics" iconName="BarChart3" /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/plan-details" element={<MainLayout><GenericSubView title="Plan Details" subtitle="Subscription, enabled modules, and staff limits" iconName="BadgeCheck" /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/usage-limits" element={<MainLayout><GenericSubView title="Usage and Limits" subtitle="Current plan usage and remaining capacity" iconName="Gauge" /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         {/* Legacy short aliases */}
         <Route path="/:hospitalDomain/admin/doctors" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/nurses" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
