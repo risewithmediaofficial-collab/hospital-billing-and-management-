@@ -17,8 +17,8 @@ const prescriptionSchema = new mongoose.Schema(
         strength: { type: String, default: '' },
         dosage: { type: String, required: true },
         frequency: { type: String, required: true },
-        durationDays: { type: Number, required: true },
-        timing: { type: String, enum: ['BEFORE_FOOD', 'AFTER_FOOD', 'WITH_FOOD'], default: 'AFTER_FOOD' },
+        durationDays: { type: Number, default: 1 },
+        timing: { type: String, enum: ['BEFORE_FOOD', 'AFTER_FOOD', 'WITH_FOOD', 'STAT', 'AS_DIRECTED'], default: 'AFTER_FOOD' },
         startDate: { type: Date, default: Date.now },
         treatmentType: {
           type: String,

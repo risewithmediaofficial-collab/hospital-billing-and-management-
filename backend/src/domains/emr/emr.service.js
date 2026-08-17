@@ -35,7 +35,25 @@ export class EmrService {
       ? Number(data.consultationFee)
       : 0;
     const emergencyFee = Number(data.emergencyFee) || 0;
-    const doctorProcedureCharges = Array.isArray(data.doctorProcedureCharges) ? data.doctorProcedureCharges : [];
+    const doctorProcedureCharges = Array.isArray(data.doctorProcedureCharges)
+      ? data.doctorProcedureCharges.filter(p => p && p.description && p.description.trim() !== '')
+      : [];
+
+    const sanitizedPrescriptions = (data.prescriptions || [])
+      .filter(p => p && p.medicineName && p.medicineName.trim() !== '')
+      .map(p => ({
+        ...p,
+        medicineName: p.medicineName.trim(),
+        dosage: p.dosage || (p.dosageForm === 'INJECTION' ? '1 Ampoule IV Stat' : '1 Tablet'),
+        frequency: p.frequency || (p.dosageForm === 'INJECTION' ? 'STAT_IMMEDIATE' : 'TWICE_DAILY'),
+        durationDays: Number(p.durationDays) || 1,
+        timing: ['BEFORE_FOOD', 'AFTER_FOOD', 'WITH_FOOD', 'STAT', 'AS_DIRECTED'].includes(p.timing) ? p.timing : 'AFTER_FOOD',
+        treatmentType: p.treatmentType || (['INJECTION', 'IV_FLUID'].includes(p.dosageForm) ? 'NURSE_ADMINISTERED' : 'ORAL_TAKE_HOME'),
+        unitPrice: Number(p.unitPrice) || 0,
+        price: Number(p.unitPrice) || 0,
+        quantity: Number(p.quantity) || 1,
+        totalPrice: Number(p.totalPrice) || 0,
+      }));
 
     const consultation = await Consultation.create({
       hospitalId: user.hospitalId || appointment.hospitalId,
@@ -44,9 +62,9 @@ export class EmrService {
       patientId: appointment.patientId,
       doctorId: user.id || user._id,
       vitals: data.vitals || { bp: '120/80', pulse: 72, spo2: 98, temperature: 98.6, weightKg: 70 },
-      chiefComplaints: data.chiefComplaints || 'General Check-up',
+      chiefComplaints: data.chiefComplaints || appointment.chiefComplaints || 'General Consultation',
       historyOfPresentIllness: data.historyOfPresentIllness || '',
-      prescriptions: data.prescriptions || [],
+      prescriptions: sanitizedPrescriptions,
       consultationFee,
       emergencyFee,
       doctorProcedureCharges,
@@ -62,7 +80,7 @@ export class EmrService {
     // Create prescription if medicines provided
     let prescription = null;
     let nurseTasks = [];
-    if (data.prescriptions && data.prescriptions.length > 0) {
+    if (sanitizedPrescriptions.length > 0) {
       const rxCount = await Prescription.countDocuments({ hospitalId: user.hospitalId || appointment.hospitalId });
       const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
 
@@ -73,7 +91,7 @@ export class EmrService {
         patientId: appointment.patientId,
         doctorId: user.id || user._id,
         prescriptionNo: rxNo,
-        medicines: data.prescriptions,
+        medicines: sanitizedPrescriptions,
       });
 
       // Automatically extract nurse-administered treatments (injections, IV fluids, dressings) into Nurse Tasks

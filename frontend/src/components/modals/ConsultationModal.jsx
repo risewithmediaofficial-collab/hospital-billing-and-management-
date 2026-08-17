@@ -289,17 +289,39 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const handleFinalizeConfirmed = async () => {
     setIsLoading(true);
     setErrorMsg(null);
-    const validPrescriptions = prescriptions.filter((p) => p.medicineName.trim() !== '');
+    const validPrescriptions = prescriptions
+      .filter((p) => p.medicineName && p.medicineName.trim() !== '')
+      .map((p) => ({
+        ...p,
+        medicineName: p.medicineName.trim(),
+        dosage: p.dosage || (p.dosageForm === 'INJECTION' ? '1 Ampoule IV Stat' : '1 Tablet'),
+        frequency: p.frequency || (p.dosageForm === 'INJECTION' ? 'STAT_IMMEDIATE' : 'TWICE_DAILY'),
+        durationDays: Number(p.durationDays) || 1,
+        timing: p.timing || 'AFTER_FOOD',
+        treatmentType: p.treatmentType || (['INJECTION', 'IV_FLUID'].includes(p.dosageForm) ? 'NURSE_ADMINISTERED' : 'ORAL_TAKE_HOME'),
+        unitPrice: Number(p.unitPrice) || 0,
+        price: Number(p.unitPrice) || 0,
+        quantity: Number(p.quantity) || 1,
+        totalPrice: Number(p.totalPrice) || 0,
+      }));
+
+    const validProcedureCharges = doctorProcedureCharges
+      .filter((p) => p.description && p.description.trim() !== '')
+      .map((p) => ({
+        description: p.description.trim(),
+        amount: Number(p.amount) || 0,
+      }));
+
     try {
       await axiosClient.post('/emr/consultations', {
         appointmentId: token._id,
         patientId: patient._id || patient.id,
-        chiefComplaints,
+        chiefComplaints: chiefComplaints.trim() || 'General Consultation',
         historyOfPresentIllness,
         prescriptions: validPrescriptions,
         consultationFee: Number(consultationFee) || 0,
         emergencyFee: Number(emergencyFee) || 0,
-        doctorProcedureCharges,
+        doctorProcedureCharges: validProcedureCharges,
         followUpDate: followUpDate || undefined,
         adviceToPatient,
         ipdRecommendation: recommendIpd
