@@ -13,6 +13,9 @@ import { useSocket } from '../../providers/SocketProvider';
 import { axiosClient } from '../../api/axiosClient';
 import { UserPlus, Ticket, IdCard, Users, HelpCircle, Stethoscope, AlertTriangle } from 'lucide-react';
 
+import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
+import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
+
 export const ReceptionDashboard = () => {
   const { user } = useAuthStore();
   const { isDualModeEligible } = useWorkspaceModeStore();
@@ -21,6 +24,9 @@ export const ReceptionDashboard = () => {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isTokenOpen, setIsTokenOpen] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+  const [tokenPatient, setTokenPatient] = useState(null);
+  const [historyPatientId, setHistoryPatientId] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [doctorQueueCounts, setDoctorQueueCounts] = useState({});
@@ -254,15 +260,48 @@ export const ReceptionDashboard = () => {
         </div>
       </Card>
 
+      {/* Follow-Up Visits & Missed Appointments Monitor */}
+      <FollowUpVisitsSection
+        onIssueToken={(patient) => {
+          setTokenPatient(patient);
+          setSelectedDoctorId(null);
+          setIsTokenOpen(true);
+        }}
+        onViewHistory={(id) => {
+          setHistoryPatientId(id);
+          setIsHistoryOpen(true);
+        }}
+      />
+
       <RegisterPatientModal
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
         onSuccess={fetchData}
         onIssueToken={(pat) => {
+          setTokenPatient(pat);
           setIsTokenOpen(true);
         }}
       />
-      <IssueTokenModal isOpen={isTokenOpen} onClose={() => setIsTokenOpen(false)} onSuccess={fetchData} initialDoctorId={selectedDoctorId} />
+
+      <IssueTokenModal
+        isOpen={isTokenOpen}
+        onClose={() => {
+          setIsTokenOpen(false);
+          setTokenPatient(null);
+        }}
+        onSuccess={fetchData}
+        initialDoctorId={selectedDoctorId}
+        initialPatient={tokenPatient}
+      />
+
+      <PatientHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          setIsHistoryOpen(false);
+          setHistoryPatientId(null);
+        }}
+        initialIdentifier={historyPatientId}
+      />
     </div>
   );
 };

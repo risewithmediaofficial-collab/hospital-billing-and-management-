@@ -564,8 +564,37 @@ export const NurseInchargeDashboard = () => {
                     <p className="text-slate-700">
                       Patient: <strong>{t.patientId?.firstName} {t.patientId?.lastName}</strong> (UHID: {t.patientId?.uhid || 'N/A'})
                     </p>
-                    <p className="text-slate-500">Dr. {t.doctorId?.name} · Instructions: {t.doctorInstructions || 'Administer as scheduled'}</p>
+                    <p className="text-slate-500">
+                      Dr. {t.doctorId?.name} &bull; Instructions: {t.doctorInstructions || 'Administer as scheduled'}
+                      {t.assignedNurseId?.name && ` • Assigned: ${t.assignedNurseId.name}`}
+                    </p>
                   </div>
+
+                  {t.status !== 'ADMINISTERED' ? (
+                    <Button
+                      size="sm"
+                      variant="success"
+                      onClick={async () => {
+                        try {
+                          await axiosClient.patch(`/pharmacy/nurse-tasks/${t._id}/status`, {
+                            status: 'ADMINISTERED',
+                            notes: 'Administered by duty nurse',
+                          });
+                          fetchData();
+                          fetchPendingWork();
+                        } catch (e) {
+                          console.error('Failed to update task:', e);
+                        }
+                      }}
+                      className="gap-1.5"
+                    >
+                      <CheckCircle2 size={13} /> Mark Administered
+                    </Button>
+                  ) : (
+                    <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                      <CheckCircle2 size={14} /> Completed
+                    </span>
+                  )}
                 </div>
               ))
             ) : (

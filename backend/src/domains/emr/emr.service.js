@@ -345,6 +345,8 @@ export class EmrService {
         invoiceId: invoice._id,
         invoiceNo,
         patientName,
+        uhid: patObj?.uhid || 'N/A',
+        doctorName: user.name || 'Doctor',
         grandTotal: subtotal,
         linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
       }, brId);
@@ -371,19 +373,96 @@ export class EmrService {
     };
   }
 
-  static async getPatientEhr(patientId, user) {
-    const patient = await Patient.findById(patientId);
-    if (!patient) {
-      throw new ApiError(404, 'Patient record not found', null, 'NOT_FOUND');
+  static async getPatientEhr(identifier, user) {
+    let patient = null;
+    const { mongoose } = await import('mongoose');
+    const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
+    const { NurseTask } = await import('../../models/NurseTask.js');
+
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      patient = await Patient.findById(identifier);
+    }
+    if (!patient && identifier) {
+      const clean = String(identifier).trim();
+      patient = await Patient.findOne({
+        $or: [
+          { uhid: clean },
+          { uhid: { $regex: `^${clean}$`, $options: 'i' } },
+          { phone: clean },
+          { phone: { $regex: clean.replace(/\D/g, '').slice(-10), $options: 'i' } },
+        ],
+      });
     }
 
-    const consultations = await Consultation.find({ patientId }).populate('doctorId').sort({ createdAt: -1 });
-    const prescriptions = await Prescription.find({ patientId }).populate('doctorId').sort({ createdAt: -1 });
+    if (!patient) {
+      throw new ApiError(404, 'Patient record not found for this UHID / Phone / ID', null, 'NOT_FOUND');
+    }
+
+    const patientId = patient._id;
+    const [consultations, prescriptions, diagnosticOrders, nurseTasks, invoices] = await Promise.all([
+      Consultation.find({ patientId }).populate('doctorId', 'name specialization cabinNo').sort({ createdAt: -1 }),
+      Prescription.find({ patientId }).populate('doctorId', 'name specialization').sort({ createdAt: -1 }),
+      DiagnosticOrder.find({ patientId }).sort({ createdAt: -1 }),
+      NurseTask.find({ patientId }).populate('assignedNurseId', 'name').sort({ createdAt: -1 }),
+      Invoice.find({ patientId }).sort({ createdAt: -1 }),
+    ]);
 
     return {
       patient,
       consultations,
       prescriptions,
+      diagnosticOrders,
+      nurseTasks,
+      invoices,
     };
+  }
+
+  static async getFollowUps(user, query = {}) {
+    const filter = { followUpDate: { $exists: true, $ne: null } };
+    if (user?.hospitalId) {
+      const hId = typeof user.hospitalId === 'object' ? user.hospitalId._id : user.hospitalId;
+      filter.hospitalId = hId;
+    }
+    if (user?.role === 'DOCTOR' && user?.id) {
+      filter.doctorId = user.id;
+    }
+
+    const consultations = await Consultation.find(filter)
+      .populate('patientId', 'firstName lastName uhid phone age gender')
+      .populate('doctorId', 'name specialization cabinNo')
+      .sort({ followUpDate: 1 })
+      .lean();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const enriched = await Promise.all(
+      consultations.map(async (c) => {
+        if (!c.patientId) return null;
+        const fDate = new Date(c.followUpDate);
+        fDate.setHours(0, 0, 0, 0);
+
+        // Check if patient returned and completed an appointment on or after followUpDate
+        const attendedVisit = await Appointment.findOne({
+          patientId: c.patientId._id,
+          createdAt: { $gte: fDate },
+          status: { $in: ['COMPLETED', 'ENGAGED', 'IN_CONSULTATION'] },
+        }).lean();
+
+        const isOverdue = fDate < today && !attendedVisit;
+        const isToday = fDate.getTime() === today.getTime() && !attendedVisit;
+        const isUpcoming = fDate > today && !attendedVisit;
+        const followUpStatus = attendedVisit ? 'VISITED' : isOverdue ? 'MISSED_OVERDUE' : isToday ? 'TODAY' : 'UPCOMING';
+
+        return {
+          ...c,
+          followUpStatus,
+          isMissed: isOverdue,
+          attendedVisitId: attendedVisit?._id || null,
+        };
+      })
+    );
+
+    return enriched.filter(Boolean);
   }
 }

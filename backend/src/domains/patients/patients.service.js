@@ -10,30 +10,55 @@ export class PatientsService {
 
   /**
    * Check if a patient already exists in this hospital before registering.
-   * Returns matches by phone, email, nationalId, or name+dob combo.
+   * Supports family members (children/spouses) sharing the same mobile number with different DOB / Names.
+   * Only flags duplicates if exact same Person (Phone + DOB, Phone + Name, or Name + DOB) matches.
    */
   static async checkDuplicate(data, hospitalId) {
     const phone = String(data.phone || '').trim();
     const phoneDigits = phone.replace(/\D/g, '').slice(-10);
     const email = String(data.email || '').trim().toLowerCase();
     const nationalId = String(data.nationalId || '').trim();
+    const firstName = String(data.firstName || '').trim();
+    const lastName = String(data.lastName || '').trim();
+    const dob = data.dob ? new Date(data.dob) : null;
 
     const orConditions = [];
 
-    if (phoneDigits.length >= 8) {
-      orConditions.push({ phone: { $regex: phoneDigits, $options: 'i' } });
+    // Exact Match 1: Same Mobile AND Same Date of Birth
+    if (phoneDigits.length >= 8 && dob && !isNaN(dob.getTime())) {
+      orConditions.push({
+        phone: { $regex: phoneDigits, $options: 'i' },
+        dob: {
+          $gte: new Date(new Date(dob).setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date(dob).setHours(23, 59, 59, 999)),
+        },
+      });
     }
+
+    // Exact Match 2: Same Mobile AND Same First & Last Name
+    if (phoneDigits.length >= 8 && firstName) {
+      orConditions.push({
+        phone: { $regex: phoneDigits, $options: 'i' },
+        firstName: { $regex: `^${firstName.trim()}$`, $options: 'i' },
+        ...(lastName ? { lastName: { $regex: `^${lastName.trim()}$`, $options: 'i' } } : {}),
+      });
+    }
+
+    // Exact Match 3: Same Email
     if (email) orConditions.push({ email });
+
+    // Exact Match 4: Same National ID / Aadhar
     if (nationalId) orConditions.push({ nationalId });
 
-    // Name + DOB combo
-    if (data.firstName && data.dob) {
+    // Exact Match 5: Same Full Name AND Same DOB (even if phone is formatted differently)
+    if (firstName && dob && !isNaN(dob.getTime())) {
       orConditions.push({
-        firstName: { $regex: data.firstName.trim(), $options: 'i' },
+        firstName: { $regex: `^${firstName.trim()}$`, $options: 'i' },
+        ...(lastName ? { lastName: { $regex: `^${lastName.trim()}$`, $options: 'i' } } : {}),
         dob: {
-          $gte: new Date(new Date(data.dob).setHours(0, 0, 0, 0)),
-          $lte: new Date(new Date(data.dob).setHours(23, 59, 59, 999))
-        }
+          $gte: new Date(new Date(dob).setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date(dob).setHours(23, 59, 59, 999)),
+        },
       });
     }
 
@@ -112,7 +137,43 @@ export class PatientsService {
       throw new ApiError(422, 'Patient mobile number is required.', null, 'VALIDATION_ERROR');
     }
 
-    // --- DUPLICATE CHECK (unless allowForce is set) ---
+    // --- 1. STRICT EXACT DUPLICATE CHECK (Same Mobile AND Same Date of Birth) ---
+    // A single mobile number can have multiple family members (e.g. children with different DOBs),
+    // but the EXACT SAME Person (Same Phone + Same DOB) is strictly rejected to prevent duplicate accounts.
+    const phoneDigits = patientPhone.replace(/\D/g, '').slice(-10);
+    if (phoneDigits.length >= 8 && data.dob) {
+      const dobDate = new Date(data.dob);
+      if (!isNaN(dobDate.getTime())) {
+        const exactDuplicate = await Patient.findOne({
+          hospitalId,
+          phone: { $regex: phoneDigits, $options: 'i' },
+          dob: {
+            $gte: new Date(new Date(dobDate).setHours(0, 0, 0, 0)),
+            $lte: new Date(new Date(dobDate).setHours(23, 59, 59, 999)),
+          },
+        });
+
+        if (exactDuplicate) {
+          const err = new ApiError(
+            409,
+            `A patient with Mobile ${patientPhone} and Date of Birth ${dobDate.toLocaleDateString()} is already registered as ${exactDuplicate.firstName} ${exactDuplicate.lastName} (UHID: ${exactDuplicate.uhid}). Duplicate registration is not permitted.`,
+            [{
+              _id: exactDuplicate._id,
+              uhid: exactDuplicate.uhid,
+              firstName: exactDuplicate.firstName,
+              lastName: exactDuplicate.lastName,
+              phone: exactDuplicate.phone,
+              dob: exactDuplicate.dob,
+            }],
+            'EXACT_DUPLICATE_FORBIDDEN'
+          );
+          err.exactDuplicate = true;
+          throw err;
+        }
+      }
+    }
+
+    // --- 2. SOFT DUPLICATE CHECK (unless allowForce is set) ---
     if (!data.allowForce) {
       const duplicates = await PatientsService.checkDuplicate({ ...data, phone: patientPhone }, hospitalId);
       if (duplicates.length > 0) {

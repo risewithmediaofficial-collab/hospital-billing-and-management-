@@ -4,10 +4,12 @@ import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
-import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info, Printer } from 'lucide-react';
 
 export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = null, initialDoctorId = null }) => {
   useScrollLock(isOpen);
+  const { user } = useAuthStore();
   const { socket } = useSocket();
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -133,6 +135,66 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
     onClose();
   };
 
+  const handlePrintToken = () => {
+    if (!issuedToken) return;
+    const printWindow = window.open('', '', 'width=450,height=650');
+    const docName = issuedToken.doctorId?.name || selectedDoctor?.name || 'Assigned OPD Doctor';
+    const hospName = user?.hospitalName || 'HOSPITAL MEDICAL CENTER';
+    const issueTime = new Date(issuedToken.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const issueDate = new Date(issuedToken.createdAt || Date.now()).toLocaleDateString();
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>OPD Token #${issuedToken.tokenNumber} - ${issuedToken.patientName}</title>
+          <style>
+            @page { size: 80mm auto; margin: 4mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 10px; margin: 0; text-align: center; color: #0f172a; background: #fff; }
+            .token-card { border: 2px dashed #64748b; border-radius: 12px; padding: 14px; margin: auto; max-width: 320px; box-sizing: border-box; }
+            .hosp-title { font-size: 16px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+            .sub-title { font-size: 10px; color: #475569; font-weight: 700; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+            .divider { border-bottom: 1px solid #cbd5e1; margin: 10px 0; }
+            .token-label { font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; }
+            .token-num { font-size: 56px; font-weight: 900; color: #3730a3; margin: 4px 0; line-height: 1; font-family: monospace; }
+            .cabin-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 800; margin-top: 4px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 12px; line-height: 1.6; margin-top: 12px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+            .info-label { color: #64748b; font-weight: 600; }
+            .info-val { font-weight: 700; color: #0f172a; }
+            .uhid-val { font-family: monospace; font-weight: 900; color: #4338ca; }
+            .footer-msg { font-size: 10px; color: #64748b; margin-top: 12px; line-height: 1.4; }
+            @media print {
+              body { padding: 0; }
+              .token-card { border: 1px solid #000; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="token-card">
+            <h2 class="hosp-title">${hospName}</h2>
+            <div class="sub-title">OPD Queue Token Slip</div>
+            <div class="divider"></div>
+            <div class="token-label">YOUR TOKEN NUMBER</div>
+            <div class="token-num">#${issuedToken.tokenNumber}</div>
+            <div class="cabin-badge">Cabin: ${issuedToken.cabinNo || selectedDoctor?.cabinNo || 'OPD 1'}</div>
+            <div class="info-box">
+              <div class="info-row"><span class="info-label">Patient:</span> <span class="info-val">${issuedToken.patientName}</span></div>
+              <div class="info-row"><span class="info-label">UHID:</span> <span class="uhid-val">${issuedToken.uhid}</span></div>
+              <div class="info-row"><span class="info-label">Doctor:</span> <span class="info-val">${docName}</span></div>
+              <div class="info-row"><span class="info-label">Date & Time:</span> <span class="info-val">${issueDate} ${issueTime}</span></div>
+            </div>
+            <div class="footer-msg">Please wait in the reception lobby.<br/>Your token will be announced shortly.</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="modal-overlay animate-fade-in">
       <div className="modal-container max-w-lg" onClick={(e) => e.stopPropagation()}>
@@ -156,22 +218,56 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
         {/* Scrollable Body */}
         <div className="modal-body">
           {issuedToken ? (
-            <div className="text-center space-y-4 py-4">
-              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-                <CheckCircle size={30} />
+            <div className="text-center space-y-4 py-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+                <CheckCircle size={26} />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">OPD Token Issued & Broadcasted!</h3>
-              <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-center">
-                <span className="text-xs text-indigo-500 uppercase font-bold tracking-widest">Token Number</span>
-                <p className="text-5xl font-black text-indigo-700 mt-1 tabular-nums">#{issuedToken.tokenNumber}</p>
-                <p className="text-xs text-slate-600 mt-2">
-                  Assigned Doctor: <span className="text-indigo-700 font-bold">{issuedToken.doctorId?.name || 'Assigned OPD Doctor'}</span>
-                  {issuedToken.cabinNo && <> ({issuedToken.cabinNo})</>}
-                </p>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">OPD Token Issued & Broadcasted!</h3>
+                <p className="text-xs text-slate-500 mt-0.5">The doctor's queue and live display have been updated.</p>
               </div>
-              <Button variant="primary" className="w-full font-bold" onClick={handleReset}>
-                Done & Print Token Slip
-              </Button>
+
+              {/* Token Slip Preview Card */}
+              <div className="p-4 rounded-xl bg-white border-2 border-dashed border-indigo-200 text-center shadow-xs space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">{user?.hospitalName || 'HOSPITAL CLINIC'}</p>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase">OPD Token Card</p>
+                </div>
+                <div>
+                  <span className="text-[11px] text-indigo-500 uppercase font-extrabold tracking-widest">Token Number</span>
+                  <p className="text-5xl font-black text-indigo-700 mt-1 tabular-nums">#{issuedToken.tokenNumber}</p>
+                  <span className="inline-block mt-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    Cabin: {issuedToken.cabinNo || selectedDoctor?.cabinNo || 'OPD 1'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Patient:</span>
+                    <span className="font-bold text-slate-900">{issuedToken.patientName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">UHID:</span>
+                    <span className="font-mono font-black text-indigo-700">{issuedToken.uhid}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Doctor:</span>
+                    <span className="font-semibold text-slate-800">{issuedToken.doctorId?.name || selectedDoctor?.name || 'Assigned Doctor'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button variant="outline" className="w-full font-bold text-xs" onClick={handleReset}>
+                  Close & Done
+                </Button>
+                <Button
+                  variant="primary"
+                  className="w-full font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm"
+                  onClick={handlePrintToken}
+                >
+                  <Printer size={15} /> Print Token Card
+                </Button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">

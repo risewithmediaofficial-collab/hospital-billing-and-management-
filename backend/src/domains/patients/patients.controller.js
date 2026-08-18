@@ -6,14 +6,15 @@ export const registerPatient = async (req, res, next) => {
     const patient = await PatientsService.registerPatient(req.body, req.user);
     return sendSuccess(res, 201, 'Patient registered successfully', patient);
   } catch (error) {
-    // 409 Possible Duplicate — return it as a structured response, not a 500
-    if (error.statusCode === 409 || error.possibleDuplicate) {
+    // 409 Duplicate / Conflict — return it as a structured response, not a 500
+    if (error.statusCode === 409 || error.possibleDuplicate || error.exactDuplicate) {
       return res.status(409).json({
         success: false,
         statusCode: 409,
         message: error.message,
-        code: 'POSSIBLE_DUPLICATE',
-        possibleDuplicate: true,
+        code: error.code || (error.exactDuplicate ? 'EXACT_DUPLICATE_FORBIDDEN' : 'POSSIBLE_DUPLICATE'),
+        possibleDuplicate: Boolean(error.possibleDuplicate),
+        exactDuplicate: Boolean(error.exactDuplicate),
         existingRecords: error.errors || [],
       });
     }

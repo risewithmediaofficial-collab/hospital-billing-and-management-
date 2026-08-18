@@ -97,82 +97,86 @@ const TARGET_ROLES = {
   [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:        ['HOSPITAL_ADMIN'],
 };
 
+// ─── Clean formatting helper to avoid "undefined" strings in notification UI ──
+const safeDoc = (name) => (name && name !== 'undefined' ? (name.startsWith('Dr.') ? name : `Dr. ${name}`) : 'Doctor');
+const safePat = (name, uhid) => `${name && name !== 'undefined' ? name : 'Patient'}${uhid && uhid !== 'undefined' && uhid !== 'N/A' ? ` (${uhid})` : ''}`;
+
 // ─── Human-readable notification messages for each event ─────────────────────
 const MESSAGE_TEMPLATES = {
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:
-    (p) => ({ title: 'New Patient in Queue', message: `${p.patientName} (${p.uhid}) has been assigned Token #${p.tokenNumber} and is waiting for consultation.`, type: 'WORKFLOW' }),
+    (p) => ({ title: 'New Patient in Queue', message: `${safePat(p.patientName, p.uhid)} has been assigned Token #${p.tokenNumber || '1'} and is waiting for consultation.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:
-    (p) => ({ title: 'Patient Re-queued', message: `${p.patientName} (${p.uhid}) token has been re-queued. Please attend.`, type: 'WORKFLOW' }),
+    (p) => ({ title: 'Patient Re-queued', message: `${safePat(p.patientName, p.uhid)} token has been re-queued. Please attend.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:
-    (p) => ({ title: 'Doctor Accepted Patient', message: `Dr. ${p.doctorName} has accepted ${p.patientName} (${p.uhid}) for consultation.`, type: 'WORKFLOW' }),
+    (p) => ({ title: 'Doctor Accepted Patient', message: `${safeDoc(p.doctorName)} has accepted ${safePat(p.patientName, p.uhid)} for consultation.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:
-    (p) => ({ title: '✅ Consultation Completed — Bill Ready', message: `Dr. ${p.doctorName} completed the consultation for ${p.patientName} (${p.uhid}). Generate the invoice now.`, type: 'WORKFLOW' }),
+    (p) => ({ title: '✅ Consultation Completed — Bill Ready', message: `${safeDoc(p.doctorName)} completed the consultation for ${safePat(p.patientName, p.uhid)}. Generate the invoice now.`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:
-    (p) => ({ title: '🔬 New Lab Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}). Please process and upload results.`, type: 'NEW_DATA' }),
+    (p) => ({ title: '🔬 New Lab Request', message: `${safeDoc(p.doctorName)} has requested ${p.testName || 'Diagnostic Investigation'} for ${safePat(p.patientName, p.uhid)}. Please process and upload results.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:
-    (p) => ({ title: '🩻 New Radiology Request', message: `Dr. ${p.doctorName} has requested ${p.testName} for ${p.patientName} (${p.uhid}). Please process and upload scan.`, type: 'NEW_DATA' }),
+    (p) => ({ title: '🩻 New Radiology Request', message: `${safeDoc(p.doctorName)} has requested ${p.testName || 'Radiology Scan'} for ${safePat(p.patientName, p.uhid)}. Please process and upload scan.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.LAB_ACCEPTED]:
-    (p) => ({ title: '🔬 Lab Accepted Your Request', message: `Laboratory has accepted the ${p.testName} request for ${p.patientName}. Sample is being processed.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '🔬 Lab Accepted Your Request', message: `Laboratory has accepted the ${p.testName || 'test'} request for ${safePat(p.patientName, p.uhid)}. Sample is being processed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.LAB_SUBMITTED]:
-    (p) => ({ title: '🔬 Lab Report Ready — Review Required', message: `Lab results for ${p.testName} (${p.patientName}) are ready. Please review and accept to proceed.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '🔬 Lab Report Ready — Review Required', message: `Lab results for ${p.testName || 'Investigation'} (${safePat(p.patientName, p.uhid)}) are ready. Please review and accept to proceed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED]:
-    (p) => ({ title: '🩻 Radiology Accepted Your Request', message: `Radiology dept accepted the ${p.testName} scan request for ${p.patientName}. Scan in progress.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '🩻 Radiology Accepted Your Request', message: `Radiology dept accepted the ${p.testName || 'scan'} request for ${safePat(p.patientName, p.uhid)}. Scan in progress.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:
-    (p) => ({ title: '🩻 Radiology Scan Ready — Review Required', message: `${p.testName} scan for ${p.patientName} is ready. Please review and accept to continue treatment.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '🩻 Radiology Scan Ready — Review Required', message: `${p.testName || 'Radiology'} scan for ${safePat(p.patientName, p.uhid)} is ready. Please review and accept to continue treatment.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:
-    (p) => ({ title: 'Doctor Reviewed Lab Report', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} report for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: 'Doctor Reviewed Lab Report', message: `${safeDoc(p.doctorName)} has reviewed and accepted the ${p.testName || 'test'} report for ${safePat(p.patientName, p.uhid)}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]:
-    (p) => ({ title: 'Doctor Reviewed Scan', message: `Dr. ${p.doctorName} has reviewed and accepted the ${p.testName} scan for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: 'Doctor Reviewed Scan', message: `${safeDoc(p.doctorName)} has reviewed and accepted the ${p.testName || 'scan'} for ${safePat(p.patientName, p.uhid)}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]:
-    (p) => ({ title: '💊 New Prescription Received', message: `Dr. ${p.doctorName} has issued a prescription for ${p.patientName} (${p.uhid}). Please dispense medicines.`, type: 'NEW_DATA' }),
+    (p) => ({ title: '💊 New Prescription Received', message: `${safeDoc(p.doctorName)} has issued a prescription for ${safePat(p.patientName, p.uhid)}. Please dispense medicines.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.PHARMACY_ACCEPTED]:
-    (p) => ({ title: '💊 Pharmacy Accepted Prescription', message: `Pharmacy has accepted the prescription for ${p.patientName} and is preparing medicines.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '💊 Pharmacy Accepted Prescription', message: `Pharmacy has accepted the prescription for ${safePat(p.patientName, p.uhid)} and is preparing medicines.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PHARMACY_DISPENSED]:
-    (p) => ({ title: '💊 Medicines Dispensed', message: `Pharmacy has dispensed all medicines for ${p.patientName} (${p.uhid}). Encounter can be closed.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '💊 Medicines Dispensed', message: `Pharmacy has dispensed all medicines for ${safePat(p.patientName, p.uhid)}. Encounter can be closed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.BILL_REQUESTED]:
-    (p) => ({ title: '🧾 Bill Generation Requested', message: `Bill generation requested for ${p.patientName} (${p.uhid}). Please generate the invoice.`, type: 'NEW_DATA' }),
+    (p) => ({ title: '🧾 Bill Generation Requested', message: `Bill generation requested for ${safePat(p.patientName, p.uhid)}. Please generate the invoice.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.BILL_READY]:
-    (p) => ({ title: '🧾 Invoice Generated', message: `Invoice #${p.invoiceNo || ''} has been created for ${p.patientName} (${p.uhid}).`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '🧾 Invoice Generated', message: `Invoice #${p.invoiceNo || ''} has been created for ${safePat(p.patientName, p.uhid)}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.PAYMENT_COLLECTED]:
-    (p) => ({ title: '💰 Payment Collected', message: `Payment has been collected for ${p.patientName} (${p.uhid}). This encounter is now closed.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '💰 Payment Collected', message: `Payment has been collected for ${safePat(p.patientName, p.uhid)}. This encounter is now closed.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]:
-    (p) => ({ title: '🏥 Nurse Request', message: `Nurse raised a ${p.requestType} request for patient in ${p.location}. Please attend.`, type: 'NEW_DATA' }),
+    (p) => ({ title: '🏥 Nurse Request', message: `Nurse raised a ${p.requestType || 'treatment'} request for patient in ${p.location || 'OPD/Ward'}. Please attend.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]:
-    (p) => ({ title: '✅ Nurse Request Completed', message: `Nurse has completed the ${p.requestType} request for ${p.patientName}.`, type: 'DEPT_RESPONSE' }),
+    (p) => ({ title: '✅ Nurse Request Completed', message: `Nurse has completed the ${p.requestType || 'treatment'} request for ${safePat(p.patientName, p.uhid)}.`, type: 'DEPT_RESPONSE' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
-    (p) => ({ title: '🚨 EMERGENCY ALERT', message: `${p.emergencyType} emergency raised at ${p.location} by ${p.raisedBy}. Patient: ${p.patientName || 'Unknown'}. Report immediately!`, type: 'EMERGENCY' }),
+    (p) => ({ title: '🚨 EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Report immediately!`, type: 'EMERGENCY' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
-    (p) => ({ title: '✅ Emergency Resolved', message: `Emergency at ${p.location} has been resolved by ${p.resolvedBy}.`, type: 'SYSTEM_ALERT' }),
+    (p) => ({ title: '✅ Emergency Resolved', message: `Emergency at ${p.location || 'Facility'} has been resolved by ${p.resolvedBy || 'Medical Team'}.`, type: 'SYSTEM_ALERT' }),
 
   [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]:
-    (p) => ({ title: '🏥 IPD Admission Recommended', message: `Dr. ${p.doctorName || 'Doctor'} recommended IPD Inpatient Admission for ${p.patientName} (${p.uhid}) to ${p.wardType || 'General Ward'}. Priority: ${p.priority || 'Normal'}. Reason: ${p.reason || 'Clinical Observation'}`, type: 'WORKFLOW' }),
+    (p) => ({ title: '🏥 IPD Admission Recommended', message: `${safeDoc(p.doctorName)} recommended IPD Inpatient Admission for ${safePat(p.patientName, p.uhid)} to ${p.wardType || 'General Ward'}. Priority: ${p.priority || 'Normal'}. Reason: ${p.reason || 'Clinical Observation'}`, type: 'WORKFLOW' }),
 
   [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:
-    (p) => ({ title: '⚠️ Staff Offline', message: `${p.staffName} (${p.role}) has gone offline. Patients cannot be assigned to them until they go back online.`, type: 'SYSTEM_ALERT' }),
+    (p) => ({ title: '⚠️ Staff Offline', message: `${p.staffName || 'Staff Member'} (${p.role || 'Staff'}) has gone offline. Patients cannot be assigned to them until they go back online.`, type: 'SYSTEM_ALERT' }),
 
   [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:
-    (p) => ({ title: '✅ Staff Back Online', message: `${p.staffName} (${p.role}) is now online and available for assignments.`, type: 'SYSTEM_ALERT' }),
+    (p) => ({ title: '✅ Staff Back Online', message: `${p.staffName || 'Staff Member'} (${p.role || 'Staff'}) is now online and available for assignments.`, type: 'SYSTEM_ALERT' }),
 };
 
 // ─── Notification type → DB type mapping ─────────────────────────────────────

@@ -139,8 +139,12 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
             <Bell size={16} />
           </div>
           <div>
-            <h3 className="font-bold text-sm leading-tight">Notifications Center</h3>
-            <p className="text-[10px] text-slate-300">Real-time department responses & diagnostic alerts</p>
+            <h3 className="font-bold text-sm leading-tight">
+              {user?.role === 'SUPER_ADMIN' ? 'Platform Control Center' : 'Notifications Center'}
+            </h3>
+            <p className="text-[10px] text-slate-300">
+              {user?.role === 'SUPER_ADMIN' ? 'Hospital subscriptions, platform revenue & logins' : 'Real-time department responses & diagnostic alerts'}
+            </p>
           </div>
         </div>
         {unreadCount > 0 && (
@@ -172,39 +176,45 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       {/* Notification List */}
       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
         {uniqueNotifications.length > 0 ? (
-          uniqueNotifications.map((notif) => (
-            <div
-              key={notif.id}
-              onClick={() => handleNotificationClick(notif)}
-              className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 flex items-start justify-between gap-2 text-xs ${
-                !notif.isRead ? 'bg-indigo-50/30' : 'bg-white'
-              }`}
-            >
-              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                  !notif.isRead ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  <FileCheck2 size={16} />
-                </div>
-                <div className="min-w-0 space-y-0.5 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-slate-900 text-xs truncate">{notif.title}</span>
-                    {!notif.isRead && (
-                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                    )}
+          uniqueNotifications.map((notif) => {
+            const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+            const hasValidPatient = notif.patientName && notif.patientName !== 'Patient' && notif.patientName !== 'undefined' && notif.uhid && notif.uhid !== 'N/A';
+
+            return (
+              <div
+                key={notif.id}
+                onClick={() => handleNotificationClick(notif)}
+                className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 flex items-start justify-between gap-2 text-xs ${
+                  !notif.isRead ? 'bg-indigo-50/30' : 'bg-white'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                    !notif.isRead ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <FileCheck2 size={16} />
                   </div>
-                  <p className="font-semibold text-slate-700 text-[11px] truncate">
-                    Patient: {notif.patientName} ({notif.uhid})
-                  </p>
-                  {notif.message && (
-                    <p className="text-slate-500 text-[10px] line-clamp-2">{notif.message}</p>
-                  )}
-                  <p className="text-[9px] text-slate-400 font-medium flex items-center gap-1 pt-0.5">
-                    <Clock size={10} />
-                    {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                  </p>
+                  <div className="min-w-0 space-y-0.5 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-slate-900 text-xs truncate">{notif.title}</span>
+                      {!notif.isRead && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                      )}
+                    </div>
+                    {!isSuperAdmin && hasValidPatient && (
+                      <p className="font-semibold text-slate-700 text-[11px] truncate">
+                        Patient: {notif.patientName} ({notif.uhid})
+                      </p>
+                    )}
+                    {notif.message && (
+                      <p className="text-slate-500 text-[10px] line-clamp-2">{notif.message}</p>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-medium flex items-center gap-1 pt-0.5">
+                      <Clock size={10} />
+                      {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
               <div className="flex items-center gap-1 shrink-0 self-center">
                 <button
@@ -222,7 +232,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
                 <ChevronRight size={14} className="text-slate-300" />
               </div>
             </div>
-          ))
+            );
+          })
         ) : (
           <div className="p-8 text-center text-slate-400 space-y-2">
             <Inbox size={28} className="mx-auto text-slate-300" />

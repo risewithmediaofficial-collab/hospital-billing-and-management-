@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema(
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true, default: null },
 
     recipientUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
-    recipientRole: { type: String, index: true, default: 'ALL' },
+    recipientRole: { type: String, index: true, default: null },
     recipientDepartment: { type: String, index: true, default: '' },
 
     notificationType: { type: String, index: true, default: 'WORKFLOW_ALERT' },

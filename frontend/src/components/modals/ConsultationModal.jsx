@@ -67,6 +67,17 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [errorMsg, setErrorMsg] = useState(null);
 
   const [pharmacyBilledPrescriptions, setPharmacyBilledPrescriptions] = useState([]);
+  const [availableNurses, setAvailableNurses] = useState([]);
+
+  const fetchAvailableNurses = async () => {
+    try {
+      const res = await axiosClient.get('/pharmacy/available-nurses');
+      const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+      setAvailableNurses(list);
+    } catch (err) {
+      console.warn('Failed to load available nurses list:', err);
+    }
+  };
 
   const fetchInventory = async () => {
     try {
@@ -105,6 +116,10 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       console.error('Failed to load pharmacy billed prescriptions:', err);
     }
   }, [patient]);
+
+  useEffect(() => {
+    fetchAvailableNurses();
+  }, []);
 
   useEffect(() => {
     if (isOpen && token) {
@@ -213,8 +228,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         frequency: 'STAT_IMMEDIATE',
         durationDays: 1,
         timing: 'STAT',
-        treatmentType: 'DOCTOR_ADMINISTERED_NOW',
-        instructions: 'Administer in-cabin by doctor',
+        treatmentType: 'NURSE_ADMINISTERED',
+        assignedNurseId: 'AUTO_ASSIGN',
+        instructions: 'Nurse IV/IM administration',
         externalPurchaseRequired: false,
         unitPrice: 0,
         quantity: 1,
@@ -231,12 +247,13 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       // Auto set treatment type based on dosage form if not manually chosen
       if (field === 'dosageForm') {
         if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
-          if (!['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
-            u[index].treatmentType = 'DOCTOR_ADMINISTERED_NOW';
+          if (!['NURSE_ADMINISTERED', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
+            u[index].treatmentType = 'NURSE_ADMINISTERED';
+            u[index].assignedNurseId = u[index].assignedNurseId || 'AUTO_ASSIGN';
           }
           u[index].quantity = 1;
         } else {
-          if (!['ORAL_TAKE_HOME', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
+          if (!['ORAL_TAKE_HOME', 'EXTERNAL_PURCHASE_OUTSIDE', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
             u[index].treatmentType = 'ORAL_TAKE_HOME';
           }
         }
@@ -252,7 +269,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].quantityManuallyEdited = true;
       }
 
-      const isSingleOrNurseTask = ['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType) || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
+      const isSingleOrNurseTask = u[index].treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
       const isOutside = u[index].treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || u[index].externalPurchaseRequired || pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY';
       
       const q = isSingleOrNurseTask ? 1 : Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
@@ -281,8 +298,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].unitPrice = p;
         u[index].price = p;
         if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
-          if (!['DOCTOR_ADMINISTERED_NOW', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
-            u[index].treatmentType = 'DOCTOR_ADMINISTERED_NOW';
+          if (!['NURSE_ADMINISTERED', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
+            u[index].treatmentType = 'NURSE_ADMINISTERED';
+            u[index].assignedNurseId = u[index].assignedNurseId || 'AUTO_ASSIGN';
           }
           u[index].quantity = 1;
           u[index].totalPrice = p;
@@ -420,11 +438,23 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Consultation Fee (₹)</label>
-                  <Input type="number" value={consultationFee} onChange={(e) => setConsultationFee(e.target.value)} />
+                  <Input
+                    type="number"
+                    min="0"
+                    onWheel={(e) => e.target.blur()}
+                    value={consultationFee}
+                    onChange={(e) => setConsultationFee(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Emergency Surcharge (₹)</label>
-                  <Input type="number" value={emergencyFee} onChange={(e) => setEmergencyFee(e.target.value)} />
+                  <Input
+                    type="number"
+                    min="0"
+                    onWheel={(e) => e.target.blur()}
+                    value={emergencyFee}
+                    onChange={(e) => setEmergencyFee(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -434,7 +464,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
                 <div>
                   <label className={labelClass}>Structured Prescription & Treatment Entry</label>
-                  <p className="text-[11px] text-slate-500">Supports solo doctor in-cabin treatments, multi-specialty ward nurse routing, and clinics without pharmacy.</p>
+                  <p className="text-[11px] text-slate-500">Supports duty nurse treatment routing, in-house pharmacy, and external prescriptions.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -452,50 +482,69 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       type="button"
                       onClick={() => setPharmacyMode('EXTERNAL_NO_INHOUSE_PHARMACY')}
                       className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all ${pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-                      title="Small Clinic / Outside Prescription Mode: Doctor writes prescription for patient to buy outside with ₹0 hospital medicine fee"
+                      title="Clinic has no in-house pharmacy. Generates outside take-home prescription with ₹0 added to hospital bill"
                     >
                       📄 Outside Rx (₹0 Added)
                     </button>
                   </div>
 
-                  <Button size="sm" variant="outline" type="button" onClick={handleAddMedicineRow} className="gap-1 font-bold text-xs">
-                    <Plus size={12} /> Add Oral Med
-                  </Button>
-                  <Button size="sm" variant="primary" type="button" onClick={handleAddInjectionTaskRow} className="gap-1 font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">
-                    <Syringe size={13} /> Add Injection / Treatment
-                  </Button>
+                  <button
+                    type="button"
+                    onClick={handleAddMedicineRow}
+                    className="px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-700 font-bold hover:bg-indigo-50 flex items-center gap-1 text-xs"
+                  >
+                    <Plus size={13} /> Add Oral Med
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddInjectionTaskRow}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1 text-xs shadow-xs"
+                    title="Add injection, IV fluid, or dressing task for duty nurse"
+                  >
+                    <Syringe size={13} /> + Nurse Injection / IV
+                  </button>
                 </div>
               </div>
 
-              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' && (
-                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
-                  <span>
-                    📄 <strong>Outside Prescription Mode Active</strong>: Prescribed medicines will be printed for patient take-home. <strong>₹0 medicine charges</strong> will be added to the hospital bill.
-                  </span>
-                  <span className="text-[10px] bg-emerald-200 text-emerald-950 font-bold px-2 py-0.5 rounded">Clinic / No-Pharmacy Setup</span>
-                </div>
-              )}
-
               <div className="space-y-3">
                 {prescriptions.map((med, idx) => {
-                  const matchMed = inventoryMedicines.find((m) => m.name === med.medicineName);
-                  const isOutOfStock = matchMed && (matchMed.totalQuantity ?? 0) === 0;
+                  const matchMed = inventoryMedicines.find((m) => m.name.toLowerCase() === med.medicineName.toLowerCase());
+                  const isOutOfStock = matchMed && (matchMed.totalQuantity ?? 0) <= 0;
+                  const isNurseTask = med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm);
 
                   return (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 shadow-xs">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-xl border space-y-2.5 transition-all ${
+                        isNurseTask ? 'bg-indigo-50/40 border-indigo-200' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      {/* Top Header for Nurse vs Oral */}
+                      {isNurseTask && (
+                        <div className="flex items-center justify-between pb-1 border-b border-indigo-100">
+                          <span className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
+                            <Syringe size={13} className="text-indigo-600" />
+                            Nurse Administration Task #{idx + 1} (Ward / Daycare / Treatment Room)
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            Dispatched to Nursing Station
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                          <label className="font-bold text-slate-600">Medicine Name / SKU</label>
+                          <label className="font-bold text-slate-600">Medicine / Injection Name *</label>
                           <input
                             type="text"
                             list={`med-list-${idx}`}
-                            placeholder="Type or select medicine..."
+                            placeholder="e.g. Inj. Paracetamol or Amoxicillin"
                             value={med.medicineName}
                             onChange={(e) => {
                               handleMedicineChange(idx, 'medicineName', e.target.value);
                               handleSelectInventoryMed(idx, e.target.value);
                             }}
-                            className="w-full p-2 border rounded text-xs font-bold text-slate-900 mt-1"
+                            className="w-full p-2 border rounded text-xs font-semibold mt-1"
                           />
                           <datalist id={`med-list-${idx}`}>
                             {inventoryMedicines.map((m) => (
@@ -540,8 +589,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                           >
                             {['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm) ? (
                               <>
-                                <option value="DOCTOR_ADMINISTERED_NOW">💉 Administer Now by Doctor (In-Cabin / Solo Clinic)</option>
-                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Dispatch to Nurse (Hospital Ward / Daycare)</option>
+                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Nurse Administration (Ward / Daycare Task)</option>
                                 <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Purchase (Patient Buys Outside - ₹0 Bill)</option>
                               </>
                             ) : (
@@ -549,8 +597,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                                 <option value="ORAL_TAKE_HOME">
                                   {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? '📄 Outside Prescription (Take-Home - ₹0 Bill)' : '🏥 In-House Hospital Pharmacy Dispense'}
                                 </option>
+                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Nurse Bedside / In-Clinic Administration</option>
                                 <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Pharmacy (Patient Buys Outside - ₹0 Bill)</option>
-                                <option value="DOCTOR_ADMINISTERED_NOW">💉 In-Cabin Dose by Doctor (Solo Practice)</option>
                               </>
                             )}
                           </select>
@@ -577,9 +625,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                         </div>
                       )}
 
-                      {/* Injections & Nurse Tasks vs Oral Medicines Calculation Row */}
-                      {med.treatmentType === 'NURSE_ADMINISTERED' || med.treatmentType === 'DOCTOR_ADMINISTERED_NOW' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm) ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-200 items-center text-xs">
+                      {/* Injections & Nurse Tasks: Smart Nurse Assignment & Fee */}
+                      {isNurseTask ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-200 items-center text-xs">
                           <div>
                             <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Required Dose / Volume:</label>
                             <input
@@ -592,6 +640,24 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                           </div>
 
                           <div>
+                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Assigned Duty Nurse:</label>
+                            <select
+                              value={med.assignedNurseId || 'AUTO_ASSIGN'}
+                              onChange={(e) => handleMedicineChange(idx, 'assignedNurseId', e.target.value)}
+                              className="w-full px-2 py-1 border border-indigo-300 rounded text-xs font-bold text-indigo-950 bg-white truncate"
+                            >
+                              <option value="AUTO_ASSIGN">
+                                ✨ Auto-Assign ({availableNurses[0]?.name ? `Recommended: ${availableNurses[0]?.name} • ${availableNurses[0]?.activeTaskCount ?? 0} tasks` : 'Least Loaded Nurse'})
+                              </option>
+                              {availableNurses.map((nurse, nIdx) => (
+                                <option key={nurse.id || nurse._id} value={nurse.id || nurse._id}>
+                                  {nIdx === 0 ? '⭐ ' : ''}{nurse.name} ({nurse.isAvailable ? '🟢 Available' : '🔴 Offline'} • {nurse.activeTaskCount} tasks){nIdx === 0 ? ' — RECOMMENDED' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
                             <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Administration Fee / Price (₹):</label>
                             <div className="relative">
                               <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
@@ -599,6 +665,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                                 type="number"
                                 step="0.5"
                                 min="0"
+                                onWheel={(e) => e.target.blur()}
                                 value={med.unitPrice !== undefined ? med.unitPrice : 0}
                                 onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
                                 placeholder="0"
@@ -621,6 +688,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                             <input
                               type="number"
                               min="1"
+                              onWheel={(e) => e.target.blur()}
                               value={med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2))}
                               onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
                               className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-black text-slate-900 bg-white"
@@ -635,6 +703,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                                 type="number"
                                 step="0.5"
                                 min="0"
+                                onWheel={(e) => e.target.blur()}
                                 value={med.unitPrice !== undefined ? med.unitPrice : 0}
                                 onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
                                 placeholder="0"
@@ -655,7 +724,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       <div className="flex items-center justify-between pt-1">
                         <input
                           type="text"
-                          placeholder="Instructions (e.g. After food)..."
+                          placeholder="Instructions (e.g. After food, or IV site instructions)..."
                           value={med.instructions}
                           onChange={(e) => handleMedicineChange(idx, 'instructions', e.target.value)}
                           className="w-4/5 p-1.5 border rounded text-xs"
@@ -798,6 +867,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       <input
                         type="number"
                         min="1"
+                        onWheel={(e) => e.target.blur()}
                         value={ipdData.estimatedStayDays}
                         onChange={(e) => setIpdData({ ...ipdData, estimatedStayDays: e.target.value })}
                         className="w-full p-2 bg-white border border-purple-300 rounded-lg font-bold text-slate-800"

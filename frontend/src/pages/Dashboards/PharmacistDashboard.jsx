@@ -48,6 +48,8 @@ export const PharmacistDashboard = () => {
   const activeTab = getActiveTabFromPath(location.pathname);
   const [prescriptions, setPrescriptions] = useState([]);
   const [medicines, setMedicines] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [adjustments, setAdjustments] = useState([]);
   const [alerts, setAlerts] = useState({ lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
   const [stockAdjustments, setStockAdjustments] = useState([]);
   const [substitutions, setSubstitutions] = useState([]);

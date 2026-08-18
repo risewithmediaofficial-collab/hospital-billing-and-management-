@@ -27,7 +27,7 @@ export class BillingService {
     })
       .populate('patientId')
       .populate('doctorId', 'name specialization cabinNo')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
 
     // Attach consultation data to each invoice
     const enriched = await Promise.all(

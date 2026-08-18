@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
+import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
@@ -22,16 +23,20 @@ import {
   MapPin,
   Calendar,
   UserCheck,
+  History,
 } from 'lucide-react';
 
 export const PatientRegistrationPage = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { isDualModeEligible } = useWorkspaceModeStore();
+  const [historyPatientId, setHistoryPatientId] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTokenOpen, setIsTokenOpen] = useState(false);
   const [selectedPatientForToken, setSelectedPatientForToken] = useState(null);
   const [duplicates, setDuplicates] = useState([]);
+  const [isExactDuplicate, setIsExactDuplicate] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -103,12 +108,19 @@ export const PatientRegistrationPage = () => {
       }
     } catch (err) {
       const status = err.response?.status || err.status || err.statusCode;
-      const respData = err.response?.data?.data || err.data;
-      if (status === 409 && Array.isArray(respData) && respData.length > 0) {
+      const respData = err.response?.data?.existingRecords || err.response?.data?.data || err.response?.data?.details || err.data;
+      const isExact = Boolean(err.response?.data?.exactDuplicate || err.response?.data?.code === 'EXACT_DUPLICATE_FORBIDDEN');
+      setIsExactDuplicate(isExact);
+
+      if ((status === 409 || err.response?.data?.code === 'POSSIBLE_DUPLICATE' || err.response?.data?.possibleDuplicate || isExact) && Array.isArray(respData) && respData.length > 0) {
         setDuplicates(respData);
-        setError('A patient with matching details already exists in this hospital database. Review the duplicate below or confirm to register as a new person.');
+        if (isExact) {
+          setError(`Exact Match Found: A patient with this Mobile Number and Date of Birth (${respData[0]?.firstName} ${respData[0]?.lastName}, UHID: ${respData[0]?.uhid}) is already registered. Duplicate registration is not permitted. Please use the existing record below.`);
+        } else {
+          setError('A patient with matching details already exists in this hospital database. Review the duplicate below or click "Confirm & Register Anyway".');
+        }
       } else {
-        setError(err.response?.data?.error?.message || err.error?.message || 'Failed to register patient. Please try again.');
+        setError(err.response?.data?.message || err.response?.data?.error?.message || err.error?.message || 'Failed to register patient. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -199,20 +211,26 @@ export const PatientRegistrationPage = () => {
 
       {/* Duplicate Conflict Review Box */}
       {duplicates.length > 0 && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-3 animate-fade-in">
+        <div className={`p-4 rounded-xl border space-y-3 animate-fade-in ${
+          isExactDuplicate ? 'bg-rose-50 border-rose-300' : 'bg-amber-50 border-amber-300'
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="font-extrabold text-xs text-amber-900 flex items-center gap-1.5">
-              <AlertCircle size={16} className="text-amber-600" />
-              Existing Patient(s) with Matching Details Found ({duplicates.length})
+            <span className={`font-extrabold text-xs flex items-center gap-1.5 ${
+              isExactDuplicate ? 'text-rose-900' : 'text-amber-900'
+            }`}>
+              <AlertCircle size={16} className={isExactDuplicate ? 'text-rose-600' : 'text-amber-600'} />
+              {isExactDuplicate ? 'Exact Existing Patient Record Found (Same Mobile & DOB)' : `Existing Patient(s) with Matching Details Found (${duplicates.length})`}
             </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200/80 text-amber-800 border border-amber-300">
-              POSSIBLE DUPLICATE
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+              isExactDuplicate ? 'bg-rose-200 text-rose-900 border-rose-300' : 'bg-amber-200/80 text-amber-800 border-amber-300'
+            }`}>
+              {isExactDuplicate ? 'DUPLICATE FORBIDDEN' : 'POSSIBLE DUPLICATE'}
             </span>
           </div>
 
           <div className="space-y-2">
             {duplicates.map((dup) => (
-              <div key={dup._id} className="p-3 bg-white rounded-lg border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+              <div key={dup._id} className="p-3 bg-white rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
                 <div>
                   <p className="font-bold text-slate-900 flex items-center gap-2">
                     <span>{dup.firstName} {dup.lastName}</span>
@@ -225,13 +243,14 @@ export const PatientRegistrationPage = () => {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="font-bold text-xs text-indigo-700 border-indigo-300 hover:bg-indigo-50 gap-1"
+                    variant="primary"
+                    className="font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
                     onClick={() => {
                       setSelectedPatientForToken(dup);
                       setIsTokenOpen(true);
                       setDuplicates([]);
                       setError(null);
+                      setIsExactDuplicate(false);
                     }}
                   >
                     <Ticket size={14} /> Use This Patient & Issue Token
@@ -241,19 +260,21 @@ export const PatientRegistrationPage = () => {
             ))}
           </div>
 
-          <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-[11px] text-amber-800">
-              Is this a different individual with the same mobile or name?
-            </p>
-            <Button
-              size="sm"
-              variant="primary"
-              className="bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs"
-              onClick={(e) => handleInlineSubmit(e, false, true)}
-            >
-              Confirm & Register Anyway
-            </Button>
-          </div>
+          {!isExactDuplicate && (
+            <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-[11px] text-amber-800">
+                Is this a different individual with the same mobile or name?
+              </p>
+              <Button
+                size="sm"
+                variant="primary"
+                className="bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs"
+                onClick={(e) => handleInlineSubmit(e, false, true)}
+              >
+                Confirm & Register Anyway
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -338,6 +359,44 @@ export const PatientRegistrationPage = () => {
                   placeholder="+91 98765 43210"
                   required
                 />
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                    Date of Birth (DOB) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.dob || ''}
+                    onChange={(e) => {
+                      const dobVal = e.target.value;
+                      let calculatedAge = formData.age;
+                      if (dobVal) {
+                        const birthDate = new Date(dobVal);
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const m = today.getMonth() - birthDate.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                          age--;
+                        }
+                        if (age >= 0) calculatedAge = String(age);
+                      }
+                      setFormData({ ...formData, dob: dobVal, age: calculatedAge });
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 font-semibold"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Used for Patient Portal login (Mobile + DOB) & family member matching.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900 flex items-start gap-2">
+                <span className="text-base">👨‍👩‍👧</span>
+                <div>
+                  <p className="font-bold">Family & Children Accounts Supported</p>
+                  <p className="text-[11px] text-indigo-700">Multiple family members or children can share the parent's phone number. Each person gets a distinct profile and UHID based on their Date of Birth.</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
@@ -488,17 +547,31 @@ export const PatientRegistrationPage = () => {
                       <p className="text-[10px] text-slate-500">{p.phone} &bull; {p.gender}</p>
                     </div>
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="font-bold text-[10px] px-2 py-1 gap-1 text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
-                      onClick={() => {
-                        setSelectedPatientForToken(p);
-                        setIsTokenOpen(true);
-                      }}
-                    >
-                      <Ticket size={12} /> Token
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="font-bold text-[10px] px-2 py-1 gap-1 text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
+                        onClick={() => {
+                          setHistoryPatientId(p.uhid || p._id);
+                          setIsHistoryOpen(true);
+                        }}
+                      >
+                        <History size={12} /> History
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="font-bold text-[10px] px-2 py-1 gap-1 text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                        onClick={() => {
+                          setSelectedPatientForToken(p);
+                          setIsTokenOpen(true);
+                        }}
+                      >
+                        <Ticket size={12} /> Token
+                      </Button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -531,6 +604,15 @@ export const PatientRegistrationPage = () => {
         onClose={() => setIsTokenOpen(false)}
         onSuccess={fetchRecentPatients}
         initialPatient={selectedPatientForToken}
+      />
+
+      <PatientHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          setIsHistoryOpen(false);
+          setHistoryPatientId(null);
+        }}
+        initialIdentifier={historyPatientId}
       />
     </div>
   );

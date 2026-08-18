@@ -18,3 +18,12 @@ export const getPatientEhr = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getFollowUps = async (req, res, next) => {
+  try {
+    const followUps = await EmrService.getFollowUps(req.user, req.query);
+    return sendSuccess(res, 200, 'Follow-up visits list retrieved', followUps);
+  } catch (error) {
+    next(error);
+  }
+};

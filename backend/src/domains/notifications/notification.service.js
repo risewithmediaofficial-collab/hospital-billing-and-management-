@@ -14,7 +14,42 @@ const recipientQuery = async (context = {}) => {
   const tenantBranchId = branchId || user?.branchId;
 
   if (activeRole === 'SUPER_ADMIN') {
-    return { $or: [{ recipientUserId: userId }, { recipientRole: 'SUPER_ADMIN' }, { recipientRole: 'ALL' }] };
+    return {
+      $and: [
+        {
+          $or: [
+            { recipientUserId: userId },
+            { recipientRole: 'SUPER_ADMIN' },
+            { targetModule: { $in: ['super-admin', 'SUPER_ADMIN', 'saas', 'SAAS', 'admin'] } },
+            {
+              type: {
+                $in: [
+                  'TRIAL_EXPIRED',
+                  'TRIAL_EXPIRING',
+                  'PLAN_EXPIRATION',
+                  'PLATFORM_REVENUE',
+                  'SECURITY_LOGIN',
+                  'NEW_HOSPITAL_SIGNUP',
+                  'SAAS_ALERT',
+                  'SUBSCRIPTION_EXPIRED',
+                  'SUBSCRIPTION_WARNING',
+                  'PAYMENT_RECEIVED',
+                ],
+              },
+            },
+          ],
+        },
+        // Super Admin NEVER sees hospital tenant patient/token/clinical/pharmacy/billing notifications
+        {
+          notificationType: {
+            $nin: ['WORKFLOW', 'WORKFLOW_ALERT', 'NEW_DATA', 'DEPT_RESPONSE'],
+          },
+        },
+        {
+          recipientRole: { $ne: 'ALL' },
+        },
+      ],
+    };
   }
 
   return {
@@ -36,9 +71,9 @@ export class NotificationService {
       const base = {
         hospitalId: data.hospitalId || null,
         branchId: data.branchId || null,
-        recipientRole: data.recipientRole ?? (data.recipientUserId ? null : 'ALL'),
+        recipientRole: data.recipientRole || null,
         recipientDepartment: data.recipientDepartment || '',
-        notificationType: data.notificationType || data.type || 'WORKFLOW_ALERT',
+        notificationType: data.notificationType || data.type || 'SYSTEM_ALERT',
         type: data.type || 'SYSTEM_ALERT',
         title: data.title,
         message: data.message,
@@ -73,6 +108,11 @@ export class NotificationService {
           { role: data.recipientRole },
           { additionalRoles: data.recipientRole },
         ] }];
+      } else if (data.recipientRole === 'ALL') {
+        // Exclude SUPER_ADMIN from hospital tenant broadcasts
+        if (data.hospitalId) {
+          userQuery.role = { $ne: 'SUPER_ADMIN' };
+        }
       }
 
       const recipients = await User.find(userQuery).select('_id').lean();

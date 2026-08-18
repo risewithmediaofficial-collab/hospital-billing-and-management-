@@ -15,6 +15,8 @@ import { useDepartmentNotificationStore } from '../../store/departmentNotificati
 import { useNotificationStore } from '../../store/notificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { axiosClient } from '../../api/axiosClient';
+import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
+import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
 import {
   Stethoscope,
   Users,
@@ -35,6 +37,8 @@ import {
   Search,
   Clock,
   Lock,
+  History,
+  Calendar,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
@@ -43,7 +47,9 @@ export const DoctorDashboard = () => {
   const { isDualModeEligible } = useWorkspaceModeStore();
   const { socket } = useSocket();
   const { notifications, markAsRead, addNotification, resolvePending } = useDepartmentNotificationStore();
-  const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES'
+  const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LIVE' | 'COMPLETED' | 'DEPT_RESPONSES' | 'FOLLOW_UPS'
+  const [historyPatientId, setHistoryPatientId] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [liveQueue, setLiveQueue] = useState([]);
   const [completedQueue, setCompletedQueue] = useState([]);
   const [departmentHoldQueue, setDepartmentHoldQueue] = useState([]);
@@ -543,7 +549,19 @@ export const DoctorDashboard = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-bold gap-1.5 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                onClick={() => {
+                  setHistoryPatientId('');
+                  setIsHistoryOpen(true);
+                }}
+              >
+                <History size={14} /> Lookup History (UHID)
+              </Button>
+
               <Button
                 size="sm"
                 variant={isAvailable ? 'danger' : 'success'}
@@ -729,15 +747,15 @@ export const DoctorDashboard = () => {
               </div>
 
               {/* Primary Consultation Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                 <Button
                   size="md"
                   variant="success"
                   className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsConsultationModalOpen(true)}
                 >
-                  <Stethoscope size={20} />
-                  <span>Start Clinical Consultation Record</span>
+                  <Stethoscope size={18} />
+                  <span>Start Consultation</span>
                 </Button>
 
                 <Button
@@ -746,8 +764,21 @@ export const DoctorDashboard = () => {
                   className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsRequestModalOpen(true)}
                 >
-                  <TestTube size={20} />
-                  <span>Request Investigation</span>
+                  <TestTube size={18} />
+                  <span>Request Test</span>
+                </Button>
+
+                <Button
+                  size="md"
+                  variant="outline"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  onClick={() => {
+                    setHistoryPatientId(currentPatient?.uhid || currentPatient?._id);
+                    setIsHistoryOpen(true);
+                  }}
+                >
+                  <History size={18} />
+                  <span>Past Medical History</span>
                 </Button>
 
                 <Button
@@ -756,8 +787,8 @@ export const DoctorDashboard = () => {
                   className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
                   onClick={() => setIsAdmitModalOpen(true)}
                 >
-                  <BedDouble size={20} />
-                  <span>Recommend IPD Admission</span>
+                  <BedDouble size={18} />
+                  <span>Recommend IPD</span>
                 </Button>
               </div>
 
@@ -1063,6 +1094,16 @@ export const DoctorDashboard = () => {
         </Card>
       )}
 
+      {/* FOLLOW-UP VISITS TAB */}
+      {activeTab === 'FOLLOW_UPS' && (
+        <FollowUpVisitsSection
+          onViewHistory={(id) => {
+            setHistoryPatientId(id);
+            setIsHistoryOpen(true);
+          }}
+        />
+      )}
+
       {/* Pop-up Consultation Modal */}
       <ConsultationModal
         isOpen={isConsultationModalOpen}
@@ -1098,6 +1139,16 @@ export const DoctorDashboard = () => {
         isOpen={isAdmitModalOpen}
         onClose={() => setIsAdmitModalOpen(false)}
         patient={currentPatient}
+      />
+
+      {/* Longitudinal Patient Medical History Modal */}
+      <PatientHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          setIsHistoryOpen(false);
+          setHistoryPatientId(null);
+        }}
+        initialIdentifier={historyPatientId}
       />
     </div>
   );

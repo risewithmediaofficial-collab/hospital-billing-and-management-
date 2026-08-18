@@ -20,6 +20,7 @@ import {
   getSubstitutions,
   sendBillingToDoctor,
   getNurseTasks,
+  getAvailableNurses,
   updateNurseTaskStatus,
 } from './pharmacy.controller.js';
 
@@ -52,6 +53,7 @@ router.patch('/substitutions/:id/acknowledge', acknowledgeSubstitution);
 
 // Nurse Administration Tasks
 router.get('/nurse-tasks', getNurseTasks);
+router.get('/available-nurses', getAvailableNurses);
 router.patch('/nurse-tasks/:id/status', updateNurseTaskStatus);
 
 // Prescription-time availability check for doctors

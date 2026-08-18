@@ -166,6 +166,15 @@ export const getNurseTasks = async (req, res, next) => {
   }
 };
 
+export const getAvailableNurses = async (req, res, next) => {
+  try {
+    const nurses = await NurseTasksService.getAvailableNurses(req.user);
+    return sendSuccess(res, 200, 'Available nurses retrieved', nurses);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateNurseTaskStatus = async (req, res, next) => {
   try {
     const task = await NurseTasksService.updateTaskStatus(req.params.id, req.body, req.user);

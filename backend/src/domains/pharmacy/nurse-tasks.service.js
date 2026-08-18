@@ -9,17 +9,89 @@ import { Admission } from '../../models/Admission.js';
 import { NotificationService } from '../notifications/notification.service.js';
 
 export class NurseTasksService {
+  static async getAvailableNurses(user) {
+    const hospitalId = user?.hospitalId;
+    const branchId = user?.branchId;
+
+    const { User } = await import('../../models/User.js');
+    const filter = {
+      status: 'ACTIVE',
+      isActive: true,
+      $or: [
+        { role: { $in: ['NURSE', 'NURSE_INCHARGE', 'NURSING'] } },
+        { additionalRoles: { $in: ['NURSE', 'NURSE_INCHARGE', 'NURSING'] } },
+      ],
+    };
+
+    if (hospitalId) filter.hospitalId = hospitalId;
+    if (branchId) filter.$and = [{ $or: [{ branchId }, { branchId: null }] }];
+
+    const nurses = await User.find(filter)
+      .select('name role isAvailable shiftDetails cabinNo departmentId additionalRoles')
+      .lean();
+
+    // If no dedicated nurses exist (e.g. small solo clinic where doctor handles everything), include current user
+    if (nurses.length === 0 && user) {
+      nurses.push({
+        _id: user.id || user._id,
+        name: `${user.name || 'Doctor'} (Self / Clinic Desk)`,
+        role: user.role || 'DOCTOR',
+        isAvailable: true,
+      });
+    }
+
+    // Compute live workload (pending tasks count) for each nurse
+    const nurseListWithWorkload = await Promise.all(
+      nurses.map(async (nurse) => {
+        const activeTaskCount = await NurseTask.countDocuments({
+          hospitalId: nurse.hospitalId || hospitalId,
+          assignedNurseId: nurse._id,
+          status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] },
+        });
+
+        return {
+          id: String(nurse._id),
+          _id: nurse._id,
+          name: nurse.name,
+          role: nurse.role,
+          isAvailable: nurse.isAvailable !== false,
+          activeTaskCount,
+        };
+      })
+    );
+
+    // Sort by: available first, then lowest active task count (least workload recommendation)
+    nurseListWithWorkload.sort((a, b) => {
+      if (a.isAvailable !== b.isAvailable) return a.isAvailable ? -1 : 1;
+      return a.activeTaskCount - b.activeTaskCount;
+    });
+
+    return nurseListWithWorkload;
+  }
+
   static async createTasksFromPrescription(prescription, user) {
     const createdTasks = [];
     const admission = await Admission.findOne({ patientId: prescription.patientId, status: 'ADMITTED' })
       .select('assignedNurseId dutyNurseId').lean();
-    const assignedNurseId = admission?.assignedNurseId || admission?.dutyNurseId || null;
+    let defaultAssignedNurseId = admission?.assignedNurseId || admission?.dutyNurseId || null;
+
+    let recommendedNurseId = null;
+    try {
+      const availableNurses = await NurseTasksService.getAvailableNurses(user);
+      if (availableNurses.length > 0) {
+        recommendedNurseId = availableNurses[0]._id;
+      }
+    } catch (e) {}
 
     const pendingNurseTasks = [];
 
     for (const item of prescription.medicines || []) {
-      if (item.treatmentType === 'NURSE_ADMINISTERED' || item.treatmentType === 'DOCTOR_ADMINISTERED_NOW') {
-        const isDoctorAdministered = item.treatmentType === 'DOCTOR_ADMINISTERED_NOW';
+      if (item.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID', 'DROPS'].includes(item.dosageForm)) {
+        let assignedNurseId = item.assignedNurseId;
+        if (!assignedNurseId || assignedNurseId === 'AUTO_ASSIGN') {
+          assignedNurseId = defaultAssignedNurseId || recommendedNurseId;
+        }
+
         const medicine = await Medicine.findOne({
           hospitalId: prescription.hospitalId,
           $or: [{ name: item.medicineName }, { genericName: item.genericName || item.medicineName }],
@@ -30,7 +102,7 @@ export class NurseTasksService {
           branchId: prescription.branchId,
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
-          assignedNurseId: isDoctorAdministered ? null : assignedNurseId,
+          assignedNurseId: assignedNurseId || null,
           prescriptionId: prescription._id,
           consultationId: prescription.consultationId,
           taskType:
@@ -46,25 +118,14 @@ export class NurseTasksService {
           dose: item.dosage || '1 Dose',
           route: item.dosageForm === 'INJECTION' ? 'IV' : 'Oral',
           frequency: item.frequency || 'ONCE',
-          doctorInstructions: item.specialInstructions || item.instructions || (isDoctorAdministered ? 'Administered directly in cabin by consulting doctor' : ''),
+          doctorInstructions: item.specialInstructions || item.instructions || '',
           allergyInformation: 'Check patient record for allergies',
           scheduledTime: item.startDate || new Date(),
-          status: isDoctorAdministered ? 'ADMINISTERED' : 'PENDING',
-          administrationDetails: isDoctorAdministered
-            ? {
-                administeredAt: new Date(),
-                administeredQty: 1,
-                nurseName: `Dr. ${user?.name || 'Doctor'} (Self-Administered)`,
-                siteOrRoute: item.instructions || 'In-Cabin',
-                notes: 'Administered directly by consulting doctor during OPD consultation',
-              }
-            : undefined,
+          status: 'PENDING',
         });
 
         createdTasks.push(task);
-        if (!isDoctorAdministered) {
-          pendingNurseTasks.push(task);
-        }
+        pendingNurseTasks.push(task);
       }
     }
 
@@ -73,23 +134,26 @@ export class NurseTasksService {
         type: 'NEW_NURSE_TASKS',
         count: pendingNurseTasks.length,
         patientId: prescription.patientId,
-        linkedPath: '/nursing/dashboard',
+        linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
       };
-      if (assignedNurseId) socketManager.emitToUser(String(assignedNurseId), 'workflow:notification', envelope);
-      else {
-        socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
-        socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
+      
+      const targetNurseIds = Array.from(new Set(pendingNurseTasks.map(t => t.assignedNurseId).filter(Boolean)));
+      if (targetNurseIds.length > 0) {
+        targetNurseIds.forEach(nId => socketManager.emitToUser(String(nId), 'workflow:notification', envelope));
       }
+      socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
+      socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
+
       await NotificationService.createNotification({
         hospitalId: prescription.hospitalId,
         branchId: prescription.branchId,
-        recipientUserId: assignedNurseId,
-        recipientRole: assignedNurseId ? null : 'NURSE',
+        recipientUserId: targetNurseIds[0] || null,
+        recipientRole: targetNurseIds.length === 0 ? 'NURSE' : null,
         title: 'New nurse treatment task',
         message: `${pendingNurseTasks.length} nurse-administered treatment task${pendingNurseTasks.length === 1 ? '' : 's'} received from the consulting doctor.`,
         notificationType: 'NEW_DATA',
         targetModule: 'nursing',
-        targetRoute: '/nursing/dashboard',
+        targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
         relatedPatientId: prescription.patientId,
         relatedTaskId: String(pendingNurseTasks[0]._id),
       });
@@ -100,7 +164,7 @@ export class NurseTasksService {
           patientId: prescription.patientId,
           taskCount: pendingNurseTasks.length,
           doctorId: prescription.doctorId,
-          linkedPath: '/nursing/requests',
+          linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
         }, prescription.branchId || prescription.hospitalId);
       } catch (e) {}
     }
@@ -125,10 +189,12 @@ export class NurseTasksService {
     if (query.patientId) filter.patientId = query.patientId;
     if (query.status) filter.status = query.status;
 
+    // Strict FIFO Queue Sorting: Oldest pending tasks are shown at the TOP
     return NurseTask.find(filter)
       .populate('patientId', 'firstName lastName uhid gender age bedNo roomNo')
       .populate('doctorId', 'name specialization')
-      .sort({ createdAt: -1 })
+      .populate('assignedNurseId', 'name role')
+      .sort({ createdAt: 1 })
       .lean();
   }
 
