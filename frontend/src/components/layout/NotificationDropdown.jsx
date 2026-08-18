@@ -102,7 +102,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       RECEPTIONIST: ['/reception', '/emergency'],
       OPD_STAFF: ['/reception', '/emergency'],
       DOCTOR: ['/doctor', '/emergency', '/reception'],
-      HOSPITAL_ADMIN: ['/admin', '/hospital-admin', '/doctor', '/reception', '/billing', '/pharmacy', '/laboratory', '/radiology', '/emergency'],
+      HOSPITAL_ADMIN: ['/admin', '/hospital-admin', '/doctor', '/reception', '/billing', '/pharmacy', '/laboratory', '/radiology', '/nursing', '/nurse-incharge', '/emergency'],
       SUPER_ADMIN: ['/admin', '/hospital-admin', '/emergency'],
     };
 

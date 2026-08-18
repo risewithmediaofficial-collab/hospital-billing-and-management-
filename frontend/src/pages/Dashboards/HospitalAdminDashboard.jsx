@@ -269,6 +269,24 @@ const HospitalAdminDashboardInner = () => {
     fetchHospitalInfo();
   }, []);
 
+  useEffect(() => {
+    if (!socket) return;
+    const handleRefresh = () => {
+      fetchStaff();
+      fetchHospitalInfo();
+    };
+    socket.on('staff:updated', handleRefresh);
+    socket.on('staff:created', handleRefresh);
+    socket.on('workflow:notification', handleRefresh);
+    socket.on('workflow:pending_changed', handleRefresh);
+    return () => {
+      socket.off('staff:updated', handleRefresh);
+      socket.off('staff:created', handleRefresh);
+      socket.off('workflow:notification', handleRefresh);
+      socket.off('workflow:pending_changed', handleRefresh);
+    };
+  }, [socket]);
+
   const fetchHospitalInfo = async () => {
     try {
       const meRes = await axiosClient.get('/auth/me');

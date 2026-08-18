@@ -47,9 +47,19 @@ export const NurseDashboard = () => {
     };
     socket.on('workflow:notification', refresh);
     socket.on('workflow:pending_changed', refresh);
+    socket.on('workflow:new_nurse_tasks', refresh);
+    socket.on('nurse_task:created', refresh);
+    socket.on('nurse_task:updated', refresh);
+    socket.on('request:created', refresh);
+    socket.on('request:updated', refresh);
     return () => {
       socket.off('workflow:notification', refresh);
       socket.off('workflow:pending_changed', refresh);
+      socket.off('workflow:new_nurse_tasks', refresh);
+      socket.off('nurse_task:created', refresh);
+      socket.off('nurse_task:updated', refresh);
+      socket.off('request:created', refresh);
+      socket.off('request:updated', refresh);
     };
   }, [socket]);
 

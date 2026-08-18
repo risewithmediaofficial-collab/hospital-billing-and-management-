@@ -41,15 +41,18 @@ export const LabTechDashboard = () => {
 
   useEffect(() => {
     if (!socket) return;
-    const handleNewRequest = () => fetchOrders();
-    const handleStatusUpdate = () => fetchOrders();
+    const handleRefresh = () => fetchOrders();
 
-    socket.on('investigation:new_request', handleNewRequest);
-    socket.on('investigation:status_updated', handleStatusUpdate);
+    socket.on('investigation:new_request', handleRefresh);
+    socket.on('investigation:status_updated', handleRefresh);
+    socket.on('workflow:notification', handleRefresh);
+    socket.on('workflow:pending_changed', handleRefresh);
 
     return () => {
-      socket.off('investigation:new_request', handleNewRequest);
-      socket.off('investigation:status_updated', handleStatusUpdate);
+      socket.off('investigation:new_request', handleRefresh);
+      socket.off('investigation:status_updated', handleRefresh);
+      socket.off('workflow:notification', handleRefresh);
+      socket.off('workflow:pending_changed', handleRefresh);
     };
   }, [socket]);
 

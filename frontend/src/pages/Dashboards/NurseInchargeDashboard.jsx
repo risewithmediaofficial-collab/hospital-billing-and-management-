@@ -56,16 +56,28 @@ export const NurseInchargeDashboard = () => {
 
   useEffect(() => {
     if (!socket) return;
-    const handleRequisitionUpdate = () => {
+    const handleUpdate = () => {
       fetchData();
     };
-    socket.on('admission:requisition_created', handleRequisitionUpdate);
-    socket.on('admission:confirmed', handleRequisitionUpdate);
-    socket.on('workflow:pending_changed', handleRequisitionUpdate);
+    socket.on('admission:requisition_created', handleUpdate);
+    socket.on('admission:confirmed', handleUpdate);
+    socket.on('workflow:pending_changed', handleUpdate);
+    socket.on('workflow:notification', handleUpdate);
+    socket.on('workflow:new_nurse_tasks', handleUpdate);
+    socket.on('nurse_task:created', handleUpdate);
+    socket.on('nurse_task:updated', handleUpdate);
+    socket.on('request:created', handleUpdate);
+    socket.on('request:updated', handleUpdate);
     return () => {
-      socket.off('admission:requisition_created', handleRequisitionUpdate);
-      socket.off('admission:confirmed', handleRequisitionUpdate);
-      socket.off('workflow:pending_changed', handleRequisitionUpdate);
+      socket.off('admission:requisition_created', handleUpdate);
+      socket.off('admission:confirmed', handleUpdate);
+      socket.off('workflow:pending_changed', handleUpdate);
+      socket.off('workflow:notification', handleUpdate);
+      socket.off('workflow:new_nurse_tasks', handleUpdate);
+      socket.off('nurse_task:created', handleUpdate);
+      socket.off('nurse_task:updated', handleUpdate);
+      socket.off('request:created', handleUpdate);
+      socket.off('request:updated', handleUpdate);
     };
   }, [socket]);
 

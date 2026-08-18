@@ -56,16 +56,23 @@ export const ReceptionDashboard = () => {
 
     const handleQueueUpdate = () => {
       fetchQueueCounts();
+      fetchData();
     };
 
     socket.on('doctor:availability_changed', handleDoctorAvailabilityChange);
     socket.on('opd_queue:updated', handleQueueUpdate);
     socket.on('opd_queue:status_changed', handleQueueUpdate);
+    socket.on('token:created', handleQueueUpdate);
+    socket.on('workflow:notification', handleQueueUpdate);
+    socket.on('workflow:pending_changed', handleQueueUpdate);
 
     return () => {
       socket.off('doctor:availability_changed', handleDoctorAvailabilityChange);
       socket.off('opd_queue:updated', handleQueueUpdate);
       socket.off('opd_queue:status_changed', handleQueueUpdate);
+      socket.off('token:created', handleQueueUpdate);
+      socket.off('workflow:notification', handleQueueUpdate);
+      socket.off('workflow:pending_changed', handleQueueUpdate);
     };
   }, [socket]);
 

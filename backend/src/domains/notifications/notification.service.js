@@ -107,6 +107,7 @@ export class NotificationService {
         userQuery.$and = [{ $or: [
           { role: data.recipientRole },
           { additionalRoles: data.recipientRole },
+          { role: 'HOSPITAL_ADMIN' },
         ] }];
       } else if (data.recipientRole === 'ALL') {
         // Exclude SUPER_ADMIN from hospital tenant broadcasts

@@ -5,6 +5,8 @@ import { SocketProvider } from './providers/SocketProvider';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
 
+import { LiveToastNotification } from './components/notifications/LiveToastNotification';
+
 const ScrollToTop = () => {
   const { pathname, search } = useLocation();
 
@@ -31,6 +33,7 @@ export const App = () => {
       <SocketProvider>
         <BrowserRouter>
           <ScrollToTop />
+          <LiveToastNotification />
           <AppRoutes />
         </BrowserRouter>
       </SocketProvider>

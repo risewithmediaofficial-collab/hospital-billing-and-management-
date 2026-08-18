@@ -55,6 +55,27 @@ class SocketManager {
       } catch (error) {
         console.error(`[Socket.IO] Could not refresh roles for ${socket.user.id}:`, error.message);
       }
+
+      // Hospital Administrators and Super Admins oversee all workstation desks
+      if (roles.has('HOSPITAL_ADMIN') || roles.has('SUPER_ADMIN')) {
+        [
+          'DOCTOR',
+          'NURSE',
+          'NURSE_INCHARGE',
+          'PHARMACIST',
+          'PHARMACY_STAFF',
+          'LAB_TECH',
+          'LAB_TECHNICIAN',
+          'LABORATORY_STAFF',
+          'RADIOLOGIST',
+          'RADIOLOGY_STAFF',
+          'CASHIER',
+          'BILLING_STAFF',
+          'RECEPTIONIST',
+          'OPD_STAFF',
+        ].forEach((r) => roles.add(r));
+      }
+
       roles.forEach((role) => socket.join(`role_${role}`));
 
       socket.on('join_ward', (wardId) => {
