@@ -45,29 +45,8 @@ jobs:
           timeout: 180s
           command_timeout: 20m
           script: |
-            DEPLOY_DIR=""
-            for dir in \
-              /docker/hospital-billing \
-              /docker/hospital-billing-and-management- \
-              /var/www/hospital-billing \
-              /var/www/hospital-billing-and-management- \
-              ~/hospital-billing \
-              ~/hospital-billing-and-management- \
-              /root/hospital-billing \
-              /root/hospital-billing-and-management- \
-              /home/*/hospital-billing \
-              /home/*/hospital-billing-and-management-; do
-              if [ -f "$dir/docker-compose.yml" ]; then
-                DEPLOY_DIR="$dir"
-                break
-              fi
-            done
-
-            if [ -z "$DEPLOY_DIR" ]; then
-              DEPLOY_DIR=$(find / -maxdepth 4 -name "docker-compose.yml" -not -path "*/proc/*" -not -path "*/sys/*" 2>/dev/null | head -n 1 | xargs dirname)
-            fi
-
-            if [ -n "$DEPLOY_DIR" ] && [ -d "$DEPLOY_DIR" ]; then
+            DEPLOY_DIR="/docker/hospital-billing"
+            if [ -d "$DEPLOY_DIR" ]; then
               echo "🚀 Found deployment workspace at: $DEPLOY_DIR"
               cd "$DEPLOY_DIR"
               git fetch origin main || git fetch origin master || true
@@ -75,7 +54,7 @@ jobs:
               (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
               echo "✅ Docker deployment completed successfully at $DEPLOY_DIR"
             else
-              echo "❌ Could not find hospital-billing deployment directory with docker-compose.yml"
+              echo "❌ Directory $DEPLOY_DIR not found on VPS!"
               exit 1
             fi
 
@@ -91,29 +70,8 @@ jobs:
           timeout: 180s
           command_timeout: 20m
           script: |
-            DEPLOY_DIR=""
-            for dir in \
-              /docker/hospital-billing \
-              /docker/hospital-billing-and-management- \
-              /var/www/hospital-billing \
-              /var/www/hospital-billing-and-management- \
-              ~/hospital-billing \
-              ~/hospital-billing-and-management- \
-              /root/hospital-billing \
-              /root/hospital-billing-and-management- \
-              /home/*/hospital-billing \
-              /home/*/hospital-billing-and-management-; do
-              if [ -f "$dir/docker-compose.yml" ]; then
-                DEPLOY_DIR="$dir"
-                break
-              fi
-            done
-
-            if [ -z "$DEPLOY_DIR" ]; then
-              DEPLOY_DIR=$(find / -maxdepth 4 -name "docker-compose.yml" -not -path "*/proc/*" -not -path "*/sys/*" 2>/dev/null | head -n 1 | xargs dirname)
-            fi
-
-            if [ -n "$DEPLOY_DIR" ] && [ -d "$DEPLOY_DIR" ]; then
+            DEPLOY_DIR="/docker/hospital-billing"
+            if [ -d "$DEPLOY_DIR" ]; then
               echo "🚀 Found deployment workspace at: $DEPLOY_DIR"
               cd "$DEPLOY_DIR"
               git fetch origin main || git fetch origin master || true
@@ -121,6 +79,6 @@ jobs:
               (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
               echo "✅ Docker deployment completed successfully at $DEPLOY_DIR"
             else
-              echo "❌ Could not find hospital-billing deployment directory with docker-compose.yml"
+              echo "❌ Directory $DEPLOY_DIR not found on VPS!"
               exit 1
             fi
