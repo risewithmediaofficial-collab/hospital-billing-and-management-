@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { Hospital, sanitizeAndValidateDomain } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
@@ -6,6 +7,7 @@ import { Patient } from '../../models/Patient.js';
 import { Appointment } from '../../models/Appointment.js';
 import { Admission } from '../../models/Admission.js';
 import { Invoice } from '../../models/Invoice.js';
+import { Receipt } from '../../models/Receipt.js';
 import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
 import { Emergency } from '../../models/Emergency.js';
 import { Consultation } from '../../models/Consultation.js';
@@ -103,13 +105,22 @@ const buildTodayMetrics = async (hospitalId = null) => {
   const todayEnd = endOfToday();
   const base = hospitalId ? { hospitalId } : {};
 
+  let hospitalObjId = null;
+  if (hospitalId && mongoose.Types.ObjectId.isValid(hospitalId)) {
+    hospitalObjId = new mongoose.Types.ObjectId(String(hospitalId));
+  }
+  const aggBase = hospitalId
+    ? { hospitalId: { $in: [hospitalObjId, String(hospitalId)].filter(Boolean) }, isDeleted: { $ne: true } }
+    : { isDeleted: { $ne: true } };
+
   const [
     registrations,
     appointments,
     consultations,
     admissions,
     discharges,
-    revenueAgg,
+    invRevenueAgg,
+    rcRevenueAgg,
     pendingLab,
     pendingRad,
     pendingBilling,
@@ -122,8 +133,23 @@ const buildTodayMetrics = async (hospitalId = null) => {
     safeCount(Admission, { ...base, admittedAt: { $gte: todayStart, $lte: todayEnd } }),
     safeCount(Admission, { ...base, dischargedAt: { $gte: todayStart, $lte: todayEnd } }),
     Invoice.aggregate([
-      { $match: { ...base, createdAt: { $gte: todayStart, $lte: todayEnd } } },
+      {
+        $match: {
+          ...aggBase,
+          createdAt: { $gte: todayStart, $lte: todayEnd },
+          $or: [{ paidAmount: { $gt: 0 } }, { status: { $in: ['PAID', 'PARTIALLY_PAID'] } }],
+        },
+      },
       { $group: { _id: null, total: { $sum: '$paidAmount' } } },
+    ]).catch(() => []),
+    Receipt.aggregate([
+      {
+        $match: {
+          ...aggBase,
+          createdAt: { $gte: todayStart, $lte: todayEnd },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$amountPaid' } } },
     ]).catch(() => []),
     safeCount(DiagnosticOrder, {
       ...base,
@@ -148,7 +174,7 @@ const buildTodayMetrics = async (hospitalId = null) => {
     todayConsultations: consultations,
     todayAdmissions: admissions,
     todayDischarges: discharges,
-    todayRevenue: revenueAgg[0]?.total || 0,
+    todayRevenue: Math.max(invRevenueAgg[0]?.total || 0, rcRevenueAgg[0]?.total || 0),
     pendingLabReports: pendingLab,
     pendingRadiologyReports: pendingRad,
     pendingBilling,
