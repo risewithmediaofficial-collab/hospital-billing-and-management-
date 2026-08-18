@@ -137,9 +137,18 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
   const handlePrintToken = () => {
     if (!issuedToken) return;
-    const printWindow = window.open('', '', 'width=450,height=650');
-    const docName = issuedToken.doctorId?.name || selectedDoctor?.name || 'Assigned OPD Doctor';
-    const hospName = user?.hospitalName || 'HOSPITAL MEDICAL CENTER';
+    const printWindow = window.open('', '', 'width=480,height=720');
+    const pat = (typeof issuedToken.patientId === 'object' && issuedToken.patientId) ? issuedToken.patientId : (selectedPatient || {});
+    const patName = pat.firstName ? `${pat.firstName} ${pat.lastName || ''}`.trim() : (issuedToken.patientName || 'Walk-in Patient');
+    const patUhid = pat.uhid || issuedToken.uhid || 'N/A';
+    const patPhone = pat.phone || issuedToken.phone || 'N/A';
+    const patAge = pat.age ? `${pat.age} yrs` : (pat.dob ? `${new Date().getFullYear() - new Date(pat.dob).getFullYear()} yrs` : 'N/A');
+    const patGender = pat.gender || 'N/A';
+    const patDob = pat.dob ? new Date(pat.dob).toLocaleDateString() : 'N/A';
+    const complaints = issuedToken.chiefComplaints || chiefComplaints || pat.chiefComplaints || 'OPD Consultation';
+    const docName = issuedToken.doctorId?.name ? `Dr. ${issuedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (selectedDoctor?.name ? `Dr. ${selectedDoctor.name.replace(/^Dr\.\s*/i, '')}` : 'Assigned OPD Doctor');
+    const cabin = issuedToken.cabinNo || selectedDoctor?.cabinNo || issuedToken.doctorId?.cabinNo || 'Cabin 101';
+    const hospName = user?.hospitalName || 'METRO GENERAL HOSPITAL';
     const issueTime = new Date(issuedToken.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const issueDate = new Date(issuedToken.createdAt || Date.now()).toLocaleDateString();
 
@@ -147,21 +156,21 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
       <!DOCTYPE html>
       <html>
         <head>
-          <title>OPD Token #${issuedToken.tokenNumber} - ${issuedToken.patientName}</title>
+          <title>OPD Token #${issuedToken.tokenNumber} - ${patName}</title>
           <style>
             @page { size: 80mm auto; margin: 4mm; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 10px; margin: 0; text-align: center; color: #0f172a; background: #fff; }
-            .token-card { border: 2px dashed #64748b; border-radius: 12px; padding: 14px; margin: auto; max-width: 320px; box-sizing: border-box; }
-            .hosp-title { font-size: 16px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
-            .sub-title { font-size: 10px; color: #475569; font-weight: 700; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+            .token-card { border: 2px dashed #4338ca; border-radius: 12px; padding: 14px; margin: auto; max-width: 320px; box-sizing: border-box; }
+            .hosp-title { font-size: 15px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #1e1b4b; }
+            .sub-title { font-size: 10px; color: #475569; font-weight: 800; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
             .divider { border-bottom: 1px solid #cbd5e1; margin: 10px 0; }
             .token-label { font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; }
-            .token-num { font-size: 56px; font-weight: 900; color: #3730a3; margin: 4px 0; line-height: 1; font-family: monospace; }
-            .cabin-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 800; margin-top: 4px; }
-            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 12px; line-height: 1.6; margin-top: 12px; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+            .token-num { font-size: 52px; font-weight: 900; color: #3730a3; margin: 4px 0; line-height: 1; font-family: monospace; }
+            .cabin-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 800; margin-top: 2px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 11px; line-height: 1.6; margin-top: 12px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
             .info-label { color: #64748b; font-weight: 600; }
-            .info-val { font-weight: 700; color: #0f172a; }
+            .info-val { font-weight: 700; color: #0f172a; text-align: right; }
             .uhid-val { font-family: monospace; font-weight: 900; color: #4338ca; }
             .footer-msg { font-size: 10px; color: #64748b; margin-top: 12px; line-height: 1.4; }
             @media print {
@@ -175,12 +184,16 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
             <h2 class="hosp-title">${hospName}</h2>
             <div class="sub-title">OPD Queue Token Slip</div>
             <div class="divider"></div>
-            <div class="token-label">YOUR TOKEN NUMBER</div>
+            <div class="token-label">OPD TOKEN NUMBER</div>
             <div class="token-num">#${issuedToken.tokenNumber}</div>
-            <div class="cabin-badge">Cabin: ${issuedToken.cabinNo || selectedDoctor?.cabinNo || 'OPD 1'}</div>
+            <div class="cabin-badge">Room: ${cabin}</div>
             <div class="info-box">
-              <div class="info-row"><span class="info-label">Patient:</span> <span class="info-val">${issuedToken.patientName}</span></div>
-              <div class="info-row"><span class="info-label">UHID:</span> <span class="uhid-val">${issuedToken.uhid}</span></div>
+              <div class="info-row"><span class="info-label">Patient Name:</span> <span class="info-val">${patName}</span></div>
+              <div class="info-row"><span class="info-label">UHID:</span> <span class="uhid-val">${patUhid}</span></div>
+              <div class="info-row"><span class="info-label">Mobile Phone:</span> <span class="info-val">${patPhone}</span></div>
+              <div class="info-row"><span class="info-label">Age / Gender:</span> <span class="info-val">${patAge} &bull; ${patGender}</span></div>
+              <div class="info-row"><span class="info-label">Date of Birth:</span> <span class="info-val">${patDob}</span></div>
+              <div class="info-row"><span class="info-label">Chief Complaint:</span> <span class="info-val">${complaints}</span></div>
               <div class="info-row"><span class="info-label">Doctor:</span> <span class="info-val">${docName}</span></div>
               <div class="info-row"><span class="info-label">Date & Time:</span> <span class="info-val">${issueDate} ${issueTime}</span></div>
             </div>
@@ -194,6 +207,10 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
     `);
     printWindow.document.close();
   };
+
+  const resolvedPatient = issuedToken ? ((typeof issuedToken.patientId === 'object' && issuedToken.patientId) ? issuedToken.patientId : (selectedPatient || {})) : null;
+  const resolvedPatName = resolvedPatient?.firstName ? `${resolvedPatient.firstName} ${resolvedPatient.lastName || ''}`.trim() : (issuedToken?.patientName || 'Patient');
+  const resolvedDoctorName = issuedToken?.doctorId?.name ? `Dr. ${issuedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (selectedDoctor?.name ? `Dr. ${selectedDoctor.name.replace(/^Dr\.\s*/i, '')}` : 'Assigned Doctor');
 
   return (
     <div className="modal-overlay animate-fade-in">
@@ -237,21 +254,48 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                   <span className="text-[11px] text-indigo-500 uppercase font-extrabold tracking-widest">Token Number</span>
                   <p className="text-5xl font-black text-indigo-700 mt-1 tabular-nums">#{issuedToken.tokenNumber}</p>
                   <span className="inline-block mt-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    Cabin: {issuedToken.cabinNo || selectedDoctor?.cabinNo || 'OPD 1'}
+                    Room: {issuedToken.cabinNo || selectedDoctor?.cabinNo || 'Cabin 101'}
                   </span>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Patient:</span>
-                    <span className="font-bold text-slate-900">{issuedToken.patientName}</span>
+
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs space-y-1.5 divide-y divide-slate-100">
+                  <div className="flex justify-between items-center pt-0.5">
+                    <span className="text-slate-500">Patient Name:</span>
+                    <span className="font-bold text-slate-900">{resolvedPatName}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center pt-1.5">
                     <span className="text-slate-500">UHID:</span>
-                    <span className="font-mono font-black text-indigo-700">{issuedToken.uhid}</span>
+                    <span className="font-mono font-black text-indigo-700">{resolvedPatient?.uhid || issuedToken.uhid || 'N/A'}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center pt-1.5">
+                    <span className="text-slate-500">Mobile Phone:</span>
+                    <span className="font-bold text-slate-800">{resolvedPatient?.phone || issuedToken.phone || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1.5">
+                    <span className="text-slate-500">Age & Gender:</span>
+                    <span className="font-medium text-slate-800">
+                      {resolvedPatient?.age ? `${resolvedPatient.age} yrs` : (resolvedPatient?.dob ? `${new Date().getFullYear() - new Date(resolvedPatient.dob).getFullYear()} yrs` : 'N/A')} &bull; {resolvedPatient?.gender || 'N/A'}
+                    </span>
+                  </div>
+                  {resolvedPatient?.dob && (
+                    <div className="flex justify-between items-center pt-1.5">
+                      <span className="text-slate-500">Date of Birth:</span>
+                      <span className="font-medium text-slate-800">{new Date(resolvedPatient.dob).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1.5">
+                    <span className="text-slate-500">Chief Complaint:</span>
+                    <span className="font-medium text-amber-900">{issuedToken.chiefComplaints || chiefComplaints || resolvedPatient?.chiefComplaints || 'OPD Check-up'}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1.5">
                     <span className="text-slate-500">Doctor:</span>
-                    <span className="font-semibold text-slate-800">{issuedToken.doctorId?.name || selectedDoctor?.name || 'Assigned Doctor'}</span>
+                    <span className="font-semibold text-slate-800">{resolvedDoctorName}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1.5">
+                    <span className="text-slate-500">Issued At:</span>
+                    <span className="font-medium text-slate-600">
+                      {new Date(issuedToken.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(issuedToken.createdAt || Date.now()).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
               </div>

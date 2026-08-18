@@ -61,8 +61,23 @@ export const OfficialReceiptModal = ({
   const grandTotal = invData.grandTotal || subtotal - discount;
   const balanceDue = Math.max(0, (invData.balanceAmount !== undefined ? invData.balanceAmount : grandTotal - paidAmount));
 
+  // Extract follow up date
+  const rawFollowUp = receipt?.followUpDate ||
+    invData?.followUpDate ||
+    invData?.consultation?.followUpDate ||
+    receipt?.invoiceId?.consultation?.followUpDate ||
+    pat?.followUpDate ||
+    null;
+
+  const followUpDateFormatted = rawFollowUp ? new Date(rawFollowUp).toLocaleDateString([], {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }) : null;
+
   const handlePrint = () => {
-    printReceipt({ receipt, invoice, hospital });
+    printReceipt({ receipt, invoice, hospital, followUpDate: followUpDateFormatted });
   };
 
   const handleSendWhatsApp = () => {
@@ -76,6 +91,7 @@ export const OfficialReceiptModal = ({
       `• UHID: ${patUhid}\n` +
       `• Mobile: ${patPhone}\n` +
       `• Attending Doctor: ${docName}\n` +
+      (followUpDateFormatted ? `• Next Follow-up Visit: ${followUpDateFormatted}\n` : '') +
       `• Tender Mode: ${tenderMode}\n` +
       `• Amount Paid: ${formatCurrency(paidAmount)}\n` +
       `• Date: ${paymentDate.toLocaleString()}\n\n` +
@@ -158,6 +174,17 @@ export const OfficialReceiptModal = ({
               <span className="text-slate-500 font-medium">Tender Mode:</span>
               <span className="font-bold text-indigo-700 uppercase">{tenderMode}</span>
             </div>
+
+            {followUpDateFormatted && (
+              <div className="flex justify-between items-center col-span-2 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1">
+                <span className="text-indigo-900 font-bold text-[11px] flex items-center gap-1.5">
+                  <span>📅</span> Next Recommended Follow-Up Visit:
+                </span>
+                <span className="font-mono font-black text-indigo-700 text-xs">
+                  {followUpDateFormatted}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* TREATMENT ITEM BREAKDOWN TABLE */}

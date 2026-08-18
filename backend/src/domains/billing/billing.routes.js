@@ -19,9 +19,11 @@ router.get('/unpaid-invoices', getUnpaidInvoices);
 router.post('/invoices', createInvoice);
 router.get('/invoices', getInvoices);
 router.delete('/invoices/:id', deleteInvoice);
+router.post('/invoices/:id/cancel', deleteInvoice);
 router.post('/payments/receipts', processPayment);
 router.get('/receipts', getReceipts);
 router.get('/deleted-receipts', getDeletedReceipts);
 router.delete('/receipts/:id', deleteReceipt);
+router.post('/receipts/:id/cancel', deleteReceipt);
 
 export default router;

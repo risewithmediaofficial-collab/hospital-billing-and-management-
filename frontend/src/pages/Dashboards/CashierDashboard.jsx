@@ -155,12 +155,17 @@ export const CashierDashboard = () => {
   };
 
   const handleConfirmDeleteBill = async () => {
-    if (!receiptToDelete || !deletionReason.trim()) return;
+    if (!receiptToDelete) return;
+    const reason = deletionReason.trim() || 'Voided by cashier / staff';
     setIsDeleting(true);
     try {
-      await axiosClient.delete(`/billing/receipts/${receiptToDelete._id}`, {
-        data: { deletionReason: deletionReason.trim() },
-      });
+      try {
+        await axiosClient.delete(`/billing/receipts/${receiptToDelete._id}?deletionReason=${encodeURIComponent(reason)}`, {
+          data: { deletionReason: reason },
+        });
+      } catch (delErr) {
+        await axiosClient.post(`/billing/receipts/${receiptToDelete._id}/cancel`, { deletionReason: reason });
+      }
       setReceiptToDelete(null);
       setDeletionReason('');
       fetchAllReceipts();
@@ -174,12 +179,17 @@ export const CashierDashboard = () => {
   };
 
   const handleConfirmDeleteInvoice = async () => {
-    if (!invoiceToDelete || !invoiceDeletionReason.trim()) return;
+    if (!invoiceToDelete) return;
+    const reason = invoiceDeletionReason.trim() || 'Patient requested cancellation';
     setIsDeletingInvoice(true);
     try {
-      await axiosClient.delete(`/billing/invoices/${invoiceToDelete._id}`, {
-        data: { deletionReason: invoiceDeletionReason.trim() },
-      });
+      try {
+        await axiosClient.delete(`/billing/invoices/${invoiceToDelete._id}?deletionReason=${encodeURIComponent(reason)}`, {
+          data: { deletionReason: reason },
+        });
+      } catch (delErr) {
+        await axiosClient.post(`/billing/invoices/${invoiceToDelete._id}/cancel`, { deletionReason: reason });
+      }
       setInvoiceToDelete(null);
       setInvoiceDeletionReason('');
       if (selectedInvoice?._id === invoiceToDelete._id) {

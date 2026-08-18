@@ -44,6 +44,21 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
   const grandTotal = invData.grandTotal || (subtotal - discount);
   const balanceDue = Math.max(0, (invData.balanceAmount !== undefined ? invData.balanceAmount : grandTotal - paidAmount));
 
+  // Extract follow up date
+  const rawFollowUp = receipt?.followUpDate ||
+    invData?.followUpDate ||
+    invData?.consultation?.followUpDate ||
+    receipt?.invoiceId?.consultation?.followUpDate ||
+    pat?.followUpDate ||
+    null;
+
+  const followUpDateFormatted = rawFollowUp ? new Date(rawFollowUp).toLocaleDateString([], {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }) : null;
+
   const itemsHtml = items.map((it, idx) => `
     <tr>
       <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 10px;">${idx + 1}</td>
@@ -290,6 +305,12 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
               <span class="meta-label">Tender Mode:</span>
               <span class="meta-val" style="color: #4338ca; text-transform: uppercase;">${tenderMode}</span>
             </div>
+            ${followUpDateFormatted ? `
+            <div class="meta-row" style="grid-column: span 2; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 4px; padding: 4px 8px; margin-top: 4px;">
+              <span style="color: #3730a3; font-weight: bold;">📅 Next Recommended Follow-Up Visit:</span>
+              <span style="color: #1e1b4b; font-weight: 800; font-family: monospace;">${followUpDateFormatted}</span>
+            </div>
+            ` : ''}
           </div>
 
           <div class="table-title">Treatment Item Breakdown (${items.length} Billable Services)</div>

@@ -23,6 +23,8 @@ const invoiceSchema = new mongoose.Schema(
     grandTotal: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     balanceAmount: { type: Number, required: true },
+    consultationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation', index: true },
+    followUpDate: { type: Date, default: null, index: true },
     status: { type: String, enum: Object.values(PAYMENT_STATUS), default: PAYMENT_STATUS.UNPAID, index: true },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },

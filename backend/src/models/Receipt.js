@@ -13,6 +13,7 @@ const receiptSchema = new mongoose.Schema(
     paymentMode: { type: String, enum: Object.values(PAYMENT_MODES), default: PAYMENT_MODES.CARD },
     transactionRef: { type: String, default: '' },
     remarks: { type: String, default: 'Payment collected successfully' },
+    followUpDate: { type: Date, default: null, index: true },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

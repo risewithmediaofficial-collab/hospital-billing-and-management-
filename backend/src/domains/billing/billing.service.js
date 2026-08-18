@@ -137,6 +137,7 @@ export class BillingService {
       paymentMode: data.paymentMode || 'CARD',
       transactionRef: data.transactionRef || 'TXN-ONLINE',
       remarks: data.remarks || 'Payment collected at counter',
+      followUpDate: invoice.followUpDate || null,
     });
 
     invoice.paidAmount += amountPaid;
@@ -273,12 +274,10 @@ export class BillingService {
   }
 
   /**
-   * Delete / void a receipt with mandatory reason and audit log
+   * Delete / void a receipt with audit log
    */
   static async deleteReceipt(receiptId, deletionReason, user) {
-    if (!deletionReason || !deletionReason.trim()) {
-      throw new ApiError(400, 'A valid reason is required to delete a bill record.', null, 'REASON_REQUIRED');
-    }
+    const reason = (deletionReason && String(deletionReason).trim()) ? String(deletionReason).trim() : 'Voided by cashier / staff';
 
     const receipt = await Receipt.findById(receiptId)
       .populate('patientId')
@@ -289,15 +288,15 @@ export class BillingService {
     }
 
     if (receipt.isDeleted) {
-      throw new ApiError(400, 'This receipt has already been deleted.', null, 'ALREADY_DELETED');
+      return { success: true, message: 'This receipt has already been deleted.', receipt };
     }
 
     // Soft delete receipt
     receipt.isDeleted = true;
     receipt.deletedAt = new Date();
-    receipt.deletedBy = user.id || user._id;
-    receipt.deletedByName = user.name || 'Staff';
-    receipt.deletionReason = deletionReason.trim();
+    receipt.deletedBy = user?.id || user?._id || null;
+    receipt.deletedByName = user?.name || 'Staff';
+    receipt.deletionReason = reason;
     await receipt.save();
 
     // Rollback invoice payment amounts
@@ -311,9 +310,9 @@ export class BillingService {
           invoice.status = invoice.paidAmount > 0 ? PAYMENT_STATUS.PARTIALLY_PAID : PAYMENT_STATUS.UNPAID;
         }
         invoice.isDeleted = true;
-        invoice.deletionReason = deletionReason.trim();
+        invoice.deletionReason = reason;
         invoice.deletedAt = new Date();
-        invoice.deletedBy = user.id || user._id;
+        invoice.deletedBy = user?.id || user?._id || null;
         await invoice.save();
       }
     }
@@ -322,9 +321,9 @@ export class BillingService {
     try {
       const { AuditLog } = await import('../../models/AuditLog.js');
       await AuditLog.create({
-        hospitalId: receipt.hospitalId || user.hospitalId,
-        userId: user.id || user._id,
-        userRole: user.role,
+        hospitalId: receipt.hospitalId || user?.hospitalId,
+        userId: user?.id || user?._id,
+        userRole: user?.role || 'CASHIER',
         action: 'BILL_DELETED',
         module: 'BILLING',
         resourceId: String(receipt._id),
@@ -337,26 +336,26 @@ export class BillingService {
         },
         newState: {
           isDeleted: true,
-          deletedByName: user.name,
-          deletedByRole: user.role,
-          deletionReason: deletionReason.trim(),
+          deletedByName: user?.name || 'Staff',
+          deletedByRole: user?.role || 'CASHIER',
+          deletionReason: reason,
           deletedAt: receipt.deletedAt,
         },
-        details: `Receipt #${receipt.receiptNo} of ₹${receipt.amountPaid} originally billed by ${receipt.cashierId?.name || 'Cashier'} was deleted by ${user.name} (${user.role}). Reason: ${deletionReason.trim()}`,
+        details: `Receipt #${receipt.receiptNo} of ₹${receipt.amountPaid} originally billed by ${receipt.cashierId?.name || 'Cashier'} was deleted by ${user?.name || 'Staff'} (${user?.role || 'CASHIER'}). Reason: ${reason}`,
       });
     } catch (auditErr) {
       console.error('Failed to write billing deletion audit log:', auditErr);
     }
 
     // Real-time notification & pending status broadcast
-    const branchId = receipt.branchId || user.branchId;
+    const branchId = receipt.branchId || user?.branchId;
     if (branchId) {
       socketManager.emitToBranch(branchId, 'billing:receipt_deleted', {
         receiptId: receipt._id,
         receiptNo: receipt.receiptNo,
         amountPaid: receipt.amountPaid,
-        deletedByName: user.name,
-        deletionReason: deletionReason.trim(),
+        deletedByName: user?.name || 'Staff',
+        deletionReason: reason,
       });
       socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: receipt._id });
     }
@@ -370,12 +369,10 @@ export class BillingService {
   }
 
   /**
-   * Cancel / delete a pending unpaid invoice with mandatory reason and audit log
+   * Cancel / delete a pending unpaid invoice with audit log
    */
   static async deleteInvoice(invoiceId, deletionReason, user) {
-    if (!deletionReason || !deletionReason.trim()) {
-      throw new ApiError(400, 'A valid reason is required to cancel or delete an invoice.', null, 'REASON_REQUIRED');
-    }
+    const reason = (deletionReason && String(deletionReason).trim()) ? String(deletionReason).trim() : 'Cancelled by cashier / staff';
 
     const invoice = await Invoice.findById(invoiceId)
       .populate('patientId')
@@ -386,25 +383,25 @@ export class BillingService {
     }
 
     if (invoice.isDeleted) {
-      throw new ApiError(400, 'This invoice has already been cancelled or deleted.', null, 'ALREADY_DELETED');
+      return { success: true, message: 'This invoice has already been cancelled or deleted.', invoice };
     }
 
     // Soft delete invoice
     invoice.isDeleted = true;
     invoice.status = PAYMENT_STATUS.CANCELLED || 'CANCELLED';
     invoice.deletedAt = new Date();
-    invoice.deletedBy = user.id || user._id;
-    invoice.deletedByName = user.name || 'Staff';
-    invoice.deletionReason = deletionReason.trim();
+    invoice.deletedBy = user?.id || user?._id || null;
+    invoice.deletedByName = user?.name || 'Staff';
+    invoice.deletionReason = reason;
     await invoice.save();
 
     // Immutable Audit Log for Hospital Admin
     try {
       const { AuditLog } = await import('../../models/AuditLog.js');
       await AuditLog.create({
-        hospitalId: invoice.hospitalId || user.hospitalId,
-        userId: user.id || user._id,
-        userRole: user.role,
+        hospitalId: invoice.hospitalId || user?.hospitalId,
+        userId: user?.id || user?._id,
+        userRole: user?.role || 'CASHIER',
         action: 'INVOICE_CANCELLED',
         module: 'BILLING',
         resourceId: String(invoice._id),
@@ -417,25 +414,25 @@ export class BillingService {
         newState: {
           isDeleted: true,
           status: 'CANCELLED',
-          deletedByName: user.name,
-          deletedByRole: user.role,
-          deletionReason: deletionReason.trim(),
+          deletedByName: user?.name || 'Staff',
+          deletedByRole: user?.role || 'CASHIER',
+          deletionReason: reason,
           deletedAt: invoice.deletedAt,
         },
-        details: `Pending Invoice #${invoice.invoiceNo} (₹${invoice.grandTotal}) for patient ${invoice.patientId?.firstName || ''} was cancelled/deleted by ${user.name} (${user.role}). Reason: ${deletionReason.trim()}`,
+        details: `Pending Invoice #${invoice.invoiceNo} (₹${invoice.grandTotal}) for patient ${invoice.patientId?.firstName || ''} was cancelled/deleted by ${user?.name || 'Staff'} (${user?.role || 'CASHIER'}). Reason: ${reason}`,
       });
     } catch (auditErr) {
       console.error('Failed to write invoice deletion audit log:', auditErr);
     }
 
     // Real-time broadcast
-    const branchId = invoice.branchId || user.branchId;
+    const branchId = invoice.branchId || user?.branchId;
     if (branchId) {
       socketManager.emitToBranch(branchId, 'billing:invoice_deleted', {
         invoiceId: invoice._id,
         invoiceNo: invoice.invoiceNo,
-        deletedByName: user.name,
-        deletionReason: deletionReason.trim(),
+        deletedByName: user?.name || 'Staff',
+        deletionReason: reason,
       });
       socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: invoice._id });
     }

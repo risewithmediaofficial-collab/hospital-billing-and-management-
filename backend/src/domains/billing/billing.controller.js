@@ -58,7 +58,7 @@ export const getDeletedReceipts = async (req, res, next) => {
 export const deleteReceipt = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { deletionReason } = req.body;
+    const deletionReason = req.body?.deletionReason || req.body?.reason || req.query?.deletionReason || req.query?.reason || 'Cancelled by staff';
     const result = await BillingService.deleteReceipt(id, deletionReason, req.user);
     return sendSuccess(res, 200, 'Bill deleted successfully', result);
   } catch (error) {
@@ -69,7 +69,7 @@ export const deleteReceipt = async (req, res, next) => {
 export const deleteInvoice = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { deletionReason } = req.body;
+    const deletionReason = req.body?.deletionReason || req.body?.reason || req.query?.deletionReason || req.query?.reason || 'Cancelled by staff';
     const result = await BillingService.deleteInvoice(id, deletionReason, req.user);
     return sendSuccess(res, 200, 'Pending bill / invoice cancelled successfully', result);
   } catch (error) {

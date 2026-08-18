@@ -5,6 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
+import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
+import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
 import { axiosClient } from '../../api/axiosClient';
 import { useSocket } from '../../providers/SocketProvider';
 import { formatCurrency } from '../../utils/formatters';
@@ -22,6 +24,8 @@ import {
   RefreshCw,
   FolderOpen,
   UserCheck,
+  Calendar,
+  History,
 } from 'lucide-react';
 
 export const ReceptionWorkspaceView = () => {
@@ -31,11 +35,13 @@ export const ReceptionWorkspaceView = () => {
   const tabParam = searchParams.get('tab');
   const { socket } = useSocket();
 
-  // Tab state: 'QUEUED' | 'COMPLETED' | 'ALL' | 'REGISTERED'
+  // Tab state: 'QUEUED' | 'REGISTERED' | 'FOLLOW_UPS' | 'COMPLETED' | 'ALL'
   const [activeTab, setActiveTab] = useState(tabParam || 'QUEUED');
+  const [historyPatientId, setHistoryPatientId] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   useEffect(() => {
-    if (tabParam && ['REGISTERED', 'QUEUED', 'COMPLETED', 'ALL'].includes(tabParam)) {
+    if (tabParam && ['REGISTERED', 'QUEUED', 'FOLLOW_UPS', 'COMPLETED', 'ALL'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -236,18 +242,97 @@ export const ReceptionWorkspaceView = () => {
 
 
 
-      {/* Search Input */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative max-w-sm w-full">
-          <Input
-            placeholder="Search by Patient Name, UHID, Phone, Doctor..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="py-2 text-xs pl-9"
-          />
-          <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-        </div>
+      {/* Tab Switcher Bar */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('QUEUED')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'QUEUED'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Ticket size={15} />
+          <span>Active OPD Queue ({queuedPatients.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('REGISTERED')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'REGISTERED'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <UserCheck size={15} />
+          <span>Awaiting Token ({filteredAwaiting.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('FOLLOW_UPS')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'FOLLOW_UPS'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Calendar size={15} />
+          <span>Follow-Up Visits & Missed Calls</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('COMPLETED')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'COMPLETED'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <CheckCircle2 size={15} />
+          <span>Completed Visits ({completedPatients.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ALL')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'ALL'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <FolderOpen size={15} />
+          <span>All Hospital Patients ({patients.length})</span>
+        </button>
       </div>
+
+      {/* Search Input */}
+      {activeTab !== 'FOLLOW_UPS' && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative max-w-sm w-full">
+            <Input
+              placeholder="Search by Patient Name, UHID, Phone, Doctor..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="py-2 text-xs pl-9"
+            />
+            <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+          </div>
+        </div>
+      )}
+
+      {/* TAB: FOLLOW-UP VISITS */}
+      {activeTab === 'FOLLOW_UPS' && (
+        <FollowUpVisitsSection
+          onIssueToken={(patient) => {
+            setSelectedPatient(patient);
+            setIsTokenOpen(true);
+          }}
+          onViewHistory={(id) => {
+            setHistoryPatientId(id);
+            setIsHistoryOpen(true);
+          }}
+        />
+      )}
 
       {/* TAB 1: REGISTERED PATIENTS AWAITING TOKEN */}
       {activeTab === 'REGISTERED' && (
@@ -540,6 +625,15 @@ export const ReceptionWorkspaceView = () => {
         }}
       />
       <IssueTokenModal isOpen={isTokenOpen} onClose={() => setIsTokenOpen(false)} onSuccess={fetchAllData} initialPatient={selectedPatient} />
+
+      <PatientHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          setIsHistoryOpen(false);
+          setHistoryPatientId(null);
+        }}
+        initialIdentifier={historyPatientId}
+      />
     </div>
   );
 };

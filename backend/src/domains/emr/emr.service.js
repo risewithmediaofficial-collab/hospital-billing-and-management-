@@ -309,6 +309,8 @@ export class EmrService {
       patientId: appointment.patientId,
       doctorId: user.id || user._id,
       doctorName: user.name ? `Dr. ${user.name}` : 'Doctor Consultant',
+      consultationId: consultation._id,
+      followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
       invoiceNo,
       items,
       subtotal,
