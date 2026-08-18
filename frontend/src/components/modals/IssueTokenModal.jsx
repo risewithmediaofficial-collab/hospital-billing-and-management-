@@ -148,7 +148,20 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
     const complaints = issuedToken.chiefComplaints || chiefComplaints || pat.chiefComplaints || 'OPD Consultation';
     const docName = issuedToken.doctorId?.name ? `Dr. ${issuedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (selectedDoctor?.name ? `Dr. ${selectedDoctor.name.replace(/^Dr\.\s*/i, '')}` : 'Assigned OPD Doctor');
     const cabin = issuedToken.cabinNo || selectedDoctor?.cabinNo || issuedToken.doctorId?.cabinNo || 'Cabin 101';
-    const hospName = user?.hospitalName || 'METRO GENERAL HOSPITAL';
+    
+    // Hospital Context & Full Address matching billing header
+    const hospObj = user?.hospitalId || user?.hospital || {};
+    const hospName = hospObj?.name || user?.hospitalName || 'Test Hospital Main Campus';
+    const addrObj = hospObj?.address || {};
+    const formattedAddress = [
+      addrObj?.street || '123 Healthcare Boulevard, Medical Enclave',
+      addrObj?.city || 'Chennai',
+      addrObj?.state || 'Tamil Nadu',
+      addrObj?.postalCode ? `PIN: ${addrObj.postalCode}` : 'PIN: 600001',
+    ].filter(Boolean).join(', ');
+    const hospPhone = hospObj?.contactPhone || '6380140927';
+    const hospEmail = hospObj?.contactEmail || 'reception@testhospital.com';
+
     const issueTime = new Date(issuedToken.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const issueDate = new Date(issuedToken.createdAt || Date.now()).toLocaleDateString();
 
@@ -159,34 +172,52 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
           <title>OPD Token #${issuedToken.tokenNumber} - ${patName}</title>
           <style>
             @page { size: 80mm auto; margin: 4mm; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 10px; margin: 0; text-align: center; color: #0f172a; background: #fff; }
-            .token-card { border: 2px dashed #4338ca; border-radius: 12px; padding: 14px; margin: auto; max-width: 320px; box-sizing: border-box; }
-            .hosp-title { font-size: 15px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #1e1b4b; }
-            .sub-title { font-size: 10px; color: #475569; font-weight: 800; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
-            .divider { border-bottom: 1px solid #cbd5e1; margin: 10px 0; }
-            .token-label { font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; }
-            .token-num { font-size: 52px; font-weight: 900; color: #3730a3; margin: 4px 0; line-height: 1; font-family: monospace; }
-            .cabin-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 800; margin-top: 2px; }
-            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: left; font-size: 11px; line-height: 1.6; margin-top: 12px; }
-            .info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 10px; margin: 0; text-align: center; color: #0f172a; background: #fff; font-size: 11px; }
+            .token-card { border: 2px solid #1e1b4b; border-radius: 10px; padding: 12px; margin: auto; max-width: 330px; }
+            
+            /* Exact Match with Billing Receipt Header */
+            .hosp-header { border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px; }
+            .hosp-title { font-size: 15px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
+            .hosp-addr { font-size: 10px; color: #334155; font-weight: 500; margin-top: 3px; line-height: 1.3; }
+            .hosp-contact { font-size: 9px; color: #64748b; font-family: monospace; margin-top: 2px; }
+            .badge { display: inline-block; margin-top: 4px; padding: 2px 8px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #1e293b; }
+            
+            .token-section { margin: 8px 0; }
+            .token-label { font-size: 10px; font-weight: 800; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; }
+            .token-num { font-size: 46px; font-weight: 900; color: #3730a3; margin: 2px 0; line-height: 1; font-family: monospace; }
+            .cabin-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 800; margin-top: 2px; }
+            
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; text-align: left; font-size: 10.5px; line-height: 1.5; margin-top: 8px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
             .info-label { color: #64748b; font-weight: 600; }
             .info-val { font-weight: 700; color: #0f172a; text-align: right; }
             .uhid-val { font-family: monospace; font-weight: 900; color: #4338ca; }
-            .footer-msg { font-size: 10px; color: #64748b; margin-top: 12px; line-height: 1.4; }
+            
+            .footer-msg { font-size: 9.5px; color: #64748b; margin-top: 8px; border-top: 1px dashed #cbd5e1; padding-top: 6px; line-height: 1.4; }
+            .footer-bottom { font-size: 8.5px; color: #94a3b8; margin-top: 4px; font-weight: 600; }
             @media print {
               body { padding: 0; }
-              .token-card { border: 1px solid #000; }
+              .token-card { border: 1.5px solid #000; }
             }
           </style>
         </head>
         <body>
           <div class="token-card">
-            <h2 class="hosp-title">${hospName}</h2>
-            <div class="sub-title">OPD Queue Token Slip</div>
-            <div class="divider"></div>
-            <div class="token-label">OPD TOKEN NUMBER</div>
-            <div class="token-num">#${issuedToken.tokenNumber}</div>
-            <div class="cabin-badge">Room: ${cabin}</div>
+            <!-- Header matching Billing Receipt -->
+            <div class="hosp-header">
+              <h2 class="hosp-title">${hospName}</h2>
+              <div class="hosp-addr">${formattedAddress}</div>
+              <div class="hosp-contact">📞 Phone: ${hospPhone} &nbsp;|&nbsp; ✉️ ${hospEmail}</div>
+              <div class="badge">Official OPD Consultation Token Card</div>
+            </div>
+
+            <div class="token-section">
+              <div class="token-label">OPD Queue Token</div>
+              <div class="token-num">#${issuedToken.tokenNumber}</div>
+              <div class="cabin-badge">Consultation Room: ${cabin}</div>
+            </div>
+
             <div class="info-box">
               <div class="info-row"><span class="info-label">Patient Name:</span> <span class="info-val">${patName}</span></div>
               <div class="info-row"><span class="info-label">UHID:</span> <span class="uhid-val">${patUhid}</span></div>
@@ -197,7 +228,23 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
               <div class="info-row"><span class="info-label">Doctor:</span> <span class="info-val">${docName}</span></div>
               <div class="info-row"><span class="info-label">Date & Time:</span> <span class="info-val">${issueDate} ${issueTime}</span></div>
             </div>
-            <div class="footer-msg">Please wait in the reception lobby.<br/>Your token will be announced shortly.</div>
+
+            <!-- Patient Portal Login Box -->
+            <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: 6px 8px; margin-top: 8px; font-size: 10px; text-align: left;">
+              <div style="font-weight: 800; color: #3730a3; margin-bottom: 2px;">📲 Patient Portal Login:</div>
+              <div style="display: flex; justify-content: space-between; color: #1e1b4b; font-family: monospace; font-size: 9.5px;">
+                <span><strong>Login:</strong> ${patPhone}</span>
+                <span><strong>Password (DOB):</strong> ${patDob}</span>
+              </div>
+            </div>
+
+            <div class="footer-msg">
+              Please wait in the reception lobby area.<br/>
+              Your token number will be announced on the queue display screen.
+            </div>
+            <div class="footer-bottom">
+              Emergency Contact: ${hospPhone} &bull; Valid for OPD visit today
+            </div>
           </div>
           <script>
             window.onload = function() { window.print(); }
@@ -211,6 +258,17 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
   const resolvedPatient = issuedToken ? ((typeof issuedToken.patientId === 'object' && issuedToken.patientId) ? issuedToken.patientId : (selectedPatient || {})) : null;
   const resolvedPatName = resolvedPatient?.firstName ? `${resolvedPatient.firstName} ${resolvedPatient.lastName || ''}`.trim() : (issuedToken?.patientName || 'Patient');
   const resolvedDoctorName = issuedToken?.doctorId?.name ? `Dr. ${issuedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (selectedDoctor?.name ? `Dr. ${selectedDoctor.name.replace(/^Dr\.\s*/i, '')}` : 'Assigned Doctor');
+
+  const hospObj = user?.hospitalId || user?.hospital || {};
+  const hospName = hospObj?.name || user?.hospitalName || 'Test Hospital Main Campus';
+  const addrObj = hospObj?.address || {};
+  const formattedAddress = [
+    addrObj?.street || '123 Healthcare Boulevard, Medical Enclave',
+    addrObj?.city || 'Chennai',
+    addrObj?.state || 'Tamil Nadu',
+    addrObj?.postalCode ? `PIN: ${addrObj.postalCode}` : 'PIN: 600001',
+  ].filter(Boolean).join(', ');
+  const hospPhone = hospObj?.contactPhone || '6380140927';
 
   return (
     <div className="modal-overlay animate-fade-in">
@@ -244,59 +302,80 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                 <p className="text-xs text-slate-500 mt-0.5">The doctor's queue and live display have been updated.</p>
               </div>
 
-              {/* Token Slip Preview Card */}
-              <div className="p-4 rounded-xl bg-white border-2 border-dashed border-indigo-200 text-center shadow-xs space-y-3">
-                <div className="border-b border-slate-100 pb-2">
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">{user?.hospitalName || 'HOSPITAL CLINIC'}</p>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase">OPD Token Card</p>
+              {/* Token Slip Preview Card matching Billing Header */}
+              <div className="p-4 rounded-2xl bg-white border-2 border-slate-800 text-center shadow-xs space-y-3 font-sans text-xs">
+                {/* Header matching Billing Receipt */}
+                <div className="border-b-2 border-slate-800 pb-2.5 space-y-0.5 text-center">
+                  <p className="text-sm font-black text-slate-950 uppercase tracking-tight">{hospName}</p>
+                  <p className="text-[10px] font-medium text-slate-600">{formattedAddress}</p>
+                  <p className="text-[9.5px] font-mono text-slate-500">📞 Phone: {hospPhone}</p>
+                  <div className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[9px] font-extrabold uppercase text-slate-800">
+                    Official OPD Consultation Token Card
+                  </div>
                 </div>
+
                 <div>
-                  <span className="text-[11px] text-indigo-500 uppercase font-extrabold tracking-widest">Token Number</span>
-                  <p className="text-5xl font-black text-indigo-700 mt-1 tabular-nums">#{issuedToken.tokenNumber}</p>
-                  <span className="inline-block mt-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  <span className="text-[10.5px] text-indigo-600 uppercase font-extrabold tracking-widest">Queue Token Number</span>
+                  <p className="text-5xl font-black text-indigo-700 mt-0.5 tabular-nums">#{issuedToken.tokenNumber}</p>
+                  <span className="inline-block mt-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-0.5 rounded-full">
                     Room: {issuedToken.cabinNo || selectedDoctor?.cabinNo || 'Cabin 101'}
                   </span>
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs space-y-1.5 divide-y divide-slate-100">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-left text-xs space-y-1.5 divide-y divide-slate-100">
                   <div className="flex justify-between items-center pt-0.5">
-                    <span className="text-slate-500">Patient Name:</span>
+                    <span className="text-slate-500 font-medium">Patient Name:</span>
                     <span className="font-bold text-slate-900">{resolvedPatName}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">UHID:</span>
+                    <span className="text-slate-500 font-medium">UHID:</span>
                     <span className="font-mono font-black text-indigo-700">{resolvedPatient?.uhid || issuedToken.uhid || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">Mobile Phone:</span>
-                    <span className="font-bold text-slate-800">{resolvedPatient?.phone || issuedToken.phone || 'N/A'}</span>
+                    <span className="text-slate-500 font-medium">Mobile Phone:</span>
+                    <span className="font-bold text-slate-800 font-mono">{resolvedPatient?.phone || issuedToken.phone || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">Age & Gender:</span>
+                    <span className="text-slate-500 font-medium">Age & Gender:</span>
                     <span className="font-medium text-slate-800">
                       {resolvedPatient?.age ? `${resolvedPatient.age} yrs` : (resolvedPatient?.dob ? `${new Date().getFullYear() - new Date(resolvedPatient.dob).getFullYear()} yrs` : 'N/A')} &bull; {resolvedPatient?.gender || 'N/A'}
                     </span>
                   </div>
                   {resolvedPatient?.dob && (
                     <div className="flex justify-between items-center pt-1.5">
-                      <span className="text-slate-500">Date of Birth:</span>
+                      <span className="text-slate-500 font-medium">Date of Birth:</span>
                       <span className="font-medium text-slate-800">{new Date(resolvedPatient.dob).toLocaleDateString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">Chief Complaint:</span>
+                    <span className="text-slate-500 font-medium">Chief Complaint:</span>
                     <span className="font-medium text-amber-900">{issuedToken.chiefComplaints || chiefComplaints || resolvedPatient?.chiefComplaints || 'OPD Check-up'}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">Doctor:</span>
-                    <span className="font-semibold text-slate-800">{resolvedDoctorName}</span>
+                    <span className="text-slate-500 font-medium">Doctor:</span>
+                    <span className="font-bold text-slate-900">{resolvedDoctorName}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5">
-                    <span className="text-slate-500">Issued At:</span>
+                    <span className="text-slate-500 font-medium">Date & Time:</span>
                     <span className="font-medium text-slate-600">
                       {new Date(issuedToken.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(issuedToken.createdAt || Date.now()).toLocaleDateString()}
                     </span>
                   </div>
+                </div>
+
+                {/* Patient Portal Login Box */}
+                <div className="p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-left text-xs space-y-1">
+                  <p className="font-extrabold text-indigo-900 flex items-center gap-1.5 text-[11px]">
+                    <span>📱</span> Patient Portal Login Credentials:
+                  </p>
+                  <div className="flex justify-between font-mono text-[10.5px] text-indigo-950">
+                    <span>Login: <strong>{resolvedPatient?.phone || issuedToken.phone || 'N/A'}</strong></span>
+                    <span>Password (DOB): <strong>{resolvedPatient?.dob ? new Date(resolvedPatient.dob).toLocaleDateString() : 'N/A'}</strong></span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 border-t border-dashed border-slate-200 pt-2">
+                  Please keep this card in the waiting lobby &bull; Your token will be called on the display
                 </div>
               </div>
 

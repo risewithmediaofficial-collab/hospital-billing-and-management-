@@ -75,12 +75,13 @@ export const DoctorDashboard = () => {
   // Sync active tab with URL query parameter
   // No ?tab= param  → OVERVIEW (Clinical EMR Desk)
   // ?tab=LIVE        → Queued Patients
+  // ?tab=FOLLOW_UPS  → Follow-Up Visits & Missed Calls
   // ?tab=COMPLETED   → Completed Visits
   // ?tab=DEPT_RESPONSES → Department Responses
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['LIVE', 'COMPLETED', 'SENT_DEPARTMENTS', 'DEPT_RESPONSES'].includes(tabParam.toUpperCase())) {
+    if (tabParam && ['LIVE', 'COMPLETED', 'SENT_DEPARTMENTS', 'DEPT_RESPONSES', 'FOLLOW_UPS'].includes(tabParam.toUpperCase())) {
       setActiveTab(tabParam.toUpperCase() === 'SENT_DEPARTMENTS' ? 'DEPT_RESPONSES' : tabParam.toUpperCase());
     } else {
       setActiveTab('OVERVIEW');
@@ -634,8 +635,59 @@ export const DoctorDashboard = () => {
         </>
       )}
 
+      {/* ── WORKSTATION SUB-NAVIGATION TABS ── */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto bg-white/60 p-2 rounded-xl border">
+        <button
+          onClick={() => setActiveTab('OVERVIEW')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'OVERVIEW' || activeTab === 'LIVE'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Users size={15} />
+          <span>Live OPD Queue ({liveQueue.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('FOLLOW_UPS')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'FOLLOW_UPS'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Calendar size={15} />
+          <span>📅 Follow-Up Visits & Missed Calls</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('COMPLETED')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'COMPLETED'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <CheckCircle2 size={15} />
+          <span>Completed Consultations ({completedQueue.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('DEPT_RESPONSES')}
+          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'DEPT_RESPONSES'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <FileCheck2 size={15} />
+          <span>Department Responses ({pendingReportsCount})</span>
+        </button>
+      </div>
+
       {/* ── TAB VIEWS (Queued / Completed / Dept Responses) ── Search Bar + Content only */}
-      {activeTab !== 'OVERVIEW' && (
+      {activeTab !== 'OVERVIEW' && activeTab !== 'FOLLOW_UPS' && (
         <div className="relative">
           <input
             type="text"

@@ -21,37 +21,38 @@ import { HospitalNotFoundPage } from '../pages/HospitalNotFoundPage';
 import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
 import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
 import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
+import { lazyRetry } from '../utils/lazyRetry';
 
-// Route-based Code Splitting: Lazy-loaded pages to minimize initial bundle size
-const SuperAdminDashboardPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminDashboardPage').then(m => ({ default: m.SuperAdminDashboardPage })));
-const SuperAdminHospitalsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalsPage').then(m => ({ default: m.SuperAdminHospitalsPage })));
-const SuperAdminHospitalAdminsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalAdminsPage').then(m => ({ default: m.SuperAdminHospitalAdminsPage })));
-const SuperAdminHospitalDashboard = React.lazy(() => import('../pages/SuperAdmin/SuperAdminHospitalDashboard').then(m => ({ default: m.SuperAdminHospitalDashboard })));
-const SuperAdminStaffPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminStaffPage })));
-const SuperAdminDoctorsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminDoctorsPage })));
-const SuperAdminAuditLogsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminAuditLogsPage').then(m => ({ default: m.SuperAdminAuditLogsPage })));
-const SuperAdminSubscriptionsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminSubscriptionsPage').then(m => ({ default: m.SuperAdminSubscriptionsPage })));
-const SuperAdminReportsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminReportsPage').then(m => ({ default: m.SuperAdminReportsPage })));
-const SuperAdminPendingApprovalsPage = React.lazy(() => import('../pages/SuperAdmin/SuperAdminPendingApprovalsPage').then(m => ({ default: m.SuperAdminPendingApprovalsPage })));
+// Route-based Code Splitting: Lazy-loaded pages with auto-chunk retry
+const SuperAdminDashboardPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminDashboardPage').then(m => ({ default: m.SuperAdminDashboardPage })));
+const SuperAdminHospitalsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminHospitalsPage').then(m => ({ default: m.SuperAdminHospitalsPage })));
+const SuperAdminHospitalAdminsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminHospitalAdminsPage').then(m => ({ default: m.SuperAdminHospitalAdminsPage })));
+const SuperAdminHospitalDashboard = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminHospitalDashboard').then(m => ({ default: m.SuperAdminHospitalDashboard })));
+const SuperAdminStaffPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminStaffPage })));
+const SuperAdminDoctorsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminStaffPage').then(m => ({ default: m.SuperAdminDoctorsPage })));
+const SuperAdminAuditLogsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminAuditLogsPage').then(m => ({ default: m.SuperAdminAuditLogsPage })));
+const SuperAdminSubscriptionsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminSubscriptionsPage').then(m => ({ default: m.SuperAdminSubscriptionsPage })));
+const SuperAdminReportsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminReportsPage').then(m => ({ default: m.SuperAdminReportsPage })));
+const SuperAdminPendingApprovalsPage = lazyRetry(() => import('../pages/SuperAdmin/SuperAdminPendingApprovalsPage').then(m => ({ default: m.SuperAdminPendingApprovalsPage })));
 
-const HospitalAdminDashboard = React.lazy(() => import('../pages/Dashboards/HospitalAdminDashboard').then(m => ({ default: m.HospitalAdminDashboard })));
-const HospitalAdminManagementViews = React.lazy(() => import('../pages/Dashboards/HospitalAdminManagementViews').then(m => ({ default: m.HospitalAdminManagementViews })));
-const DoctorDashboard = React.lazy(() => import('../pages/Dashboards/DoctorDashboard').then(m => ({ default: m.DoctorDashboard })));
-const NurseDashboard = React.lazy(() => import('../pages/Dashboards/NurseDashboard').then(m => ({ default: m.NurseDashboard })));
-const NurseInchargeDashboard = React.lazy(() => import('../pages/Dashboards/NurseInchargeDashboard').then(m => ({ default: m.NurseInchargeDashboard })));
-const ReceptionDashboard = React.lazy(() => import('../pages/Dashboards/ReceptionDashboard').then(m => ({ default: m.ReceptionDashboard })));
-const PharmacistDashboard = React.lazy(() => import('../pages/Dashboards/PharmacistDashboard').then(m => ({ default: m.PharmacistDashboard })));
-const LabTechDashboard = React.lazy(() => import('../pages/Dashboards/LabTechDashboard').then(m => ({ default: m.LabTechDashboard })));
-const RadiologistDashboard = React.lazy(() => import('../pages/Dashboards/RadiologistDashboard').then(m => ({ default: m.RadiologistDashboard })));
-const CashierDashboard = React.lazy(() => import('../pages/Dashboards/CashierDashboard').then(m => ({ default: m.CashierDashboard })));
-const PatientDashboard = React.lazy(() => import('../pages/Dashboards/PatientDashboard').then(m => ({ default: m.PatientDashboard })));
-const GuardianDashboard = React.lazy(() => import('../pages/Dashboards/GuardianDashboard').then(m => ({ default: m.GuardianDashboard })));
-const InventoryDashboard = React.lazy(() => import('../pages/Dashboards/InventoryDashboard').then(m => ({ default: m.InventoryDashboard })));
-const HRDashboard = React.lazy(() => import('../pages/Dashboards/HRDashboard').then(m => ({ default: m.HRDashboard })));
-const RegisteredPatientsView = React.lazy(() => import('../pages/Reception/RegisteredPatientsView').then(m => ({ default: m.RegisteredPatientsView })));
-const PatientRegistrationPage = React.lazy(() => import('../pages/Reception/PatientRegistrationPage').then(m => ({ default: m.PatientRegistrationPage })));
-const EmergencyConsoleView = React.lazy(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
-const AdminExtraPage = React.lazy(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
+const HospitalAdminDashboard = lazyRetry(() => import('../pages/Dashboards/HospitalAdminDashboard').then(m => ({ default: m.HospitalAdminDashboard })));
+const HospitalAdminManagementViews = lazyRetry(() => import('../pages/Dashboards/HospitalAdminManagementViews').then(m => ({ default: m.HospitalAdminManagementViews })));
+const DoctorDashboard = lazyRetry(() => import('../pages/Dashboards/DoctorDashboard').then(m => ({ default: m.DoctorDashboard })));
+const NurseDashboard = lazyRetry(() => import('../pages/Dashboards/NurseDashboard').then(m => ({ default: m.NurseDashboard })));
+const NurseInchargeDashboard = lazyRetry(() => import('../pages/Dashboards/NurseInchargeDashboard').then(m => ({ default: m.NurseInchargeDashboard })));
+const ReceptionDashboard = lazyRetry(() => import('../pages/Dashboards/ReceptionDashboard').then(m => ({ default: m.ReceptionDashboard })));
+const PharmacistDashboard = lazyRetry(() => import('../pages/Dashboards/PharmacistDashboard').then(m => ({ default: m.PharmacistDashboard })));
+const LabTechDashboard = lazyRetry(() => import('../pages/Dashboards/LabTechDashboard').then(m => ({ default: m.LabTechDashboard })));
+const RadiologistDashboard = lazyRetry(() => import('../pages/Dashboards/RadiologistDashboard').then(m => ({ default: m.RadiologistDashboard })));
+const CashierDashboard = lazyRetry(() => import('../pages/Dashboards/CashierDashboard').then(m => ({ default: m.CashierDashboard })));
+const PatientDashboard = lazyRetry(() => import('../pages/Dashboards/PatientDashboard').then(m => ({ default: m.PatientDashboard })));
+const GuardianDashboard = lazyRetry(() => import('../pages/Dashboards/GuardianDashboard').then(m => ({ default: m.GuardianDashboard })));
+const InventoryDashboard = lazyRetry(() => import('../pages/Dashboards/InventoryDashboard').then(m => ({ default: m.InventoryDashboard })));
+const HRDashboard = lazyRetry(() => import('../pages/Dashboards/HRDashboard').then(m => ({ default: m.HRDashboard })));
+const RegisteredPatientsView = lazyRetry(() => import('../pages/Reception/RegisteredPatientsView').then(m => ({ default: m.RegisteredPatientsView })));
+const PatientRegistrationPage = lazyRetry(() => import('../pages/Reception/PatientRegistrationPage').then(m => ({ default: m.PatientRegistrationPage })));
+const EmergencyConsoleView = lazyRetry(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
+const AdminExtraPage = lazyRetry(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">

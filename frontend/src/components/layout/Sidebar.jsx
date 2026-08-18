@@ -15,11 +15,14 @@ let savedSidebarScrollTop = 0;
 export const WORK_MODE_NAVIGATION = [
   // Clinical Workstation
   { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
-  { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Calendar', module: 'appointments', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Follow-Up Visits', path: '/doctor/dashboard?tab=FOLLOW_UPS', icon: 'Calendar', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Clock', module: 'appointments', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
   { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
   { title: 'Dept Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
 
   // Front Desk & Billing
+  { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
+  { title: 'Follow-Up Visits', path: '/reception/registered-patients?tab=FOLLOW_UPS', icon: 'Calendar', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
   { title: 'Register Patient', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
   { title: 'Tokens & Live Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF', 'HOSPITAL_ADMIN'] },
   { title: 'Patients Directory', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'DOCTOR', 'HOSPITAL_ADMIN'] },
