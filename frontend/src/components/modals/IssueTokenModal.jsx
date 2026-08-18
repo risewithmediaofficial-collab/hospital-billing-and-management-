@@ -5,7 +5,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
-import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info, Printer } from 'lucide-react';
+import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info, Printer, Phone, Mail, Smartphone } from 'lucide-react';
 
 export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = null, initialDoctorId = null }) => {
   useScrollLock(isOpen);
@@ -208,7 +208,7 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
             <div class="hosp-header">
               <h2 class="hosp-title">${hospName}</h2>
               <div class="hosp-addr">${formattedAddress}</div>
-              <div class="hosp-contact">📞 Phone: ${hospPhone} &nbsp;|&nbsp; ✉️ ${hospEmail}</div>
+              <div class="hosp-contact"><span style="font-weight: 700;">Phone:</span> ${hospPhone} &nbsp;|&nbsp; <span style="font-weight: 700;">Email:</span> ${hospEmail}</div>
               <div class="badge">Official OPD Consultation Token Card</div>
             </div>
 
@@ -231,9 +231,9 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
             <!-- Patient Portal Login Box -->
             <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: 6px 8px; margin-top: 8px; font-size: 10px; text-align: left;">
-              <div style="font-weight: 800; color: #3730a3; margin-bottom: 2px;">📲 Patient Portal Login:</div>
+              <div style="font-weight: 800; color: #3730a3; margin-bottom: 2px;">Patient Portal Login:</div>
               <div style="display: flex; justify-content: space-between; color: #1e1b4b; font-family: monospace; font-size: 9.5px;">
-                <span><strong>Login:</strong> ${patPhone}</span>
+                <span><strong>Login (Mobile):</strong> ${patPhone}</span>
                 <span><strong>Password (DOB):</strong> ${patDob}</span>
               </div>
             </div>
@@ -308,7 +308,9 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                 <div className="border-b-2 border-slate-800 pb-2.5 space-y-0.5 text-center">
                   <p className="text-sm font-black text-slate-950 uppercase tracking-tight">{hospName}</p>
                   <p className="text-[10px] font-medium text-slate-600">{formattedAddress}</p>
-                  <p className="text-[9.5px] font-mono text-slate-500">📞 Phone: {hospPhone}</p>
+                  <p className="text-[9.5px] font-mono text-slate-600 flex items-center justify-center gap-1">
+                    <Phone size={11} className="text-slate-500" /> Phone: {hospPhone}
+                  </p>
                   <div className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[9px] font-extrabold uppercase text-slate-800">
                     Official OPD Consultation Token Card
                   </div>
@@ -366,7 +368,8 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                 {/* Patient Portal Login Box */}
                 <div className="p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-left text-xs space-y-1">
                   <p className="font-extrabold text-indigo-900 flex items-center gap-1.5 text-[11px]">
-                    <span>📱</span> Patient Portal Login Credentials:
+                    <Smartphone size={13} className="text-indigo-700 shrink-0" />
+                    Patient Portal Login Credentials:
                   </p>
                   <div className="flex justify-between font-mono text-[10.5px] text-indigo-950">
                     <span>Login: <strong>{resolvedPatient?.phone || issuedToken.phone || 'N/A'}</strong></span>

@@ -89,8 +89,9 @@ export const FollowUpVisitsSection = ({ onIssueToken, onViewHistory }) => {
               <AlertTriangle size={18} />
             </div>
             <div>
-              <p className="font-extrabold text-xs">
-                ⚠️ {missedList.length} Patient(s) Missed Scheduled Follow-Up Date!
+              <p className="font-extrabold text-xs flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-rose-600 inline shrink-0" />
+                {missedList.length} Patient(s) Missed Scheduled Follow-Up Date!
               </p>
               <p className="text-[11px] text-rose-700">
                 Action Required: Call these patients to inquire about their recovery and reschedule their OPD token.
@@ -113,43 +114,43 @@ export const FollowUpVisitsSection = ({ onIssueToken, onViewHistory }) => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold">
           <button
             onClick={() => setFilterTab('MISSED')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               filterTab === 'MISSED'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            ⚠️ Overdue / Missed ({missedList.length})
+            <AlertTriangle size={13} /> Overdue / Missed ({missedList.length})
           </button>
           <button
             onClick={() => setFilterTab('TODAY')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               filterTab === 'TODAY'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            📅 Due Today ({todayList.length})
+            <Calendar size={13} /> Due Today ({todayList.length})
           </button>
           <button
             onClick={() => setFilterTab('UPCOMING')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               filterTab === 'UPCOMING'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            🗓️ Upcoming ({upcomingList.length})
+            <Clock size={13} /> Upcoming ({upcomingList.length})
           </button>
           <button
             onClick={() => setFilterTab('ALL')}
-            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
               filterTab === 'ALL'
                 ? 'bg-slate-800 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            All Scheduled ({followUps.length})
+            <CheckCircle2 size={13} /> All Scheduled ({followUps.length})
           </button>
         </div>
 

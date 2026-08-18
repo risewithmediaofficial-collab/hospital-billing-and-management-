@@ -76,8 +76,8 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
               <UserPlus size={18} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-slate-900 truncate">Register New Patient</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Generate UHID & Create Permanent Record</p>
+              <h3 className="text-base font-bold text-slate-900 truncate">New Patient Intake & Registration Form</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Fill in patient details to generate permanent hospital record and UHID.</p>
             </div>
           </div>
           <button onClick={handleReset} className="modal-close-btn" aria-label="Close">

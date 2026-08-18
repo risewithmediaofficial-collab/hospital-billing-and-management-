@@ -265,7 +265,7 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
           <div class="header">
             <h1>${hospName}</h1>
             <div class="address">${formattedAddress}</div>
-            <div class="contact">📞 Phone: ${hospPhone} &nbsp;|&nbsp; ✉️ Email: ${hospEmail}</div>
+            <div class="contact"><span style="font-weight: 700;">Phone:</span> ${hospPhone} &nbsp;|&nbsp; <span style="font-weight: 700;">Email:</span> ${hospEmail}</div>
             <div class="badge">Official Medical Cash Receipt & Treatment Bill</div>
           </div>
 
@@ -307,7 +307,7 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
             </div>
             ${followUpDateFormatted ? `
             <div class="meta-row" style="grid-column: span 2; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 4px; padding: 4px 8px; margin-top: 4px;">
-              <span style="color: #3730a3; font-weight: bold;">📅 Next Recommended Follow-Up Visit:</span>
+              <span style="color: #3730a3; font-weight: bold;">Next Recommended Follow-Up Visit:</span>
               <span style="color: #1e1b4b; font-weight: 800; font-family: monospace;">${followUpDateFormatted}</span>
             </div>
             ` : ''}

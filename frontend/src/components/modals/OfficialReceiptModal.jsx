@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import {
   Printer, MessageCircle, Building2, CheckCircle2, ShieldCheck,
-  Stethoscope, Phone, Mail, MapPin, Receipt as ReceiptIcon
+  Stethoscope, Phone, Mail, MapPin, Receipt as ReceiptIcon, Calendar
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { printReceipt } from '../../utils/printReceipt';
@@ -178,7 +178,7 @@ export const OfficialReceiptModal = ({
             {followUpDateFormatted && (
               <div className="flex justify-between items-center col-span-2 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1">
                 <span className="text-indigo-900 font-bold text-[11px] flex items-center gap-1.5">
-                  <span>📅</span> Next Recommended Follow-Up Visit:
+                  <Calendar size={13} className="text-indigo-600 inline" /> Next Recommended Follow-Up Visit:
                 </span>
                 <span className="font-mono font-black text-indigo-700 text-xs">
                   {followUpDateFormatted}

@@ -25,7 +25,7 @@ export const WORK_MODE_NAVIGATION = [
   { title: 'Follow-Up Visits', path: '/reception/registered-patients?tab=FOLLOW_UPS', icon: 'Calendar', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
   { title: 'Register Patient', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
   { title: 'Tokens & Live Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF', 'HOSPITAL_ADMIN'] },
-  { title: 'Patients Directory', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'DOCTOR', 'HOSPITAL_ADMIN'] },
   { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
   { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
 
@@ -45,7 +45,7 @@ export const WORK_MODE_NAVIGATION = [
 
 const ALL_MODULE_NAVIGATION = [
   { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
-  { title: 'Patients Management', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
+  { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
   { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
   { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments' },
   { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },

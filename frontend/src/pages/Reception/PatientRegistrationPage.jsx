@@ -391,8 +391,8 @@ export const PatientRegistrationPage = () => {
                 </div>
               </div>
 
-              <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900 flex items-start gap-2">
-                <span className="text-base">👨‍👩‍👧</span>
+              <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900 flex items-start gap-2.5">
+                <Users size={16} className="text-indigo-700 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold">Family & Children Accounts Supported</p>
                   <p className="text-[11px] text-indigo-700">Multiple family members or children can share the parent's phone number. Each person gets a distinct profile and UHID based on their Date of Birth.</p>

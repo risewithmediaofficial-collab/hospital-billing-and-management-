@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
 import { axiosClient } from '../api/axiosClient';
 import { HospitalNotFoundPage } from './HospitalNotFoundPage';
-import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash, Globe } from 'lucide-react';
+import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash, Globe, Info } from 'lucide-react';
 
 export const LoginPage = () => {
   const { hospitalDomain } = useParams();
@@ -291,8 +291,11 @@ export const LoginPage = () => {
                   required
                 />
 
-                <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-[11px] leading-relaxed">
-                  💡 <strong>Patient Access:</strong> Use the mobile number registered during your hospital reception check-in and your birth date.
+                <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-[11px] leading-relaxed flex items-start gap-2">
+                  <Info size={14} className="text-blue-600 inline shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Patient Access:</strong> Use the mobile number registered during your hospital reception check-in and your birth date.
+                  </div>
                 </div>
 
                 <Button
@@ -349,8 +352,11 @@ export const LoginPage = () => {
                   required
                 />
 
-                <div className="p-3 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl text-[11px] leading-relaxed">
-                  🔒 <strong>Guardian Security:</strong> Connect to your dependent's medical profile by verifying your guardian mobile with the patient's UHID.
+                <div className="p-3 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl text-[11px] leading-relaxed flex items-start gap-2">
+                  <ShieldCheck size={14} className="text-purple-600 inline shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Guardian Security:</strong> Connect to your dependent's medical profile by verifying your guardian mobile with the patient's UHID.
+                  </div>
                 </div>
 
                 <Button

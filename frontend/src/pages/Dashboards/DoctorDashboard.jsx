@@ -601,9 +601,14 @@ export const DoctorDashboard = () => {
                       You are currently OFFLINE &bull; Unavailable for new patient consultations
                     </p>
                   </div>
-                  <p className="text-xs text-rose-700/90 font-medium mt-0.5">
+                  <p className="text-xs text-rose-700/90 font-medium mt-0.5 flex items-center gap-1">
                     {liveQueue.length > 0
-                      ? `⚠️ You still have ${liveQueue.length} patient(s) in your queue from before going offline. Please attend them or reassign.`
+                      ? (
+                        <>
+                          <AlertTriangle size={13} className="text-rose-600 inline shrink-0" />
+                          <span>You still have {liveQueue.length} patient(s) in your queue from before going offline. Please attend them or reassign.</span>
+                        </>
+                      )
                       : 'Reception cannot issue new tokens to you while you are offline. Go online when you are ready to consult.'}
                   </p>
                 </div>
@@ -658,7 +663,7 @@ export const DoctorDashboard = () => {
           }`}
         >
           <Calendar size={15} />
-          <span>📅 Follow-Up Visits & Missed Calls</span>
+          <span>Follow-Up Visits & Missed Calls</span>
         </button>
 
         <button
@@ -740,7 +745,7 @@ export const DoctorDashboard = () => {
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
                               : 'bg-amber-50 text-amber-700 border-amber-300'
                           }`}>
-                            {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULT' : '⏳ WAITING'}
+                            {tok.status === 'IN_CONSULTATION' ? 'IN CONSULT' : 'WAITING'}
                           </span>
                           <button
                             type="button"

@@ -301,7 +301,7 @@ export const ReceptionWorkspaceView = () => {
           }`}
         >
           <FolderOpen size={15} />
-          <span>All Hospital Patients ({patients.length})</span>
+          <span>Registered Patients ({patients.length})</span>
         </button>
       </div>
 
@@ -444,7 +444,7 @@ export const ReceptionWorkspaceView = () => {
                               ? 'bg-emerald-50 text-emerald-600 border-emerald-200 animate-pulse'
                               : 'bg-amber-50 text-amber-600 border-amber-200'
                           }`}>
-                            {tok.status === 'IN_CONSULTATION' ? '⚡ IN CONSULTATION' : '⏳ WAITING'}
+                            {tok.status === 'IN_CONSULTATION' ? 'IN CONSULTATION' : 'WAITING'}
                           </span>
                         </td>
                       </tr>
@@ -517,10 +517,10 @@ export const ReceptionWorkspaceView = () => {
                               : 'bg-red-50 text-red-600 border-red-200'
                           }`}>
                             {item.billingStatus === 'PAID'
-                              ? '✅ PAID & CLEARED'
+                              ? 'PAID & CLEARED'
                               : item.billingStatus === 'PARTIALLY_PAID'
-                              ? '⚠️ PARTIALLY PAID'
-                              : '⏳ UNPAID / PENDING CASHIER'}
+                              ? 'PARTIALLY PAID'
+                              : 'UNPAID / PENDING CASHIER'}
                           </span>
                         </td>
                       </tr>
@@ -546,7 +546,7 @@ export const ReceptionWorkspaceView = () => {
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <FolderOpen size={18} className="text-purple-600" />
-                All Hospital Patients Master Directory ({filteredAllPatients.length})
+                Registered Patients Directory ({filteredAllPatients.length})
               </h3>
               <p className="text-xs text-slate-500">
                 Complete permanent list of all registered patients in the hospital database.
@@ -586,11 +586,11 @@ export const ReceptionWorkspaceView = () => {
                         <td className="p-3 text-right">
                           {isQueued ? (
                             <span className="px-2 py-1 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold">
-                              ⏳ IN QUEUE TODAY
+                              IN QUEUE TODAY
                             </span>
                           ) : isCompleted ? (
                             <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold">
-                              ✅ COMPLETED TODAY
+                              COMPLETED TODAY
                             </span>
                           ) : (
                             <Button size="sm" variant="success" className="font-bold gap-1 text-xs" onClick={() => handleIssueTokenForPatient(pat)}>
