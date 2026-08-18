@@ -96,6 +96,7 @@ export const NurseInchargeDashboard = () => {
       const requests = Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []);
       setPatientRequests(requests);
       setNurseTasks(Array.isArray(tasksRes) ? tasksRes : (tasksRes.data || []));
+      fetchPendingWork();
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);
     } finally {
@@ -114,6 +115,7 @@ export const NurseInchargeDashboard = () => {
     try {
       await axiosClient.patch(`/admissions/${admissionId}/discharge`);
       fetchData();
+      fetchPendingWork();
     } catch (err) {
       console.error('Failed to discharge patient:', err);
     } finally {
@@ -168,67 +170,125 @@ export const NurseInchargeDashboard = () => {
         <StatCard title="Total Occupied Beds" value={`${occupiedBedsCount} Beds`} subtitle="Occupancy Locked" icon={BedDouble} color="sky" />
       </div>
 
-      {/* Sub-Navbar Navigation Tabs */}
+      {/* Sub-Navbar Navigation Tabs with Highlighted Notification Numbers */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-3 gap-2 overflow-x-auto">
         <div className="flex gap-2">
+          {/* Tab 1: IPD Requisitions */}
           <button
             onClick={() => setActiveTab('REQUISITIONS')}
-            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
               activeTab === 'REQUISITIONS'
-                ? 'bg-amber-600 text-white shadow-sm'
+                ? 'bg-amber-600 text-white shadow-md'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <UserPlus size={16} />
-            <span>IPD Requisitions ({pendingRequisitions.length})</span>
+            <span>IPD Requisitions</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black transition-all ${
+                pendingRequisitions.length > 0
+                  ? activeTab === 'REQUISITIONS'
+                    ? 'bg-white text-amber-700 shadow-xs'
+                    : 'bg-amber-500 text-white shadow-xs animate-pulse'
+                  : activeTab === 'REQUISITIONS'
+                  ? 'bg-amber-700/80 text-amber-100'
+                  : 'bg-slate-200 text-slate-600'
+              }`}
+            >
+              {pendingRequisitions.length}
+            </span>
           </button>
 
+          {/* Tab 2: Admitted Patients */}
           <button
             onClick={() => setActiveTab('ADMITTED')}
-            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
               activeTab === 'ADMITTED'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-indigo-600 text-white shadow-md'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <UserCheck size={16} />
-            <span>Admitted Patients ({admittedInpatients.length})</span>
+            <span>Admitted Patients</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                activeTab === 'ADMITTED' ? 'bg-white text-indigo-700 shadow-xs' : 'bg-indigo-100 text-indigo-800'
+              }`}
+            >
+              {admittedInpatients.length}
+            </span>
           </button>
 
+          {/* Tab 3: Ward Bed Matrix */}
           <button
             onClick={() => setActiveTab('BEDS')}
-            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
               activeTab === 'BEDS'
-                ? 'bg-emerald-600 text-white shadow-sm'
+                ? 'bg-emerald-600 text-white shadow-md'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <LayoutGrid size={16} />
-            <span>Ward Bed Matrix ({beds.length})</span>
+            <span>Ward Bed Matrix</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                activeTab === 'BEDS' ? 'bg-white text-emerald-700 shadow-xs' : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              {beds.length}
+            </span>
           </button>
 
+          {/* Tab 4: In-Bed Requests */}
           <button
             onClick={() => setActiveTab('REQUESTS')}
-            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
               activeTab === 'REQUESTS'
-                ? 'bg-purple-600 text-white shadow-sm'
+                ? 'bg-purple-600 text-white shadow-md'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Activity size={16} />
-            <span>In-Bed Requests ({pendingPatientRequests.length})</span>
+            <span>In-Bed Requests</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black transition-all ${
+                pendingPatientRequests.length > 0
+                  ? activeTab === 'REQUESTS'
+                    ? 'bg-white text-purple-700 shadow-xs'
+                    : 'bg-purple-600 text-white shadow-xs animate-pulse'
+                  : activeTab === 'REQUESTS'
+                  ? 'bg-purple-700/80 text-purple-100'
+                  : 'bg-slate-200 text-slate-600'
+              }`}
+            >
+              {pendingPatientRequests.length}
+            </span>
           </button>
 
+          {/* Tab 5: Treatment Tasks */}
           <button
             onClick={() => setActiveTab('TASKS')}
-            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
               activeTab === 'TASKS'
-                ? 'bg-rose-600 text-white shadow-sm'
+                ? 'bg-rose-600 text-white shadow-md'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Stethoscope size={16} />
-            <span>Treatment Tasks ({pendingNurseTasks.length})</span>
+            <span>Treatment Tasks</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black transition-all ${
+                pendingNurseTasks.length > 0
+                  ? activeTab === 'TASKS'
+                    ? 'bg-white text-rose-700 shadow-xs'
+                    : 'bg-rose-600 text-white shadow-xs animate-pulse'
+                  : activeTab === 'TASKS'
+                  ? 'bg-rose-700/80 text-rose-100'
+                  : 'bg-slate-200 text-slate-600'
+              }`}
+            >
+              {pendingNurseTasks.length}
+            </span>
           </button>
         </div>
 

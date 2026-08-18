@@ -621,7 +621,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 )}
 
                 {!isEmergencyItem && navUnreadCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs animate-pulse">
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white shadow-xs animate-pulse tracking-tight">
                     {navUnreadCount}
                   </span>
                 )}

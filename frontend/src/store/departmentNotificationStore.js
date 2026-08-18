@@ -5,9 +5,17 @@ const pathMatches = (taskPath, navPath) => {
   if (!taskPath || !navPath) return false;
   const [taskPathname, taskSearch] = taskPath.split('?');
   const [navPathname, navSearch] = navPath.split('?');
+
+  const isNursingTask = ['/nursing/dashboard', '/nurse-incharge/dashboard'].includes(taskPathname);
+  const isNursingNav = ['/nursing/dashboard', '/nurse-incharge/dashboard'].includes(navPathname);
+
+  if (isNursingTask && isNursingNav) {
+    if (!navSearch) return true;
+    return taskSearch === navSearch;
+  }
+
   if (taskPathname !== navPathname) return false;
-  // A dashboard link without a tab must not aggregate badges belonging to
-  // each of its tab-specific navigation items.
+  if (!navSearch) return true;
   return taskSearch === navSearch;
 };
 
@@ -64,7 +72,9 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   getUnreadCountForNav: (navPath) => {
     const override = get().navCountOverrides[navPath];
     if (override !== undefined) return override;
+    const matchingCount = get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length;
+    if (matchingCount > 0) return matchingCount;
     if (get().byPath[navPath] !== undefined) return get().byPath[navPath];
-    return get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length;
+    return 0;
   },
 }));

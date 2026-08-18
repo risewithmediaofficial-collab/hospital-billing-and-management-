@@ -121,15 +121,15 @@ export class WorkflowService {
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['NURSE', 'NURSE_INCHARGE', 'NURSING'].includes(r))) {
+      if (Array.from(userRoles).some((r) => ['NURSE', 'NURSE_INCHARGE', 'NURSING', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(r))) {
         try {
           const filter = { ...scope, requestCategory: 'NURSE', status: { $in: ACTIVE_REQUEST_STATUSES } };
-          if (!userRoles.has('NURSE_INCHARGE') && userId && mongoose.Types.ObjectId.isValid(userId)) {
+          if (!userRoles.has('NURSE_INCHARGE') && !userRoles.has('HOSPITAL_ADMIN') && !userRoles.has('SUPER_ADMIN') && userId && mongoose.Types.ObjectId.isValid(userId)) {
             filter.$or = [{ assignedNurseId: userId }, { assignedNurseId: null }];
           }
           const [records, admissions, emergencies, nurseTasks] = await Promise.all([
             PatientRequest.find(filter).populate('patientId').lean().catch(() => []),
-            Admission.find({ ...scope, status: 'ADMISSION_REQUESTED' }).lean().catch(() => []),
+            Admission.find({ ...scope, status: { $in: ['ADMISSION_REQUESTED', 'REQUISITION_RAISED'] } }).lean().catch(() => []),
             Emergency.find({ ...scope, status: { $in: ['ACTIVE', 'RESPONDED'] } }).lean().catch(() => []),
             NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] } }).lean().catch(() => []),
           ]);
