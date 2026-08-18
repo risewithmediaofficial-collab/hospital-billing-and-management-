@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { axiosClient } from '../../api/axiosClient';
-import { Shield, CheckCircle, XCircle, AlertTriangle, KeyRound, Lock, UserCheck } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, AlertTriangle, KeyRound, Lock, UserCheck, X } from 'lucide-react';
 
 export const GuardianManagementModal = ({ isOpen, onClose }) => {
   const [links, setLinks] = useState([]);
@@ -23,15 +23,14 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleUpdateStatus = async (linkId, newStatus) => {
+  const handleStatusUpdate = async (linkId, action) => {
     setIsLoading(true);
-    setFeedback(null);
     try {
-      await axiosClient.put(`/guardian-portal/link/${linkId}/status`, { status: newStatus });
-      setFeedback(`Guardian link status updated to ${newStatus}`);
+      await axiosClient.patch(`/guardian-portal/links/${linkId}/status`, { action });
+      setFeedback(`Successfully ${action.toLowerCase()}ed guardian authorization.`);
       fetchLinks();
     } catch (err) {
-      setFeedback('Failed to update guardian link status.');
+      setFeedback('Failed to update guardian access status.');
     } finally {
       setIsLoading(false);
     }
@@ -41,7 +40,7 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-4xl w-full p-6 space-y-4 border border-slate-200 shadow-2xl max-h-[85vh] overflow-y-auto">
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -50,8 +49,8 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
             </h3>
             <p className="text-xs text-slate-500">Approve, reject, or manage guardian permissions for patient records</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">
-            ✕
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <X size={18} />
           </button>
         </div>
 

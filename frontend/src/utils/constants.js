@@ -203,20 +203,10 @@ export const ROLE_NAVIGATION = {
   ],
   NURSE: [
     { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing' },
-    { title: 'IPD Requisitions & Allocations', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing' },
-    { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing' },
-    { title: 'Ward & Bed Matrix Console', path: '/nurse-incharge/dashboard?tab=BEDS', icon: 'LayoutGrid', module: 'nursing' },
-    { title: 'In-Bed Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Bell', module: 'nursing' },
-    { title: 'Treatment Tasks & MAR Log', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'ClipboardList', module: 'nursing' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   NURSE_INCHARGE: [
     { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing' },
-    { title: 'IPD Requisitions & Allocations', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing' },
-    { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing' },
-    { title: 'Ward & Bed Matrix Console', path: '/nurse-incharge/dashboard?tab=BEDS', icon: 'LayoutGrid', module: 'nursing' },
-    { title: 'In-Bed Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Bell', module: 'nursing' },
-    { title: 'Treatment Tasks & MAR Log', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'ClipboardList', module: 'nursing' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   RECEPTIONIST: [

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, EyeOff, MapPin, Mail, Phone, Trash2, RotateCcw, Clock } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, EyeOff, MapPin, Mail, Phone, Trash2, RotateCcw, Clock, X } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -316,7 +316,9 @@ export const SuperAdminHospitalsPage = () => {
       {actionMessage && (
         <div className="p-3 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-700 text-xs font-bold flex items-center justify-between">
           <span className="flex items-center gap-2"><CheckCircle size={16} /> {actionMessage}</span>
-          <button onClick={() => setActionMessage(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+          <button onClick={() => setActionMessage(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 transition-colors">
+            <X size={14} />
+          </button>
         </div>
       )}
 

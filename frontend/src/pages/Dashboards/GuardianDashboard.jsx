@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Lock,
   Receipt,
+  X,
 } from 'lucide-react';
 
 export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
@@ -493,8 +494,8 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                 <PlusCircle size={20} className="text-purple-600" />
                 Link Patient to Guardian Account
               </h3>
-              <button onClick={() => setLinkModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
-                ✕
+              <button onClick={() => setLinkModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={18} />
               </button>
             </div>
 
@@ -561,8 +562,8 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                 <FileText size={20} className="text-indigo-600" />
                 Send Patient History & Medical Data to Doctor
               </h3>
-              <button onClick={() => setSendDataModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
-                ✕
+              <button onClick={() => setSendDataModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={18} />
               </button>
             </div>
 
@@ -639,8 +640,8 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                 <Bell size={20} className="text-amber-600" />
                 Remind Attending Doctor / Care Team
               </h3>
-              <button onClick={() => setRemindDoctorModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
-                ✕
+              <button onClick={() => setRemindDoctorModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={18} />
               </button>
             </div>
 

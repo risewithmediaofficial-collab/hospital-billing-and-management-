@@ -132,19 +132,19 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
                 <Sparkles size={13} className="text-purple-600" />
                 Quick Clinical Presets (Click to Auto-Fill)
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {COMMON_INJECTIONS.map((inj) => (
                   <button
                     key={inj.name}
                     type="button"
                     onClick={() => handleSelectQuick(inj)}
-                    className={`text-left p-2 rounded-lg border text-[11px] font-medium transition-all ${
+                    className={`text-left p-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer flex items-center justify-between ${
                       medicineName === inj.name
-                        ? 'bg-purple-50 border-purple-400 text-purple-900 font-bold shadow-2xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        ? 'bg-purple-50 border-purple-500 text-purple-950 font-bold shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
-                    {inj.name}
+                    <span className="truncate">{inj.name}</span>
                   </button>
                 ))}
               </div>
@@ -152,30 +152,43 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
 
             {/* Medication Name & Dosage */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label="Injection / Medicine Name *"
-                value={medicineName}
-                onChange={(e) => setMedicineName(e.target.value)}
-                placeholder="e.g. Inj. Paracetamol IV"
-                required
-              />
-              <Input
-                label="Dose / Quantity *"
-                value={dose}
-                onChange={(e) => setDose(e.target.value)}
-                placeholder="e.g. 1g IV Stat or 1 Ampoule"
-                required
-              />
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">
+                  Injection / Medicine Name *
+                </label>
+                <input
+                  type="text"
+                  value={medicineName}
+                  onChange={(e) => setMedicineName(e.target.value)}
+                  placeholder="e.g. Inj. Paracetamol IV"
+                  required
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">
+                  Dose / Quantity *
+                </label>
+                <input
+                  type="text"
+                  value={dose}
+                  onChange={(e) => setDose(e.target.value)}
+                  placeholder="e.g. 1g IV Stat or 1 Ampoule"
+                  required
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
+                />
+              </div>
             </div>
 
             {/* Route, Priority & Procedure Type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Route of Administration *</label>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Route of Administration *</label>
                 <select
                   value={route}
                   onChange={(e) => setRoute(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
                 >
                   <option value="IV">IV (Intravenous)</option>
                   <option value="IM">IM (Intramuscular)</option>
@@ -187,11 +200,11 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Clinical Priority *</label>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Clinical Priority *</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 font-bold"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
                 >
                   <option value="STAT" className="text-red-700 font-bold">STAT (Immediate Admin)</option>
                   <option value="URGENT" className="text-amber-700 font-bold">URGENT (Within 15 mins)</option>
@@ -200,11 +213,11 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Assign Duty Nurse</label>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Assign Duty Nurse</label>
                 <select
                   value={assignedNurseId}
                   onChange={(e) => setAssignedNurseId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
                 >
                   <option value="AUTO_ASSIGN">Auto-Assign Available Nurse</option>
                   {availableNurses.map((nurse) => (

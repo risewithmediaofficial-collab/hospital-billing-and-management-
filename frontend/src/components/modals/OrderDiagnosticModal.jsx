@@ -106,7 +106,7 @@ export const OrderDiagnosticModal = ({ isOpen, onClose, patient, tokenNumber = 4
                   ))}
                 </div>
                 <p className="text-[11px] text-emerald-700 pt-1 border-t border-slate-200">
-                  ✓ Orders dispatched to Radiology PACS & Pathology Lab queues. Completed reports will automatically return to your workstation!
+                  Orders dispatched to Radiology PACS &amp; Pathology Lab queues. Completed reports will automatically return to your workstation!
                 </p>
               </div>
               <Button variant="primary" className="w-full font-bold" onClick={handleReset}>Done & Return to Workstation</Button>

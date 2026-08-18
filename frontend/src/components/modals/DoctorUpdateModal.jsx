@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
-import { Stethoscope, Send, Lock } from 'lucide-react';
+import { Stethoscope, Send, Lock, X } from 'lucide-react';
 
 export const DoctorUpdateModal = ({ isOpen, onClose, patientId, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -26,25 +26,25 @@ export const DoctorUpdateModal = ({ isOpen, onClose, patientId, onSuccess }) => 
         patientId,
       });
       setFormData({ title: '', content: '', updateType: 'GENERAL_UPDATE', visibility: 'BOTH' });
-      if (onSuccess) onSuccess();
+      onSuccess?.();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to publish doctor update.');
+      setError(err.response?.data?.message || 'Failed to submit update');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Stethoscope size={20} className="text-indigo-600" />
             Publish Physician Progress Note / Update
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">
-            ✕
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <X size={18} />
           </button>
         </div>
 

@@ -26,6 +26,7 @@ import {
 export const NurseInchargeDashboard = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('REQUISITIONS'); // 'REQUISITIONS' | 'ADMITTED' | 'BEDS' | 'REQUESTS' | 'TASKS'
+  const [taskFilter, setTaskFilter] = useState('PENDING'); // 'PENDING' | 'COMPLETED' | 'ALL'
   const [admissions, setAdmissions] = useState([]);
   const [beds, setBeds] = useState([]);
   const [patientRequests, setPatientRequests] = useState([]);
@@ -121,10 +122,13 @@ export const NurseInchargeDashboard = () => {
   };
 
   // Metrics
-  const pendingRequisitions = admissions.filter((a) => a.status === 'ADMISSION_REQUESTED');
+  const pendingRequisitions = admissions.filter((a) => a.status === 'REQUISITION_RAISED' || a.status === 'ADMISSION_REQUESTED');
   const admittedInpatients = admissions.filter((a) => a.status === 'ADMITTED');
   const occupiedBedsCount = beds.filter((b) => b.status === 'OCCUPIED').length;
   const availableBedsCount = beds.filter((b) => b.status === 'AVAILABLE').length;
+  const pendingPatientRequests = patientRequests.filter((r) => r.status !== 'COMPLETED');
+  const pendingNurseTasks = nurseTasks.filter((t) => t.status !== 'ADMINISTERED');
+  const completedNurseTasks = nurseTasks.filter((t) => t.status === 'ADMINISTERED');
 
   // Filtered lists
   const matchesPatientSearch = (a) => {
@@ -137,7 +141,6 @@ export const NurseInchargeDashboard = () => {
   };
 
   const filteredRequisitions = pendingRequisitions.filter(matchesPatientSearch);
-
   const filteredAdmitted = admittedInpatients.filter(matchesPatientSearch);
 
   return (
@@ -213,7 +216,7 @@ export const NurseInchargeDashboard = () => {
             }`}
           >
             <Activity size={16} />
-            <span>In-Bed Requests ({patientRequests.length})</span>
+            <span>In-Bed Requests ({pendingPatientRequests.length})</span>
           </button>
 
           <button
@@ -225,7 +228,7 @@ export const NurseInchargeDashboard = () => {
             }`}
           >
             <Stethoscope size={16} />
-            <span>Treatment Tasks ({nurseTasks.length})</span>
+            <span>Treatment Tasks ({pendingNurseTasks.length})</span>
           </button>
         </div>
 
@@ -544,24 +547,78 @@ export const NurseInchargeDashboard = () => {
       {/* TAB 5: TREATMENT TASKS */}
       {activeTab === 'TASKS' && (
         <Card>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Stethoscope size={18} className="text-rose-600" />
-                Doctor-Prescribed Treatment Tasks ({nurseTasks.length})
+                Doctor-Prescribed Treatment Tasks ({pendingNurseTasks.length} Pending)
               </h3>
               <p className="text-xs text-slate-500">
                 Active medication administration and injection schedules across wards.
               </p>
             </div>
+
+            {/* Sub-Filter: Pending vs Done vs All */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setTaskFilter('PENDING')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                  taskFilter === 'PENDING' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pending Tasks ({pendingNurseTasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskFilter('COMPLETED')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                  taskFilter === 'COMPLETED' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Administered ({completedNurseTasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                  taskFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All ({nurseTasks.length})
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3 text-xs">
-            {nurseTasks.length > 0 ? (
-              nurseTasks.map((t) => (
-                <div key={t._id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {(() => {
+              const displayedTasks = nurseTasks.filter((t) => {
+                if (taskFilter === 'PENDING') return t.status !== 'ADMINISTERED';
+                if (taskFilter === 'COMPLETED') return t.status === 'ADMINISTERED';
+                return true;
+              });
+
+              if (displayedTasks.length === 0) {
+                return (
+                  <div className="p-8 text-center text-slate-400">
+                    {taskFilter === 'PENDING'
+                      ? 'No pending treatment tasks. All prescribed medications and injections have been administered!'
+                      : 'No records found for this filter.'}
+                  </div>
+                );
+              }
+
+              return displayedTasks.map((t) => (
+                <div
+                  key={t._id}
+                  className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+                    t.status === 'ADMINISTERED'
+                      ? 'bg-slate-50/50 border-slate-200'
+                      : 'bg-rose-50/25 border-rose-200 shadow-2xs'
+                  }`}
+                >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-extrabold text-slate-900 text-sm">{t.medicineName} ({t.dose})</span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
                         {t.taskType || 'INJECTION'}
@@ -569,7 +626,11 @@ export const NurseInchargeDashboard = () => {
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
                         Route: {t.route}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'ADMINISTERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          t.status === 'ADMINISTERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800 animate-pulse'
+                        }`}
+                      >
                         {t.status}
                       </span>
                     </div>
@@ -598,7 +659,7 @@ export const NurseInchargeDashboard = () => {
                           console.error('Failed to update task:', e);
                         }
                       }}
-                      className="gap-1.5"
+                      className="gap-1.5 shadow-sm font-bold"
                     >
                       <CheckCircle2 size={13} /> Mark Administered
                     </Button>
@@ -608,10 +669,8 @@ export const NurseInchargeDashboard = () => {
                     </span>
                   )}
                 </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-slate-400">No active treatment tasks found.</div>
-            )}
+              ));
+            })()}
           </div>
         </Card>
       )}

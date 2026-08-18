@@ -67,17 +67,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
   const [errorMsg, setErrorMsg] = useState(null);
 
   const [pharmacyBilledPrescriptions, setPharmacyBilledPrescriptions] = useState([]);
-  const [availableNurses, setAvailableNurses] = useState([]);
 
-  const fetchAvailableNurses = async () => {
-    try {
-      const res = await axiosClient.get('/pharmacy/available-nurses');
-      const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
-      setAvailableNurses(list);
-    } catch (err) {
-      console.warn('Failed to load available nurses list:', err);
-    }
-  };
 
   const fetchInventory = async () => {
     try {
@@ -117,9 +107,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
     }
   }, [patient]);
 
-  useEffect(() => {
-    fetchAvailableNurses();
-  }, []);
+
 
   useEffect(() => {
     if (isOpen && token) {
@@ -217,47 +205,11 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       },
     ]);
 
-  const handleAddInjectionTaskRow = () =>
-    setPrescriptions((prev) => [
-      ...prev,
-      {
-        medicineName: 'Inj. Paracetamol / IV Treatment',
-        genericName: 'Injectable Treatment',
-        dosageForm: 'INJECTION',
-        dosage: '1 Ampoule IV Stat',
-        frequency: 'STAT_IMMEDIATE',
-        durationDays: 1,
-        timing: 'STAT',
-        treatmentType: 'NURSE_ADMINISTERED',
-        assignedNurseId: 'AUTO_ASSIGN',
-        instructions: 'Nurse IV/IM administration',
-        externalPurchaseRequired: false,
-        unitPrice: 0,
-        quantity: 1,
-        totalPrice: 0,
-      },
-    ]);
-
   const handleRemoveMedicineRow = (index) => setPrescriptions((prev) => prev.filter((_, idx) => idx !== index));
   const handleMedicineChange = (index, field, value) =>
     setPrescriptions((prev) => {
       const u = [...prev];
       u[index][field] = value;
-
-      // Auto set treatment type based on dosage form if not manually chosen
-      if (field === 'dosageForm') {
-        if (['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(value)) {
-          if (!['NURSE_ADMINISTERED', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
-            u[index].treatmentType = 'NURSE_ADMINISTERED';
-            u[index].assignedNurseId = u[index].assignedNurseId || 'AUTO_ASSIGN';
-          }
-          u[index].quantity = 1;
-        } else {
-          if (!['ORAL_TAKE_HOME', 'EXTERNAL_PURCHASE_OUTSIDE', 'NURSE_ADMINISTERED'].includes(u[index].treatmentType)) {
-            u[index].treatmentType = 'ORAL_TAKE_HOME';
-          }
-        }
-      }
 
       if (field === 'durationDays' && !u[index].quantityManuallyEdited) {
         const d = Number(value) || 5;
@@ -269,16 +221,14 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         u[index].quantityManuallyEdited = true;
       }
 
-      const isSingleOrNurseTask = u[index].treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(u[index].dosageForm);
-      const isOutside = u[index].treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || u[index].externalPurchaseRequired || pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY';
-      
-      const q = isSingleOrNurseTask ? 1 : Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+      const isOutside = u[index].externalPurchaseRequired || pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY';
+      const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
       const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 0);
-      
-      if (isOutside && !isSingleOrNurseTask) {
+
+      if (isOutside) {
         u[index].totalPrice = 0;
       } else {
-        u[index].totalPrice = isSingleOrNurseTask ? p : (q * p);
+        u[index].totalPrice = q * p;
       }
       u[index].price = p;
 
@@ -292,22 +242,13 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
         const u = [...prev];
         u[index].medicineName = med.name;
         u[index].genericName = med.genericName;
-        u[index].dosageForm = med.dosageForm;
+        u[index].dosageForm = med.dosageForm || 'TABLET';
         u[index].strength = med.strength;
         const p = Number(med.sellingPrice) || 0;
         u[index].unitPrice = p;
         u[index].price = p;
-        if (['INJECTION', 'IV_FLUID'].includes(med.dosageForm)) {
-          if (!['NURSE_ADMINISTERED', 'EXTERNAL_PURCHASE_OUTSIDE'].includes(u[index].treatmentType)) {
-            u[index].treatmentType = 'NURSE_ADMINISTERED';
-            u[index].assignedNurseId = u[index].assignedNurseId || 'AUTO_ASSIGN';
-          }
-          u[index].quantity = 1;
-          u[index].totalPrice = p;
-        } else {
-          const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
-          u[index].totalPrice = pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 0 : q * p;
-        }
+        const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+        u[index].totalPrice = pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 0 : q * p;
         u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
         return u;
       });
@@ -490,17 +431,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                   <button
                     type="button"
                     onClick={handleAddMedicineRow}
-                    className="px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-700 font-bold hover:bg-indigo-50 flex items-center gap-1 text-xs"
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 text-xs shadow-xs"
                   >
-                    <Plus size={13} /> Add Oral Med
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddInjectionTaskRow}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1 text-xs shadow-xs"
-                    title="Add injection, IV fluid, or dressing task for duty nurse"
-                  >
-                    <Syringe size={13} /> + Nurse Injection / IV
+                    <Plus size={14} /> Add Medicine
                   </button>
                 </div>
               </div>
@@ -509,41 +442,26 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                 {prescriptions.map((med, idx) => {
                   const matchMed = inventoryMedicines.find((m) => m.name.toLowerCase() === med.medicineName.toLowerCase());
                   const isOutOfStock = matchMed && (matchMed.totalQuantity ?? 0) <= 0;
-                  const isNurseTask = med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm);
 
                   return (
                     <div
                       key={idx}
-                      className={`p-3 rounded-xl border space-y-2.5 transition-all ${
-                        isNurseTask ? 'bg-indigo-50/40 border-indigo-200' : 'bg-slate-50 border-slate-200'
-                      }`}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5 transition-all hover:border-slate-300 shadow-2xs"
                     >
-                      {/* Top Header for Nurse vs Oral */}
-                      {isNurseTask && (
-                        <div className="flex items-center justify-between pb-1 border-b border-indigo-100">
-                          <span className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
-                            <Syringe size={13} className="text-indigo-600" />
-                            Nurse Administration Task #{idx + 1} (Ward / Daycare / Treatment Room)
-                          </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                            Dispatched to Nursing Station
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div>
-                          <label className="font-bold text-slate-600">Medicine / Injection Name *</label>
+                      {/* Top Row: Name, Form, Frequency, Duration */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <div className="sm:col-span-5">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Medicine / Drug Name *</label>
                           <input
                             type="text"
                             list={`med-list-${idx}`}
-                            placeholder="e.g. Inj. Paracetamol or Amoxicillin"
+                            placeholder="e.g. Tab. Paracetamol 650mg or Amoxicillin"
                             value={med.medicineName}
                             onChange={(e) => {
                               handleMedicineChange(idx, 'medicineName', e.target.value);
                               handleSelectInventoryMed(idx, e.target.value);
                             }}
-                            className="w-full p-2 border rounded text-xs font-semibold mt-1"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                           />
                           <datalist id={`med-list-${idx}`}>
                             {inventoryMedicines.map((m) => (
@@ -554,183 +472,126 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                           </datalist>
                         </div>
 
-                        <div>
-                          <label className="font-bold text-slate-600">Dosage Form & Frequency</label>
-                          <div className="flex gap-1 mt-1">
-                            <select
-                              value={med.dosageForm}
-                              onChange={(e) => handleMedicineChange(idx, 'dosageForm', e.target.value)}
-                              className="w-1/2 p-2 border rounded text-xs"
-                            >
-                              {['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'DROPS', 'INHALER', 'IV_FLUID'].map((f) => (
-                                <option key={f} value={f}>{f}</option>
-                              ))}
-                            </select>
-                            <select
-                              value={med.frequency}
-                              onChange={(e) => handleMedicineChange(idx, 'frequency', e.target.value)}
-                              className="w-1/2 p-2 border rounded text-xs"
-                            >
-                              <option value="ONCE_DAILY">Once Daily</option>
-                              <option value="TWICE_DAILY">Twice Daily</option>
-                              <option value="THRICE_DAILY">Thrice Daily</option>
-                              <option value="STAT_IMMEDIATE">STAT Immediate</option>
-                            </select>
-                          </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Dosage Form</label>
+                          <select
+                            value={med.dosageForm || 'TABLET'}
+                            onChange={(e) => handleMedicineChange(idx, 'dosageForm', e.target.value)}
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:border-indigo-500"
+                          >
+                            {['TABLET', 'CAPSULE', 'SYRUP', 'DROPS', 'CREAM', 'INHALER', 'OINTMENT', 'SUSPENSION'].map((f) => (
+                              <option key={f} value={f}>{f}</option>
+                            ))}
+                          </select>
                         </div>
 
-                        <div>
-                          <label className="font-bold text-slate-600">Treatment & Dispense Routing</label>
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Frequency</label>
                           <select
-                            value={med.treatmentType}
-                            onChange={(e) => handleMedicineChange(idx, 'treatmentType', e.target.value)}
-                            className="w-full p-2 border rounded text-xs font-bold mt-1 bg-indigo-50/80 text-indigo-950 border-indigo-200"
+                            value={med.frequency}
+                            onChange={(e) => handleMedicineChange(idx, 'frequency', e.target.value)}
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:border-indigo-500"
                           >
-                            {['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm) ? (
-                              <>
-                                <option value="NURSE_ADMINISTERED">Nurse Administration (Ward / Daycare Task)</option>
-                                <option value="EXTERNAL_PURCHASE_OUTSIDE">Outside Purchase (Patient Buys Outside - ₹0 Bill)</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value="ORAL_TAKE_HOME">
-                                  {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 'Outside Prescription (Take-Home - ₹0 Bill)' : 'In-House Hospital Pharmacy Dispense'}
-                                </option>
-                                <option value="NURSE_ADMINISTERED">Nurse Bedside / In-Clinic Administration</option>
-                                <option value="EXTERNAL_PURCHASE_OUTSIDE">Outside Pharmacy (Patient Buys Outside - ₹0 Bill)</option>
-                              </>
-                            )}
+                            <option value="ONCE_DAILY">Once Daily (1-0-0)</option>
+                            <option value="TWICE_DAILY">Twice Daily (1-0-1)</option>
+                            <option value="THRICE_DAILY">Thrice Daily (1-1-1)</option>
+                            <option value="FOUR_TIMES_DAILY">4 Times Daily (1-1-1-1)</option>
+                            <option value="STAT_IMMEDIATE">STAT (Immediate / Single)</option>
+                            <option value="AS_NEEDED">As Needed (SOS)</option>
                           </select>
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Duration (Days)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={med.durationDays || 5}
+                            onChange={(e) => handleMedicineChange(idx, 'durationDays', e.target.value)}
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:border-indigo-500"
+                          />
                         </div>
                       </div>
 
-                      {/* Stock Warning Banner */}
+                      {/* Stock Info Banner */}
                       {matchMed && (
-                        <div className={`p-2 rounded flex items-center justify-between text-[11px] ${isOutOfStock ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'}`}>
+                        <div className={`p-2 rounded-lg flex items-center justify-between text-[11px] ${isOutOfStock ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'}`}>
                           <span>
-                            Available Stock: <strong>{matchMed.totalQuantity ?? 0} units</strong> ({matchMed.genericName})
-                            {isOutOfStock && ' — OUT OF STOCK in Hospital Pharmacy'}
+                            Pharmacy Stock: <strong>{matchMed.totalQuantity ?? 0} units</strong> ({matchMed.genericName})
+                            {isOutOfStock && ' — OUT OF STOCK in In-House Pharmacy'}
                           </span>
                           {isOutOfStock && (
-                            <label className="flex items-center gap-1 font-bold cursor-pointer text-amber-800">
+                            <label className="flex items-center gap-1.5 font-bold cursor-pointer text-amber-800 text-[11px]">
                               <input
                                 type="checkbox"
                                 checked={med.externalPurchaseRequired}
                                 onChange={(e) => handleMedicineChange(idx, 'externalPurchaseRequired', e.target.checked)}
                               />
-                              Mark for External Purchase
+                              Outside Prescription (₹0)
                             </label>
                           )}
                         </div>
                       )}
 
-                      {/* Injections & Nurse Tasks: Smart Nurse Assignment & Fee */}
-                      {isNurseTask ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-200 items-center text-xs">
-                          <div>
-                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Required Dose / Volume:</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. 1 Ampoule / 2ml / 1 Vial"
-                              value={med.dosage || ''}
-                              onChange={(e) => handleMedicineChange(idx, 'dosage', e.target.value)}
-                              className="w-full px-2 py-1 border border-indigo-300 rounded text-xs font-bold text-slate-900 bg-white"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Assigned Duty Nurse:</label>
-                            <select
-                              value={med.assignedNurseId || 'AUTO_ASSIGN'}
-                              onChange={(e) => handleMedicineChange(idx, 'assignedNurseId', e.target.value)}
-                              className="w-full px-2 py-1 border border-indigo-300 rounded text-xs font-bold text-indigo-950 bg-white truncate"
-                            >
-                              <option value="AUTO_ASSIGN">
-                                Auto-Assign ({availableNurses[0]?.name ? `Recommended: ${availableNurses[0]?.name} • ${availableNurses[0]?.activeTaskCount ?? 0} tasks` : 'Least Loaded Nurse'})
-                              </option>
-                              {availableNurses.map((nurse, nIdx) => (
-                                <option key={nurse.id || nurse._id} value={nurse.id || nurse._id}>
-                                  {nIdx === 0 ? '[Recommended] ' : ''}{nurse.name} ({nurse.isAvailable ? 'Available' : 'Offline'} • {nurse.activeTaskCount} tasks){nIdx === 0 ? ' — RECOMMENDED' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="font-bold text-indigo-950 text-[11px] block mb-0.5">Administration Fee / Price (₹):</label>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                onWheel={(e) => e.target.blur()}
-                                value={med.unitPrice !== undefined ? med.unitPrice : 0}
-                                onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
-                                placeholder="0"
-                                className="w-full pl-5 pr-2 py-1 border border-indigo-300 rounded text-xs font-bold text-slate-900 bg-white"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <span className="font-bold text-indigo-700 text-[10px] uppercase tracking-wider block">Injection Charge:</span>
-                            <span className="font-mono font-black text-sm text-indigo-700">
-                              ₹{(Number(med.unitPrice || 0)).toFixed(2)}
-                            </span>
-                          </div>
+                      {/* Bottom Row: Quantity, Unit Price, Line Total, Instructions, Delete */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center pt-1 border-t border-slate-200/80">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Quantity (Units)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            onWheel={(e) => e.target.blur()}
+                            value={med.quantity || 10}
+                            onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                          />
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 items-center text-xs">
-                          <div>
-                            <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Quantity (Units / Tabs):</label>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Unit Price (₹)</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1.5 text-slate-400 font-bold text-xs">₹</span>
                             <input
                               type="number"
-                              min="1"
+                              step="0.5"
+                              min="0"
                               onWheel={(e) => e.target.blur()}
-                              value={med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2))}
-                              onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
-                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-black text-slate-900 bg-white"
+                              value={med.unitPrice !== undefined ? med.unitPrice : 0}
+                              onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
+                              placeholder="0"
+                              className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
                             />
                           </div>
-
-                          <div>
-                            <label className="font-bold text-slate-600 text-[11px] block mb-0.5">Unit Price (₹):</label>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1 text-slate-400 font-bold">₹</span>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                onWheel={(e) => e.target.blur()}
-                                value={med.unitPrice !== undefined ? med.unitPrice : 0}
-                                onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
-                                placeholder="0"
-                                className="w-full pl-5 pr-2 py-1 border border-slate-300 rounded text-xs font-bold text-slate-900 bg-white"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider block">Line Total:</span>
-                            <span className="font-mono font-black text-sm text-indigo-700">
-                              ₹{((Number(med.quantity || (Number(med.durationDays || 5) * (med.frequency === 'THRICE_DAILY' ? 3 : med.frequency === 'ONCE_DAILY' ? 1 : 2)))) * Number(med.unitPrice !== undefined ? med.unitPrice : 0)).toFixed(2)}
-                            </span>
-                          </div>
                         </div>
-                      )}
 
-                      <div className="flex items-center justify-between pt-1">
-                        <input
-                          type="text"
-                          placeholder="Instructions (e.g. After food, or IV site instructions)..."
-                          value={med.instructions}
-                          onChange={(e) => handleMedicineChange(idx, 'instructions', e.target.value)}
-                          className="w-4/5 p-1.5 border rounded text-xs"
-                        />
-                        <button type="button" onClick={() => handleRemoveMedicineRow(idx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-rose-50" title="Remove medicine">
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="sm:col-span-2 text-left sm:text-center">
+                          <span className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Line Total</span>
+                          <span className="font-mono font-black text-sm text-indigo-700">
+                            ₹{((Number(med.quantity || 10)) * Number(med.unitPrice || 0)).toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="sm:col-span-5">
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Patient Instructions</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 1 tab twice daily after meals for 5 days"
+                            value={med.instructions}
+                            onChange={(e) => handleMedicineChange(idx, 'instructions', e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-1 flex justify-end pt-3 sm:pt-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMedicineRow(idx)}
+                            className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Remove item"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

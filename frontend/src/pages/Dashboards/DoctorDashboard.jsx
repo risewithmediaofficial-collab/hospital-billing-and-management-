@@ -586,7 +586,9 @@ export const DoctorDashboard = () => {
                 : 'bg-rose-50 border-rose-200 text-rose-700'
             }`}>
               <span className="font-medium">{statusMessage.text}</span>
-              <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-700 font-bold ml-2">✕</button>
+              <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-700 font-bold ml-2 p-1 rounded hover:bg-slate-100 transition-colors">
+                <X size={14} />
+              </button>
             </div>
           )}
 

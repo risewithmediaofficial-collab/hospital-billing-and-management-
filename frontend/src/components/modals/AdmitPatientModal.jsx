@@ -101,7 +101,7 @@ export const AdmitPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
                   <span className="font-bold text-amber-700">{targetWardName} ({wardType})</span>
                 </div>
                 <p className="text-[11px] text-emerald-700 pt-1 border-t border-slate-200">
-                  ✓ Requisition dispatched to Nurse In-Charge & Ward Nurse for bed allocation!
+                  Requisition dispatched to Nurse In-Charge &amp; Ward Nurse for bed allocation!
                 </p>
               </div>
               <Button variant="primary" className="w-full font-bold" onClick={handleReset}>
