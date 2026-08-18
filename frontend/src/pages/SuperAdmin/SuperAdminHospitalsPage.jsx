@@ -143,7 +143,7 @@ export const SuperAdminHospitalsPage = () => {
   };
 
   const handlePermanentDelete = async (hospitalId, name) => {
-    if (!window.confirm(`⚠️ WARNING: Are you absolutely sure you want to PERMANENTLY delete hospital '${name}'? This will completely wipe all of its branches, departments, users, and transactions from the database immediately. This action CANNOT be undone.`)) return;
+    if (!window.confirm(`WARNING: Are you absolutely sure you want to PERMANENTLY delete hospital '${name}'? This will completely wipe all of its branches, departments, users, and transactions from the database immediately. This action CANNOT be undone.`)) return;
     setIsLoading(true);
     try {
       await axiosClient.delete(`/saas/hospitals/${hospitalId}/permanent`);
@@ -512,9 +512,9 @@ export const SuperAdminHospitalsPage = () => {
                       onChange={(e) => setDirectForm({ ...directForm, plan: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="BASIC">⚡ Basic Plan (₹4,000/mo — OPD/IPD Essential Suite)</option>
-                      <option value="STANDARD">🚀 Standard Plan (₹30,000/mo — Multi-Department & Diagnostics)</option>
-                      <option value="ENTERPRISE">👑 Unlimited / Enterprise Plan (₹50,000/mo — Full Unrestricted Suite)</option>
+                      <option value="BASIC">Basic Plan (₹4,000/mo — OPD/IPD Essential Suite)</option>
+                      <option value="STANDARD">Standard Plan (₹30,000/mo — Multi-Department &amp; Diagnostics)</option>
+                      <option value="ENTERPRISE">Unlimited / Enterprise Plan (₹50,000/mo — Full Unrestricted Suite)</option>
                     </select>
                   </div>
 

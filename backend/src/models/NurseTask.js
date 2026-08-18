@@ -7,6 +7,7 @@ const nurseTaskSchema = new mongoose.Schema(
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     assignedNurseId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+    appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', index: true },
     prescriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Prescription', index: true },
     consultationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation', index: true },
     taskType: {

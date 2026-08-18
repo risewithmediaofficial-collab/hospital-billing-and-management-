@@ -126,10 +126,10 @@ export const OrderDiagnosticModal = ({ isOpen, onClose, patient, tokenNumber = 4
                   onChange={(e) => handleCategoryChange(e.target.value)}
                   className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                 >
-                  <option value="BONES">🦴 Bone Fracture / Joint Issue (X-Ray + Blood Test)</option>
-                  <option value="CHEST">🫁 Respiratory / Chest Tightness (Chest X-Ray + CBC)</option>
-                  <option value="RENAL">🧪 Abdominal / Kidney Issue (USG Scan + Urine Test)</option>
-                  <option value="BRAIN">🧠 Neurological / Trauma Issue (Brain MRI + CBC)</option>
+                  <option value="BONES">Bone Fracture / Joint Issue (X-Ray + Blood Test)</option>
+                  <option value="CHEST">Respiratory / Chest Tightness (Chest X-Ray + CBC)</option>
+                  <option value="RENAL">Abdominal / Kidney Issue (USG Scan + Urine Test)</option>
+                  <option value="BRAIN">Neurological / Trauma Issue (Brain MRI + CBC)</option>
                 </select>
               </div>
 

@@ -45,8 +45,8 @@ export const useAvailability = () => {
       setStatusMessage({
         type: updated ? 'success' : 'warning',
         text: updated
-          ? '✅ You are now ONLINE. New assignments will be routed to you.'
-          : '⚠️ You are now OFFLINE. No new work will be sent to you.',
+          ? 'You are now ONLINE. New assignments will be routed to you.'
+          : 'You are now OFFLINE. No new work will be sent to you.',
       });
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Failed to update availability. Please try again.' });

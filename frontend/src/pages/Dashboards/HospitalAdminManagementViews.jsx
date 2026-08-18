@@ -496,7 +496,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                             <td className="p-3">
                               <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
                               <p className="text-slate-500 text-[10px] font-mono">
-                                UHID: {pat.uhid || '—'} {pat.phone && `• 📞 ${pat.phone}`}
+                                UHID: {pat.uhid || '—'} {pat.phone && `• Phone: ${pat.phone}`}
                               </p>
                               {rcDocName && (
                                 <p className="text-slate-500 text-[10px] font-medium mt-0.5">

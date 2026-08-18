@@ -256,7 +256,7 @@ export class SaasService {
     try {
       const { socketManager } = await import('../../events/socketManager.js');
       socketManager.emitToRole('SUPER_ADMIN', 'workflow:notification', {
-        title: `🏥 New Hospital Application: ${hospital.name}`,
+        title: `New Hospital Application: ${hospital.name}`,
         message: `New hospital '${hospital.name}' registered by ${hospital.contactName} (${hospital.contactEmail}). Awaiting Super Admin approval.`,
         type: 'REGISTRATION',
         linkedPath: '/admin/pending-approvals',

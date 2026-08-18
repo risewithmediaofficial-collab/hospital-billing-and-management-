@@ -81,7 +81,7 @@ const RenewSubscriptionModal = ({ hospital, onClose, onRenewed }) => {
         paidAt,
         renewalNote: renewalNote.trim() || undefined,
       });
-      setSuccess(`✅ ${PLAN_META[selectedPlan]?.label || selectedPlan} activated successfully! Hospital renewed.`);
+      setSuccess(`${PLAN_META[selectedPlan]?.label || selectedPlan} activated successfully! Hospital renewed.`);
       setTimeout(() => {
         onRenewed();
         onClose();

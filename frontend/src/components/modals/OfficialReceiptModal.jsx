@@ -130,7 +130,7 @@ export const OfficialReceiptModal = ({
               {formattedAddress}
             </p>
             <p className="text-[10px] text-slate-500 font-mono">
-              📞 Phone: {hospPhone} &nbsp;|&nbsp; ✉️ Email: {hospEmail}
+              Phone: {hospPhone} &nbsp;|&nbsp; Email: {hospEmail}
             </p>
             <div className="inline-block mt-1 px-3 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-800">
               Official Medical Cash Receipt & Treatment Bill

@@ -570,8 +570,8 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                       doctors.map((doc) => {
                         const isAvail = doc.isAvailable !== false;
                         const statusTag = isAvail
-                          ? ` (🟢 Available - ${doc.cabinNo || 'Cabin 101'})`
-                          : ' (🔴 Off Duty)';
+                          ? ` (Available - ${doc.cabinNo || 'Cabin 101'})`
+                          : ' (Off Duty)';
                         return (
                           <option key={doc._id} value={doc._id}>
                             {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD'}{statusTag}

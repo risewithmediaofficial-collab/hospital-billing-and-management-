@@ -34,11 +34,11 @@ export function PharmacyAvailabilityBadge({ medicineName, medicineId, token, hos
     }
   }, [medicineName, medicineId, token]);
 
-  if (checking) return <span style={badges.checking}>⏳ Checking...</span>;
+  if (checking) return <span style={badges.checking}>Checking stock...</span>;
   if (!status) {
     return (
       <button onClick={check} style={badges.checkBtn}>
-        🔍 Check Stock
+        Check Stock
       </button>
     );
   }
@@ -46,7 +46,7 @@ export function PharmacyAvailabilityBadge({ medicineName, medicineId, token, hos
   const badge = BADGE_MAP[status] || BADGE_MAP.NOT_MAINTAINED;
   return (
     <span style={{ ...badges.base, ...badge.style }} title={details?.message || ''}>
-      {badge.icon} {badge.label}
+      {badge.label}
       {details?.totalQuantity > 0 && ` (${details.totalQuantity})`}
     </span>
   );
@@ -54,27 +54,27 @@ export function PharmacyAvailabilityBadge({ medicineName, medicineId, token, hos
 
 const BADGE_MAP = {
   AVAILABLE: {
-    icon: '🟢', label: 'In Stock',
+    label: 'In Stock',
     style: { background: 'rgba(22,163,74,0.15)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.3)' }
   },
   LOW_STOCK: {
-    icon: '🟡', label: 'Low Stock',
+    label: 'Low Stock',
     style: { background: 'rgba(234,179,8,0.15)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.3)' }
   },
   OUT_OF_STOCK: {
-    icon: '🔴', label: 'Out of Stock',
+    label: 'Out of Stock',
     style: { background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }
   },
   NOT_MAINTAINED: {
-    icon: '❌', label: 'Not in Pharmacy',
+    label: 'Not in Pharmacy',
     style: { background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }
   },
   NEAR_EXPIRY: {
-    icon: '⚠️', label: 'Near Expiry',
+    label: 'Near Expiry',
     style: { background: 'rgba(234,179,8,0.12)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.25)' }
   },
   ERROR: {
-    icon: '⚠️', label: 'Check failed',
+    label: 'Check failed',
     style: { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }
   },
 };
@@ -124,7 +124,7 @@ export function PharmacyAvailabilityInlineChecker({ medicines = [], token }) {
   if (!results) {
     return (
       <button onClick={checkAll} disabled={checking || medicines.length === 0} style={checkAllBtn}>
-        {checking ? '⏳ Checking stock...' : '🔍 Check All Medicine Availability'}
+        {checking ? 'Checking stock...' : 'Check All Medicine Availability'}
       </button>
     );
   }
@@ -133,11 +133,10 @@ export function PharmacyAvailabilityInlineChecker({ medicines = [], token }) {
   return (
     <div style={checkerPanel}>
       <div style={checkerHeader}>
-        <span style={{ fontSize: 16 }}>{hasUnavailable ? '⚠️' : '✅'}</span>
         <span style={{ fontWeight: 700, color: hasUnavailable ? '#fbbf24' : '#4ade80', fontSize: 14 }}>
           {results.summary}
         </span>
-        <button onClick={checkAll} style={reCheckBtn}>↻ Re-check</button>
+        <button onClick={checkAll} style={reCheckBtn}>Re-check</button>
       </div>
       {results.results.map((r, idx) => {
         const badge = BADGE_MAP[r.stockStatus] || BADGE_MAP.NOT_MAINTAINED;
@@ -145,17 +144,17 @@ export function PharmacyAvailabilityInlineChecker({ medicines = [], token }) {
           <div key={idx} style={resultRow}>
             <span style={medNameStyle}>{r.medicineName || r.medicineName}</span>
             <span style={{ ...badges.base, ...badge.style }}>
-              {badge.icon} {badge.label}{r.totalQuantity > 0 ? ` (${r.totalQuantity})` : ''}
+              {badge.label}{r.totalQuantity > 0 ? ` (${r.totalQuantity})` : ''}
             </span>
             {(r.stockStatus === 'OUT_OF_STOCK' || r.stockStatus === 'NOT_MAINTAINED') && (
-              <span style={warningText}>⚠️ {r.message}</span>
+              <span style={warningText}>{r.message}</span>
             )}
           </div>
         );
       })}
       {hasUnavailable && (
         <div style={unavailableAlert}>
-          <strong>⚠️ Some medicines are unavailable.</strong> The pharmacist will be notified. You may add a note or select an alternative.
+          <strong>Some medicines are unavailable.</strong> The pharmacist will be notified. You may add a note or select an alternative.
         </div>
       )}
     </div>

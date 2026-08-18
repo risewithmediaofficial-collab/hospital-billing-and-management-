@@ -13,15 +13,15 @@ const roleColors = {
 };
 
 const roleIcons = {
-  PRIMARY_DOCTOR: '👨‍⚕️',
-  CONSULTING_DOCTOR: '🩺',
-  NURSE: '👩‍⚕️',
-  DUTY_NURSE: '⏰',
-  CARETAKER: '🤲',
-  ICU_SPECIALIST: '🏥',
-  WARD_STAFF: '🛏️',
-  PHYSIOTHERAPIST: '💪',
-  DIETITIAN: '🥗',
+  PRIMARY_DOCTOR: '',
+  CONSULTING_DOCTOR: '',
+  NURSE: '',
+  DUTY_NURSE: '',
+  CARETAKER: '',
+  ICU_SPECIALIST: '',
+  WARD_STAFF: '',
+  PHYSIOTHERAPIST: '',
+  DIETITIAN: '',
 };
 
 const roleLabels = {
@@ -81,7 +81,6 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>
-          <span style={styles.headerIcon}>👥</span>
           <span style={styles.headerTitle}>Care Team</span>
           {isReadOnly && (
             <span style={styles.readOnlyBadge}>DISCHARGED · READ ONLY</span>
@@ -99,7 +98,6 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
       {/* Active Team */}
       {careTeam.active.length === 0 ? (
         <div style={styles.emptyState}>
-          <span>⚠️</span>
           <span>No care team assigned yet</span>
           {!isReadOnly && <span style={styles.emptyHint}>Assign a doctor and nurse to activate care team</span>}
         </div>
@@ -111,7 +109,6 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
                 <div style={{ ...styles.roleStripe, background: roleColors[role] || '#6b7280' }} />
                 <div style={styles.cardBody}>
                   <div style={styles.roleLabel}>
-                    <span>{roleIcons[role] || '👤'}</span>
                     <span style={{ ...styles.roleBadge, background: roleColors[role] || '#6b7280' }}>
                       {roleLabels[role] || role}
                     </span>
@@ -121,7 +118,7 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
                     <div style={styles.memberDetail}>{member.userId.specialization}</div>
                   )}
                   {member.userId?.phone && (
-                    <div style={styles.memberDetail}>📞 {member.userId.phone}</div>
+                    <div style={styles.memberDetail}>Phone: {member.userId.phone}</div>
                   )}
                   <div style={styles.assignedAt}>
                     Assigned: {fmt(member.assignedAt)}
@@ -140,7 +137,7 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
             onClick={() => setShowHistory(s => !s)}
             style={styles.historyToggle}
           >
-            {showHistory ? '▲' : '▼'} Assignment History ({careTeam.history.length} changes)
+            {showHistory ? 'Hide' : 'Show'} Assignment History ({careTeam.history.length} changes)
           </button>
 
           {showHistory && (
@@ -148,7 +145,6 @@ export default function CareTeamPanel({ admissionId, isReadOnly = false, token, 
               {careTeam.history.map((h, idx) => (
                 <div key={idx} style={styles.historyRow}>
                   <div style={styles.historyRole}>
-                    <span>{roleIcons[h.role] || '👤'}</span>
                     <span>{roleLabels[h.role] || h.role}</span>
                   </div>
                   <div style={styles.historyName}>{h.userId?.name || h.userName}</div>

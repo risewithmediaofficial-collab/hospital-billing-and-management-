@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { ConsultationModal } from '../../components/modals/ConsultationModal';
 import { RequestInvestigationModal } from '../../components/modals/RequestInvestigationModal';
+import { RequestInjectionModal } from '../../components/modals/RequestInjectionModal';
 import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
@@ -19,6 +20,7 @@ import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal
 import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
 import {
   Stethoscope,
+  Syringe,
   Users,
   Pill,
   Activity,
@@ -62,6 +64,7 @@ export const DoctorDashboard = () => {
   const [patientInvestigations, setPatientInvestigations] = useState([]);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [isInjectionModalOpen, setIsInjectionModalOpen] = useState(false);
   const [isAdmitModalOpen, setIsAdmitModalOpen] = useState(false);
 
   const [isAvailable, setIsAvailable] = useState(user?.isAvailable ?? true);
@@ -804,7 +807,7 @@ export const DoctorDashboard = () => {
               </div>
 
               {/* Primary Consultation Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <Button
                   size="md"
                   variant="success"
@@ -818,24 +821,21 @@ export const DoctorDashboard = () => {
                 <Button
                   size="md"
                   variant="primary"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
-                  onClick={() => setIsRequestModalOpen(true)}
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => setIsInjectionModalOpen(true)}
                 >
-                  <TestTube size={18} />
-                  <span>Request Test</span>
+                  <Syringe size={18} />
+                  <span>Send to Nurse / Injection</span>
                 </Button>
 
                 <Button
                   size="md"
-                  variant="outline"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                  onClick={() => {
-                    setHistoryPatientId(currentPatient?.uhid || currentPatient?._id);
-                    setIsHistoryOpen(true);
-                  }}
+                  variant="primary"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-sky-600 hover:bg-sky-700 text-white"
+                  onClick={() => setIsRequestModalOpen(true)}
                 >
-                  <History size={18} />
-                  <span>Past Medical History</span>
+                  <TestTube size={18} />
+                  <span>Request Test</span>
                 </Button>
 
                 <Button
@@ -846,6 +846,19 @@ export const DoctorDashboard = () => {
                 >
                   <BedDouble size={18} />
                   <span>Recommend IPD</span>
+                </Button>
+
+                <Button
+                  size="md"
+                  variant="outline"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50 col-span-2 sm:col-span-1"
+                  onClick={() => {
+                    setHistoryPatientId(currentPatient?.uhid || currentPatient?._id);
+                    setIsHistoryOpen(true);
+                  }}
+                >
+                  <History size={18} />
+                  <span>Past History</span>
                 </Button>
               </div>
 
@@ -967,8 +980,9 @@ export const DoctorDashboard = () => {
                         <td className="p-3 text-amber-800 font-bold">{tok.chiefComplaints || 'Checkup'}</td>
                         <td className="p-3 text-slate-600 font-medium">{new Date(tok.updatedAt || tok.createdAt).toLocaleTimeString()}</td>
                         <td className="p-3 text-right">
-                          <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
-                            ✅ FINALISED & BILLED
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
+                            <CheckCircle2 size={11} className="text-emerald-600" />
+                            FINALISED &amp; BILLED
                           </span>
                         </td>
                       </tr>
@@ -1189,6 +1203,24 @@ export const DoctorDashboard = () => {
           setSelectedToken(null);
           fetchOpdQueue();
           fetchDepartmentOrders();
+        }}
+      />
+
+      <RequestInjectionModal
+        isOpen={isInjectionModalOpen}
+        onClose={() => setIsInjectionModalOpen(false)}
+        patient={currentPatient}
+        appointmentId={selectedToken?._id}
+        tokenNumber={selectedToken?.tokenNumber || 1}
+        doctorId={selectedToken?.doctorId?._id || selectedToken?.doctorId || user?.id || user?._id}
+        doctorName={selectedToken?.doctorId?.name ? `Dr. ${selectedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (user?.name ? `Dr. ${user.name.replace(/^Dr\.\s*/i, '')}` : 'Doctor')}
+        onSuccess={() => {
+          const dispatchedAppointmentId = selectedToken?._id;
+          setLiveQueue((queue) => queue.filter((token) => String(token._id) !== String(dispatchedAppointmentId)));
+          setSelectedToken(null);
+          fetchOpdQueue();
+          fetchDepartmentOrders();
+          useDepartmentNotificationStore.getState().fetchPendingWork?.();
         }}
       />
 

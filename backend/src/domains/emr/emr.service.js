@@ -83,10 +83,6 @@ export class EmrService {
       status: 'FINALIZED',
     });
 
-    // Mark appointment status as COMPLETED
-    appointment.status = 'COMPLETED';
-    await appointment.save();
-
     // Create prescription if medicines provided
     let prescription = null;
     let nurseTasks = [];
@@ -128,7 +124,7 @@ export class EmrService {
       });
 
       // Automatically extract nurse-administered treatments (injections, IV fluids, dressings) into Nurse Tasks
-      nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user);
+      nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user, appointment._id);
 
       // Only notify hospital pharmacy desk if there are in-house take-home medicines
       const needsHospitalPharmacyDispense = !isExternalPharmacy && finalMedicines.some(m => m.treatmentType === 'ORAL_TAKE_HOME' && !m.externalPurchaseRequired);
@@ -144,6 +140,27 @@ export class EmrService {
           linkedPath: '/pharmacy/dispense-queue',
         }, brId);
       }
+    }
+
+    // If there are nurse-administered injections/treatments, token transitions to WAITING_NURSE
+    const hasPendingNurseAdministration = nurseTasks && nurseTasks.length > 0;
+    if (hasPendingNurseAdministration) {
+      appointment.status = 'WAITING_NURSE';
+      appointment.departmentReturnedAt = null;
+      await appointment.save();
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+        appointmentId: appointment._id,
+        status: appointment.status,
+        tokenNumber: appointment.tokenNumber,
+      });
+    } else {
+      appointment.status = 'COMPLETED';
+      await appointment.save();
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+        appointmentId: appointment._id,
+        status: appointment.status,
+        tokenNumber: appointment.tokenNumber,
+      });
     }
 
     // IPD Recommendation handling & Requisition to Inpatient Ward

@@ -362,7 +362,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         id: resolvedId,
         emergencyId: resolvedId,
         event: 'EMERGENCY',
-        title: data.title || '🚨 Emergency Alert',
+        title: data.title || 'Emergency Alert',
         message: data.message || 'Code Blue triggered',
         patientName: data.patientName || data.payload?.patientName || 'Unknown Patient',
         linkedPath: '/emergency',

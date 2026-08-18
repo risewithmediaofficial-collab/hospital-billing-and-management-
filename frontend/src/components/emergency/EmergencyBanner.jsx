@@ -66,8 +66,9 @@ export const EmergencyBanner = () => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-black text-xs uppercase tracking-wider bg-white text-red-700 px-2 py-0.5 rounded">
-                  🚨 ACTIVE EMERGENCY ({activeCount})
+                <span className="font-black text-xs uppercase tracking-wider bg-white text-red-700 px-2 py-0.5 rounded flex items-center gap-1">
+                  <ShieldAlert size={13} className="text-red-600 shrink-0" />
+                  ACTIVE EMERGENCY ({activeCount})
                 </span>
                 <span className="font-extrabold text-sm truncate">
                   {activeEmergencies[0]?.emergencyType} — {activeEmergencies[0]?.location}
@@ -181,7 +182,7 @@ export const EmergencyBanner = () => {
                 <div className="flex gap-2 pt-2 border-t border-slate-200">
                   <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsRaiseModalOpen(false)}>Cancel</Button>
                   <Button type="submit" variant="primary" className="w-1/2 font-bold bg-red-600 hover:bg-red-700 text-white" isLoading={isSubmitting}>
-                    🚨 BROADCAST NOW
+                    Broadcast Emergency Alert
                   </Button>
                 </div>
               </form>

@@ -227,7 +227,7 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                     {formattedAddress}
                   </p>
                   <p className="text-[10px] text-slate-500 font-mono">
-                    📞 Phone: {hospPhone} &nbsp;|&nbsp; ✉️ Email: {hospEmail}
+                    Phone: {hospPhone} &nbsp;|&nbsp; Email: {hospEmail}
                   </p>
                   <div className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[9px] font-black uppercase tracking-wider text-slate-800">
                     Official Medical Cash Receipt & Treatment Bill
@@ -421,11 +421,11 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                         onChange={(e) => setPaymentMode(e.target.value)}
                         className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                       >
-                        <option value="CARD">💳 Credit / Debit Card</option>
-                        <option value="CASH">💵 Cash at Counter</option>
-                        <option value="UPI">📱 UPI / QR Code</option>
-                        <option value="INSURANCE">🏥 TPA / Insurance Claim</option>
-                        <option value="SPLIT">⚡ Split Payment (Cash + Digital)</option>
+                        <option value="CARD">Credit / Debit Card</option>
+                        <option value="CASH">Cash at Counter</option>
+                        <option value="UPI">UPI / QR Code</option>
+                        <option value="INSURANCE">TPA / Insurance Claim</option>
+                        <option value="SPLIT">Split Payment (Cash + Digital)</option>
                       </select>
                     </div>
 
@@ -442,9 +442,9 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                       <p className="text-[10px] font-bold uppercase text-slate-400">Quick Select Tender:</p>
                       <div className="grid grid-cols-3 gap-1.5">
                         {[
-                          { mode: 'CASH', label: '💵 Cash' },
-                          { mode: 'CARD', label: '💳 Card' },
-                          { mode: 'UPI', label: '📱 UPI' },
+                          { mode: 'CASH', label: 'Cash' },
+                          { mode: 'CARD', label: 'Card' },
+                          { mode: 'UPI', label: 'UPI' },
                         ].map((t) => (
                           <button
                             key={t.mode}

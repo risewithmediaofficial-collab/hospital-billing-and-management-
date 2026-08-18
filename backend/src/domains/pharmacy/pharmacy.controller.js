@@ -183,3 +183,12 @@ export const updateNurseTaskStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+export const createNurseTask = async (req, res, next) => {
+  try {
+    const task = await NurseTasksService.createDirectNurseTask(req.body, req.user);
+    return sendSuccess(res, 201, 'Injection / Nurse task requested successfully', task);
+  } catch (error) {
+    next(error);
+  }
+};

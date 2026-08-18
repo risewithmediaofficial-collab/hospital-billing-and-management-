@@ -373,7 +373,6 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
             }
           : { isRecommended: false },
       });
-      await axiosClient.patch(`/appointments/tokens/${token._id}/status`, { status: 'COMPLETED' });
       setShowConfirmModal(false);
       if (onSuccess) onSuccess();
       onClose();
@@ -476,7 +475,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all ${pharmacyMode === 'IN_HOUSE_PHARMACY' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                       title="Prescriptions are queued to in-house hospital pharmacy for stock dispensing & hospital billing"
                     >
-                      🏥 In-House Pharmacy
+                      In-House Pharmacy
                     </button>
                     <button
                       type="button"
@@ -484,7 +483,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                       className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all ${pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                       title="Clinic has no in-house pharmacy. Generates outside take-home prescription with ₹0 added to hospital bill"
                     >
-                      📄 Outside Rx (₹0 Added)
+                      Outside Rx (₹0 Added)
                     </button>
                   </div>
 
@@ -589,16 +588,16 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                           >
                             {['INJECTION', 'IV_FLUID', 'DROPS', 'CREAM'].includes(med.dosageForm) ? (
                               <>
-                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Nurse Administration (Ward / Daycare Task)</option>
-                                <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Purchase (Patient Buys Outside - ₹0 Bill)</option>
+                                <option value="NURSE_ADMINISTERED">Nurse Administration (Ward / Daycare Task)</option>
+                                <option value="EXTERNAL_PURCHASE_OUTSIDE">Outside Purchase (Patient Buys Outside - ₹0 Bill)</option>
                               </>
                             ) : (
                               <>
                                 <option value="ORAL_TAKE_HOME">
-                                  {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? '📄 Outside Prescription (Take-Home - ₹0 Bill)' : '🏥 In-House Hospital Pharmacy Dispense'}
+                                  {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 'Outside Prescription (Take-Home - ₹0 Bill)' : 'In-House Hospital Pharmacy Dispense'}
                                 </option>
-                                <option value="NURSE_ADMINISTERED">👩‍⚕️ Nurse Bedside / In-Clinic Administration</option>
-                                <option value="EXTERNAL_PURCHASE_OUTSIDE">📄 Outside Pharmacy (Patient Buys Outside - ₹0 Bill)</option>
+                                <option value="NURSE_ADMINISTERED">Nurse Bedside / In-Clinic Administration</option>
+                                <option value="EXTERNAL_PURCHASE_OUTSIDE">Outside Pharmacy (Patient Buys Outside - ₹0 Bill)</option>
                               </>
                             )}
                           </select>
@@ -647,11 +646,11 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
                               className="w-full px-2 py-1 border border-indigo-300 rounded text-xs font-bold text-indigo-950 bg-white truncate"
                             >
                               <option value="AUTO_ASSIGN">
-                                ✨ Auto-Assign ({availableNurses[0]?.name ? `Recommended: ${availableNurses[0]?.name} • ${availableNurses[0]?.activeTaskCount ?? 0} tasks` : 'Least Loaded Nurse'})
+                                Auto-Assign ({availableNurses[0]?.name ? `Recommended: ${availableNurses[0]?.name} • ${availableNurses[0]?.activeTaskCount ?? 0} tasks` : 'Least Loaded Nurse'})
                               </option>
                               {availableNurses.map((nurse, nIdx) => (
                                 <option key={nurse.id || nurse._id} value={nurse.id || nurse._id}>
-                                  {nIdx === 0 ? '⭐ ' : ''}{nurse.name} ({nurse.isAvailable ? '🟢 Available' : '🔴 Offline'} • {nurse.activeTaskCount} tasks){nIdx === 0 ? ' — RECOMMENDED' : ''}
+                                  {nIdx === 0 ? '[Recommended] ' : ''}{nurse.name} ({nurse.isAvailable ? 'Available' : 'Offline'} • {nurse.activeTaskCount} tasks){nIdx === 0 ? ' — RECOMMENDED' : ''}
                                 </option>
                               ))}
                             </select>

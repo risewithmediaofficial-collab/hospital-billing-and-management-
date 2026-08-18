@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, Phone, Calendar, Check } from 'lucide-react';
 
 /**
  * DuplicatePatientModal
@@ -13,7 +14,7 @@ export default function DuplicatePatientModal({ isOpen, duplicates = [], onOpenE
       <div style={modal}>
         {/* Warning Header */}
         <div style={headerBar}>
-          <span style={{ fontSize: 28 }}>⚠️</span>
+          <AlertTriangle size={28} className="text-amber-500 shrink-0" />
           <div>
             <div style={headerTitle}>Possible Existing Patient Found</div>
             <div style={headerSub}>
@@ -34,11 +35,11 @@ export default function DuplicatePatientModal({ isOpen, duplicates = [], onOpenE
               <div style={recordHeader}>
                 <span style={uhidBadge}>{p.uhid}</span>
                 <span style={getAdmissionBadgeStyle(p.admissionStatus)}>
-                  {p.admissionStatus === 'ACTIVE_ADMISSION' ? '🔴 Admitted' : p.admissionStatus === 'DISCHARGED' ? '🟡 Discharged' : '⚪ Outpatient'}
+                  {p.admissionStatus === 'ACTIVE_ADMISSION' ? 'Admitted' : p.admissionStatus === 'DISCHARGED' ? 'Discharged' : 'Outpatient'}
                 </span>
               </div>
               <div style={recordName}>{p.firstName} {p.lastName}</div>
-              <div style={recordDetail}>📞 {p.phone || '—'} &nbsp;|&nbsp; 🎂 {p.dob ? new Date(p.dob).toLocaleDateString('en-IN') : '—'}</div>
+              <div style={recordDetail}>Phone: {p.phone || '—'} &nbsp;|&nbsp; DOB: {p.dob ? new Date(p.dob).toLocaleDateString('en-IN') : '—'}</div>
               <div style={recordDate}>Registered: {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '—'}</div>
               <button
                 style={openBtn}
@@ -54,7 +55,7 @@ export default function DuplicatePatientModal({ isOpen, duplicates = [], onOpenE
         <div style={actions}>
           <button style={cancelBtn} onClick={onCancel}>Cancel</button>
           <button style={differentBtn} onClick={onConfirmDifferent}>
-            ✅ Different Person — Create New Record
+            Different Person — Create New Record
           </button>
         </div>
       </div>

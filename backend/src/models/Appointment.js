@@ -12,7 +12,7 @@ const appointmentSchema = new mongoose.Schema(
     tokenNumber: { type: Number, required: true },
     appointmentDate: { type: String, required: true, index: true }, // YYYY-MM-DD
     type: { type: String, enum: ['OPD', 'FOLLOW_UP', 'EMERGENCY'], default: 'OPD' },
-    status: { type: String, enum: ['WAITING', 'IN_CONSULTATION', 'WAITING_DEPARTMENT', 'COMPLETED', 'CANCELLED'], default: 'WAITING', index: true },
+    status: { type: String, enum: ['WAITING', 'IN_CONSULTATION', 'WAITING_DEPARTMENT', 'WAITING_NURSE', 'COMPLETED', 'CANCELLED'], default: 'WAITING', index: true },
     departmentReturnedAt: { type: Date, default: null },
     chiefComplaints: { type: String, default: '' },
     cabinNo: { type: String, default: 'Cabin 102' },

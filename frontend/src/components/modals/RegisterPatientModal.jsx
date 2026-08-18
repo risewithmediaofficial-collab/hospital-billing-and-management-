@@ -154,7 +154,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                 </div>
 
                 <div className="pt-2 mt-2 border-t border-slate-200 space-y-1 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-100 font-mono text-[11px]">
-                  <p className="font-bold text-indigo-900 font-sans">📱 Patient Portal Credentials:</p>
+                  <p className="font-bold text-indigo-900 font-sans">Patient Portal Credentials:</p>
                   <p className="text-indigo-800">Login ID: <strong>{createdPatient.phone}</strong> &bull; Password: <strong>{createdPatient.dob ? new Date(createdPatient.dob).toLocaleDateString() : 'DOB'}</strong></p>
                 </div>
               </div>

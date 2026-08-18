@@ -56,7 +56,7 @@ export const SuperAdminPendingApprovalsPage = () => {
     setProcessingId(hospital._id);
     try {
       await axiosClient.patch(`/saas/hospitals/${hospital._id}/approve`);
-      showMsg(`✅ "${hospital.name}" approved! Admin account provisioned.`, 'success');
+      showMsg(`"${hospital.name}" approved! Admin account provisioned.`, 'success');
       setHospitals((prev) => prev.filter((h) => h._id !== hospital._id));
     } catch (err) {
       showMsg(`Failed to approve: ${err?.response?.data?.message || err.message}`, 'error');
@@ -70,7 +70,7 @@ export const SuperAdminPendingApprovalsPage = () => {
     setProcessingId(hospital._id);
     try {
       await axiosClient.patch(`/saas/hospitals/${hospital._id}/status`, { status: 'REJECTED' });
-      showMsg(`❌ "${hospital.name}" application rejected.`, 'error');
+      showMsg(`"${hospital.name}" application rejected.`, 'error');
       setHospitals((prev) => prev.filter((h) => h._id !== hospital._id));
     } catch (err) {
       showMsg(`Failed to reject: ${err?.response?.data?.message || err.message}`, 'error');
@@ -84,7 +84,7 @@ export const SuperAdminPendingApprovalsPage = () => {
     setProcessingId(hospital._id);
     try {
       await axiosClient.delete(`/saas/hospitals/${hospital._id}/permanent`);
-      showMsg(`🗑️ "${hospital.name}" and all its records permanently deleted.`, 'success');
+      showMsg(`"${hospital.name}" and all its records permanently deleted.`, 'success');
       setHospitals((prev) => prev.filter((h) => h._id !== hospital._id));
     } catch (err) {
       showMsg(`Failed to delete: ${err?.response?.data?.message || err.message}`, 'error');

@@ -22,6 +22,7 @@ import {
   getNurseTasks,
   getAvailableNurses,
   updateNurseTaskStatus,
+  createNurseTask,
 } from './pharmacy.controller.js';
 
 const router = Router();
@@ -53,6 +54,8 @@ router.patch('/substitutions/:id/acknowledge', acknowledgeSubstitution);
 
 // Nurse Administration Tasks
 router.get('/nurse-tasks', getNurseTasks);
+router.post('/nurse-tasks', createNurseTask);
+router.post('/request-injection', createNurseTask);
 router.get('/available-nurses', getAvailableNurses);
 router.patch('/nurse-tasks/:id/status', updateNurseTaskStatus);
 

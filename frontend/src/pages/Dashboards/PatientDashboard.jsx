@@ -194,7 +194,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       fetchRequests();
       setRequestFeedback({
         type: 'success',
-        message: '🚨 EMERGENCY ALERT BROADCAST TO ALL DUTY STAFF & EMERGENCY CONSOLE!',
+        message: 'EMERGENCY ALERT BROADCAST TO ALL DUTY STAFF & EMERGENCY CONSOLE!',
       });
     } catch (err) {
       console.error('Trigger emergency error:', err);
@@ -202,7 +202,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       const errMsg = err.response?.data?.message || err.message || 'Failed to trigger emergency alert.';
       setRequestFeedback({
         type: 'error',
-        message: `🚨 Emergency alert failed: ${errMsg}`,
+        message: `Emergency alert failed: ${errMsg}`,
       });
     } finally {
       setEmergencySubmitting(false);
@@ -219,7 +219,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       {/* ── Multi-Hospital Selector (if patient has multiple hospitals) ── */}
       {myHospitals.length > 1 && (
         <div style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 18 }}>🏥</span>
+          <Building2 size={18} className="text-indigo-500 shrink-0" />
           <span style={{ fontSize: 13, fontWeight: 700, color: '#818cf8' }}>My Hospitals</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {myHospitals.map((h) => (
@@ -233,7 +233,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                   borderColor: String(selectedHospitalId || activeContext?.hospitalId) === String(h.hospitalId) ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.1)',
                 }}
               >
-                {h.hasActiveAdmission ? '🔴 ' : ''}{h.hospitalName}
+                {h.hospitalName}
                 <span style={{ marginLeft: 6, opacity: 0.6 }}>({h.localUhid})</span>
               </button>
             ))}
@@ -245,7 +245,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       {hasActiveAdmission && (
         <div style={{ background: 'linear-gradient(135deg, #fff1f2, #fff7ed)', border: '1px solid #fda4af', borderRadius: 16, padding: '14px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 22 }}>🏥</span>
+            <Building2 size={22} className="text-rose-500 shrink-0" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>Currently Admitted – IPD</div>
               <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
@@ -269,7 +269,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       {/* ── Discharge Read-Only Banner ── */}
       {!hasActiveAdmission && patient.admissionStatus === 'DISCHARGED' && (
         <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 20 }}>📋</span>
+          <FileText size={20} className="text-amber-400 shrink-0" />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Admission Closed – Read Only Mode</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Your last admission has ended. Live service requests and emergency alerts are disabled. View your records below.</div>
@@ -309,11 +309,11 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               onClick={() => setShowEmergencyModal(true)}
               className="font-extrabold shadow-md shadow-rose-600/30 gap-1.5 px-4 py-2"
             >
-              <ShieldAlert size={16} /> 🚨 TRIGGER EMERGENCY
+              <ShieldAlert size={16} /> TRIGGER EMERGENCY
             </Button>
           ) : (
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', padding: '6px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
-              🔒 Emergency — Not Admitted
+              Emergency (Not Admitted)
             </span>
           )}
         </div>
@@ -462,28 +462,28 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('WATER')}>
-                💧 Water Request
+                Water Request
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('FOOD')}>
-                🍱 Food / Meals
+                Food / Meals
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('MEDICINE')}>
-                💊 Medicine Check
+                Medicine Check
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('IV_DRIP')}>
-                🩸 IV Drip Check
+                IV Drip Check
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('RESTROOM')}>
-                ♿ Restroom Assist
+                Restroom Assist
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('CLEANING')}>
-                🧹 Room Cleaning
+                Room Cleaning
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('PAIN_ASSISTANCE')}>
-                ⚡ Pain Assistance
+                Pain Assistance
               </Button>
               <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('BLANKET')}>
-                🛌 Blanket / Pillow
+                Blanket / Pillow
               </Button>
             </div>
           </Card>
@@ -644,18 +644,18 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {[
-                { type: 'WATER', label: '💧 Water Request' },
-                { type: 'FOOD', label: '🍱 Food / Meal' },
-                { type: 'RESTROOM', label: '♿ Restroom Assist' },
-                { type: 'MEDICINE', label: '💊 Medicine Check' },
-                { type: 'INJECTION', label: '💉 Injection Assist' },
-                { type: 'IV_DRIP', label: '🩸 IV Drip Change' },
-                { type: 'URINE_BAG', label: '🚽 Urine Bag Check' },
-                { type: 'CATHETER', label: '🩺 Catheter Check' },
-                { type: 'BED_POSITION', label: '🛏️ Bed Adjustment' },
-                { type: 'CLEANING', label: '🧹 Room Cleaning' },
-                { type: 'PAIN_ASSISTANCE', label: '⚡ Pain Assistance' },
-                { type: 'DOCTOR', label: '👨‍⚕️ Request Doctor' },
+                { type: 'WATER', label: 'Water Request' },
+                { type: 'FOOD', label: 'Food / Meal' },
+                { type: 'RESTROOM', label: 'Restroom Assist' },
+                { type: 'MEDICINE', label: 'Medicine Check' },
+                { type: 'INJECTION', label: 'Injection Assist' },
+                { type: 'IV_DRIP', label: 'IV Drip Change' },
+                { type: 'URINE_BAG', label: 'Urine Bag Check' },
+                { type: 'CATHETER', label: 'Catheter Check' },
+                { type: 'BED_POSITION', label: 'Bed Adjustment' },
+                { type: 'CLEANING', label: 'Room Cleaning' },
+                { type: 'PAIN_ASSISTANCE', label: 'Pain Assistance' },
+                { type: 'DOCTOR', label: 'Request Doctor' },
               ].map((item) => (
                 <Button
                   key={item.type}
@@ -774,7 +774,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                 isLoading={emergencySubmitting}
                 onClick={handleTriggerEmergency}
               >
-                CONFIRM DISPATCH 🚨
+                CONFIRM DISPATCH
               </Button>
             </div>
           </div>

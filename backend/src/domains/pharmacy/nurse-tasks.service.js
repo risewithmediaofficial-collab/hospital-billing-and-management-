@@ -69,7 +69,118 @@ export class NurseTasksService {
     return nurseListWithWorkload;
   }
 
-  static async createTasksFromPrescription(prescription, user) {
+  static async createDirectNurseTask(data, user) {
+    const hospitalId = user.hospitalId;
+    const branchId = user.branchId || data.branchId;
+
+    const { Patient } = await import('../../models/Patient.js');
+    const { Appointment } = await import('../../models/Appointment.js');
+
+    const patient = await Patient.findById(data.patientId);
+    if (!patient) {
+      throw new ApiError(404, 'Patient record not found for injection request');
+    }
+
+    let appointment = null;
+    if (data.appointmentId) {
+      appointment = await Appointment.findById(data.appointmentId);
+    }
+
+    let assignedNurseId = data.assignedNurseId;
+    if (!assignedNurseId || assignedNurseId === 'AUTO_ASSIGN') {
+      try {
+        const availableNurses = await NurseTasksService.getAvailableNurses(user);
+        if (availableNurses.length > 0) {
+          assignedNurseId = availableNurses[0]._id;
+        }
+      } catch (e) {}
+    }
+
+    const medicine = await Medicine.findOne({
+      hospitalId,
+      $or: [{ name: data.medicineName }, { genericName: data.medicineName }],
+    });
+
+    const taskType = data.taskType || (
+      data.dosageForm === 'INJECTION' || (data.medicineName || '').toLowerCase().includes('inj') ? 'INJECTION'
+      : data.dosageForm === 'IV_FLUID' ? 'IV_FLUID'
+      : data.dosageForm === 'NEBULIZATION' ? 'NEBULIZATION'
+      : 'INJECTION'
+    );
+
+    const task = await NurseTask.create({
+      hospitalId,
+      branchId,
+      patientId: patient._id,
+      doctorId: user.id || user._id,
+      assignedNurseId: assignedNurseId || null,
+      appointmentId: appointment?._id || null,
+      taskType,
+      medicineName: data.medicineName,
+      medicineId: medicine?._id,
+      dose: data.dose || data.dosage || '1 Ampoule IV/IM Stat',
+      route: data.route || 'IV',
+      frequency: data.frequency || 'STAT_IMMEDIATE',
+      priority: data.priority || 'STAT',
+      doctorInstructions: data.doctorInstructions || data.instructions || 'Administer stat in nursing station',
+      allergyInformation: data.allergyInformation || 'Check patient for allergies',
+      scheduledTime: new Date(),
+      status: 'PENDING',
+    });
+
+    // Update appointment status to WAITING_NURSE if active
+    if (appointment) {
+      appointment.status = 'WAITING_NURSE';
+      appointment.departmentReturnedAt = null;
+      await appointment.save();
+
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+        appointmentId: appointment._id,
+        status: appointment.status,
+        tokenNumber: appointment.tokenNumber,
+      });
+    }
+
+    const envelope = {
+      type: 'NEW_NURSE_TASKS',
+      count: 1,
+      patientId: patient._id,
+      patientName: `${patient.firstName} ${patient.lastName}`.trim(),
+      uhid: patient.uhid,
+      taskType: task.taskType,
+      medicineName: task.medicineName,
+      dose: task.dose,
+      route: task.route,
+      tokenNumber: appointment?.tokenNumber || null,
+      linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
+    };
+
+    if (assignedNurseId) {
+      socketManager.emitToUser(String(assignedNurseId), 'workflow:notification', envelope);
+    }
+    socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
+    socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
+
+    await NotificationService.createNotification({
+      hospitalId,
+      branchId,
+      recipientUserId: assignedNurseId || null,
+      recipientRole: assignedNurseId ? null : 'NURSE',
+      title: `New Injection / Procedure Task (Token #${appointment?.tokenNumber || 'OPD'})`,
+      message: `Doctor ${user.name || 'Consultant'} requested ${task.medicineName} (${task.dose}, ${task.route}) for patient ${patient.firstName} ${patient.lastName} (UHID: ${patient.uhid}).`,
+      notificationType: 'NEW_DATA',
+      targetModule: 'nursing',
+      targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
+      relatedPatientId: patient._id,
+      relatedTaskId: String(task._id),
+    });
+
+    socketManager.emitToBranch(branchId || hospitalId, 'workflow:pending_changed', envelope);
+
+    return task;
+  }
+
+  static async createTasksFromPrescription(prescription, user, appointmentId = null) {
     const createdTasks = [];
     const admission = await Admission.findOne({ patientId: prescription.patientId, status: 'ADMITTED' })
       .select('assignedNurseId dutyNurseId').lean();
@@ -103,6 +214,7 @@ export class NurseTasksService {
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
           assignedNurseId: assignedNurseId || null,
+          appointmentId: appointmentId || null,
           prescriptionId: prescription._id,
           consultationId: prescription.consultationId,
           taskType:
@@ -275,6 +387,54 @@ export class NurseTasksService {
     }
 
     await task.save();
+
+    // Check if appointment should transition upon completing nurse tasks
+    if (task.appointmentId) {
+      try {
+        const { Appointment } = await import('../../models/Appointment.js');
+        const appt = await Appointment.findById(task.appointmentId);
+        if (appt && appt.status === 'WAITING_NURSE') {
+          const remainingPending = await NurseTask.countDocuments({
+            appointmentId: task.appointmentId,
+            status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED'] },
+          });
+
+          if (remainingPending === 0) {
+            appt.status = 'COMPLETED';
+            appt.departmentReturnedAt = new Date();
+            await appt.save();
+
+            socketManager.emitToBranch(appt.branchId, 'opd_queue:status_changed', {
+              appointmentId: appt._id,
+              status: appt.status,
+              tokenNumber: appt.tokenNumber,
+            });
+
+            // Alert the consulting doctor
+            socketManager.emitToUser(String(task.doctorId), 'workflow:notification', {
+              type: 'NURSE_TASK_COMPLETED',
+              event: 'NURSE_REQUEST_COMPLETED',
+              title: 'Injection Administered',
+              message: `Nurse ${user.name} administered ${task.medicineName} for patient token #${appt.tokenNumber}. Ready for billing clearance.`,
+              patientId: task.patientId,
+              linkedPath: '/doctor/dashboard?tab=COMPLETED',
+            });
+
+            // Alert Cashier / Billing Desk
+            socketManager.emitToRole('CASHIER', 'workflow:notification', {
+              type: 'INVOICE_READY',
+              event: 'BILL_READY',
+              title: 'Bill Ready (Post-Injection)',
+              message: `Token #${appt.tokenNumber} has completed nurse administration and is cleared for billing.`,
+              patientId: task.patientId,
+              linkedPath: '/billing/dashboard',
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to update appointment upon nurse task completion:', err);
+      }
+    }
 
     socketManager.emitToBranch(task.branchId || user.hospitalId, 'workflow:pending_changed', {
       resource: 'NURSE_TASKS',

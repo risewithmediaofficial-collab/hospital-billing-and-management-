@@ -837,7 +837,7 @@ export const PharmacistDashboard = () => {
                   ))}
                 </select>
                 {medicines.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">⚠️ No medicines in inventory yet. Add medicines first before requesting substitution.</p>
+                  <p className="text-xs text-amber-600 mt-1">No medicines in inventory yet. Add medicines first before requesting substitution.</p>
                 )}
               </div>
               <div>
