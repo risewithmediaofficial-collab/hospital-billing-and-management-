@@ -52,6 +52,9 @@ export class EmrService {
         unitPrice: Number(p.unitPrice) || 0,
         price: Number(p.unitPrice) || 0,
         quantity: Number(p.quantity) || 1,
+        totalPrice: Number(p.totalPrice) || 0,
+      }));
+
     const hospId = user.hospitalId || appointment.hospitalId;
     let brId = user.branchId || appointment.branchId;
     if (!brId) {
@@ -183,8 +186,7 @@ export class EmrService {
         console.error('Failed to trigger IPD admission requisition:', err);
       }
     }
-    const hospId = user.hospitalId || appointment.hospitalId;
-    const brId = user.branchId || appointment.branchId;
+
     const year = new Date().getFullYear();
     let seqNum = (await Invoice.countDocuments({ hospitalId: hospId })) + 1;
     let invoiceNo = `INV-${year}-${String(seqNum).padStart(5, '0')}`;
