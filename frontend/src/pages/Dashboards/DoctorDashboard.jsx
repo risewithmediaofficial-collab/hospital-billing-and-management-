@@ -41,6 +41,7 @@ import {
   Lock,
   History,
   Calendar,
+  Wifi,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
