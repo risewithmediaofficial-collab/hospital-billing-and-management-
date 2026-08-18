@@ -127,11 +127,10 @@ const checkItemPermission = (user, item) => {
 };
 
 export const Sidebar = ({ isOpen, onClose }) => {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
   const { socket } = useSocket();
-  const { addNotification, fetchInitialNotifications, fetchPendingWork, getUnreadCountForNav } = useDepartmentNotificationStore();
-  const { fetchNotifications } = useNotificationStore();
-  const { activeCount, addEmergency, fetchActiveEmergencies } = useEmergencyStore();
+  const getUnreadCountForNav = useDepartmentNotificationStore((state) => state.getUnreadCountForNav);
+  const activeCount = useEmergencyStore((state) => state.activeCount);
   const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -266,13 +265,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
 
   useEffect(() => {
-    if (user?.role) {
-      fetchInitialNotifications(userRoles);
-      fetchActiveEmergencies();
-      const refreshTimer = setInterval(fetchPendingWork, 10000);
-      return () => clearInterval(refreshTimer);
-    }
-  }, [user, fetchInitialNotifications, fetchPendingWork, fetchActiveEmergencies]);
+    if (!user?.role) return;
+
+    // Initial fetch once per logged-in session / role
+    useDepartmentNotificationStore.getState().fetchPendingWork();
+    useEmergencyStore.getState().fetchActiveEmergencies();
+
+    // Relaxed background fallback (every 30s instead of rapid 10s)
+    const refreshTimer = setInterval(() => {
+      useDepartmentNotificationStore.getState().fetchPendingWork();
+    }, 30000);
+
+    return () => clearInterval(refreshTimer);
+  }, [user?.role, user?._id || user?.id]);
 
   useEffect(() => {
     if (!socket) return;
@@ -311,7 +316,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       const linkedPath = resolveWorkflowPath(data);
       const resourceId = data.payload?.orderId || data.payload?.appointmentId || data.payload?.patientId || data.payload?.uhid || 'item';
       const notificationId = data.id || `wf_${data.event}_${resourceId}`;
-      addNotification({
+      useDepartmentNotificationStore.getState().addNotification({
         id: notificationId,
         event: data.event,
         title: data.title || 'Department Alert',
@@ -323,13 +328,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
         timestamp: data.timestamp,
         isPending: ['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED'].includes(data.event),
       });
-
-      const currentPath = location.pathname + (location.search || '');
-      // Viewing a route never resolves pending work; status transitions do.
     };
 
     const handleDoctorQueueNotification = (data) => {
-      addNotification({
+      useDepartmentNotificationStore.getState().addNotification({
         id: `doc_q_${Date.now()}_${Math.random()}`,
         event: 'PATIENT_QUEUED',
         title: 'New Patient Queued',
@@ -341,7 +343,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
     };
 
     const handleNursingRequestNotification = (data) => {
-      addNotification({
+      useDepartmentNotificationStore.getState().addNotification({
         id: `nurse_req_${Date.now()}_${Math.random()}`,
         event: 'CARE_REQUEST',
         title: `Care Request: ${data.requestType || 'In-Bed Alert'}`,
@@ -353,9 +355,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
     };
 
     const handleEmergencyAlert = (data) => {
-      // Use the actual MongoDB _id from the payload so resolveEmergency API call works
       const resolvedId = data.emergencyId || data._id || data.id || `emg_${Date.now()}`;
-      addEmergency({
+      useEmergencyStore.getState().addEmergency({
         ...data,
         _id: resolvedId,
         id: resolvedId,
@@ -367,21 +368,21 @@ export const Sidebar = ({ isOpen, onClose }) => {
         linkedPath: '/emergency',
         timestamp: data.timestamp || new Date(),
       });
-      // Refresh the bell notification count (emergency notifications are persisted to DB)
-      fetchNotifications();
+      useNotificationStore.getState().fetchNotifications();
     };
 
-    // Only listen to 'emergency:alert' here — SocketProvider already handles 'emergency:code_blue_triggered'
-    // for the global CodeBlue modal. Listening to both in Sidebar would double-add emergencies.
+    const handlePendingChanged = () => {
+      useDepartmentNotificationStore.getState().fetchPendingWork();
+    };
+
     socket.on('emergency:alert', handleEmergencyAlert);
     socket.on('queue:patient_added', handleDoctorQueueNotification);
     socket.on('token:generated', handleDoctorQueueNotification);
     socket.on('appointment:created', handleDoctorQueueNotification);
     socket.on('patient_request:created', handleNursingRequestNotification);
     socket.on('workflow:notification', handleWorkflowEvent);
-    socket.on('workflow:pending_changed', fetchPendingWork);
-    // Also refresh bell count on any patient request status update
-    socket.on('patient_request:updated', () => fetchNotifications());
+    socket.on('workflow:pending_changed', handlePendingChanged);
+    socket.on('patient_request:updated', () => useNotificationStore.getState().fetchNotifications());
 
     return () => {
       socket.off('emergency:alert', handleEmergencyAlert);
@@ -390,7 +391,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('appointment:created', handleDoctorQueueNotification);
       socket.off('patient_request:created', handleNursingRequestNotification);
       socket.off('workflow:notification', handleWorkflowEvent);
-      socket.off('workflow:pending_changed', fetchPendingWork);
+      socket.off('workflow:pending_changed', handlePendingChanged);
     };
   }, [socket]);
 

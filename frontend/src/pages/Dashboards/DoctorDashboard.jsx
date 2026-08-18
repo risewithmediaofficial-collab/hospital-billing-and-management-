@@ -169,7 +169,7 @@ export const DoctorDashboard = () => {
       setCabinNo(user.cabinNo);
       setTempCabin(user.cabinNo);
     }
-  }, [user]);
+  }, [user?.isAvailable, user?.cabinNo]);
 
   const fetchOpdQueue = async () => {
     try {
