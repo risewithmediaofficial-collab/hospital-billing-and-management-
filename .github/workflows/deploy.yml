@@ -1,137 +1,89 @@
-name: Hospital Management Platform CI/CD
+name: Hospital Management Platform Deployment Workflow
 
 on:
   push:
-    branches:
-      - main
-      - test
-
+    branches: [ main, master, test ]
   pull_request:
-    branches:
-      - main
-      - test
+    branches: [ main, master, test ]
+
+concurrency:
+  group: deployment-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  test-and-build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js with NPM Caching
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
 
-      - name: Build Frontend
+      - name: Fast Build Frontend
         run: |
           cd frontend
           npm ci
           npm run build
 
-
   deploy-test:
-    needs: build
+    needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy Test Branch
+      - name: Deploy to Test Server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.PORT }}
-          timeout: 120s
-          command_timeout: 10m
-
+          timeout: 180s
+          command_timeout: 20m
           script: |
-            set -e
-            if [ ! -d "/docker/hospital-billing-test/.git" ]; then
-              echo "⚠️ Git repository missing in /docker/hospital-billing-test. Initializing fresh clone from test branch..."
+            DEPLOY_DIR="/docker/hospital-billing-test"
+            if [ ! -d "$DEPLOY_DIR/.git" ]; then
               mkdir -p /docker
-              rm -rf /docker/hospital-billing-test
-              git clone -b test https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git /docker/hospital-billing-test
+              rm -rf "$DEPLOY_DIR"
+              git clone -b test https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git "$DEPLOY_DIR"
             fi
-
-            cd /docker/hospital-billing-test
+            cd "$DEPLOY_DIR"
             git fetch origin test
             git checkout test
             git reset --hard origin/test
-
-            if [ ! -f "/docker/hospital-billing-test/.env" ]; then
-              echo "Creating default .env for test environment..."
-              cat << 'EOF' > /docker/hospital-billing-test/.env
-PORT=5000
-NODE_ENV=production
-MONGO_URI=mongodb://mongo:27017/hpmbs_db
-JWT_SECRET=hpmbs_super_secure_jwt_secret_key_2026_x89
-JWT_EXPIRES_IN=7d
-REFRESH_TOKEN_SECRET=hpmbs_super_secure_refresh_secret_key_2026_x89
-REFRESH_TOKEN_EXPIRES_IN=30d
-FIELD_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-SEARCH_HASH_KEY=0123456789abcdef0123456789abcdef
-CORS_ORIGIN=*
-EOF
-            fi
-
-            docker compose build --no-cache
-            docker compose up -d --force-recreate
-
-            echo "✅ Test deployment completed"
-
+            (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
+            echo "✅ Test deployment completed successfully at $DEPLOY_DIR"
 
   deploy-production:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test-and-build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy Production
+      - name: Deploy to Production Server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.PORT }}
-          timeout: 120s
-          command_timeout: 10m
-
+          timeout: 180s
+          command_timeout: 20m
           script: |
-            set -e
-            if [ ! -d "/docker/hospital-billing/.git" ]; then
-              echo "⚠️ Git repository missing in /docker/hospital-billing. Initializing fresh clone from main branch..."
+            DEPLOY_DIR="/docker/hospital-billing"
+            if [ ! -d "$DEPLOY_DIR/.git" ]; then
               mkdir -p /docker
-              rm -rf /docker/hospital-billing
-              git clone -b main https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git /docker/hospital-billing
+              rm -rf "$DEPLOY_DIR"
+              git clone -b main https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git "$DEPLOY_DIR"
             fi
+            cd "$DEPLOY_DIR"
+            git fetch origin main || git fetch origin master || true
+            git checkout main || git checkout master || true
+            git reset --hard origin/main || git reset --hard origin/master || true
+            (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
+            echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
 
-            cd /docker/hospital-billing
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
-
-            if [ ! -f "/docker/hospital-billing/.env" ]; then
-              echo "Creating default .env for production environment..."
-              cat << 'EOF' > /docker/hospital-billing/.env
-PORT=5000
-NODE_ENV=production
-MONGO_URI=mongodb://mongo:27017/hpmbs_db
-JWT_SECRET=hpmbs_super_secure_jwt_secret_key_2026_x89
-JWT_EXPIRES_IN=7d
-REFRESH_TOKEN_SECRET=hpmbs_super_secure_refresh_secret_key_2026_x89
-REFRESH_TOKEN_EXPIRES_IN=30d
-FIELD_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-SEARCH_HASH_KEY=0123456789abcdef0123456789abcdef
-CORS_ORIGIN=*
-EOF
-            fi
-
-            docker compose build --no-cache
-            docker compose up -d --force-recreate
-
-            echo "✅ Production deployment completed"
