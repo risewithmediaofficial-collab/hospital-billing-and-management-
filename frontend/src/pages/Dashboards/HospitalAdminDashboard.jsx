@@ -10,7 +10,12 @@ import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../utils/constants';
-import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog } from 'lucide-react';
+import {
+  Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle,
+  Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog,
+  Activity, ConciergeBell, CreditCard, Scan, Pill, BedDouble, BarChart3, Settings, GitFork,
+  ArrowRight, LayoutDashboard, FileText, Sparkles, Building2
+} from 'lucide-react';
 import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
 import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
 import { AdminExtraPage } from './AdminExtraPage';
@@ -570,24 +575,99 @@ const HospitalAdminDashboardInner = () => {
   const cashiersCount = staffList.filter((s) => ['CASHIER', 'BILLING_STAFF', 'RECEPTIONIST'].includes(s.role) || (s.additionalRoles && s.additionalRoles.some((r) => ['CASHIER', 'BILLING_STAFF', 'RECEPTIONIST'].includes(r)))).length;
   const techsCount = staffList.filter((s) => ['LAB_TECH', 'LABORATORY_STAFF', 'RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(s.role) || (s.additionalRoles && s.additionalRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF', 'RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r)))).length;
 
+  const isStaffRoute = location.pathname.endsWith('/staff');
+
+  const departmentShortcuts = [
+    { title: 'Doctors & Consultants', desc: 'Active physicians, cabins & OPD consultations', path: '/admin/doctors-management', icon: Stethoscope, color: 'sky' },
+    { title: 'Nursing & Ward Care', desc: 'Nurse roster, shift duty & IPD bed care', path: '/admin/nurses-management', icon: Activity, color: 'indigo' },
+    { title: 'Reception & Tokens', desc: 'Patient registration, live tokens & appointments', path: '/admin/reception-management', icon: ConciergeBell, color: 'purple' },
+    { title: 'Billing & Cashier Desk', desc: 'Revenue audit, collections & voided bills', path: '/admin/billing-management', icon: CreditCard, color: 'emerald' },
+    { title: 'Pharmacy & Stock', desc: 'Prescription dispensing & FEFO inventory', path: '/admin/pharmacy-management', icon: Pill, color: 'rose' },
+    { title: 'Laboratory & Pathology', desc: 'Diagnostic tests, samples & lab results', path: '/admin/laboratory-management', icon: TestTube, color: 'amber' },
+    { title: 'Radiology & Imaging', desc: 'CT, MRI, X-Ray scans & DICOM reports', path: '/admin/radiology-management', icon: Scan, color: 'cyan' },
+    { title: 'Ward & Bed Matrix', desc: 'Live ward layout, room transfers & occupancy', path: '/admin/bed-matrix', icon: BedDouble, color: 'teal' },
+    { title: 'Reports & Analytics', desc: 'Executive KPI reports, financials & exports', path: '/admin/reports', icon: BarChart3, color: 'violet' },
+    { title: 'Hospital Tariffs & Config', desc: 'Master price book & hospital preferences', path: '/admin/tariffs', icon: Settings, color: 'slate' },
+  ];
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
-            <UserCog className="text-indigo-600" size={26} />
-            Flexible Staff Roles & Module Permissions Workbench
+            {isStaffRoute ? (
+              <>
+                <UserCog className="text-indigo-600" size={26} />
+                Staff Roles & Permissions Workbench
+              </>
+            ) : (
+              <>
+                <Building2 className="text-indigo-600" size={26} />
+                Executive Hospital Operations & Administration Dashboard
+              </>
+            )}
           </h2>
-          <p className="text-xs text-neutral-500 mt-1">
-            Configure Multi-Role Assignments, Department Allocations & Fine-Grained Module Action Privileges
+          <p className="text-xs text-neutral-500 mt-1 font-medium">
+            {isStaffRoute
+              ? 'Configure Multi-Role Assignments, Department Allocations & Fine-Grained Module Action Privileges'
+              : 'Central Administration Command Center — Monitor hospital metrics, operational desks, staff privileges, and SaaS subscription'}
           </p>
         </div>
-        <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="w-full sm:w-auto text-xs shrink-0 whitespace-normal text-center sm:text-left py-2.5 sm:py-2">
-          <UserPlus size={16} className="shrink-0" />
-          <span className="sm:hidden">Create Staff Account</span>
-          <span className="hidden sm:inline">Create Staff Account & Access Configuration</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {isStaffRoute ? (
+            <Button variant="outline" size="sm" onClick={() => navigate(formatTenantPath('/admin/dashboard'))} className="text-xs">
+              <LayoutDashboard size={15} /> Overview Dashboard
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => navigate(formatTenantPath('/admin/staff'))} className="text-xs font-bold">
+              <UserCog size={15} /> Manage Staff Privileges
+            </Button>
+          )}
+          <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="w-full sm:w-auto text-xs shrink-0 whitespace-normal text-center sm:text-left py-2.5 sm:py-2 font-bold">
+            <UserPlus size={16} className="shrink-0" />
+            <span className="sm:hidden">Create Staff Account</span>
+            <span className="hidden sm:inline">Create Staff Account</span>
+          </Button>
+        </div>
       </div>
+
+      {/* Overview-Specific: Department Desks Launchpad Grid */}
+      {!isStaffRoute && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase tracking-wider font-black text-slate-500 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-indigo-600" />
+              Hospital Department Operations & Clinical Desks
+            </h3>
+            <span className="text-[11px] text-slate-400 font-semibold">10 Integrated Operational Modules</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {departmentShortcuts.map((dept) => {
+              const IconComp = dept.icon;
+              return (
+                <button
+                  key={dept.path}
+                  type="button"
+                  onClick={() => navigate(formatTenantPath(dept.path))}
+                  className="p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all text-left flex flex-col justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 rounded-xl bg-slate-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <IconComp size={18} />
+                    </div>
+                    <ArrowRight size={14} className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 group-hover:text-indigo-700 transition-colors">{dept.title}</h4>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-tight line-clamp-2">{dept.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Solo Doctor / Clinic Owner Quick Launch Work Mode Banner */}
       <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-700/50">

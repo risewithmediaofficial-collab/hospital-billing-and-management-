@@ -22,6 +22,7 @@ import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
 import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
 import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
 import { FloatingScratchPodWidget } from '../components/scratchpad/FloatingScratchPodWidget';
+import { ScratchPod } from '../components/scratchpad/ScratchPod';
 import { lazyRetry } from '../utils/lazyRetry';
 
 // Route-based Code Splitting: Lazy-loaded pages with auto-chunk retry
@@ -55,7 +56,6 @@ const PatientRegistrationPage = lazyRetry(() => import('../pages/Reception/Patie
 const EmergencyConsoleView = lazyRetry(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
 const AdminExtraPage = lazyRetry(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
 const BedMatrixPage = lazyRetry(() => import('../pages/Dashboards/BedMatrixPage').then(m => ({ default: m.BedMatrixPage })));
-const ScratchPodPage = lazyRetry(() => import('../components/scratchpad/ScratchPod').then(m => ({ default: m.ScratchPod })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
@@ -192,7 +192,7 @@ export const AppRoutes = () => {
         <Route path="/admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/admin/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
         <Route path="/admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/admin/nurses-management" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
         <Route path="/admin/reception-management" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
@@ -213,7 +213,7 @@ export const AppRoutes = () => {
         <Route path="/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/hospital-admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/hospital-admin/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
         <Route path="/hospital-admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/hospital-admin/nurses-management" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
         <Route path="/hospital-admin/reception-management" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
@@ -234,7 +234,7 @@ export const AppRoutes = () => {
         <Route path="/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
-        <Route path="/doctor/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/doctor/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
       </Route>
 
       {/* 4. Nurse Sub-Routes (Consolidated Nursing Module) */}
@@ -376,7 +376,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
         {/* Legacy short aliases */}
         <Route path="/:hospitalDomain/admin/doctors" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/nurses" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
@@ -394,7 +394,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/hospital-admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
       </Route>
 
       {/* Doctor tenant routes */}
@@ -404,7 +404,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/doctor/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/scratchpod" element={<MainLayout><ScratchPod /></MainLayout>} />
       </Route>
 
       {/* Nurse & Nurse-Incharge tenant routes */}

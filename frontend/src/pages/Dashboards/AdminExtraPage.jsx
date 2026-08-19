@@ -717,7 +717,7 @@ export const AdminExtraPage = () => {
 
   const [activeTab, setActiveTab] = useState(getTab);
 
-  useEffect(() => { setActiveTab(getTab()); }, [location]);
+  useEffect(() => { setActiveTab(getTab()); }, [location.pathname, location.search]);
 
   const formatTenantPath = (path) => {
     if (!path) return path;
@@ -732,8 +732,14 @@ export const AdminExtraPage = () => {
 
   const handleTabChange = (tabKey) => {
     setActiveTab(tabKey);
-    const adminBase = formatTenantPath('/admin/dashboard');
-    navigate(`${adminBase}?tab=${tabKey}`);
+    let targetPath = '/admin/dashboard?tab=notifications';
+    if (tabKey === 'reports') targetPath = '/admin/reports';
+    else if (tabKey === 'audit') targetPath = '/admin/reports?tab=audit';
+    else if (tabKey === 'plan-details') targetPath = '/admin/plan-details';
+    else if (tabKey === 'usage-limits') targetPath = '/admin/usage-limits';
+    else if (tabKey === 'settings') targetPath = '/admin/tariffs';
+    else if (tabKey === 'notifications') targetPath = '/admin/dashboard?tab=notifications';
+    navigate(formatTenantPath(targetPath));
   };
 
   const tabIcon = (key) => {
