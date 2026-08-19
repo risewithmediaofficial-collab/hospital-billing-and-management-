@@ -46,8 +46,8 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.PORT }}
-          timeout: 180s
-          command_timeout: 20m
+          timeout: 120s
+          command_timeout: 10m
 
           script: |
             set -e
@@ -82,8 +82,8 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.PORT }}
-          timeout: 180s
-          command_timeout: 20m
+          timeout: 120s
+          command_timeout: 10m
 
           script: |
             set -e
