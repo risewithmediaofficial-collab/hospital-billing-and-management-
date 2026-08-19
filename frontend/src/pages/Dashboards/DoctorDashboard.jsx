@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -46,6 +46,7 @@ import {
 
 export const DoctorDashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { isDualModeEligible } = useWorkspaceModeStore();
   const { socket } = useSocket();
@@ -91,6 +92,21 @@ export const DoctorDashboard = () => {
       setActiveTab('OVERVIEW');
     }
   }, [location.search]);
+
+  const handleTabClick = (tabKey) => {
+    setActiveTab(tabKey);
+    const searchParams = new URLSearchParams(location.search);
+    if (tabKey === 'OVERVIEW') {
+      searchParams.delete('tab');
+    } else {
+      searchParams.set('tab', tabKey);
+    }
+    const newSearch = searchParams.toString();
+    navigate({
+      pathname: location.pathname,
+      search: newSearch ? `?${newSearch}` : '',
+    }, { replace: true });
+  };
 
   useEffect(() => {
     fetchOpdQueue();
@@ -649,7 +665,7 @@ export const DoctorDashboard = () => {
       {/* ── WORKSTATION SUB-NAVIGATION TABS ── */}
       <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto bg-white/60 p-2 rounded-xl border">
         <button
-          onClick={() => setActiveTab('OVERVIEW')}
+          onClick={() => handleTabClick('OVERVIEW')}
           className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === 'OVERVIEW' || activeTab === 'LIVE'
               ? 'bg-indigo-600 text-white shadow-xs'
@@ -661,7 +677,7 @@ export const DoctorDashboard = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('FOLLOW_UPS')}
+          onClick={() => handleTabClick('FOLLOW_UPS')}
           className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === 'FOLLOW_UPS'
               ? 'bg-indigo-600 text-white shadow-xs'
@@ -673,7 +689,7 @@ export const DoctorDashboard = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('COMPLETED')}
+          onClick={() => handleTabClick('COMPLETED')}
           className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === 'COMPLETED'
               ? 'bg-indigo-600 text-white shadow-xs'
@@ -685,7 +701,7 @@ export const DoctorDashboard = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('DEPT_RESPONSES')}
+          onClick={() => handleTabClick('DEPT_RESPONSES')}
           className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === 'DEPT_RESPONSES'
               ? 'bg-indigo-600 text-white shadow-xs'

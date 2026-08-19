@@ -21,6 +21,7 @@ import { HospitalNotFoundPage } from '../pages/HospitalNotFoundPage';
 import { SuperAdminLayout } from '../components/layout/SuperAdminLayout';
 import { SuperAdminModuleBridge } from '../components/superadmin/SuperAdminModuleBridge';
 import { EmergencyBanner } from '../components/emergency/EmergencyBanner';
+import { FloatingScratchPodWidget } from '../components/scratchpad/FloatingScratchPodWidget';
 import { lazyRetry } from '../utils/lazyRetry';
 
 // Route-based Code Splitting: Lazy-loaded pages with auto-chunk retry
@@ -54,6 +55,7 @@ const PatientRegistrationPage = lazyRetry(() => import('../pages/Reception/Patie
 const EmergencyConsoleView = lazyRetry(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
 const AdminExtraPage = lazyRetry(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
 const BedMatrixPage = lazyRetry(() => import('../pages/Dashboards/BedMatrixPage').then(m => ({ default: m.BedMatrixPage })));
+const ScratchPodPage = lazyRetry(() => import('../components/scratchpad/ScratchPod').then(m => ({ default: m.ScratchPod })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
@@ -108,6 +110,7 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
         <EmergencyBanner />
         <main ref={mainRef} className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
+      <FloatingScratchPodWidget />
       <GlobalCodeBlueModal />
     </div>
   );
@@ -383,7 +386,8 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/hospital-admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
       </Route>
 
       {/* Doctor tenant routes */}
@@ -393,6 +397,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/doctor/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
       </Route>
 
       {/* Nurse & Nurse-Incharge tenant routes */}

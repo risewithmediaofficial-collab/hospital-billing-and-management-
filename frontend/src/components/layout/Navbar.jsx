@@ -5,8 +5,7 @@ import { useNotificationStore } from '../../store/notificationStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
-import { ROLE_NAMES } from '../../utils/constants';
-import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope } from 'lucide-react';
+import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 
@@ -168,6 +167,20 @@ export const Navbar = ({ onToggleSidebar }) => {
             <span className="hidden sm:inline">{isToggling ? 'Updating…' : (isAvailable ? 'Available' : 'Unavailable')}</span>
           </button>
         )}
+
+        {/* Quick Scratch Pod trigger button */}
+        {!['PATIENT', 'GUARDIAN'].includes(user?.role) && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-scratchpad-modal'))}
+            className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200 transition-all duration-150 flex items-center gap-1.5 font-bold text-xs"
+            title="Open Clinical Scratch Pod & Memos"
+          >
+            <StickyNote size={17} className="text-amber-500" />
+            <span className="hidden xl:inline text-[11px]">Scratch Pod</span>
+          </button>
+        )}
+
         {/* Notification Bell */}
         {hasNotificationsPermission && (
           <div className="relative">

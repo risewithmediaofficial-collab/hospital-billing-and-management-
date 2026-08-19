@@ -20,7 +20,12 @@ export const FloatingScratchPodWidget = () => {
     };
     updateCount();
     const interval = setInterval(updateCount, 2000);
-    return () => clearInterval(interval);
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('open-scratchpad-modal', handleOpen);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('open-scratchpad-modal', handleOpen);
+    };
   }, []);
 
   return (
