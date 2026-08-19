@@ -169,18 +169,6 @@ export const Navbar = ({ onToggleSidebar }) => {
           </button>
         )}
 
-        {/* Quick Scratch Pod trigger button */}
-        {!['PATIENT', 'GUARDIAN'].includes(user?.role) && (
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-scratchpad-modal'))}
-            className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200 transition-all duration-150 flex items-center gap-1.5 font-bold text-xs"
-            title="Open Clinical Scratch Pod & Memos"
-          >
-            <StickyNote size={17} className="text-amber-500" />
-            <span className="hidden xl:inline text-[11px]">Scratch Pod</span>
-          </button>
-        )}
 
         {/* Notification Bell */}
         {hasNotificationsPermission && (

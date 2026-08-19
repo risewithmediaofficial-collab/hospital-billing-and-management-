@@ -189,7 +189,6 @@ export const ROLE_NAVIGATION = {
     { title: 'Laboratory & Diagnostics', path: '/admin/laboratory-management', icon: 'TestTube', module: 'laboratory', category: 'Executive & Operations' },
     { title: 'Radiology & Imaging Desk', path: '/admin/radiology-management', icon: 'Scan', module: 'radiology', category: 'Executive & Operations' },
     { title: 'Patients Management', path: '/admin/patients-management', icon: 'Users', module: 'patients', category: 'Executive & Operations' },
-    { title: 'Scratch Pod & Clinical Notes', path: '/admin/scratchpod', icon: 'StickyNote', module: 'dashboard', category: 'Executive & Operations' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
 
     // System Analytics & Governance
@@ -206,7 +205,6 @@ export const ROLE_NAVIGATION = {
     { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Department Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Inpatient & Ward' },
-    { title: 'Clinical Scratch Pod', path: '/doctor/scratchpod', icon: 'StickyNote', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   NURSE: [
