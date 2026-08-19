@@ -458,6 +458,71 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const primaryRoleName = ROLE_NAMES[user?.role] || user?.role || 'Staff Member';
   const additionalRoleNames = (user?.additionalRoles || []).map((r) => ROLE_NAMES[r] || r).join(', ');
 
+  const CATEGORY_ICONS = {
+    'Executive & System': 'Building2',
+    'Executive & Operations': 'LayoutDashboard',
+    'Clinical & Patient Care': 'Stethoscope',
+    'Clinical Consultations': 'Stethoscope',
+    'Clinical Workstation': 'Stethoscope',
+    'Front Desk & Billing': 'Receipt',
+    'Front Desk Operations': 'LayoutDashboard',
+    'Inpatient & Ward': 'BedDouble',
+    'Support & Diagnostics': 'TestTube',
+    'Diagnostics & Pharmacy': 'TestTube',
+    'Pathology & Lab': 'TestTube',
+    'Radiology & Imaging': 'Scan',
+    'Pharmacy Operations': 'Pill',
+    'Stock & Inventory': 'Boxes',
+    'Billing & Analytics': 'BarChart3',
+    'Billing & Cashier': 'CreditCard',
+    'OPD Operations': 'ClipboardList',
+    'Emergency Services': 'ShieldAlert',
+    'General': 'Layers',
+    'General Modules': 'Layers',
+    'Workstation Desks': 'Briefcase',
+  };
+
+  const groupedCategories = React.useMemo(() => {
+    const groups = [];
+    const categoryMap = new Map();
+
+    menuItems.forEach((item) => {
+      const catName = item.category || (isDual && currentMode === 'WORK' ? 'Workstation Desks' : 'General Modules');
+      if (!categoryMap.has(catName)) {
+        categoryMap.set(catName, []);
+        groups.push({ category: catName, items: categoryMap.get(catName) });
+      }
+      categoryMap.get(catName).push(item);
+    });
+
+    return groups;
+  }, [menuItems, isDual, currentMode]);
+
+  const [openCategories, setOpenCategories] = useState({});
+
+  // Auto-expand category containing the active route
+  useEffect(() => {
+    const activeCategory = groupedCategories.find((group) =>
+      group.items.some((item) => isItemActive(item.path))
+    );
+    if (activeCategory) {
+      setOpenCategories((prev) => ({
+        ...prev,
+        [activeCategory.category]: true,
+      }));
+    }
+  }, [location.pathname, location.search, groupedCategories]);
+
+  const toggleCategory = (catName) => {
+    setOpenCategories((prev) => {
+      const currentVal = prev[catName] !== undefined ? prev[catName] : true;
+      return {
+        ...prev,
+        [catName]: !currentVal,
+      };
+    });
+  };
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -552,89 +617,134 @@ export const Sidebar = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Divider label */}
-        <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-          {isDual && currentMode === 'WORK' ? 'Workstation Desks' : 'Main Menu'}
-        </p>
-
-        {/* Navigation Links */}
+        {/* Navigation Links with Collapsible Dropdown Accordion */}
         <nav
           ref={navRef}
           onScroll={handleNavScroll}
-          className="flex-1 min-h-0 px-3 pb-3 space-y-0.5 overflow-y-auto"
+          className="flex-1 min-h-0 px-3 py-2 space-y-1.5 overflow-y-auto"
           aria-label="Sidebar navigation"
         >
-          {menuItems.map((item, index) => {
-            const IconComponent = Icons[item.icon] || Icons.Circle;
-            const label = item.title || item.name || 'Navigation Item';
-            const active = isItemActive(item.path);
-            const navUnreadCount = getUnreadCountForNav(item.path);
-            const isEmergencyItem = item.path === '/emergency';
-            const isReceiptsHistory = item.path.includes('tab=RECEIPTS') || item.path.includes('/billing/receipts');
+          {groupedCategories.map((group) => {
+            const isCategoryOpen = openCategories[group.category] !== false; // open by default
+            const CatIcon = Icons[CATEGORY_ICONS[group.category]] || Icons.FolderClosed;
+            const isCatActive = group.items.some((it) => isItemActive(it.path));
 
-            const prevItem = index > 0 ? menuItems[index - 1] : null;
-            const showCategoryDivider = item.category && (!prevItem || prevItem.category !== item.category);
-
-            const handleNavClick = (e) => {
-              if (isGuardianView && (isEmergencyItem || label === 'Emergency Assistance')) {
-                e.preventDefault();
-                window.dispatchEvent(new CustomEvent('open-emergency-modal'));
-              }
-              handleLinkClick();
-            };
+            const catEmergencyCount = group.items.reduce((acc, it) => acc + (it.path === '/emergency' ? activeCount : 0), 0);
+            const catUnreadCount = group.items.reduce((acc, it) => acc + (it.path !== '/emergency' ? getUnreadCountForNav(it.path) : 0), 0);
 
             return (
-              <React.Fragment key={item.path}>
-                {showCategoryDivider && (
-                  <p className="px-3 pt-3 pb-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    {item.category}
-                  </p>
-                )}
-                <Link
-                  to={formatTenantPath(item.path)}
-                  onClick={handleNavClick}
-                  aria-current={active ? 'page' : undefined}
-                  className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 border-l-2 ${
-                    active
-                      ? 'bg-indigo-50 text-indigo-700 font-semibold border-l-indigo-500'
-                      : isEmergencyItem && activeCount > 0
-                      ? 'bg-red-50 text-red-700 font-bold border-l-red-600 animate-pulse'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-transparent'
+              <div key={group.category} className="rounded-xl overflow-hidden transition-all">
+                {/* Accordion Category Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(group.category)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all duration-150 group select-none ${
+                    isCatActive
+                      ? 'text-indigo-950 font-black bg-indigo-50/80'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold'
                   }`}
                 >
-                <div className="flex items-center gap-3 min-w-0">
-                  <IconComponent
-                    size={16}
-                    className={`shrink-0 ${
-                      isEmergencyItem && activeCount > 0
-                        ? 'text-red-600'
-                        : active
-                        ? 'text-indigo-500'
-                        : 'text-slate-400'
-                    }`}
-                  />
-                  <span className="truncate">{label}</span>
-                </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <CatIcon
+                      size={15}
+                      className={`shrink-0 transition-colors ${
+                        isCatActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
+                      }`}
+                    />
+                    <span className="text-[11px] uppercase tracking-wider truncate font-black">
+                      {group.category}
+                    </span>
+                  </div>
 
-                {isEmergencyItem && activeCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-xs animate-bounce">
-                    {activeCount}
-                  </span>
-                )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {catEmergencyCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse">
+                        {catEmergencyCount}
+                      </span>
+                    )}
+                    {catUnreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-600 text-white">
+                        {catUnreadCount}
+                      </span>
+                    )}
+                    {isCategoryOpen ? (
+                      <Icons.ChevronDown size={14} className="text-slate-400 group-hover:text-slate-700 transition-transform" />
+                    ) : (
+                      <Icons.ChevronRight size={14} className="text-slate-400 group-hover:text-slate-700 transition-transform" />
+                    )}
+                  </div>
+                </button>
 
-                {!isEmergencyItem && navUnreadCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white shadow-xs animate-pulse tracking-tight">
-                    {navUnreadCount}
-                  </span>
-                )}
+                {/* Collapsible Sub-Items */}
+                {isCategoryOpen && (
+                  <div className="mt-1 pl-2.5 space-y-0.5 border-l-2 border-slate-100 ml-3.5 pb-1">
+                    {group.items.map((item) => {
+                      const IconComponent = Icons[item.icon] || Icons.Circle;
+                      const label = item.title || item.name || 'Navigation Item';
+                      const active = isItemActive(item.path);
+                      const navUnreadCount = getUnreadCountForNav(item.path);
+                      const isEmergencyItem = item.path === '/emergency';
+                      const isReceiptsHistory = item.path.includes('tab=RECEIPTS') || item.path.includes('/billing/receipts');
 
-                {isReceiptsHistory && totalReceiptsCount > 0 && navUnreadCount === 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
-                    {totalReceiptsCount}
-                  </span>
+                      const handleNavClick = (e) => {
+                        if (isGuardianView && (isEmergencyItem || label === 'Emergency Assistance')) {
+                          e.preventDefault();
+                          window.dispatchEvent(new CustomEvent('open-emergency-modal'));
+                        }
+                        handleLinkClick();
+                      };
+
+                      return (
+                        <Link
+                          key={item.path}
+                          to={formatTenantPath(item.path)}
+                          onClick={handleNavClick}
+                          aria-current={active ? 'page' : undefined}
+                          className={`flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                            active
+                              ? 'bg-indigo-600 text-white font-bold shadow-xs shadow-indigo-600/20'
+                              : isEmergencyItem && activeCount > 0
+                              ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200 animate-pulse'
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <IconComponent
+                              size={15}
+                              className={`shrink-0 ${
+                                active
+                                  ? 'text-white'
+                                  : isEmergencyItem && activeCount > 0
+                                  ? 'text-rose-600'
+                                  : 'text-slate-400'
+                              }`}
+                            />
+                            <span className="truncate">{label}</span>
+                          </div>
+
+                          {isEmergencyItem && activeCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white shadow-xs animate-bounce">
+                              {activeCount}
+                            </span>
+                          )}
+
+                          {!isEmergencyItem && navUnreadCount > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-xs ${active ? 'bg-white text-indigo-700' : 'bg-rose-600 text-white'}`}>
+                              {navUnreadCount}
+                            </span>
+                          )}
+
+                          {isReceiptsHistory && totalReceiptsCount > 0 && navUnreadCount === 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${active ? 'bg-white text-indigo-700' : 'bg-emerald-600 text-white'}`}>
+                              {totalReceiptsCount}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-                </Link>
-              </React.Fragment>
+              </div>
             );
           })}
         </nav>
