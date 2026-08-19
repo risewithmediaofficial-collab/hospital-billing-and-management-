@@ -414,7 +414,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.on('billing:invoice_created', fetchReceiptsCount);
       return () => socket.off('billing:invoice_created', fetchReceiptsCount);
     }
-  }, [user, socket]);
+  }, [user?.role, user?._id || user?.id, socket]);
 
   const formatTenantPath = (path) => {
     if (!path) return path;
@@ -508,10 +508,15 @@ export const Sidebar = ({ isOpen, onClose }) => {
       group.items.some((item) => isItemActive(item.path))
     );
     if (activeCategory) {
-      setOpenCategories((prev) => ({
-        ...prev,
-        [activeCategory.category]: true,
-      }));
+      setOpenCategories((prev) => {
+        if (prev[activeCategory.category]) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [activeCategory.category]: true,
+        };
+      });
     }
   }, [location.pathname, location.search, groupedCategories]);
 
