@@ -207,24 +207,28 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                   </h5>
                   <div className="space-y-3">
                     {consultations.map((c) => (
-                      <div key={c._id} className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-2.5">
+                      <div key={c._id} className={`p-4 rounded-xl border shadow-xs space-y-2.5 ${
+                        c.isExternalHospitalRecord
+                          ? 'bg-amber-50/60 border-amber-200'
+                          : 'bg-white border-slate-200'
+                      }`}>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-sm text-slate-900">
-                              {c.doctorId?.name || 'Attending Doctor'}
+                              {c.doctorId?.name ? `Dr. ${c.doctorId.name}` : 'Attending Doctor'}
                             </span>
                             {c.doctorId?.specialization && (
                               <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-medium">
                                 {c.doctorId.specialization}
                               </span>
                             )}
-                            {c.originHospitalName && (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
-                                c.isExternalHospitalRecord
-                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              }`}>
-                                🏥 {c.originHospitalName}
+                            {c.isExternalHospitalRecord ? (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-100 text-amber-800 border-amber-300">
+                                🏥 {c.originHospitalName || 'Partner Hospital'} — Clinical View Only
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                🏥 {c.originHospitalName || 'This Hospital'}
                               </span>
                             )}
                           </div>
@@ -233,24 +237,40 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                           </span>
                         </div>
 
-                        {c.diagnosis && (
+                        {(c.chiefComplaints) && (
+                          <div className="text-xs">
+                            <span className="font-bold text-slate-600">Chief Complaints: </span>
+                            <span className="text-slate-700">{c.chiefComplaints}</span>
+                          </div>
+                        )}
+
+                        {(c.provisionalDiagnosis || c.finalDiagnosis) && (
                           <div className="text-xs">
                             <span className="font-bold text-indigo-700">Diagnosis: </span>
-                            <span className="font-medium text-slate-800">{c.diagnosis}</span>
+                            <span className="font-medium text-slate-800">{c.finalDiagnosis || c.provisionalDiagnosis}</span>
                           </div>
                         )}
 
-                        {c.symptoms && (
+                        {c.treatmentPlan && (
                           <div className="text-xs">
-                            <span className="font-bold text-slate-600">Chief Symptoms: </span>
-                            <span className="text-slate-700">{c.symptoms}</span>
+                            <span className="font-bold text-slate-600">Treatment Plan: </span>
+                            <span className="text-slate-700">{c.treatmentPlan}</span>
                           </div>
                         )}
 
-                        {c.doctorNotes && (
+                        {(c.doctorsNotes || c.adviceToPatient) && (
                           <div className="p-2.5 bg-slate-50 rounded-lg text-xs border border-slate-100">
-                            <span className="font-bold text-slate-700">Clinical Advice / Notes: </span>
-                            <span className="text-slate-700">{c.doctorNotes}</span>
+                            <span className="font-bold text-slate-700">Clinical Notes / Advice: </span>
+                            <span className="text-slate-700">{c.doctorsNotes || c.adviceToPatient}</span>
+                          </div>
+                        )}
+
+                        {c.vitals && (
+                          <div className="flex flex-wrap gap-2 text-[11px]">
+                            {c.vitals.bp && <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded font-bold">BP: {c.vitals.bp}</span>}
+                            {c.vitals.pulse && <span className="bg-rose-50 text-rose-700 border border-rose-100 px-2 py-0.5 rounded font-bold">Pulse: {c.vitals.pulse}</span>}
+                            {c.vitals.temperature && <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded font-bold">Temp: {c.vitals.temperature}°F</span>}
+                            {c.vitals.spo2 && <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded font-bold">SpO2: {c.vitals.spo2}%</span>}
                           </div>
                         )}
 
@@ -258,6 +278,12 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                           <div className="text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center gap-1.5">
                             <Calendar size={14} className="text-amber-600" />
                             Follow-Up Scheduled: {new Date(c.followUpDate).toLocaleDateString()}
+                          </div>
+                        )}
+
+                        {c.isExternalHospitalRecord && (
+                          <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 font-semibold">
+                            ⚠️ Billing &amp; fee information from this visit is confidential to {c.originHospitalName}.
                           </div>
                         )}
                       </div>
@@ -274,9 +300,18 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                   </h5>
                   <div className="space-y-3">
                     {prescriptions.map((rx) => (
-                      <div key={rx._id} className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs space-y-2">
+                      <div key={rx._id} className={`p-3.5 rounded-xl border shadow-xs space-y-2 ${
+                        rx.isExternalHospitalRecord ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-slate-200'
+                      }`}>
                         <div className="flex justify-between text-xs text-slate-500 border-b border-slate-100 pb-1.5">
-                          <span>Rx by: <strong className="text-slate-800">{rx.doctorId?.name || 'Doctor'}</strong></span>
+                          <div className="flex items-center gap-2">
+                            <span>Rx by: <strong className="text-slate-800">{rx.doctorId?.name ? `Dr. ${rx.doctorId.name}` : 'Doctor'}</strong></span>
+                            {rx.isExternalHospitalRecord && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                🏥 {rx.originHospitalName}
+                              </span>
+                            )}
+                          </div>
                           <span>{new Date(rx.createdAt).toLocaleDateString()}</span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -284,7 +319,7 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                             <div key={idx} className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100 text-xs">
                               <p className="font-bold text-indigo-950">{med.medicineName || med.name}</p>
                               <p className="text-[11px] text-indigo-700 font-medium">
-                                {med.dosage || '1 Tablet'} &bull; {med.timing || 'After Food'} &bull; {med.duration || '3 Days'}
+                                {med.dosage || '1 Tablet'} &bull; {med.timing || 'After Food'} &bull; {med.durationDays ? `${med.durationDays} Days` : (med.duration || '3 Days')}
                               </p>
                               {med.instructions && (
                                 <p className="text-[10px] text-slate-500 italic mt-0.5">{med.instructions}</p>
@@ -292,6 +327,9 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                             </div>
                           ))}
                         </div>
+                        {rx.isExternalHospitalRecord && (
+                          <p className="text-[10px] text-amber-700 font-semibold">⚠️ Medicine pricing from this prescription is confidential to {rx.originHospitalName}.</p>
+                        )}
                       </div>
                     ))}
                   </div>
