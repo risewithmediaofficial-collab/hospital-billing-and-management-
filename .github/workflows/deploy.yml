@@ -1,84 +1,91 @@
-name: Hospital Management Platform Deployment Workflow
+name: Hospital Management Platform CI/CD
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - test
 
-concurrency:
-  group: production-deployment
-  cancel-in-progress: true
+  pull_request:
+    branches:
+      - main
+      - test
 
 jobs:
-  test-and-build:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js with NPM Caching
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Fast Build Frontend
+      - name: Build Frontend
         run: |
           cd frontend
           npm ci
           npm run build
 
-      - name: Deploy to VPS (Attempt 1)
-        id: deploy1
-        continue-on-error: true
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          password: ${{ secrets.PASSWORD }}
-          port: ${{ secrets.PORT }}
-          timeout: 180s
-          command_timeout: 20m
-          script: |
-            DEPLOY_DIR="/docker/hospital-billing"
-            if [ -d "$DEPLOY_DIR" ]; then
-              echo "🚀 Found deployment workspace at: $DEPLOY_DIR"
-              cd "$DEPLOY_DIR"
-              git fetch origin main || git fetch origin master || true
-              git reset --hard origin/main || git reset --hard origin/master || git pull origin main || true
-              (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
-              echo "✅ Docker deployment completed successfully at $DEPLOY_DIR"
-            else
-              echo "❌ Directory $DEPLOY_DIR not found on VPS!"
-              exit 1
-            fi
 
-      - name: Deploy to VPS (Retry Attempt 2 if Attempt 1 timed out)
-        if: steps.deploy1.outcome == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+  deploy-test:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Test Branch
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          password: ${{ secrets.PASSWORD }}
           port: ${{ secrets.PORT }}
           timeout: 180s
           command_timeout: 20m
+
           script: |
-            DEPLOY_DIR="/docker/hospital-billing"
-            if [ -d "$DEPLOY_DIR" ]; then
-              echo "🚀 Found deployment workspace at: $DEPLOY_DIR"
-              cd "$DEPLOY_DIR"
-              git fetch origin main || git fetch origin master || true
-              git reset --hard origin/main || git reset --hard origin/master || git pull origin main || true
-              (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
-              echo "✅ Docker deployment completed successfully at $DEPLOY_DIR"
-            else
-              echo "❌ Directory $DEPLOY_DIR not found on VPS!"
-              exit 1
-            fi
+            cd /docker/hospital-billing-test
+
+            git fetch origin test
+            git checkout test
+            git reset --hard origin/test
+
+            docker compose build --no-cache
+            docker compose up -d --force-recreate
+
+            echo "✅ Test deployment completed"
+
+
+  deploy-production:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Production
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.PORT }}
+          timeout: 180s
+          command_timeout: 20m
+
+          script: |
+            cd /docker/hospital-billing
+
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
+            docker compose build --no-cache
+            docker compose up -d --force-recreate
+
+            echo "✅ Production deployment completed"
