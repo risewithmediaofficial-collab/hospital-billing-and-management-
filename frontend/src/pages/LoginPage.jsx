@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
 import { axiosClient } from '../api/axiosClient';
 import { HospitalNotFoundPage } from './HospitalNotFoundPage';
+import { verifiedDomainCache, notFoundDomainCache } from '../components/auth/TenantRouteGuard';
 import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash, Globe, Info } from 'lucide-react';
 
 export const LoginPage = () => {
@@ -48,12 +49,19 @@ export const LoginPage = () => {
         if (!isMounted) return;
         const data = res?.data || res;
         setHospitalInfo(data);
+        // Pre-populate domain cache so post-login navigation is instant
+        verifiedDomainCache.add(hospitalDomain.toLowerCase());
         setDomainLoading(false);
       })
       .catch((err) => {
         if (!isMounted) return;
-        if (err?.response?.status === 404 || err?.status === 404 || err?.error?.code === 'HOSPITAL_NOT_FOUND') {
+        const status = err?.response?.status || err?.status;
+        if (status === 404 || err?.error?.code === 'HOSPITAL_NOT_FOUND') {
+          notFoundDomainCache.add(hospitalDomain.toLowerCase());
           setDomainNotFound(true);
+        } else {
+          // Non-404 error (502, network) — still allow login page to show
+          verifiedDomainCache.add(hospitalDomain.toLowerCase());
         }
         setDomainLoading(false);
       });

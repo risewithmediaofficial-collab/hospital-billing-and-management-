@@ -4,19 +4,41 @@ import { useAuthStore } from "../../store/authStore";
 import { axiosClient } from "../../api/axiosClient";
 import { HospitalNotFoundPage } from "../../pages/HospitalNotFoundPage";
 
+// Cache verified domains in memory so we only hit the API once per session
+export const verifiedDomainCache = new Set();
+export const notFoundDomainCache = new Set();
+
 export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
   const { hospitalDomain } = useParams();
   const { user, isAuthenticated, isLoading } = useAuthStore();
   const location = useLocation();
 
-  const [domainVerified, setDomainVerified] = useState(!hospitalDomain);
-  const [domainNotFound, setDomainNotFound] = useState(false);
-  const [verifyingDomain, setVerifyingDomain] = useState(!!hospitalDomain);
+  // If domain is already cached as verified, skip the API call immediately
+  const alreadyVerified = !hospitalDomain || verifiedDomainCache.has(hospitalDomain?.toLowerCase());
+  const alreadyNotFound = hospitalDomain && notFoundDomainCache.has(hospitalDomain?.toLowerCase());
+
+  const [domainVerified, setDomainVerified] = useState(alreadyVerified);
+  const [domainNotFound, setDomainNotFound] = useState(alreadyNotFound);
+  const [verifyingDomain, setVerifyingDomain] = useState(!alreadyVerified && !alreadyNotFound && !!hospitalDomain);
 
   useEffect(() => {
     if (!hospitalDomain) {
       setVerifyingDomain(false);
       setDomainVerified(true);
+      return;
+    }
+
+    const domainKey = hospitalDomain.toLowerCase();
+
+    // Already cached — skip API call
+    if (verifiedDomainCache.has(domainKey)) {
+      setDomainVerified(true);
+      setVerifyingDomain(false);
+      return;
+    }
+    if (notFoundDomainCache.has(domainKey)) {
+      setDomainNotFound(true);
+      setVerifyingDomain(false);
       return;
     }
 
@@ -27,14 +49,23 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
       .get(`/saas/hospitals/by-domain/${hospitalDomain}`)
       .then(() => {
         if (!isMounted) return;
+        verifiedDomainCache.add(domainKey);
         setDomainVerified(true);
         setDomainNotFound(false);
         setVerifyingDomain(false);
       })
       .catch((err) => {
         if (!isMounted) return;
-        if (err?.response?.status === 404 || err?.status === 404 || err?.error?.code === "HOSPITAL_NOT_FOUND") {
+        const status = err?.response?.status || err?.status;
+        if (status === 404 || err?.error?.code === "HOSPITAL_NOT_FOUND") {
+          // Only mark as not found on explicit 404
+          notFoundDomainCache.add(domainKey);
           setDomainNotFound(true);
+        } else {
+          // Any other error (502, network error, timeout) — assume domain is valid
+          // and allow navigation through. Backend may be temporarily down.
+          verifiedDomainCache.add(domainKey);
+          setDomainVerified(true);
         }
         setVerifyingDomain(false);
       });
@@ -85,3 +116,4 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
 
   return children ? children : <Outlet />;
 };
+
