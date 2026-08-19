@@ -5,6 +5,7 @@ import { useNotificationStore } from '../../store/notificationStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
+import { ROLE_NAMES } from '../../utils/constants';
 import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
