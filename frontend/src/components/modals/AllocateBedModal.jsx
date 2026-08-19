@@ -15,10 +15,8 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
   const [availableBeds, setAvailableBeds] = useState([]);
   const [nurses, setNurses] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [caretakers, setCaretakers] = useState([]);
   const [assignedDoctorId, setAssignedDoctorId] = useState('');
   const [assignedNurseId, setAssignedNurseId] = useState('');
-  const [assignedCaretakerId, setAssignedCaretakerId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,7 +34,6 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
       fetchNurses();
       setAssignedDoctorId(admission.doctorId?._id || admission.doctorId || '');
       setAssignedNurseId(admission.assignedNurseId?._id || admission.assignedNurseId || (['NURSE', 'NURSE_INCHARGE'].includes(user?.role) ? (user.id || user._id || '') : ''));
-      setAssignedCaretakerId(admission.assignedCaretakerId?._id || admission.assignedCaretakerId || '');
     }
   }, [isOpen, admission]);
 
@@ -61,7 +58,6 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
       const staff = res.data?.data || res.data || [];
       setNurses(staff.filter((member) => ['NURSE', 'NURSE_INCHARGE'].includes(member.role) && member.isActive !== false));
       setDoctors(staff.filter((member) => member.role === 'DOCTOR' && member.isActive !== false));
-      setCaretakers(staff.filter((member) => ['SUPPORT_STAFF', 'IPD_STAFF', 'NURSE', 'NURSE_INCHARGE'].includes(member.role) && member.isActive !== false));
     } catch (err) {
       console.error('Failed to fetch nurses:', err);
     }
@@ -87,7 +83,6 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
         dailyTariff: Number(dailyTariff),
         assignedDoctorId,
         assignedNurseId: assignedNurseId || undefined,
-        assignedCaretakerId: assignedCaretakerId || undefined,
         reassignOnly: admission.status === 'ADMITTED',
       });
 
@@ -106,77 +101,60 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
     : [
         { name: 'General Ward 3B', wardType: 'GENERAL', defaultDailyCharge: 150 },
         { name: 'Intensive Care Unit (ICU)', wardType: 'ICU', defaultDailyCharge: 650 },
-        { name: 'Male Ward 2A', wardType: 'GENERAL', defaultDailyCharge: 150 },
-        { name: 'Female Ward 2B', wardType: 'GENERAL', defaultDailyCharge: 150 },
-        { name: 'Semi-Private Floor 3', wardType: 'SEMI_PRIVATE', defaultDailyCharge: 250 },
-        { name: 'Deluxe Suite Floor 4', wardType: 'PRIVATE', defaultDailyCharge: 500 },
+        { name: 'Emergency Ward', wardType: 'EMERGENCY', defaultDailyCharge: 200 },
+        { name: 'Maternity Ward', wardType: 'MATERNITY', defaultDailyCharge: 350 },
       ];
 
   return (
-    <div className="modal-overlay animate-fade-in z-50">
-      <div className="modal-container max-w-lg" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex-shrink-0">
-              <BedDouble size={20} />
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+              <BedDouble size={18} />
             </div>
-            <div className="min-w-0">
-              <h3 className="text-base font-extrabold text-slate-900 truncate">Allocate Ward & Bed Assignment</h3>
-              <p className="text-xs text-slate-500 mt-0.5 truncate">
-                Patient: <span className="font-bold text-indigo-700">{admission.patientName} ({admission.uhid})</span>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Allocate Ward &amp; Bed Assignment</h3>
+              <p className="text-xs text-slate-500">
+                Patient: <strong className="text-indigo-600">{admission.patientId?.firstName} {admission.patientId?.lastName}</strong> ({admission.patientId?.uhid})
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="modal-close-btn" aria-label="Close">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">
             <X size={18} />
           </button>
         </div>
 
-        {/* Form Body */}
-        <div className="modal-body">
+        {error && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+            <AlertCircle size={16} className="text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="max-h-[72vh] overflow-y-auto pr-1">
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            {error && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-start gap-2.5 shadow-2xs">
-                <ShieldAlert size={18} className="text-rose-600 shrink-0 mt-0.5" />
-                <div className="text-xs font-semibold leading-snug">{error}</div>
-              </div>
-            )}
-
-            {/* Patient Requisition Context */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1 text-slate-700">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] text-slate-500">Requisition Doctor:</span>
-                <span className="font-bold text-slate-900">{admission.doctorName}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] text-slate-500">Requested Ward Type:</span>
-                <span className="font-bold text-amber-700">{admission.wardType}</span>
-              </div>
-              <p className="text-[11px] text-slate-600 italic pt-1 border-t border-slate-200">
-                "{admission.admissionReason || 'Inpatient care requisition'}"
-              </p>
-            </div>
-
-            {/* Ward Selection */}
+            {/* Target Ward Select */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                1. Select Ward / Department Name *
+                1. Clinical Ward / Department *
               </label>
               <select
                 value={wardName}
                 onChange={(e) => {
+                  const selectedWard = activeWardList.find((w) => w.name === e.target.value);
                   setWardName(e.target.value);
-                  const matched = activeWardList.find((w) => w.name === e.target.value);
-                  if (matched) setDailyTariff(matched.defaultDailyCharge || matched.tariff || 150);
+                  if (selectedWard?.defaultDailyCharge) {
+                    setDailyTariff(selectedWard.defaultDailyCharge);
+                  }
                 }}
                 className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
                 required
                 disabled={admission.status === 'ADMITTED'}
               >
                 {activeWardList.map((w, idx) => (
-                  <option key={idx} value={w.name}>
-                    {w.name} (₹{w.defaultDailyCharge || w.tariff || 150}/day)
+                  <option key={w._id || idx} value={w.name}>
+                    {w.name} {w.wardType ? `(${w.wardType})` : ''} {w.defaultDailyCharge ? `— ₹${w.defaultDailyCharge}/d` : ''}
                   </option>
                 ))}
               </select>
@@ -286,24 +264,6 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
               <p className="text-[10px] text-slate-500 mt-1">
                 Defaults to the logged-in nurse. You can select another active nurse before allocation.
               </p>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                6. Assign Caretaker / Ward Support
-              </label>
-              <select
-                value={assignedCaretakerId}
-                onChange={(e) => setAssignedCaretakerId(e.target.value)}
-                className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
-              >
-                <option value="">No caretaker assigned yet</option>
-                {caretakers.map((member) => (
-                  <option key={member._id || member.id} value={member._id || member.id}>
-                    {member.name} — {member.role.replaceAll('_', ' ')}{member.assignedUnit ? ` (${member.assignedUnit})` : ''}
-                  </option>
-                ))}
-              </select>
             </div>
 
             {/* Buttons */}
