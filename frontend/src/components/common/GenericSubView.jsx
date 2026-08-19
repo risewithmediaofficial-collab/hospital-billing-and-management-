@@ -5,9 +5,10 @@ import { StatCard } from '../ui/StatCard';
 import { useLocation } from 'react-router-dom';
 import * as Icons from 'lucide-react';
 
-export const GenericSubView = ({ title, subtitle, icon: IconName, stats = [], actions = [], tableData = [] }) => {
+export const GenericSubView = ({ title, subtitle, icon, iconName, IconName, stats = [], actions = [], tableData = [] }) => {
   const location = useLocation();
-  const HeaderIcon = Icons[IconName] || Icons.Layers;
+  const iconKey = iconName || icon || IconName;
+  const HeaderIcon = Icons[iconKey] || Icons.Layers;
 
   return (
     <div className="space-y-6 animate-fade-in">

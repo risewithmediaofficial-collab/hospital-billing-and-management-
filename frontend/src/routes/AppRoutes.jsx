@@ -108,7 +108,7 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Navbar onToggleSidebar={shouldHideSidebar ? null : () => setSidebarOpen(!sidebarOpen)} />
         <EmergencyBanner />
-        <main ref={mainRef} className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
+        <main ref={mainRef} key={location.pathname + location.search} className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? 'p-0' : 'p-6'}`}>{children}</main>
       </div>
       <FloatingScratchPodWidget />
       <GlobalCodeBlueModal />
