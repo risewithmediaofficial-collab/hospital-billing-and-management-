@@ -76,3 +76,14 @@ export const deleteInvoice = async (req, res, next) => {
     next(error);
   }
 };
+
+export const calculateStayCharges = async (req, res, next) => {
+  try {
+    const { admissionId } = req.params;
+    const result = await BillingService.calculateInpatientStayCharges(admissionId, req.user);
+    return sendSuccess(res, 200, 'Inpatient stay accommodation charges calculated', result);
+  } catch (error) {
+    next(error);
+  }
+};
+

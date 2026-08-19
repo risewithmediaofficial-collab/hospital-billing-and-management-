@@ -183,12 +183,12 @@ export class AdmissionsService {
       }
     }
 
-    const selectedWard = wardName || admission.targetWardName || 'Ward 3B - Inpatient';
+    const selectedWard = wardName || (bed ? bed.wardName : admission.targetWardName) || 'Ward 3B - Inpatient';
     const selectedBedNo = bedNumber ? bedNumber.trim() : (bed ? bed.bedNumber : `BED-30${Math.floor(Math.random() * 90 + 10)}`);
-    const selectedTariff = dailyTariff ? Number(dailyTariff) : (admission.dailyTariff || 150.0);
+    const selectedTariff = dailyTariff ? Number(dailyTariff) : (bed ? bed.dailyTariff : (admission.dailyTariff || 150.0));
 
     if (!bed) {
-      // Create new bed record with wardName and bedNumber specified by Nurse
+      // Create new bed record with wardName and bedNumber specified
       bed = await Bed.create({
         hospitalId: admission.hospitalId,
         branchId: admission.branchId,
@@ -198,15 +198,39 @@ export class AdmissionsService {
         dailyTariff: selectedTariff,
         status: BED_STATUS.OCCUPIED,
         currentPatientId: admission.patientId,
+        currentAdmissionId: admission._id,
         assignedNurseId,
+        assignedDoctorId: assignedDoctor._id,
       });
     } else {
       bed.status = BED_STATUS.OCCUPIED;
       bed.currentPatientId = admission.patientId;
+      bed.currentAdmissionId = admission._id;
       if (assignedNurseId) bed.assignedNurseId = assignedNurseId;
+      bed.assignedDoctorId = assignedDoctor._id;
       bed.wardName = selectedWard;
       bed.dailyTariff = selectedTariff;
       await bed.save();
+    }
+
+    // Record Bed Status History
+    try {
+      const { BedStatusHistory } = await import('../../models/BedStatusHistory.js');
+      await BedStatusHistory.create({
+        hospitalId: admission.hospitalId,
+        branchId: admission.branchId,
+        bedId: bed._id,
+        bedNumber: bed.bedNumber,
+        patientId: admission.patientId,
+        admissionId: admission._id,
+        fromStatus: BED_STATUS.AVAILABLE,
+        toStatus: BED_STATUS.OCCUPIED,
+        changedBy: user?.id || user?._id,
+        changedByName: user?.name || 'Staff User',
+        reason: `Admitted patient ${admission.patientName} (${admission.uhid})`,
+      });
+    } catch (e) {
+      console.error('[AdmissionsService/BedStatusHistory]', e.message);
     }
 
     admission.status = 'ADMITTED';
@@ -218,7 +242,18 @@ export class AdmissionsService {
     admission.bedId = bed._id;
     admission.bedNumber = bed.bedNumber;
     admission.targetWardName = bed.wardName;
+    admission.wardType = bed.wardType || admission.wardType || 'GENERAL';
     admission.dailyTariff = bed.dailyTariff;
+    admission.blockId = bed.blockId || null;
+    admission.blockName = bed.blockName || '';
+    admission.floorId = bed.floorId || null;
+    admission.floorName = bed.floorName || '';
+    admission.wardId = bed.wardId || null;
+    admission.roomId = bed.roomId || null;
+    admission.roomNumber = bed.roomNumber || '';
+    admission.bedTariff = bed.dailyBedCharge || 0;
+    admission.roomTariff = bed.dailyRoomCharge || 0;
+    admission.wardTariff = bed.dailyWardCharge || 0;
     admission.admittedAt = new Date();
     await admission.save();
 
@@ -229,6 +264,12 @@ export class AdmissionsService {
       uhid: admission.uhid,
       bedNumber: bed.bedNumber,
       wardName: bed.wardName,
+    });
+    socketManager.emitToBranch(admission.branchId, 'bed:status_changed', {
+      bedId: bed._id,
+      bedNumber: bed.bedNumber,
+      status: BED_STATUS.OCCUPIED,
+      patientId: admission.patientId,
     });
     socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
 
@@ -293,22 +334,52 @@ export class AdmissionsService {
       console.error('[Discharge/NurseTask]', e.message);
     }
 
+    // Bed sanitation safety: transition bed to CLEANING status (not directly to AVAILABLE)
+    let dischargedBed = null;
     if (admission.bedId) {
-      const bed = await Bed.findById(admission.bedId);
-      if (bed) {
-        bed.status = BED_STATUS.AVAILABLE;
-        bed.currentPatientId = null;
-        bed.assignedNurseId = null;
-        await bed.save();
-      }
+      dischargedBed = await Bed.findById(admission.bedId);
     } else if (admission.bedNumber) {
-      const bed = await Bed.findOne({ branchId: admission.branchId, bedNumber: admission.bedNumber });
-      if (bed) {
-        bed.status = BED_STATUS.AVAILABLE;
-        bed.currentPatientId = null;
-        bed.assignedNurseId = null;
-        await bed.save();
+      dischargedBed = await Bed.findOne({ branchId: admission.branchId, bedNumber: admission.bedNumber });
+    }
+
+    if (dischargedBed) {
+      dischargedBed.status = BED_STATUS.CLEANING;
+      dischargedBed.currentPatientId = null;
+      dischargedBed.currentAdmissionId = null;
+      dischargedBed.assignedNurseId = null;
+      dischargedBed.cleaningDetails = {
+        requestedAt: new Date(),
+        requestedBy: user?.id || user?._id,
+        cleanedAt: null,
+        cleanedBy: null,
+        notes: `Patient ${admission.patientName} discharged. Full sanitization and fresh linen required.`,
+      };
+      await dischargedBed.save();
+
+      try {
+        const { BedStatusHistory } = await import('../../models/BedStatusHistory.js');
+        await BedStatusHistory.create({
+          hospitalId: admission.hospitalId,
+          branchId: admission.branchId,
+          bedId: dischargedBed._id,
+          bedNumber: dischargedBed.bedNumber,
+          patientId: admission.patientId,
+          admissionId: admission._id,
+          fromStatus: BED_STATUS.OCCUPIED,
+          toStatus: BED_STATUS.CLEANING,
+          changedBy: user?.id || user?._id,
+          changedByName: user?.name || 'Staff User',
+          reason: 'Patient discharged. Bed queued for housekeeping cleaning and sanitization.',
+        });
+      } catch (e) {
+        console.error('[Discharge/BedStatusHistory]', e.message);
       }
+
+      socketManager.emitToBranch(admission.branchId, 'bed:status_changed', {
+        bedId: dischargedBed._id,
+        bedNumber: dischargedBed.bedNumber,
+        status: BED_STATUS.CLEANING,
+      });
     }
 
     return admission;

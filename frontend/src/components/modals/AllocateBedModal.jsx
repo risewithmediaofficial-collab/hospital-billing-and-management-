@@ -22,13 +22,17 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [hospitalWards, setHospitalWards] = useState([]);
+  const [selectedBedId, setSelectedBedId] = useState('');
+
   useEffect(() => {
     if (isOpen && admission) {
-      setWardName(admission.targetWardName || 'Ward 3B - Inpatient');
+      setWardName(admission.targetWardName || 'General Ward');
       setBedNumber(admission.bedNumber !== 'UNASSIGNED' ? admission.bedNumber : '');
+      setSelectedBedId(admission.bedId || '');
       setDailyTariff(admission.dailyTariff || 150);
       setError(null);
-      fetchBeds();
+      fetchBedsAndWards();
       fetchNurses();
       setAssignedDoctorId(admission.doctorId?._id || admission.doctorId || '');
       setAssignedNurseId(admission.assignedNurseId?._id || admission.assignedNurseId || (['NURSE', 'NURSE_INCHARGE'].includes(user?.role) ? (user.id || user._id || '') : ''));
@@ -36,13 +40,18 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
     }
   }, [isOpen, admission]);
 
-  const fetchBeds = async () => {
+  const fetchBedsAndWards = async () => {
     try {
-      const res = await axiosClient.get('/beds');
-      const allBeds = Array.isArray(res) ? res : (res.data || []);
-      setAvailableBeds(allBeds.filter((b) => b.status === 'AVAILABLE'));
+      const [bedsRes, wardsRes] = await Promise.all([
+        axiosClient.get('/beds?status=AVAILABLE').catch(() => []),
+        axiosClient.get('/beds/wards').catch(() => []),
+      ]);
+      const allBeds = Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []);
+      const allWards = Array.isArray(wardsRes) ? wardsRes : (wardsRes.data || []);
+      setAvailableBeds(allBeds);
+      setHospitalWards(allWards);
     } catch (err) {
-      console.error('Failed to fetch available beds:', err);
+      console.error('Failed to fetch available beds/wards:', err);
     }
   };
 
@@ -72,6 +81,7 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
 
     try {
       await axiosClient.patch(`/admissions/${admission._id}/allocate-bed`, {
+        bedId: selectedBedId || undefined,
         wardName: wardName.trim(),
         bedNumber: bedNumber.trim().toUpperCase(),
         dailyTariff: Number(dailyTariff),
@@ -91,14 +101,16 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
     }
   };
 
-  const WARD_OPTIONS = [
-    { name: 'Ward 3B - Inpatient', type: 'GENERAL', tariff: 150 },
-    { name: 'Intensive Care Unit (ICU)', type: 'ICU', tariff: 650 },
-    { name: 'Male Ward 2A', type: 'GENERAL', tariff: 150 },
-    { name: 'Female Ward 2B', type: 'GENERAL', tariff: 150 },
-    { name: 'Semi-Private Floor 3', type: 'SEMI_PRIVATE', tariff: 250 },
-    { name: 'Deluxe Suite Floor 4', type: 'PRIVATE', tariff: 500 },
-  ];
+  const activeWardList = hospitalWards.length > 0
+    ? hospitalWards
+    : [
+        { name: 'General Ward 3B', wardType: 'GENERAL', defaultDailyCharge: 150 },
+        { name: 'Intensive Care Unit (ICU)', wardType: 'ICU', defaultDailyCharge: 650 },
+        { name: 'Male Ward 2A', wardType: 'GENERAL', defaultDailyCharge: 150 },
+        { name: 'Female Ward 2B', wardType: 'GENERAL', defaultDailyCharge: 150 },
+        { name: 'Semi-Private Floor 3', wardType: 'SEMI_PRIVATE', defaultDailyCharge: 250 },
+        { name: 'Deluxe Suite Floor 4', wardType: 'PRIVATE', defaultDailyCharge: 500 },
+      ];
 
   return (
     <div className="modal-overlay animate-fade-in z-50">
@@ -155,16 +167,16 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
                 value={wardName}
                 onChange={(e) => {
                   setWardName(e.target.value);
-                  const matched = WARD_OPTIONS.find((w) => w.name === e.target.value);
-                  if (matched) setDailyTariff(matched.tariff);
+                  const matched = activeWardList.find((w) => w.name === e.target.value);
+                  if (matched) setDailyTariff(matched.defaultDailyCharge || matched.tariff || 150);
                 }}
                 className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500"
                 required
                 disabled={admission.status === 'ADMITTED'}
               >
-                {WARD_OPTIONS.map((w, idx) => (
+                {activeWardList.map((w, idx) => (
                   <option key={idx} value={w.name}>
-                    {w.name} (₹{w.tariff}/day)
+                    {w.name} (₹{w.defaultDailyCharge || w.tariff || 150}/day)
                   </option>
                 ))}
               </select>
@@ -174,25 +186,29 @@ export const AllocateBedModal = ({ isOpen, onClose, admission, onSuccess }) => {
             {admission.status !== 'ADMITTED' && availableBeds.length > 0 && (
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
-                  Quick Pick Available Bed ({availableBeds.length} Unassigned):
+                  Quick Pick Available Bed ({availableBeds.length} Ready):
                 </label>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-slate-50 border border-slate-200 rounded-xl">
                   {availableBeds.map((b) => (
                     <button
                       key={b._id}
                       type="button"
                       onClick={() => {
+                        setSelectedBedId(b._id);
                         setBedNumber(b.bedNumber);
                         if (b.wardName) setWardName(b.wardName);
                         if (b.dailyTariff) setDailyTariff(b.dailyTariff);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left ${
                         bedNumber === b.bedNumber
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
                       }`}
                     >
-                      {b.bedNumber} ({b.wardName ? b.wardName.split(' ')[0] : 'Ward'})
+                      <div className="font-extrabold">{b.bedNumber}</div>
+                      <div className={`text-[9px] ${bedNumber === b.bedNumber ? 'text-indigo-100' : 'text-slate-400'}`}>
+                        {b.wardName || 'Ward'} • ₹{b.dailyTariff}/d
+                      </div>
                     </button>
                   ))}
                 </div>

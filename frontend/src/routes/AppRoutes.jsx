@@ -53,6 +53,7 @@ const RegisteredPatientsView = lazyRetry(() => import('../pages/Reception/Regist
 const PatientRegistrationPage = lazyRetry(() => import('../pages/Reception/PatientRegistrationPage').then(m => ({ default: m.PatientRegistrationPage })));
 const EmergencyConsoleView = lazyRetry(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
 const AdminExtraPage = lazyRetry(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
+const BedMatrixPage = lazyRetry(() => import('../pages/Dashboards/BedMatrixPage').then(m => ({ default: m.BedMatrixPage })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
@@ -180,7 +181,10 @@ export const AppRoutes = () => {
 
       {/* 2. Hospital Admin Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/hospital-admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/hospital-admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/hospital-admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/hospital-admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
         <Route path="/hospital-admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
@@ -211,12 +215,13 @@ export const AppRoutes = () => {
 
       {/* 4. Nurse Sub-Routes (Consolidated Nursing Module) */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+        <Route path="/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/nursing/beds" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nursing/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nursing/requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nursing/vitals" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nurse-incharge/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/nurse-incharge/bed-transfers" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/nurse-incharge/bed-transfers" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
       </Route>
@@ -324,6 +329,7 @@ export const AppRoutes = () => {
       {/* Hospital Admin & Department Manager — management views */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER]} />}>
         <Route path="/:hospitalDomain/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
@@ -354,6 +360,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/ipd" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
         {/* Legacy /:hospitalDomain/hospital-admin/* tenant aliases */}
         <Route path="/:hospitalDomain/hospital-admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
@@ -373,12 +380,13 @@ export const AppRoutes = () => {
       {/* Nurse & Nurse-Incharge tenant routes */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/nursing/beds" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nursing/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nursing/requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nursing/vitals" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/nurse-incharge/bed-transfers" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+        <Route path="/:hospitalDomain/nurse-incharge/bed-transfers" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
       </Route>

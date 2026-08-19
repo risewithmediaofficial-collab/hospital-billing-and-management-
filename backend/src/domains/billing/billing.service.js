@@ -443,4 +443,92 @@ export class BillingService {
       invoice,
     };
   }
+
+  /**
+   * Calculate cumulative accommodation stay charges across all bed/ward transfers
+   */
+  static async calculateInpatientStayCharges(admissionId, user) {
+    const { Admission } = await import('../../models/Admission.js');
+    const { BedTransfer } = await import('../../models/BedTransfer.js');
+
+    const admission = await Admission.findById(admissionId).populate('patientId');
+    if (!admission) {
+      throw new ApiError(404, 'Admission record not found', null, 'NOT_FOUND');
+    }
+
+    const transfers = await BedTransfer.find({ admissionId: admission._id }).sort({ transferDate: 1 });
+    const startTime = new Date(admission.admittedAt || admission.createdAt);
+    const endTime = admission.dischargedAt ? new Date(admission.dischargedAt) : new Date();
+
+    const stayItems = [];
+
+    if (transfers.length === 0) {
+      const msDiff = Math.max(1000 * 60 * 60, endTime - startTime);
+      const days = Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+      const unitPrice = Number(admission.dailyTariff) || 150.0;
+      stayItems.push({
+        description: `Accommodation: ${admission.targetWardName || 'Ward'} (Bed ${admission.bedNumber})`,
+        wardName: admission.targetWardName,
+        bedNumber: admission.bedNumber,
+        wardType: admission.wardType,
+        qty: days,
+        unitPrice,
+        totalPrice: days * unitPrice,
+        fromDate: startTime,
+        toDate: endTime,
+      });
+    } else {
+      let currentStart = startTime;
+      for (let i = 0; i < transfers.length; i++) {
+        const t = transfers[i];
+        const legEnd = new Date(t.transferDate);
+        const msDiff = Math.max(1000 * 60 * 60, legEnd - currentStart);
+        const days = Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+        const unitPrice = Number(t.fromDailyTariff) || 150.0;
+
+        stayItems.push({
+          description: `Accommodation: ${t.fromWardName || 'Ward'} (Bed ${t.fromBedNumber})`,
+          wardName: t.fromWardName,
+          bedNumber: t.fromBedNumber,
+          qty: days,
+          unitPrice,
+          totalPrice: days * unitPrice,
+          fromDate: currentStart,
+          toDate: legEnd,
+        });
+
+        currentStart = legEnd;
+      }
+
+      // Final leg from last transfer to endTime
+      const lastTransfer = transfers[transfers.length - 1];
+      const msDiff = Math.max(1000 * 60 * 60, endTime - currentStart);
+      const days = Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+      const unitPrice = Number(lastTransfer.toDailyTariff) || Number(admission.dailyTariff) || 150.0;
+
+      stayItems.push({
+        description: `Accommodation: ${lastTransfer.toWardName || admission.targetWardName || 'Ward'} (Bed ${lastTransfer.toBedNumber})`,
+        wardName: lastTransfer.toWardName || admission.targetWardName,
+        bedNumber: lastTransfer.toBedNumber,
+        qty: days,
+        unitPrice,
+        totalPrice: days * unitPrice,
+        fromDate: currentStart,
+        toDate: endTime,
+      });
+    }
+
+    const totalAccommodationCost = stayItems.reduce((acc, item) => acc + item.totalPrice, 0);
+
+    return {
+      admissionId: admission._id,
+      patient: admission.patientId,
+      admissionReference: admission.admissionReference,
+      admittedAt: startTime,
+      dischargedAt: admission.dischargedAt || null,
+      status: admission.status,
+      stayItems,
+      totalAccommodationCost,
+    };
+  }
 }

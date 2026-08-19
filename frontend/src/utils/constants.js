@@ -174,6 +174,7 @@ export const ROLE_NAVIGATION = {
   ],
   HOSPITAL_ADMIN: [
     { title: 'Dashboard Overview', path: '/admin/dashboard', icon: 'LayoutDashboard', module: 'dashboard' },
+    { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd' },
     { title: 'Departments Setup', path: '/admin/departments', icon: 'GitFork', module: 'departments' },
     { title: 'Roles & Permissions', path: '/admin/staff?tab=permissions', icon: 'KeyRound', module: 'staffManagement' },
     { title: 'Patients (Management)', path: '/admin/patients-management', icon: 'Users', module: 'patients' },
@@ -203,10 +204,12 @@ export const ROLE_NAVIGATION = {
   ],
   NURSE: [
     { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing' },
+    { title: 'Ward & Bed Matrix', path: '/nurse/bed-matrix', icon: 'BedDouble', module: 'nursing' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   NURSE_INCHARGE: [
     { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing' },
+    { title: 'Ward & Bed Matrix', path: '/nurse/bed-matrix', icon: 'BedDouble', module: 'nursing' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   RECEPTIONIST: [
@@ -274,7 +277,7 @@ export const ROLE_NAVIGATION = {
   ],
   IPD_STAFF: [
     { title: 'IPD Inpatient Desk', path: '/nurse-incharge/dashboard', icon: 'BedDouble', module: 'ipd' },
-    { title: 'Bed Matrix Console', path: '/nursing/beds', icon: 'Bed', module: 'nursing' },
+    { title: 'Ward & Bed Matrix', path: '/nurse/bed-matrix', icon: 'BedDouble', module: 'nursing' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   EMERGENCY_STAFF: [
