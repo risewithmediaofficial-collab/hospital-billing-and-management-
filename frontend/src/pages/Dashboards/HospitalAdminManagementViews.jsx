@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
@@ -13,7 +15,25 @@ import {
 } from 'lucide-react';
 
 export const HospitalAdminManagementViews = ({ viewType }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuthStore();
   const { socket } = useSocket();
+
+  const formatTenantPath = (path) => {
+    if (!path) return path;
+    if (user?.role === 'SUPER_ADMIN') return path;
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+    if (!domain) return path;
+    if (path.startsWith(`/${domain}`)) return path;
+    return `/${domain}${path}`;
+  };
+
+  const navigateToStaff = () => {
+    navigate(formatTenantPath('/admin/staff'));
+  };
   const [staffList, setStaffList] = useState([]);
   const [patients, setPatients] = useState([]);
   const [receiptsList, setReceiptsList] = useState([]);
@@ -128,7 +148,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Executive Roster, On-Duty Availability, Department Allocations & Performance Analytics
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Doctor Accounts & Privileges
               </Button>
             </div>
@@ -183,7 +203,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                             </span>
                           </td>
                           <td className="p-3 text-right space-x-1.5">
-                            <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                               <Edit size={13} /> Edit Access
                             </Button>
                           </td>
@@ -214,7 +234,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Executive Nursing Roster, Shift Allocations, Assigned Wards & Patient Care Summary
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Nursing Accounts
               </Button>
             </div>
@@ -259,7 +279,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                             <Edit size={13} /> Edit Access
                           </Button>
                         </td>
@@ -288,7 +308,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Executive Front Desk Personnel Roster, Registrations & Token Calling Statistics
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Reception Staff
               </Button>
             </div>
@@ -330,7 +350,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                             <Edit size={13} /> Edit Access
                           </Button>
                         </td>
@@ -381,7 +401,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Executive Financial Analytics, Cashier Collections & Voided Bills Audit Trail
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Billing Staff
               </Button>
             </div>
@@ -426,7 +446,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                               <Edit size={13} /> Edit Access
                             </Button>
                           </td>
@@ -560,7 +580,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Executive Lab Roster, Diagnostic Sample Intake Metrics & Test Completion Reports
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Laboratory Staff
               </Button>
             </div>
@@ -602,7 +622,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                             <Edit size={13} /> Edit Access
                           </Button>
                         </td>
@@ -631,7 +651,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Radiologist Roster, Modality Statistics (CT Scan, MRI, X-Ray, USG) & DICOM Report Sign-offs
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Radiology Staff
               </Button>
             </div>
@@ -673,7 +693,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                             <Edit size={13} /> Edit Access
                           </Button>
                         </td>
@@ -702,7 +722,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Pharmacist Roster, Dispensing Summaries & FEFO Inventory Control Overview
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => window.location.href = '/hospital-admin/staff'}>
+              <Button variant="primary" size="sm" onClick={navigateToStaff}>
                 <UserCog size={16} /> Manage Pharmacy Staff
               </Button>
             </div>
@@ -744,7 +764,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={() => window.location.href = '/hospital-admin/staff'}>
+                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
                             <Edit size={13} /> Edit Access
                           </Button>
                         </td>

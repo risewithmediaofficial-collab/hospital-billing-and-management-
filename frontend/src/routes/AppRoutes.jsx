@@ -183,7 +183,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 2. Hospital Admin Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER]} />}>
         <Route path="/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
@@ -192,6 +192,7 @@ export const AppRoutes = () => {
         <Route path="/admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
         <Route path="/admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/admin/nurses-management" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
         <Route path="/admin/reception-management" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
@@ -212,6 +213,7 @@ export const AppRoutes = () => {
         <Route path="/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/hospital-admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
         <Route path="/hospital-admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/hospital-admin/nurses-management" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
         <Route path="/hospital-admin/reception-management" element={<MainLayout><HospitalAdminManagementViews viewType="reception" /></MainLayout>} />
@@ -232,10 +234,11 @@ export const AppRoutes = () => {
         <Route path="/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/prescriptions" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/diagnostics" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
+        <Route path="/doctor/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
       </Route>
 
       {/* 4. Nurse Sub-Routes (Consolidated Nursing Module) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nursing/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
@@ -248,7 +251,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 6. Receptionist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
@@ -257,7 +260,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 7. Pharmacist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
@@ -266,7 +269,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 8. Lab Tech Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.LAB_TECH, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/laboratory/samples" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/laboratory/results" element={<MainLayout><LabTechDashboard /></MainLayout>} />
@@ -274,14 +277,14 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 9. Radiologist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.RADIOLOGIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/radiology/dicom" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/radiology/reports" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
       </Route>
 
       {/* 10. Cashier Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
@@ -347,10 +350,15 @@ export const AppRoutes = () => {
 
       {/* Dynamic Tenant-Scoped Routes under /:hospitalDomain */}
 
+      {/* Ward & Bed Matrix — Accessible to Admin, Doctors, Nurses and Ward Staff */}
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER, ROLES.DOCTOR, ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF]} />}>
+        <Route path="/:hospitalDomain/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+      </Route>
+
       {/* Hospital Admin & Department Manager — management views */}
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER]} />}>
         <Route path="/:hospitalDomain/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/doctors-management" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
@@ -368,6 +376,7 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
         {/* Legacy short aliases */}
         <Route path="/:hospitalDomain/admin/doctors" element={<MainLayout><HospitalAdminManagementViews viewType="doctors" /></MainLayout>} />
         <Route path="/:hospitalDomain/admin/nurses" element={<MainLayout><HospitalAdminManagementViews viewType="nurses" /></MainLayout>} />
@@ -381,13 +390,11 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/admin/ipd" element={<MainLayout><HospitalAdminManagementViews viewType="ipd" /></MainLayout>} />
         {/* Legacy /:hospitalDomain/hospital-admin/* tenant aliases */}
         <Route path="/:hospitalDomain/hospital-admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
-        <Route path="/:hospitalDomain/hospital-admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/reports" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/plan-details" element={<MainLayout><AdminExtraPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/usage-limits" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
-        <Route path="/:hospitalDomain/admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/hospital-admin/scratchpod" element={<MainLayout><ScratchPodPage /></MainLayout>} />
       </Route>
 
       {/* Doctor tenant routes */}
@@ -401,7 +408,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Nurse & Nurse-Incharge tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
@@ -415,7 +422,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Reception tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
@@ -424,7 +431,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Pharmacy tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
@@ -433,7 +440,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Laboratory tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.LAB_TECH, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/laboratory/samples" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/laboratory/results" element={<MainLayout><LabTechDashboard /></MainLayout>} />
@@ -441,14 +448,14 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Radiology tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RADIOLOGIST, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/radiology/dicom" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/radiology/reports" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
       </Route>
 
       {/* Billing / Cashier tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
