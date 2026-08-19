@@ -50,8 +50,15 @@ jobs:
           command_timeout: 20m
 
           script: |
-            cd /docker/hospital-billing-test
+            set -e
+            if [ ! -d "/docker/hospital-billing-test/.git" ]; then
+              echo "⚠️ Git repository missing in /docker/hospital-billing-test. Initializing fresh clone from test branch..."
+              mkdir -p /docker
+              rm -rf /docker/hospital-billing-test
+              git clone -b test https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git /docker/hospital-billing-test
+            fi
 
+            cd /docker/hospital-billing-test
             git fetch origin test
             git checkout test
             git reset --hard origin/test
@@ -79,8 +86,15 @@ jobs:
           command_timeout: 20m
 
           script: |
-            cd /docker/hospital-billing
+            set -e
+            if [ ! -d "/docker/hospital-billing/.git" ]; then
+              echo "⚠️ Git repository missing in /docker/hospital-billing. Initializing fresh clone from main branch..."
+              mkdir -p /docker
+              rm -rf /docker/hospital-billing
+              git clone -b main https://github.com/risewithmediaofficial-collab/hospital-billing-and-management-.git /docker/hospital-billing
+            fi
 
+            cd /docker/hospital-billing
             git fetch origin main
             git checkout main
             git reset --hard origin/main
