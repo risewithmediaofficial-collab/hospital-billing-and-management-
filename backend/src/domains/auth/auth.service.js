@@ -498,7 +498,7 @@ export class AuthService {
     }
 
     await this.assertStaffCreationAllowed(data, requestingUser);
-    let branchId = requestingUser?.branchId || data.branchId;
+    branchId = requestingUser?.branchId || data.branchId || branchId;
     if (typeof branchId === 'object' && branchId?._id) {
       branchId = branchId._id;
     }
