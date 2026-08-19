@@ -459,8 +459,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const additionalRoleNames = (user?.additionalRoles || []).map((r) => ROLE_NAMES[r] || r).join(', ');
 
   const CATEGORY_ICONS = {
+    'Executive & Setup': 'Building2',
     'Executive & System': 'Building2',
     'Executive & Operations': 'LayoutDashboard',
+    'System & Analytics': 'BarChart3',
     'Clinical & Patient Care': 'Stethoscope',
     'Clinical Consultations': 'Stethoscope',
     'Clinical Workstation': 'Stethoscope',

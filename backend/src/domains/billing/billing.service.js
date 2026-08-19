@@ -115,9 +115,48 @@ export class BillingService {
       throw new ApiError(400, 'Valid payment amount is required', null, 'INVALID_AMOUNT');
     }
 
+    // Handle Split / Multi-Tender Payments
+    let finalSplitPayments = [];
+    let isSplit = data.paymentMode === 'SPLIT' || (Array.isArray(data.splitPayments) && data.splitPayments.length > 0);
+
+    if (Array.isArray(data.splitPayments) && data.splitPayments.length > 0) {
+      finalSplitPayments = data.splitPayments
+        .filter((s) => s && Number(s.amount) > 0)
+        .map((s) => ({
+          mode: s.mode || 'CASH',
+          amount: Number(s.amount),
+          reference: s.reference ? String(s.reference).trim() : '',
+          notes: s.notes ? String(s.notes).trim() : '',
+        }));
+
+      if (finalSplitPayments.length > 0) {
+        const splitSum = finalSplitPayments.reduce((acc, cur) => acc + cur.amount, 0);
+        if (Math.abs(splitSum - amountPaid) > 0.01) {
+          throw new ApiError(
+            400,
+            `Split payments total (₹${splitSum.toFixed(2)}) must equal the amount paid (₹${amountPaid.toFixed(2)}).`,
+            null,
+            'SPLIT_AMOUNT_MISMATCH'
+          );
+        }
+        isSplit = true;
+      }
+    }
+
+    let primaryMode = isSplit ? 'SPLIT' : (data.paymentMode || 'CARD');
+    let autoRemarks = data.remarks || 'Payment collected successfully';
+    if (isSplit && finalSplitPayments.length > 0) {
+      const splitSummary = finalSplitPayments
+        .map((s) => `${s.mode}: ₹${s.amount.toFixed(2)}${s.reference ? ` (${s.reference})` : ''}`)
+        .join(', ');
+      autoRemarks = data.remarks
+        ? `${data.remarks} | Split Breakdown: ${splitSummary}`
+        : `Split: ${splitSummary}`;
+    }
+
     // Collision-proof receipt number generation
     const rcYear = new Date().getFullYear();
-    let rcSeq = await Receipt.countDocuments({ hospitalId: user.hospitalId }) + 1;
+    let rcSeq = (await Receipt.countDocuments({ hospitalId: user.hospitalId })) + 1;
     let receiptNo = `REC-${rcYear}-${String(rcSeq).padStart(5, '0')}`;
     let rcExisting = await Receipt.findOne({ hospitalId: user.hospitalId, receiptNo });
     while (rcExisting) {
@@ -134,9 +173,10 @@ export class BillingService {
       cashierId: user.id,
       receiptNo,
       amountPaid,
-      paymentMode: data.paymentMode || 'CARD',
-      transactionRef: data.transactionRef || 'TXN-ONLINE',
-      remarks: data.remarks || 'Payment collected at counter',
+      paymentMode: primaryMode,
+      splitPayments: finalSplitPayments,
+      transactionRef: data.transactionRef || (isSplit ? 'TXN-SPLIT-MULTI' : 'TXN-COUNTER'),
+      remarks: autoRemarks,
       followUpDate: invoice.followUpDate || null,
     });
 

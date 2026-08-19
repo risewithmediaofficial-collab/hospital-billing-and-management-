@@ -305,6 +305,14 @@ export const printReceipt = ({ receipt, invoice, hospital }) => {
               <span class="meta-label">Tender Mode:</span>
               <span class="meta-val" style="color: #4338ca; text-transform: uppercase;">${tenderMode}</span>
             </div>
+            ${(receipt?.splitPayments && receipt.splitPayments.length > 0) ? `
+            <div class="meta-row" style="grid-column: span 2; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 4px 8px; margin-top: 4px; font-size: 10px;">
+              <span style="color: #166534; font-weight: bold;">Split Tender Breakdown:</span>
+              <span style="color: #14532d; font-weight: 600;">
+                ${receipt.splitPayments.map(s => `${s.mode}: ${formatCurrency(s.amount)}${s.reference ? ` (Ref: ${s.reference})` : ''}`).join(' &bull; ')}
+              </span>
+            </div>
+            ` : ''}
             ${followUpDateFormatted ? `
             <div class="meta-row" style="grid-column: span 2; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 4px; padding: 4px 8px; margin-top: 4px;">
               <span style="color: #3730a3; font-weight: bold;">Next Recommended Follow-Up Visit:</span>

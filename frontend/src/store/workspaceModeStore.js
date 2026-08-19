@@ -29,11 +29,13 @@ export const useWorkspaceModeStore = create((set, get) => ({
   },
 
   // Helper to check if a user is eligible for dual-mode toggle
-  // Hospital Admins, Super Admins, or any staff with multiple cross-roles
+  // STRICT RULE: Only Hospital Administrators (HOSPITAL_ADMIN / SUPER_ADMIN) have Admin Mode access.
+  // Standard clinical and departmental staff (Doctors, Nurses, Receptionists, Lab Techs, etc.) NEVER receive Admin access.
   isDualModeEligible: (user) => {
     if (!user) return false;
-    if (user.role === 'HOSPITAL_ADMIN' || user.role === 'SUPER_ADMIN') return true;
+    const isPrimaryAdmin = user.role === 'HOSPITAL_ADMIN' || user.role === 'SUPER_ADMIN';
     const additional = Array.isArray(user.additionalRoles) ? user.additionalRoles : [];
-    return additional.length > 0;
+    const hasAdminInAdditional = additional.includes('HOSPITAL_ADMIN') || additional.includes('SUPER_ADMIN');
+    return isPrimaryAdmin || hasAdminInAdditional;
   },
 }));

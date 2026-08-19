@@ -173,34 +173,19 @@ export const ROLE_NAVIGATION = {
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   HOSPITAL_ADMIN: [
-    // Executive & System
-    { title: 'Dashboard Overview', path: '/admin/dashboard', icon: 'LayoutDashboard', module: 'dashboard', category: 'Executive & System' },
-    { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Executive & System' },
-    { title: 'Departments Setup', path: '/admin/departments', icon: 'GitFork', module: 'departments', category: 'Executive & System' },
-    { title: 'Roles & Permissions', path: '/admin/staff?tab=permissions', icon: 'KeyRound', module: 'staffManagement', category: 'Executive & System' },
-    { title: 'Hospital Settings', path: '/admin/tariffs', icon: 'Settings', module: 'hospitalSettings', category: 'Executive & System' },
+    // Executive & System Management
+    { title: 'Dashboard Overview', path: '/admin/dashboard', icon: 'LayoutDashboard', module: 'dashboard', category: 'Executive & Setup' },
+    { title: 'Staff Roles & Permissions', path: '/admin/staff', icon: 'KeyRound', module: 'staffManagement', category: 'Executive & Setup' },
+    { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Executive & Setup' },
+    { title: 'Departments Setup', path: '/admin/departments', icon: 'GitFork', module: 'departments', category: 'Executive & Setup' },
+    { title: 'Hospital Settings & Tariffs', path: '/admin/tariffs', icon: 'Settings', module: 'hospitalSettings', category: 'Executive & Setup' },
 
-    // Clinical & Patient Care
-    { title: 'Patients (Management)', path: '/admin/patients-management', icon: 'Users', module: 'patients', category: 'Clinical & Patient Care' },
-    { title: 'OPD (Management)', path: '/admin/opd-management', icon: 'ClipboardList', module: 'opd', category: 'Clinical & Patient Care' },
-    { title: 'IPD (Management)', path: '/admin/ipd-management', icon: 'BedDouble', module: 'ipd', category: 'Clinical & Patient Care' },
-    { title: 'Doctors (Management)', path: '/admin/doctors-management', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical & Patient Care' },
-    { title: 'Nurses (Management)', path: '/admin/nurses-management', icon: 'Activity', module: 'nursing', category: 'Clinical & Patient Care' },
-    { title: 'Reception (Management)', path: '/admin/reception-management', icon: 'ConciergeBell', module: 'reception', category: 'Clinical & Patient Care' },
-    { title: 'Emergency (Management)', path: '/admin/emergency-management', icon: 'ShieldAlert', module: 'emergency', category: 'Clinical & Patient Care' },
-
-    // Diagnostics & Pharmacy
-    { title: 'Laboratory (Management)', path: '/admin/laboratory-management', icon: 'TestTube', module: 'laboratory', category: 'Diagnostics & Pharmacy' },
-    { title: 'Radiology (Management)', path: '/admin/radiology-management', icon: 'Scan', module: 'radiology', category: 'Diagnostics & Pharmacy' },
-    { title: 'Pharmacy (Management)', path: '/admin/pharmacy-management', icon: 'Pill', module: 'pharmacy', category: 'Diagnostics & Pharmacy' },
-
-    // Billing & Administration
-    { title: 'Billing (Management)', path: '/admin/billing-management', icon: 'CreditCard', module: 'billing', category: 'Billing & Analytics' },
-    { title: 'Reports & Analytics', path: '/admin/reports', icon: 'BarChart3', module: 'reports', category: 'Billing & Analytics' },
-    { title: 'Notifications', path: '/admin/dashboard?tab=notifications', icon: 'Bell', module: 'notifications', category: 'Billing & Analytics' },
-    { title: 'Audit Logs', path: '/admin/reports?tab=audit', icon: 'FileText', module: 'auditLogs', category: 'Billing & Analytics' },
-    { title: 'Plan Details', path: '/admin/plan-details', icon: 'BadgeCheck', module: 'dashboard', category: 'Billing & Analytics' },
-    { title: 'Usage & Limits', path: '/admin/usage-limits', icon: 'Gauge', module: 'dashboard', category: 'Billing & Analytics' },
+    // System Analytics & Governance
+    { title: 'Reports & Analytics', path: '/admin/reports', icon: 'BarChart3', module: 'reports', category: 'System & Analytics' },
+    { title: 'Audit Logs', path: '/admin/reports?tab=audit', icon: 'FileText', module: 'auditLogs', category: 'System & Analytics' },
+    { title: 'Notifications & Alerts', path: '/admin/dashboard?tab=notifications', icon: 'Bell', module: 'notifications', category: 'System & Analytics' },
+    { title: 'Plan Details', path: '/admin/plan-details', icon: 'BadgeCheck', module: 'dashboard', category: 'System & Analytics' },
+    { title: 'Usage & Limits', path: '/admin/usage-limits', icon: 'Gauge', module: 'dashboard', category: 'System & Analytics' },
   ],
   DOCTOR: [
     { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Calendar', module: 'appointments', category: 'Clinical Consultations' },

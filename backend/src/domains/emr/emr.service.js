@@ -397,9 +397,10 @@ export class EmrService {
     const { mongoose } = await import('mongoose');
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const { NurseTask } = await import('../../models/NurseTask.js');
+    const { Hospital } = await import('../../models/Hospital.js');
 
     if (mongoose.Types.ObjectId.isValid(identifier)) {
-      patient = await Patient.findById(identifier);
+      patient = await Patient.findById(identifier).populate('hospitalId', 'name domain code');
     }
     if (!patient && identifier) {
       const clean = String(identifier).trim();
@@ -410,29 +411,131 @@ export class EmrService {
           { phone: clean },
           { phone: { $regex: clean.replace(/\D/g, '').slice(-10), $options: 'i' } },
         ],
-      });
+      }).populate('hospitalId', 'name domain code');
     }
 
     if (!patient) {
       throw new ApiError(404, 'Patient record not found for this UHID / Phone / ID', null, 'NOT_FOUND');
     }
 
-    const patientId = patient._id;
+    // Identify all matching patient records across hospitals for universal longitudinal health record
+    const patientSearchConditions = [{ _id: patient._id }];
+    if (patient.uhid) patientSearchConditions.push({ uhid: patient.uhid });
+    if (patient.phone && patient.phone.trim().length >= 7) {
+      patientSearchConditions.push({ phone: patient.phone.trim() });
+    }
+    if (patient.globalPatientId) {
+      patientSearchConditions.push({ globalPatientId: patient.globalPatientId });
+    }
+
+    const matchedPatients = await Patient.find({ $or: patientSearchConditions })
+      .select('_id hospitalId uhid')
+      .lean();
+    const patientIds = Array.from(new Set(matchedPatients.map((p) => p._id.toString())));
+
     const [consultations, prescriptions, diagnosticOrders, nurseTasks, invoices] = await Promise.all([
-      Consultation.find({ patientId }).populate('doctorId', 'name specialization cabinNo').sort({ createdAt: -1 }),
-      Prescription.find({ patientId }).populate('doctorId', 'name specialization').sort({ createdAt: -1 }),
-      DiagnosticOrder.find({ patientId }).sort({ createdAt: -1 }),
-      NurseTask.find({ patientId }).populate('assignedNurseId', 'name').sort({ createdAt: -1 }),
-      Invoice.find({ patientId }).sort({ createdAt: -1 }),
+      Consultation.find({ patientId: { $in: patientIds } })
+        .populate('doctorId', 'name specialization cabinNo')
+        .populate('hospitalId', 'name domain code')
+        .sort({ createdAt: -1 }),
+      Prescription.find({ patientId: { $in: patientIds } })
+        .populate('doctorId', 'name specialization')
+        .populate('hospitalId', 'name domain code')
+        .sort({ createdAt: -1 }),
+      DiagnosticOrder.find({ patientId: { $in: patientIds } })
+        .populate('hospitalId', 'name domain code')
+        .sort({ createdAt: -1 }),
+      NurseTask.find({ patientId: { $in: patientIds } })
+        .populate('assignedNurseId', 'name')
+        .sort({ createdAt: -1 }),
+      Invoice.find({ patientId: { $in: patientIds }, isDeleted: { $ne: true } })
+        .populate('hospitalId', 'name domain code')
+        .sort({ createdAt: -1 }),
     ]);
+
+    const currentHospitalId = user?.hospitalId?._id
+      ? String(user.hospitalId._id)
+      : user?.hospitalId
+      ? String(user.hospitalId)
+      : null;
+
+    // Apply strict Financial Privacy Redaction:
+    // Doctors can see full clinical treatment history (diagnoses, notes, vitals, prescriptions, lab results)
+    // from all hospitals, but financial amounts and fees from other hospitals are strictly stripped.
+
+    const sanitizedConsultations = consultations.map((c) => {
+      const doc = c.toObject ? c.toObject() : { ...c };
+      const recHospId = doc.hospitalId?._id ? String(doc.hospitalId._id) : (doc.hospitalId ? String(doc.hospitalId) : null);
+      const isCurrentHosp = !currentHospitalId || !recHospId || recHospId === currentHospitalId;
+
+      if (!isCurrentHosp) {
+        delete doc.consultationFee;
+        delete doc.emergencyFee;
+        delete doc.doctorProcedureCharges;
+        doc.isExternalHospitalRecord = true;
+        doc.originHospitalName = doc.hospitalId?.name || 'Partner Hospital';
+      } else {
+        doc.isExternalHospitalRecord = false;
+        doc.originHospitalName = doc.hospitalId?.name || 'This Hospital';
+      }
+      return doc;
+    });
+
+    const sanitizedPrescriptions = prescriptions.map((p) => {
+      const doc = p.toObject ? p.toObject() : { ...p };
+      const recHospId = doc.hospitalId?._id ? String(doc.hospitalId._id) : (doc.hospitalId ? String(doc.hospitalId) : null);
+      const isCurrentHosp = !currentHospitalId || !recHospId || recHospId === currentHospitalId;
+
+      if (!isCurrentHosp) {
+        delete doc.totalMedicineCharge;
+        if (Array.isArray(doc.medicines)) {
+          doc.medicines = doc.medicines.map((m) => {
+            const mDoc = { ...m };
+            delete mDoc.unitPrice;
+            delete mDoc.price;
+            delete mDoc.totalPrice;
+            return mDoc;
+          });
+        }
+        doc.isExternalHospitalRecord = true;
+        doc.originHospitalName = doc.hospitalId?.name || 'Partner Hospital';
+      } else {
+        doc.isExternalHospitalRecord = false;
+        doc.originHospitalName = doc.hospitalId?.name || 'This Hospital';
+      }
+      return doc;
+    });
+
+    const sanitizedDiagnosticOrders = diagnosticOrders.map((d) => {
+      const doc = d.toObject ? d.toObject() : { ...d };
+      const recHospId = doc.hospitalId?._id ? String(doc.hospitalId._id) : (doc.hospitalId ? String(doc.hospitalId) : null);
+      const isCurrentHosp = !currentHospitalId || !recHospId || recHospId === currentHospitalId;
+
+      if (!isCurrentHosp) {
+        delete doc.price;
+        delete doc.totalDepartmentCharge;
+        doc.isExternalHospitalRecord = true;
+        doc.originHospitalName = doc.hospitalId?.name || 'Partner Hospital';
+      } else {
+        doc.isExternalHospitalRecord = false;
+        doc.originHospitalName = doc.hospitalId?.name || 'This Hospital';
+      }
+      return doc;
+    });
+
+    // Invoices: Zero financial leak — only show invoices from the CURRENT hospital
+    const sanitizedInvoices = invoices.filter((inv) => {
+      const invHospId = inv.hospitalId?._id ? String(inv.hospitalId._id) : (inv.hospitalId ? String(inv.hospitalId) : null);
+      return !currentHospitalId || !invHospId || invHospId === currentHospitalId;
+    });
 
     return {
       patient,
-      consultations,
-      prescriptions,
-      diagnosticOrders,
+      consultations: sanitizedConsultations,
+      prescriptions: sanitizedPrescriptions,
+      diagnosticOrders: sanitizedDiagnosticOrders,
       nurseTasks,
-      invoices,
+      invoices: sanitizedInvoices,
     };
   }
 

@@ -209,13 +209,22 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                     {consultations.map((c) => (
                       <div key={c._id} className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-2.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-sm text-slate-900">
                               {c.doctorId?.name || 'Attending Doctor'}
                             </span>
                             {c.doctorId?.specialization && (
                               <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-medium">
                                 {c.doctorId.specialization}
+                              </span>
+                            )}
+                            {c.originHospitalName && (
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
+                                c.isExternalHospitalRecord
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              }`}>
+                                🏥 {c.originHospitalName}
                               </span>
                             )}
                           </div>

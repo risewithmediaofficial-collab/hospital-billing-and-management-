@@ -11,6 +11,14 @@ const receiptSchema = new mongoose.Schema(
     receiptNo: { type: String, required: true },
     amountPaid: { type: Number, required: true },
     paymentMode: { type: String, enum: Object.values(PAYMENT_MODES), default: PAYMENT_MODES.CARD },
+    splitPayments: [
+      {
+        mode: { type: String, enum: Object.values(PAYMENT_MODES), required: true },
+        amount: { type: Number, required: true },
+        reference: { type: String, default: '' },
+        notes: { type: String, default: '' },
+      },
+    ],
     transactionRef: { type: String, default: '' },
     remarks: { type: String, default: 'Payment collected successfully' },
     followUpDate: { type: Date, default: null, index: true },

@@ -462,7 +462,23 @@ export class AuthService {
     const cleanPhone = data.phone ? String(data.phone).trim() : '';
     const cleanEmpId = data.employeeId ? String(data.employeeId).trim() : '';
 
+    let hospitalId = requestingUser?.hospitalId || data.hospitalId;
+    if (typeof hospitalId === 'object' && hospitalId?._id) {
+      hospitalId = hospitalId._id;
+    }
+    let branchId = requestingUser?.branchId || data.branchId;
+    if (typeof branchId === 'object' && branchId?._id) {
+      branchId = branchId._id;
+    }
+
+    if (!hospitalId) {
+      const defaultHosp = await Hospital.findOne({});
+      hospitalId = defaultHosp?._id;
+    }
+
+    // Uniqueness is strictly scoped per hospital (tenant isolation)
     const existingUser = await User.findOne({
+      hospitalId,
       $or: [
         { email: cleanEmail },
         { loginIds: cleanEmail },
@@ -478,15 +494,10 @@ export class AuthService {
       } else if (existingUser.employeeId && cleanEmpId && existingUser.employeeId === cleanEmpId) {
         identifierReason = `employee ID '${cleanEmpId}'`;
       }
-      throw new ApiError(400, `User already registered: A user with ${identifierReason} already exists in the system.`, null, 'USER_ALREADY_REGISTERED');
+      throw new ApiError(400, `User already registered: A user with ${identifierReason} already exists in this hospital.`, null, 'USER_ALREADY_REGISTERED');
     }
 
     await this.assertStaffCreationAllowed(data, requestingUser);
-
-    let hospitalId = requestingUser?.hospitalId || data.hospitalId;
-    if (typeof hospitalId === 'object' && hospitalId?._id) {
-      hospitalId = hospitalId._id;
-    }
     let branchId = requestingUser?.branchId || data.branchId;
     if (typeof branchId === 'object' && branchId?._id) {
       branchId = branchId._id;
@@ -827,8 +838,11 @@ export class AuthService {
     const changedPhone = cleanPhone && cleanPhone !== currentPhone ? cleanPhone : '';
     const changedEmpId = cleanEmpId && cleanEmpId !== currentEmpId ? cleanEmpId : '';
 
+    const staffHospId = staff.hospitalId?._id || staff.hospitalId;
+
     if (changedEmail || changedPhone || changedEmpId) {
       const existingUser = await User.findOne({
+        hospitalId: staffHospId,
         _id: { $ne: staff._id },
         $or: [
           ...(changedEmail ? [{ email: changedEmail }, { loginIds: changedEmail }] : []),
@@ -844,7 +858,7 @@ export class AuthService {
         } else if (existingUser.employeeId && changedEmpId && existingUser.employeeId === changedEmpId) {
           identifierReason = `employee ID '${changedEmpId}'`;
         }
-        throw new ApiError(400, `User already registered: A user with ${identifierReason} already exists in the system.`, null, 'USER_ALREADY_REGISTERED');
+        throw new ApiError(400, `User already registered: A user with ${identifierReason} already exists in this hospital.`, null, 'USER_ALREADY_REGISTERED');
       }
     }
 
