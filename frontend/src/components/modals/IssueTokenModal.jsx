@@ -76,7 +76,10 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
       const sRes = await axiosClient.get('/auth/staff');
       const allDocs = (sRes.data || []).filter(
-        (s) => s.role === 'DOCTOR' || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
+        (s) =>
+          s.role === 'DOCTOR' ||
+          s.role === 'HOSPITAL_ADMIN' ||
+          (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
       );
       setDoctors(allDocs);
       const activeDocs = allDocs.filter((d) => d.isAvailable !== false);
@@ -572,9 +575,10 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                         const statusTag = isAvail
                           ? ` (Available - ${doc.cabinNo || 'Cabin 101'})`
                           : ' (Off Duty)';
+                        const roleTag = doc.role === 'HOSPITAL_ADMIN' ? ' [Admin / Clinic In-Charge]' : '';
                         return (
                           <option key={doc._id} value={doc._id}>
-                            {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD'}{statusTag}
+                            {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}{roleTag} — {doc.specialization || 'General OPD'}{statusTag}
                           </option>
                         );
                       })

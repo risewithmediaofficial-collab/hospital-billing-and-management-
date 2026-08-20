@@ -173,10 +173,7 @@ export const PatientRegistrationPage = () => {
         </div>
       </div>
 
-      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
-      {isDualModeEligible(user) && (
-        <SoloDoctorFlowBar activeStepOverride="register" />
-      )}
+
 
       {/* Success Notification Banner */}
       {successMessage && (

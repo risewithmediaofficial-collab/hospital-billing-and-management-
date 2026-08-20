@@ -229,29 +229,22 @@ export class WorkflowEventService {
         const targetedEnvelope = { ...envelope, targetRole: role };
         const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
         if (targetUserId) {
-          const target = await User.findOne({ _id: targetUserId, isAvailable: { $ne: false }, isActive: { $ne: false } }).select('_id').lean();
-          if (target) {
-            socketManager.emitToUser(targetUserId, `workflow:${event.toLowerCase()}`, targetedEnvelope);
-            socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
-          } else {
-            unavailableRoles.push(role);
-            if (payload.senderUserId) socketManager.emitToUser(String(payload.senderUserId), 'workflow:queue_warning', {
-              event, targetRole: role, title: 'Work queued — assigned staff unavailable',
-              message: 'The assigned staff member is unavailable. The work remains queued until they return.',
-            });
-          }
+          socketManager.emitToUser(String(targetUserId), `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToUser(String(targetUserId), 'workflow:notification', targetedEnvelope);
+          socketManager.emitToUser(String(targetUserId), 'opd_queue:updated', targetedEnvelope);
+          socketManager.emitToUser(String(targetUserId), 'notification:created', targetedEnvelope);
         } else {
           const availableUsers = await User.find({
             ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
             ...(effectiveBranchId ? { $or: [{ branchId: effectiveBranchId }, { branchId: null }] } : {}),
             $and: [{ $or: [{ role }, { additionalRoles: role }] }],
-            isAvailable: { $ne: false },
             isActive: { $ne: false },
             status: { $ne: 'INACTIVE' },
           }).select('_id').lean();
           for (const availableUser of availableUsers) {
             socketManager.emitToUser(String(availableUser._id), `workflow:${event.toLowerCase()}`, targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:notification', targetedEnvelope);
+            socketManager.emitToUser(String(availableUser._id), 'notification:created', targetedEnvelope);
           }
           if (availableUsers.length === 0 && payload.senderUserId) {
             unavailableRoles.push(role);
@@ -276,12 +269,14 @@ export class WorkflowEventService {
           socketManager.emitToUser(String(admin._id), `workflow:${event.toLowerCase()}`, envelope);
           socketManager.emitToUser(String(admin._id), 'workflow:notification', envelope);
           socketManager.emitToUser(String(admin._id), 'workflow:pending_changed', { event });
+          socketManager.emitToUser(String(admin._id), 'notification:created', envelope);
         }
       }
 
       if (branchId) {
         socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
         socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
+        socketManager.emitToBranch(branchId, 'notification:created', envelope);
       }
     }
 
@@ -308,7 +303,6 @@ export class WorkflowEventService {
         // Collect all target recipient user IDs across all roles in this event to avoid duplicate rows for multi-role staff
         const { User } = await import('../models/User.js');
         const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
-        if (['NEW_DATA', 'WORKFLOW'].includes(DB_NOTIFICATION_TYPES[type] || type)) userQuery.isAvailable = { $ne: false };
         if (effectiveHospitalId) userQuery.hospitalId = effectiveHospitalId;
         if (effectiveBranchId) userQuery.$or = [{ branchId: effectiveBranchId }, { branchId: null }];
 
@@ -323,6 +317,10 @@ export class WorkflowEventService {
 
         const recipients = await User.find(userQuery).select('_id').lean();
         const uniqueIds = Array.from(new Set(recipients.map((r) => String(r._id))));
+
+        if (payload.doctorId && !uniqueIds.includes(String(payload.doctorId))) {
+          uniqueIds.push(String(payload.doctorId));
+        }
 
         if (uniqueIds.length > 0) {
           const { Notification } = await import('../models/Notification.js');

@@ -110,13 +110,14 @@ export class AppointmentsService {
 
     // Notify connected Doctor Workstations & Queue TV displays
     const queuePayload = {
+      appointmentId: appointment._id,
       doctorId: doctor._id,
       doctorName: doctor.name,
       tokenNumber,
       patientName: `${patient.firstName} ${patient.lastName}`,
       senderUserId: user?.id || user?._id,
       uhid: patient.uhid,
-      linkedPath: '/doctor/dashboard?tab=LIVE',
+      linkedPath: '/doctor/dashboard',
       timestamp: new Date(),
     };
 
@@ -132,13 +133,22 @@ export class AppointmentsService {
       socketManager.io.emit('token:generated', queuePayload);
     }
 
+    // Always deliver directly to the specific doctor's private socket room
+    socketManager.emitToUser(String(doctor._id), 'opd_queue:updated', queuePayload);
+    socketManager.emitToUser(String(doctor._id), 'queue:patient_added', queuePayload);
+    socketManager.emitToUser(String(doctor._id), 'token:generated', queuePayload);
+
     WorkflowEventService.emitSync(WORKFLOW_EVENTS.PATIENT_QUEUED, {
+      patientId: patient._id,
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
       tokenNumber,
       doctorId: doctor._id,
       doctorName: doctor.name,
-      linkedPath: '/doctor/dashboard?tab=LIVE',
+      hospitalId: hospitalId || doctor.hospitalId,
+      branchId: branchId || doctor.branchId,
+      appointmentId: appointment._id,
+      linkedPath: '/doctor/dashboard',
     }, branchId || doctor.branchId);
 
     return await Appointment.findById(appointment._id).populate('patientId').populate('doctorId');
@@ -151,7 +161,6 @@ export class AppointmentsService {
       hospitalId = defaultHosp?._id;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
     const targetDocId = doctorId || user?.id || user?._id;
 
     const filter = {

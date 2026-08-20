@@ -135,10 +135,7 @@ export const ReceptionDashboard = () => {
         pendingCount={0}
       />
 
-      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
-      {isDualModeEligible(user) && (
-        <SoloDoctorFlowBar activeStepOverride="token" />
-      )}
+
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

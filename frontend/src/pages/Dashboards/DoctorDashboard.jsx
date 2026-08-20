@@ -154,73 +154,78 @@ export const DoctorDashboard = () => {
       }
     };
 
-    socket.on('opd_queue:updated', handleQueueUpdate);
-    socket.on('opd_queue:status_changed', handleQueueUpdate);
-    socket.on('queue:patient_added', handleQueueUpdate);
-    socket.on('token:generated', handleQueueUpdate);
-    socket.on('investigation:new_request', handleInvestigationUpdate);
-    socket.on('investigation:status_updated', handleInvestigationUpdate);
-    socket.on('diagnostics:report_ready', handleInvestigationUpdate);
-    socket.on('doctor:availability_changed', handleDoctorAvailability);
-    socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); });
-    socket.on('queue:update', fetchOpdQueue);
-    socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); });
+      socket.on('opd_queue:updated', handleQueueUpdate);
+      socket.on('opd_queue:status_changed', handleQueueUpdate);
+      socket.on('queue:patient_added', handleQueueUpdate);
+      socket.on('token:generated', handleQueueUpdate);
+      socket.on('patient:registered', () => { fetchOpdQueue(); });
+      socket.on('investigation:new_request', handleInvestigationUpdate);
+      socket.on('investigation:status_updated', handleInvestigationUpdate);
+      socket.on('diagnostics:report_ready', handleInvestigationUpdate);
+      socket.on('doctor:availability_changed', handleDoctorAvailability);
+      socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); });
+      socket.on('queue:update', fetchOpdQueue);
+      socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); });
 
-    return () => {
-      socket.off('workflow:notification');
-      socket.off('queue:update', fetchOpdQueue);
-      socket.off('department:order_update');
-      socket.off('opd_queue:updated', handleQueueUpdate);
-      socket.off('opd_queue:status_changed', handleQueueUpdate);
-      socket.off('queue:patient_added', handleQueueUpdate);
-      socket.off('token:generated', handleQueueUpdate);
-      socket.off('investigation:new_request', handleInvestigationUpdate);
-      socket.off('investigation:status_updated', handleInvestigationUpdate);
-      socket.off('diagnostics:report_ready', handleInvestigationUpdate);
-      socket.off('doctor:availability_changed', handleDoctorAvailability);
-    };
-  }, [socket, selectedToken]);
+      return () => {
+        socket.off('workflow:notification');
+        socket.off('queue:update', fetchOpdQueue);
+        socket.off('department:order_update');
+        socket.off('opd_queue:updated', handleQueueUpdate);
+        socket.off('opd_queue:status_changed', handleQueueUpdate);
+        socket.off('queue:patient_added', handleQueueUpdate);
+        socket.off('token:generated', handleQueueUpdate);
+        socket.off('patient:registered');
+        socket.off('investigation:new_request', handleInvestigationUpdate);
+        socket.off('investigation:status_updated', handleInvestigationUpdate);
+        socket.off('diagnostics:report_ready', handleInvestigationUpdate);
+        socket.off('doctor:availability_changed', handleDoctorAvailability);
+      };
+    }, [socket, selectedToken, user?.id, user?._id]);
 
-  useEffect(() => {
-    if (user?.isAvailable !== undefined) {
-      setIsAvailable(user.isAvailable);
-    }
-    if (user?.cabinNo) {
-      setCabinNo(user.cabinNo);
-      setTempCabin(user.cabinNo);
-    }
-  }, [user?.isAvailable, user?.cabinNo]);
-
-  const fetchOpdQueue = async () => {
-    try {
-      const res = await axiosClient.get('/appointments/queue');
-      const allTokens = res.data || [];
-      const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION'].includes(t.status));
-      const done = allTokens.filter((t) => t.status === 'COMPLETED');
-      const held = allTokens.filter((t) => t.status === 'WAITING_DEPARTMENT');
-
-      setLiveQueue(waiting);
-      setCompletedQueue(done);
-      setDepartmentHoldQueue(held);
-
-      if (waiting.length > 0) {
-        setSelectedToken((prev) => {
-          if (prev && waiting.some((w) => w._id === prev._id)) {
-            return prev;
-          }
-          const activeTok = waiting[0];
-          fetchPatientInvestigations(activeTok.patientId?._id || activeTok.patientId);
-          return activeTok;
-        });
-      } else if (done.length > 0 && !selectedToken) {
-        setSelectedToken(null);
-        setPatientInvestigations([]);
+    useEffect(() => {
+      if (user?.isAvailable !== undefined) {
+        setIsAvailable(user.isAvailable);
       }
-    } catch (err) {
-      console.error('Failed to load doctor OPD queue:', err);
-    }
-  };
-  const fetchLiveQueue = fetchOpdQueue;
+      if (user?.cabinNo) {
+        setCabinNo(user.cabinNo);
+        setTempCabin(user.cabinNo);
+      }
+    }, [user?.isAvailable, user?.cabinNo]);
+
+    const fetchOpdQueue = async () => {
+      try {
+        const targetDocId = user?.id || user?._id;
+        const res = await axiosClient.get('/appointments/queue', {
+          params: targetDocId ? { doctorId: targetDocId } : {},
+        });
+        const allTokens = res.data || [];
+        const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION'].includes(t.status));
+        const done = allTokens.filter((t) => t.status === 'COMPLETED');
+        const held = allTokens.filter((t) => t.status === 'WAITING_DEPARTMENT');
+
+        setLiveQueue(waiting);
+        setCompletedQueue(done);
+        setDepartmentHoldQueue(held);
+
+        if (waiting.length > 0) {
+          setSelectedToken((prev) => {
+            if (prev && waiting.some((w) => w._id === prev._id)) {
+              return prev;
+            }
+            const activeTok = waiting[0];
+            fetchPatientInvestigations(activeTok.patientId?._id || activeTok.patientId);
+            return activeTok;
+          });
+        } else if (done.length > 0 && !selectedToken) {
+          setSelectedToken(null);
+          setPatientInvestigations([]);
+        }
+      } catch (err) {
+        console.error('Failed to load doctor OPD queue:', err);
+      }
+    };
+    const fetchLiveQueue = fetchOpdQueue;
   // console.log("fetchlivequeue", fetchLiveQueue)
 
   const fetchSubstitutionRequests = async () => {
@@ -516,10 +521,7 @@ export const DoctorDashboard = () => {
         </form>
       </Modal>
 
-      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
-      {isDualModeEligible(user) && (
-        <SoloDoctorFlowBar activeStepOverride={activeTab === 'LIVE' ? 'token' : 'consult'} />
-      )}
+
 
       {/* ── OVERVIEW (Clinical EMR Desk) ── Header + Stat Cards + Live Queue Workspace */}
       {activeTab === 'OVERVIEW' && (

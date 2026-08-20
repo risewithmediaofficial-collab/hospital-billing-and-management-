@@ -201,7 +201,6 @@ export const ROLE_NAVIGATION = {
   DOCTOR: [
     { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Follow-Up Visits', path: '/doctor/dashboard?tab=FOLLOW_UPS', icon: 'Calendar', module: 'doctorConsultation', category: 'Clinical Consultations' },
-    { title: 'Appointments Desk', path: '/doctor/dashboard?tab=LIVE', icon: 'Clock', module: 'appointments', category: 'Clinical Consultations' },
     { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Department Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Inpatient & Ward' },
@@ -218,8 +217,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   RECEPTIONIST: [
-    { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk Operations' },
-    { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk Operations' },
+    { title: 'Reception Desk', path: '/reception/registered-patients', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk Operations' },
     { title: 'Registered Patients', path: '/reception/registered-patients?tab=REGISTERED', icon: 'UserCheck', module: 'patients', category: 'Front Desk Operations' },
     { title: 'Queued / Active OPD', path: '/reception/registered-patients?tab=QUEUED', icon: 'Hourglass', module: 'opd', category: 'Front Desk Operations' },
     { title: 'All Hospital Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk Operations' },

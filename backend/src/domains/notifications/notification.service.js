@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import { Notification } from '../../models/Notification.js';
 import { User } from '../../models/User.js';
+import { socketManager } from '../../events/socketManager.js';
 
 const recipientQuery = async (context = {}) => {
   const userId = context?.userId || context?.id;
@@ -7,9 +9,16 @@ const recipientQuery = async (context = {}) => {
   const hospitalId = context?.hospitalId;
   const branchId = context?.branchId;
 
-  const user = await User.findById(userId).select('hospitalId branchId role additionalRoles').lean();
+  let user = null;
+  if (userId) {
+    user = await User.findById(userId).select('hospitalId branchId role additionalRoles').lean().catch(() => null);
+  }
   const activeRole = role || user?.role;
-  const userRoles = [activeRole, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
+  const userRoles = Array.from(new Set([
+    activeRole,
+    ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
+    ...(user?.role ? [user.role] : []),
+  ].filter(Boolean)));
   const tenantId = hospitalId || user?.hospitalId;
   const tenantBranchId = branchId || user?.branchId;
 
@@ -18,7 +27,10 @@ const recipientQuery = async (context = {}) => {
       $and: [
         {
           $or: [
-            { recipientUserId: userId },
+            ...(userId ? [
+              { recipientUserId: userId },
+              ...(mongoose.Types.ObjectId.isValid(String(userId)) ? [{ recipientUserId: new mongoose.Types.ObjectId(String(userId)) }] : []),
+            ] : []),
             { recipientRole: 'SUPER_ADMIN' },
             { targetModule: { $in: ['super-admin', 'SUPER_ADMIN', 'saas', 'SAAS', 'admin'] } },
             {
@@ -52,12 +64,25 @@ const recipientQuery = async (context = {}) => {
     };
   }
 
+  const orConditions = [
+    { recipientRole: { $in: [...userRoles, 'ALL'] } },
+  ];
+  if (userId) {
+    orConditions.push({ recipientUserId: userId });
+    if (mongoose.Types.ObjectId.isValid(String(userId))) {
+      orConditions.push({ recipientUserId: new mongoose.Types.ObjectId(String(userId)) });
+    }
+  }
+
   return {
-    $or: [
-      { recipientUserId: userId },
-      { recipientRole: { $in: [...userRoles, 'ALL'] } },
-    ],
-    ...(tenantId ? { hospitalId: tenantId } : {}),
+    $or: orConditions,
+    ...(tenantId ? {
+      $or: [
+        { hospitalId: tenantId },
+        ...(mongoose.Types.ObjectId.isValid(String(tenantId)) ? [{ hospitalId: new mongoose.Types.ObjectId(String(tenantId)) }] : []),
+        { hospitalId: null },
+      ],
+    } : {}),
     ...(tenantBranchId ? { $and: [{ $or: [{ branchId: tenantBranchId }, { branchId: null }] }] } : {}),
   };
 };
@@ -89,13 +114,14 @@ export class NotificationService {
       };
 
       if (data.recipientUserId) {
-        return Notification.create({ ...base, recipientUserId: data.recipientUserId });
+        const notif = await Notification.create({ ...base, recipientUserId: data.recipientUserId });
+        socketManager.emitToUser(String(data.recipientUserId), 'notification:created', notif);
+        return notif;
       }
 
       // Role/department alerts are materialized per current recipient so read and
       // clear state belongs to one user and can never hide another user's bell.
       const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
-      if (['NEW_DATA', 'WORKFLOW'].includes(data.notificationType || data.type)) userQuery.isAvailable = { $ne: false };
       if (data.hospitalId) userQuery.hospitalId = data.hospitalId;
       if (data.branchId) userQuery.$or = [{ branchId: data.branchId }, { branchId: null }];
       if (data.recipientDepartment) {
@@ -131,6 +157,11 @@ export class NotificationService {
       const notifications = await Notification.insertMany(
         uniqueRecipients.map((recipient) => ({ ...base, recipientUserId: recipient._id }))
       );
+
+      uniqueRecipients.forEach((recipient) => {
+        socketManager.emitToUser(String(recipient._id), 'notification:created', { ...base, recipientUserId: recipient._id });
+      });
+
       return notifications[0] || null;
     } catch (err) {
       console.error('Failed to create notification:', err);

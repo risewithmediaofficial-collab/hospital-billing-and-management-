@@ -458,6 +458,31 @@ export class PatientsService {
         loginUrl: '/login',
       };
       responseData.guardianCredentials = guardianUserAccount;
+
+      // Real-time broadcast to connected staff
+      try {
+        const { socketManager } = await import('../../events/socketManager.js');
+        const regPayload = {
+          patientId: patient._id,
+          uhid: patient.uhid,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          patientName: `${patient.firstName} ${patient.lastName}`,
+          phone: patient.phone,
+          timestamp: new Date(),
+        };
+        if (branchId) {
+          socketManager.emitToBranch(String(branchId), 'patient:registered', regPayload);
+          socketManager.emitToBranch(String(branchId), 'patient:created', regPayload);
+        }
+        if (socketManager.io) {
+          socketManager.io.emit('patient:registered', regPayload);
+          socketManager.io.emit('patient:created', regPayload);
+        }
+      } catch (sockErr) {
+        // non-blocking
+      }
+
       return responseData;
     } catch (err) {
       if (err.possibleDuplicate) throw err;

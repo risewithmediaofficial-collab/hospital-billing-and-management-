@@ -263,10 +263,7 @@ export const CashierDashboard = () => {
         </Button>
       </div>
 
-      {/* Solo Doctor Patient Journey Quick-Action Flow Bar */}
-      {isDualModeEligible(user) && (
-        <SoloDoctorFlowBar activeStepOverride="billing" />
-      )}
+
 
       {/* Stats - visible when on UNPAID tab */}
       {activeTab === 'UNPAID' && (
