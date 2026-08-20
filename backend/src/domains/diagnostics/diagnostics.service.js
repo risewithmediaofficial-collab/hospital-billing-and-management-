@@ -349,12 +349,20 @@ export class DiagnosticsService {
         filter.hospitalId = user.hospitalId;
       }
     } else {
-      let hospitalId = user?.hospitalId;
-      if (!hospitalId) {
+      let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
+      if (!rawHospitalId && user) {
         const defaultHosp = await Hospital.findOne({});
-        hospitalId = defaultHosp?._id;
+        rawHospitalId = defaultHosp?._id;
       }
-      if (hospitalId) filter.hospitalId = hospitalId;
+      if (rawHospitalId) {
+        const hIdStr = String(rawHospitalId);
+        const conditions = [hIdStr];
+        const mongoose = (await import('mongoose')).default;
+        if (mongoose.Types.ObjectId.isValid(hIdStr)) {
+          conditions.push(new mongoose.Types.ObjectId(hIdStr));
+        }
+        filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
+      }
     }
 
     if (query.testCategory) {

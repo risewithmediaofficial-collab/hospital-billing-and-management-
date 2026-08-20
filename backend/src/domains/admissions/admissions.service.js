@@ -84,12 +84,23 @@ export class AdmissionsService {
   }
 
   static async getAdmissions(user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
+    let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
+    if (!rawHospitalId && user) {
       const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
+      rawHospitalId = defaultHosp?._id;
     }
-    return await Admission.find({ hospitalId })
+
+    const filter = {};
+    if (rawHospitalId && user?.role !== 'SUPER_ADMIN') {
+      const hIdStr = String(rawHospitalId);
+      const conditions = [hIdStr];
+      if (mongoose.Types.ObjectId.isValid(hIdStr)) {
+        conditions.push(new mongoose.Types.ObjectId(hIdStr));
+      }
+      filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
+    }
+
+    return await Admission.find(filter)
       .populate('patientId')
       .populate('doctorId', 'name specialization cabinNo phone')
       .populate('assignedNurseId', 'name role assignedUnit shiftDetails phone')

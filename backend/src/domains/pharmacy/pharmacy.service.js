@@ -321,8 +321,21 @@ export class PharmacyService {
   // --- PRESCRIPTION DISPENSING (FEFO) ---
 
   static async getPrescriptions(user) {
-    const filter = { hospitalId: user.hospitalId };
-    if (user.branchId) filter.branchId = user.branchId;
+    let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
+    if (!rawHospitalId && user) {
+      const defaultHosp = await import('../../models/Hospital.js').then((m) => m.Hospital.findOne({}));
+      rawHospitalId = defaultHosp?._id;
+    }
+
+    const filter = {};
+    if (rawHospitalId && user?.role !== 'SUPER_ADMIN') {
+      const hIdStr = String(rawHospitalId);
+      const conditions = [hIdStr];
+      if (mongoose.Types.ObjectId.isValid(hIdStr)) {
+        conditions.push(new mongoose.Types.ObjectId(hIdStr));
+      }
+      filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
+    }
 
     return Prescription.find(filter)
       .populate('patientId', 'firstName lastName uhid phone age gender')

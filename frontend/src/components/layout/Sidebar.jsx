@@ -128,11 +128,76 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const user = useAuthStore((state) => state.user);
   const { socket } = useSocket();
   const getUnreadCountForNav = useDepartmentNotificationStore((state) => state.getUnreadCountForNav);
+  const fetchPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
   const activeCount = useEmergencyStore((state) => state.activeCount);
   const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const location = useLocation();
   const navigate = useNavigate();
   const navRef = useRef(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchPendingWork();
+    }
+    const interval = setInterval(() => {
+      if (user) fetchPendingWork();
+    }, 15000);
+
+    if (!socket) return () => clearInterval(interval);
+
+    const handleRefresh = () => {
+      fetchPendingWork();
+    };
+
+    socket.on('workflow:notification', handleRefresh);
+    socket.on('workflow:pending_changed', handleRefresh);
+    socket.on('notification:created', handleRefresh);
+    socket.on('notification:cleared', handleRefresh);
+    socket.on('notification:read', handleRefresh);
+    socket.on('patient:registered', handleRefresh);
+    socket.on('patient:created', handleRefresh);
+    socket.on('token:generated', handleRefresh);
+    socket.on('opd_queue:updated', handleRefresh);
+    socket.on('admission:requisition_created', handleRefresh);
+    socket.on('admission:confirmed', handleRefresh);
+    socket.on('nurse_task:created', handleRefresh);
+    socket.on('nurse_task:updated', handleRefresh);
+    socket.on('request:created', handleRefresh);
+    socket.on('investigation:new_request', handleRefresh);
+    socket.on('investigation:status_updated', handleRefresh);
+    socket.on('diagnostics:report_ready', handleRefresh);
+    socket.on('pharmacy:new_prescription', handleRefresh);
+    socket.on('prescription:created', handleRefresh);
+    socket.on('billing:invoice_created', handleRefresh);
+    socket.on('billing:payment_collected', handleRefresh);
+    socket.on('emergency:alert', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      socket.off('workflow:notification', handleRefresh);
+      socket.off('workflow:pending_changed', handleRefresh);
+      socket.off('notification:created', handleRefresh);
+      socket.off('notification:cleared', handleRefresh);
+      socket.off('notification:read', handleRefresh);
+      socket.off('patient:registered', handleRefresh);
+      socket.off('patient:created', handleRefresh);
+      socket.off('token:generated', handleRefresh);
+      socket.off('opd_queue:updated', handleRefresh);
+      socket.off('admission:requisition_created', handleRefresh);
+      socket.off('admission:confirmed', handleRefresh);
+      socket.off('nurse_task:created', handleRefresh);
+      socket.off('nurse_task:updated', handleRefresh);
+      socket.off('request:created', handleRefresh);
+      socket.off('investigation:new_request', handleRefresh);
+      socket.off('investigation:status_updated', handleRefresh);
+      socket.off('diagnostics:report_ready', handleRefresh);
+      socket.off('pharmacy:new_prescription', handleRefresh);
+      socket.off('prescription:created', handleRefresh);
+      socket.off('billing:invoice_created', handleRefresh);
+      socket.off('billing:payment_collected', handleRefresh);
+      socket.off('emergency:alert', handleRefresh);
+    };
+  }, [socket, user, fetchPendingWork]);
 
   const handleSwitchMode = (targetMode) => {
     setMode(targetMode);

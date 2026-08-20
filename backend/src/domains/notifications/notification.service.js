@@ -74,17 +74,30 @@ const recipientQuery = async (context = {}) => {
     }
   }
 
-  return {
-    $or: orConditions,
-    ...(tenantId ? {
-      $or: [
-        { hospitalId: tenantId },
-        ...(mongoose.Types.ObjectId.isValid(String(tenantId)) ? [{ hospitalId: new mongoose.Types.ObjectId(String(tenantId)) }] : []),
-        { hospitalId: null },
-      ],
-    } : {}),
-    ...(tenantBranchId ? { $and: [{ $or: [{ branchId: tenantBranchId }, { branchId: null }] }] } : {}),
-  };
+  const clauses = [];
+  if (orConditions.length > 0) {
+    clauses.push({ $or: orConditions });
+  }
+
+  if (tenantId) {
+    const hIdStr = String(tenantId);
+    const hConditions = [{ hospitalId: hIdStr }, { hospitalId: null }];
+    if (mongoose.Types.ObjectId.isValid(hIdStr)) {
+      hConditions.push({ hospitalId: new mongoose.Types.ObjectId(hIdStr) });
+    }
+    clauses.push({ $or: hConditions });
+  }
+
+  if (tenantBranchId) {
+    const bIdStr = String(tenantBranchId);
+    const bConditions = [{ branchId: bIdStr }, { branchId: null }];
+    if (mongoose.Types.ObjectId.isValid(bIdStr)) {
+      bConditions.push({ branchId: new mongoose.Types.ObjectId(bIdStr) });
+    }
+    clauses.push({ $or: bConditions });
+  }
+
+  return clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
 };
 
 export class NotificationService {

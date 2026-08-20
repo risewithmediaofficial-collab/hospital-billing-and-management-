@@ -244,8 +244,14 @@ export class WorkflowEventService {
           for (const availableUser of availableUsers) {
             socketManager.emitToUser(String(availableUser._id), `workflow:${event.toLowerCase()}`, targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:notification', targetedEnvelope);
+            socketManager.emitToUser(String(availableUser._id), 'workflow:pending_changed', { event });
             socketManager.emitToUser(String(availableUser._id), 'notification:created', targetedEnvelope);
           }
+          socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
+          socketManager.emitToRole(role, 'workflow:pending_changed', { event });
+          socketManager.emitToRole(role, 'notification:created', targetedEnvelope);
+
           if (availableUsers.length === 0 && payload.senderUserId) {
             unavailableRoles.push(role);
             socketManager.emitToUser(String(payload.senderUserId), 'workflow:queue_warning', {

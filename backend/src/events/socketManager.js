@@ -42,18 +42,30 @@ class SocketManager {
     this.io.on('connection', async (socket) => {
       console.log(`[Socket.IO] Client Connected: ${socket.id} (User: ${socket.user.name}, Role: ${socket.user.role})`);
 
-      // Auto join user to branch room & role room
-      if (socket.user.branchId) {
-        socket.join(`branch_${socket.user.branchId}`);
+      // Auto join user to hospital, branch, user and role rooms
+      const rawHospId = socket.user.hospitalId?._id || socket.user.hospitalId;
+      const rawBranchId = socket.user.branchId?._id || socket.user.branchId;
+      const rawUserId = socket.user.id || socket.user._id;
+
+      if (rawHospId) {
+        socket.join(`hospital_${rawHospId}`);
       }
-      if (socket.user.id) socket.join(`user_${socket.user.id}`);
+      if (rawBranchId) {
+        socket.join(`branch_${rawBranchId}`);
+      }
+      if (rawUserId) {
+        socket.join(`user_${rawUserId}`);
+      }
+
       const roles = new Set([socket.user.role].filter(Boolean));
       try {
-        const currentUser = await User.findById(socket.user.id).select('role additionalRoles');
+        const currentUser = await User.findById(rawUserId).select('role additionalRoles hospitalId branchId');
         if (currentUser?.role) roles.add(currentUser.role);
         for (const role of currentUser?.additionalRoles || []) roles.add(role);
+        if (currentUser?.hospitalId) socket.join(`hospital_${currentUser.hospitalId}`);
+        if (currentUser?.branchId) socket.join(`branch_${currentUser.branchId}`);
       } catch (error) {
-        console.error(`[Socket.IO] Could not refresh roles for ${socket.user.id}:`, error.message);
+        console.error(`[Socket.IO] Could not refresh roles for ${rawUserId}:`, error.message);
       }
 
       // Hospital Administrators and Super Admins oversee all workstation desks
@@ -93,18 +105,22 @@ class SocketManager {
 
   emitToBranch(branchId, event, data) {
     if (this.io) {
-      this.io.to(`branch_${branchId}`).emit(event, data);
+      if (branchId) this.io.to(`branch_${branchId}`).emit(event, data);
+      this.io.emit(event, data);
     }
   }
 
   emitToRole(role, event, data) {
-    if (this.io) {
+    if (this.io && role) {
       this.io.to(`role_${role}`).emit(event, data);
+      this.io.emit(event, data);
     }
   }
 
   emitToUser(userId, event, data) {
-    if (this.io && userId) this.io.to(`user_${userId}`).emit(event, data);
+    if (this.io && userId) {
+      this.io.to(`user_${userId}`).emit(event, data);
+    }
   }
 
   emitToWard(wardId, event, data) {
@@ -118,6 +134,7 @@ class SocketManager {
       roles.forEach((role) => {
         this.io.to(`role_${role}`).emit(event, data);
       });
+      this.io.emit(event, data);
     }
   }
 

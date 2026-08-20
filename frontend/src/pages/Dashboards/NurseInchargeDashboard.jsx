@@ -86,16 +86,20 @@ export const NurseInchargeDashboard = () => {
     setIsLoading(true);
     try {
       const [admRes, bedsRes, reqRes, tasksRes] = await Promise.all([
-        axiosClient.get('/admissions'),
-        axiosClient.get('/beds'),
+        axiosClient.get('/admissions').catch(() => ({ data: [] })),
+        axiosClient.get('/beds').catch(() => ({ data: [] })),
         axiosClient.get('/requests').catch(() => ({ data: [] })),
         axiosClient.get('/pharmacy/nurse-tasks').catch(() => ({ data: [] })),
       ]);
-      setAdmissions(Array.isArray(admRes) ? admRes : (admRes.data || []));
-      setBeds(Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []));
-      const requests = Array.isArray(reqRes) ? reqRes : (reqRes.data?.data || reqRes.data || []);
-      setPatientRequests(requests);
-      setNurseTasks(Array.isArray(tasksRes) ? tasksRes : (tasksRes.data || []));
+      const rawAdm = Array.isArray(admRes) ? admRes : (admRes?.data?.data || admRes?.data || []);
+      const rawBeds = Array.isArray(bedsRes) ? bedsRes : (bedsRes?.data?.data || bedsRes?.data || []);
+      const rawReq = Array.isArray(reqRes) ? reqRes : (reqRes?.data?.data || reqRes?.data || []);
+      const rawTasks = Array.isArray(tasksRes) ? tasksRes : (tasksRes?.data?.data || tasksRes?.data || []);
+
+      setAdmissions(Array.isArray(rawAdm) ? rawAdm : []);
+      setBeds(Array.isArray(rawBeds) ? rawBeds : []);
+      setPatientRequests(Array.isArray(rawReq) ? rawReq : []);
+      setNurseTasks(Array.isArray(rawTasks) ? rawTasks : []);
       fetchPendingWork();
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);
@@ -170,8 +174,96 @@ export const NurseInchargeDashboard = () => {
         <StatCard title="Total Occupied Beds" value={`${occupiedBedsCount} Beds`} subtitle="Occupancy Locked" icon={BedDouble} color="sky" />
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center justify-end">
+      {/* In-Screen Tab Switcher Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveTab('REQUISITIONS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'REQUISITIONS'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <BedDouble size={14} />
+            <span>IPD Requisitions</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeTab === 'REQUISITIONS' ? 'bg-amber-800 text-white' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {pendingRequisitions.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ADMITTED')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'ADMITTED'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <UserCheck size={14} />
+            <span>Admitted Inpatients</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeTab === 'ADMITTED' ? 'bg-indigo-800 text-white' : 'bg-indigo-100 text-indigo-800'
+            }`}>
+              {admittedInpatients.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('BEDS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'BEDS'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <LayoutGrid size={14} />
+            <span>Ward Bed Matrix</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeTab === 'BEDS' ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {beds.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('REQUESTS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'REQUESTS'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Activity size={14} />
+            <span>Patient Requests</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeTab === 'REQUESTS' ? 'bg-rose-800 text-white' : 'bg-rose-100 text-rose-800'
+            }`}>
+              {pendingPatientRequests.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('TASKS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'TASKS'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Stethoscope size={14} />
+            <span>Medication & Tasks</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeTab === 'TASKS' ? 'bg-sky-800 text-white' : 'bg-sky-100 text-sky-800'
+            }`}>
+              {pendingNurseTasks.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Search Bar */}
         <div className="relative max-w-xs w-full">
           <input
             type="text"
