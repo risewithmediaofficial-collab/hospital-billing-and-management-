@@ -14,8 +14,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
   // Default dashboard per role as fallback
   const defaultRoleDashboard = {
-    PHARMACIST: '/pharmacy/dispense-queue',
-    PHARMACY_STAFF: '/pharmacy/dispense-queue',
+    PHARMACIST: '/pharmacy/dashboard',
+    PHARMACY_STAFF: '/pharmacy/dashboard',
     LAB_TECH: '/laboratory/dashboard',
     LABORATORY_STAFF: '/laboratory/dashboard',
     RADIOLOGIST: '/radiology/dashboard',

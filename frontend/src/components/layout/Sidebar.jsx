@@ -35,7 +35,6 @@ export const WORK_MODE_NAVIGATION = [
 
   // Support & Diagnostics
   { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
-  { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
   { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF', 'HOSPITAL_ADMIN'] },
   { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF', 'HOSPITAL_ADMIN'] },
 
@@ -387,7 +386,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       RADIOLOGY_SUBMITTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
       DOCTOR_REVIEWED_LAB: '/laboratory/dashboard?tab=REPORTS',
       DOCTOR_REVIEWED_RADIOLOGY: '/radiology/dashboard?tab=REPORTS',
-      PRESCRIPTION_ISSUED: '/pharmacy/dispense-queue',
+      PRESCRIPTION_ISSUED: '/pharmacy/dashboard',
       PHARMACY_ACCEPTED: '/doctor/dashboard',
       PHARMACY_DISPENSED: '/doctor/dashboard',
       BILL_REQUESTED: '/billing/dashboard',

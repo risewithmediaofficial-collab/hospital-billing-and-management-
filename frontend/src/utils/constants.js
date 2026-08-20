@@ -231,7 +231,6 @@ export const ROLE_NAVIGATION = {
   ],
   PHARMACIST: [
     { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Pharmacy Operations' },
-    { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy', category: 'Pharmacy Operations' },
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy', category: 'Stock & Inventory' },
@@ -239,7 +238,6 @@ export const ROLE_NAVIGATION = {
   ],
   PHARMACY_STAFF: [
     { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Pharmacy Operations' },
-    { title: 'Prescription Queue', path: '/pharmacy/dispense-queue', icon: 'Clock', module: 'pharmacy', category: 'Pharmacy Operations' },
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy', category: 'Stock & Inventory' },
