@@ -11,6 +11,7 @@ import { Hospital } from '../../models/Hospital.js';
 import { User } from '../../models/User.js';
 import { PharmacySubstitutionRequest } from '../../models/PharmacySubstitutionRequest.js';
 import { NurseTask } from '../../models/NurseTask.js';
+import { Bed } from '../../models/Bed.js';
 
 export const RADIOLOGY_CATEGORIES = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'];
 export const LAB_CATEGORIES = ['LABORATORY', 'BLOOD_TEST', 'URINE_ANALYSIS', 'URINE_TEST', 'CULTURE_TEST', 'BIOPSY', 'PATHOLOGY'];
@@ -129,11 +130,13 @@ export class WorkflowService {
           if (!userRoles.has('NURSE_INCHARGE') && !isSupervisorOrAdmin && userId && mongoose.Types.ObjectId.isValid(userId) && !isHospitalStaff) {
             filter.$or = [{ assignedNurseId: userId }, { assignedNurseId: null }];
           }
-          const [records, admissions, emergencies, nurseTasks] = await Promise.all([
+          const [records, admissions, emergencies, nurseTasks, admittedInpatients, totalBeds] = await Promise.all([
             PatientRequest.find(filter).populate('patientId').lean().catch(() => []),
             Admission.find({ ...scope, status: { $in: ['ADMISSION_REQUESTED', 'REQUISITION_RAISED'] } }).lean().catch(() => []),
             Emergency.find({ ...scope, status: { $in: ['ACTIVE', 'RESPONDED'] } }).lean().catch(() => []),
             NurseTask.find({ ...scope, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED', 'DELAYED'] } }).lean().catch(() => []),
+            Admission.find({ ...scope, status: 'ADMITTED' }).lean().catch(() => []),
+            Bed.countDocuments({ ...(hospitalId ? { hospitalId } : {}) }).catch(() => 0),
           ]);
           records.forEach((item) => item && tasks.push(task('NURSING_WORK', item, '/nurse-incharge/dashboard?tab=REQUESTS', `Nursing request: ${item.requestType || 'Request'}`, { targetModule: 'nursing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
           admissions.forEach((item) => item && tasks.push(task('IPD_WORK', item, '/nurse-incharge/dashboard?tab=REQUISITIONS', `Admission pending: ${item.patientName || 'Admission'}`, { targetModule: 'ipd' })));

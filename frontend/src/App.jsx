@@ -4,6 +4,8 @@ import { QueryProvider } from './providers/QueryProvider';
 import { SocketProvider } from './providers/SocketProvider';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
+import { useDepartmentNotificationStore } from './store/departmentNotificationStore';
+import { useNotificationStore } from './store/notificationStore';
 
 import { LiveToastNotification } from './components/notifications/LiveToastNotification';
 
@@ -26,6 +28,11 @@ export const App = () => {
 
   useEffect(() => {
     fetchProfile();
+    const token = localStorage.getItem('hpmbs_access_token');
+    if (token) {
+      useDepartmentNotificationStore.getState().fetchPendingWork();
+      useNotificationStore.getState().fetchNotifications();
+    }
   }, [fetchProfile]);
 
   return (

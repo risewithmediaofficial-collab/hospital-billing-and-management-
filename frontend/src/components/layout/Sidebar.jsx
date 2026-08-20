@@ -27,8 +27,11 @@ export const WORK_MODE_NAVIGATION = [
   { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
 
   // Inpatient & Ward
-  { title: 'Nursing Workstation', path: '/nurse-incharge/dashboard', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
-  { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'IPD Requisitions', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'ipd', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
 
   // Support & Diagnostics
   { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
@@ -46,10 +49,11 @@ const ALL_MODULE_NAVIGATION = [
   { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
   { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments' },
   { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
-  { title: 'Nursing Workstation', path: '/nursing/dashboard', icon: 'Activity', module: 'nursing' },
-  { title: 'Patient Vitals & MAR', path: '/nursing/vitals', icon: 'ClipboardList', module: 'nursing' },
-  { title: 'Ward In-Charge Desk', path: '/nurse-incharge/dashboard', icon: 'ShieldCheck', module: 'ipd' },
-  { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd' },
+  { title: 'IPD Requisitions', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing' },
+  { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing' },
+  { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'ipd' },
+  { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing' },
+  { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing' },
   { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory' },
   { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology' },
   { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy' },
@@ -116,12 +120,30 @@ const checkItemPermission = (user, item) => {
         return true;
       }
     }
-    if (typeof values === 'object' && values !== null && (values.view === true || values['*'] === true)) {
-      return true;
-    }
+  // Department managers check
+  if (user.department && user.role === 'DEPARTMENT_MANAGER') {
+    const dept = user.department.toLowerCase();
+    if (dept.includes('billing') && ['billing', 'dashboard'].includes(item.module)) return true;
+    if (dept.includes('nurse') && ['nursing', 'dashboard'].includes(item.module)) return true;
+    if (dept.includes('reception') && ['appointments', 'patientRegistration', 'patients', 'tokens', 'dashboard'].includes(item.module)) return true;
+    if (dept.includes('pharma') && ['pharmacy', 'dashboard'].includes(item.module)) return true;
+    if (dept.includes('lab') && ['laboratory', 'dashboard'].includes(item.module)) return true;
+    if (dept.includes('radio') && ['radiology', 'dashboard'].includes(item.module)) return true;
+  }
+
+  // Check specific module permission
+  if (item.module && permissions[item.module]) {
+    const actions = permissions[item.module];
+    return actions.includes('*') || actions.includes('view');
   }
 
   return false;
+};
+
+const formatTenantPath = (path) => {
+  if (!path) return '/';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return path;
 };
 
 export const Sidebar = ({ isOpen, onClose }) => {
@@ -136,12 +158,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const navRef = useRef(null);
 
   useEffect(() => {
-    if (user) {
-      fetchPendingWork();
-    }
+    fetchPendingWork();
     const interval = setInterval(() => {
-      if (user) fetchPendingWork();
-    }, 15000);
+      fetchPendingWork();
+    }, 10000);
 
     if (!socket) return () => clearInterval(interval);
 

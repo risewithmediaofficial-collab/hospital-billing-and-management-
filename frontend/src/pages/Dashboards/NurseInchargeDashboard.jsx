@@ -174,93 +174,54 @@ export const NurseInchargeDashboard = () => {
         <StatCard title="Total Occupied Beds" value={`${occupiedBedsCount} Beds`} subtitle="Occupancy Locked" icon={BedDouble} color="sky" />
       </div>
 
-      {/* In-Screen Tab Switcher Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setActiveTab('REQUISITIONS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'REQUISITIONS'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <BedDouble size={14} />
-            <span>IPD Requisitions</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'REQUISITIONS' ? 'bg-amber-800 text-white' : 'bg-amber-100 text-amber-800'
-            }`}>
-              {pendingRequisitions.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ADMITTED')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'ADMITTED'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <UserCheck size={14} />
-            <span>Admitted Inpatients</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'ADMITTED' ? 'bg-indigo-800 text-white' : 'bg-indigo-100 text-indigo-800'
-            }`}>
-              {admittedInpatients.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('BEDS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'BEDS'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <LayoutGrid size={14} />
-            <span>Ward Bed Matrix</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'BEDS' ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'
-            }`}>
-              {beds.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('REQUESTS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'REQUESTS'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Activity size={14} />
-            <span>Patient Requests</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'REQUESTS' ? 'bg-rose-800 text-white' : 'bg-rose-100 text-rose-800'
-            }`}>
-              {pendingPatientRequests.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('TASKS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'TASKS'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Stethoscope size={14} />
-            <span>Medication & Tasks</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'TASKS' ? 'bg-sky-800 text-white' : 'bg-sky-100 text-sky-800'
-            }`}>
-              {pendingNurseTasks.length}
-            </span>
-          </button>
+      {/* Active Workstation View Bar & Search Filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2">
+          {activeTab === 'REQUISITIONS' && (
+            <div className="flex items-center gap-2 text-amber-900 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+              <BedDouble size={16} className="text-amber-600" />
+              <span className="text-xs font-black uppercase tracking-wider">IPD Requisitions</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-600 text-white">
+                {pendingRequisitions.length}
+              </span>
+            </div>
+          )}
+          {activeTab === 'ADMITTED' && (
+            <div className="flex items-center gap-2 text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-200">
+              <UserCheck size={16} className="text-indigo-600" />
+              <span className="text-xs font-black uppercase tracking-wider">Admitted Inpatients</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-600 text-white">
+                {admittedInpatients.length}
+              </span>
+            </div>
+          )}
+          {activeTab === 'BEDS' && (
+            <div className="flex items-center gap-2 text-emerald-900 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+              <LayoutGrid size={16} className="text-emerald-600" />
+              <span className="text-xs font-black uppercase tracking-wider">Ward Bed Matrix</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-600 text-white">
+                {beds.length}
+              </span>
+            </div>
+          )}
+          {activeTab === 'REQUESTS' && (
+            <div className="flex items-center gap-2 text-rose-900 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
+              <Activity size={16} className="text-rose-600" />
+              <span className="text-xs font-black uppercase tracking-wider">Patient Requests</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-600 text-white">
+                {pendingPatientRequests.length}
+              </span>
+            </div>
+          )}
+          {activeTab === 'TASKS' && (
+            <div className="flex items-center gap-2 text-sky-900 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-200">
+              <Stethoscope size={16} className="text-sky-600" />
+              <span className="text-xs font-black uppercase tracking-wider">Medication & Tasks</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-sky-600 text-white">
+                {pendingNurseTasks.length}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Search Bar */}
