@@ -204,6 +204,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Department Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Consultations' },
     { title: 'Ward & Bed Matrix', path: '/admin/bed-matrix', icon: 'BedDouble', module: 'ipd', category: 'Inpatient & Ward' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   NURSE: [
@@ -212,6 +213,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'nursing', category: 'Inpatient & Ward' },
     { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward' },
     { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing', category: 'Inpatient & Ward' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   NURSE_INCHARGE: [
@@ -220,6 +222,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'nursing', category: 'Inpatient & Ward' },
     { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward' },
     { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing', category: 'Inpatient & Ward' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   RECEPTIONIST: [
@@ -227,6 +230,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Registered Patients', path: '/reception/registered-patients?tab=REGISTERED', icon: 'UserCheck', module: 'patients', category: 'Front Desk Operations' },
     { title: 'Queued / Active OPD', path: '/reception/registered-patients?tab=QUEUED', icon: 'Hourglass', module: 'opd', category: 'Front Desk Operations' },
     { title: 'All Hospital Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk Operations' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   PHARMACIST: [
@@ -234,6 +238,7 @@ export const ROLE_NAVIGATION = {
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy', category: 'Stock & Inventory' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   PHARMACY_STAFF: [
@@ -241,6 +246,7 @@ export const ROLE_NAVIGATION = {
     { title: 'FEFO Stock Manager', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Expiry Alerts', path: '/pharmacy/expiry-alerts', icon: 'AlertTriangle', module: 'pharmacy', category: 'Stock & Inventory' },
     { title: 'Stock Audit Trail', path: '/pharmacy/audit', icon: 'FileText', module: 'pharmacy', category: 'Stock & Inventory' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   LAB_TECH: [
@@ -248,64 +254,77 @@ export const ROLE_NAVIGATION = {
     { title: 'Sample Intake & Barcodes', path: '/laboratory/dashboard?tab=SAMPLES', icon: 'QrCode', module: 'laboratory', category: 'Pathology & Lab' },
     { title: 'Result Entry Workbench', path: '/laboratory/dashboard?tab=RESULTS', icon: 'FileSpreadsheet', module: 'laboratory', category: 'Pathology & Lab' },
     { title: 'Report Sign-Off', path: '/laboratory/dashboard?tab=REPORTS', icon: 'CheckCircle2', module: 'laboratory', category: 'Pathology & Lab' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   LABORATORY_STAFF: [
     { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Pathology & Lab' },
     { title: 'Sample Intake & Barcodes', path: '/laboratory/dashboard?tab=SAMPLES', icon: 'QrCode', module: 'laboratory', category: 'Pathology & Lab' },
     { title: 'Result Entry Workbench', path: '/laboratory/dashboard?tab=RESULTS', icon: 'FileSpreadsheet', module: 'laboratory', category: 'Pathology & Lab' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   RADIOLOGIST: [
     { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'FileCheck', module: 'radiology', category: 'Radiology & Imaging' },
     { title: 'PACS DICOM Viewer', path: '/radiology/dashboard?tab=DICOM', icon: 'FileImage', module: 'radiology', category: 'Radiology & Imaging' },
     { title: 'Diagnostic Reports', path: '/radiology/dashboard?tab=REPORTS', icon: 'FileCheck2', module: 'radiology', category: 'Radiology & Imaging' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   RADIOLOGY_STAFF: [
     { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'FileCheck', module: 'radiology', category: 'Radiology & Imaging' },
     { title: 'PACS DICOM Viewer', path: '/radiology/dashboard?tab=DICOM', icon: 'FileImage', module: 'radiology', category: 'Radiology & Imaging' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   CASHIER: [
     { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Billing & Cashier' },
     { title: 'Receipts & Payment History', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Billing & Cashier' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   BILLING_STAFF: [
     { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Billing & Cashier' },
     { title: 'Receipts & Payment History', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Billing & Cashier' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   OPD_STAFF: [
     { title: 'OPD Queued Desk', path: '/reception/registered-patients?tab=QUEUED', icon: 'ClipboardList', module: 'opd', category: 'OPD Operations' },
     { title: 'Tokens & Queue Calling', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'OPD Operations' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   IPD_STAFF: [
     { title: 'IPD Inpatient Desk', path: '/nurse-incharge/dashboard', icon: 'BedDouble', module: 'ipd', category: 'Inpatient & Ward' },
     { title: 'Ward & Bed Matrix', path: '/nurse/bed-matrix', icon: 'BedDouble', module: 'nursing', category: 'Inpatient & Ward' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   EMERGENCY_STAFF: [
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
   ],
   DEPARTMENT_MANAGER: [
     { title: 'Department Overview', path: '/admin/departments', icon: 'GitFork', module: 'departments' },
     { title: 'Reports & Analytics', path: '/admin/reports', icon: 'BarChart3', module: 'reports' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   SUPPORT_STAFF: [
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
   ],
   CUSTOM_ROLE: [
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
   ],
   INVENTORY_MANAGER: [
     { title: 'Inventory Dashboard', path: '/inventory/dashboard', icon: 'Package', module: 'inventory' },
     { title: 'Ward Indent Requests', path: '/inventory/indents', icon: 'Truck', module: 'inventory' },
     { title: 'Purchase Orders Console', path: '/inventory/purchase-orders', icon: 'ShoppingCart', module: 'inventory' },
     { title: 'Stock Reorder Alerts', path: '/inventory/reorder-alerts', icon: 'AlertCircle', module: 'inventory' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   HR_MANAGER: [
@@ -313,6 +332,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Duty Rostering Engine', path: '/hr/roster', icon: 'CalendarDays', module: 'hr' },
     { title: 'Biometric Attendance', path: '/hr/attendance', icon: 'Fingerprint', module: 'hr' },
     { title: 'Monthly Payroll', path: '/hr/payroll', icon: 'IndianRupee', module: 'hr' },
+    { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit' },
     { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
   ],
   PATIENT: [

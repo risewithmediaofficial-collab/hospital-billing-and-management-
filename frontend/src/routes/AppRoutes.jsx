@@ -54,6 +54,7 @@ const PatientRegistrationPage = lazyRetry(() => import('../pages/Reception/Patie
 const EmergencyConsoleView = lazyRetry(() => import('../pages/Emergency/EmergencyConsoleView').then(m => ({ default: m.EmergencyConsoleView })));
 const AdminExtraPage = lazyRetry(() => import('../pages/Dashboards/AdminExtraPage').then(m => ({ default: m.AdminExtraPage })));
 const BedMatrixPage = lazyRetry(() => import('../pages/Dashboards/BedMatrixPage').then(m => ({ default: m.BedMatrixPage })));
+const WorkflowTrackerPage = lazyRetry(() => import('../pages/Workflow/WorkflowTrackerPage').then(m => ({ default: m.WorkflowTrackerPage })));
 
 const RouteLoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[40vh] w-full p-8 animate-fade-in">
@@ -507,6 +508,17 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/guardian-portal/requests" element={<MainLayout><GuardianDashboard activeTab="requests" /></MainLayout>} />
         <Route path="/:hospitalDomain/guardian-portal/billing" element={<MainLayout><GuardianDashboard activeTab="billing" /></MainLayout>} />
         <Route path="/:hospitalDomain/guardian-portal/discharge" element={<MainLayout><GuardianDashboard activeTab="discharge" /></MainLayout>} />
+      </Route>
+
+      {/* Hospital-Wide Data Journey & Workflow Tracker */}
+      <Route element={<ProtectedRoute allowedRoles={Object.values(ROLES)} />}>
+        <Route path="/workflow/tracker" element={<MainLayout><WorkflowTrackerPage /></MainLayout>} />
+        <Route path="/workflow/data-tracking" element={<MainLayout><WorkflowTrackerPage /></MainLayout>} />
+      </Route>
+
+      <Route element={<TenantRouteGuard allowedRoles={Object.values(ROLES)} />}>
+        <Route path="/:hospitalDomain/workflow/tracker" element={<MainLayout><WorkflowTrackerPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/workflow/data-tracking" element={<MainLayout><WorkflowTrackerPage /></MainLayout>} />
       </Route>
 
       {/* Global & Tenant Emergency Routes */}

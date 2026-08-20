@@ -8,3 +8,12 @@ export const getPendingWork = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getHospitalDataJourney = async (req, res, next) => {
+  try {
+    const data = await WorkflowService.getHospitalDataJourney(req.query, req.user);
+    return sendSuccess(res, 200, 'Hospital data journey retrieved', data);
+  } catch (error) {
+    next(error);
+  }
+};

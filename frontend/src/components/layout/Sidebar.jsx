@@ -38,11 +38,15 @@ export const WORK_MODE_NAVIGATION = [
   { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF', 'HOSPITAL_ADMIN'] },
   { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF', 'HOSPITAL_ADMIN'] },
 
+  // Live Tracking & Audit
+  { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit', requiredRoles: ['*'] },
+
   // Emergency
   { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services', requiredRoles: ['*'] },
 ];
 
 const ALL_MODULE_NAVIGATION = [
+  { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker' },
   { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
   { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
   { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
@@ -65,6 +69,7 @@ const ALL_MODULE_NAVIGATION = [
 
 const checkItemPermission = (user, item) => {
   if (!user) return false;
+  if (item.path.startsWith('/workflow/') || item.path.startsWith('/emergency')) return true;
   if (user.role === 'SUPER_ADMIN' || user.role === 'HOSPITAL_ADMIN') {
     if (user.enabledModules && item.module && user.enabledModules[item.module] === false) {
       return false;
@@ -80,9 +85,9 @@ const checkItemPermission = (user, item) => {
     '/doctor/': 'doctorConsultation', '/reception/': 'appointments', '/nursing/': 'nursing',
     '/nurse-incharge/': 'ipd', '/laboratory/': 'laboratory', '/radiology/': 'radiology',
     '/pharmacy/': 'pharmacy', '/billing/': 'billing', '/inventory/': 'inventory', '/hr/': 'hr',
-    '/emergency': 'emergency', '/admin/': 'dashboard',
+    '/emergency': 'emergency', '/admin/': 'dashboard', '/workflow/': 'workflowTracker',
   })[Object.keys({
-    '/doctor/': 1, '/reception/': 1, '/nursing/': 1, '/nurse-incharge/': 1, '/laboratory/': 1, '/radiology/': 1, '/pharmacy/': 1, '/billing/': 1, '/inventory/': 1, '/hr/': 1, '/emergency': 1, '/admin/': 1,
+    '/doctor/': 1, '/reception/': 1, '/nursing/': 1, '/nurse-incharge/': 1, '/laboratory/': 1, '/radiology/': 1, '/pharmacy/': 1, '/billing/': 1, '/inventory/': 1, '/hr/': 1, '/emergency': 1, '/admin/': 1, '/workflow/': 1,
   }).find((prefix) => item.path.startsWith(prefix))];
 
   if (!targetModule) return false;
