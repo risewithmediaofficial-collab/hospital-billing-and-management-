@@ -497,11 +497,18 @@ export class NurseTasksService {
           });
 
           if (remainingPending === 0) {
-            appt.status = 'COMPLETED';
+            // Return patient to Doctor consultation for final clinical review, take-home prescription, and billing routing
+            appt.status = 'IN_CONSULTATION';
             appt.departmentReturnedAt = new Date();
             await appt.save();
 
             socketManager.emitToBranch(appt.branchId, 'opd_queue:status_changed', {
+              appointmentId: appt._id,
+              status: appt.status,
+              tokenNumber: appt.tokenNumber,
+            });
+
+            socketManager.emitToUser(String(task.doctorId), 'opd_queue:updated', {
               appointmentId: appt._id,
               status: appt.status,
               tokenNumber: appt.tokenNumber,

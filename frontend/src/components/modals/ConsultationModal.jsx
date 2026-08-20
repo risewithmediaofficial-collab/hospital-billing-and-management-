@@ -845,18 +845,32 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
           </div>
 
           {/* Footer */}
-          <div className="modal-footer">
-            <Button type="button" variant="outline" className="w-1/3 font-bold" onClick={onClose}>
+          <div className="modal-footer flex flex-wrap sm:flex-nowrap gap-2">
+            <Button type="button" variant="outline" className="w-full sm:w-1/4 font-bold" onClick={onClose}>
               Cancel / Keep Draft
             </Button>
             <Button
               type="button"
+              variant="outline"
+              className="w-full sm:w-1/3 font-bold border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              onClick={() => {
+                setPharmacyMode('EXTERNAL_NO_INHOUSE_PHARMACY');
+                setShowConfirmModal(true);
+              }}
+            >
+              <Receipt size={16} className="mr-1" /> Direct to Bill (No Pharmacy)
+            </Button>
+            <Button
+              type="button"
               variant="success"
-              className="w-2/3 font-bold gap-2"
-              onClick={() => setShowConfirmModal(true)}
+              className="w-full sm:w-5/12 font-bold gap-2"
+              onClick={() => {
+                setPharmacyMode('IN_HOUSE_PHARMACY');
+                setShowConfirmModal(true);
+              }}
             >
               <CheckCircle2 size={17} />
-              Finalize & Dispatch Tasks
+              Finalize & Send to Medical & Bill
             </Button>
           </div>
         </div>
@@ -866,14 +880,20 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       {showConfirmModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="max-w-md w-full bg-white rounded-2xl p-6 border text-center space-y-4 shadow-xl">
-            <h3 className="text-xl font-black text-slate-900">Finalize Consultation & Create Tasks?</h3>
+            <h3 className="text-xl font-black text-slate-900">
+              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY'
+                ? 'Send Consultation Directly to Central Billing?'
+                : 'Finalize Consultation & Dispatch to Medical & Billing?'}
+            </h3>
             <p className="text-xs text-slate-600">
-              Prescriptions will be routed to Pharmacy and Nurse Tasks created for injections/IV fluids.
+              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY'
+                ? 'Doctor consultation and procedure charges will be sent directly to Cashier Desk. No in-house pharmacy prescription will be queued.'
+                : 'Take-home prescriptions will be dispatched to Pharmacy Desk and charges logged for Central Billing settlement.'}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
               <Button type="button" variant="success" className="w-1/2 font-bold" isLoading={isLoading} onClick={handleFinalizeConfirmed}>
-                Confirm & Finalize
+                Confirm & Dispatch
               </Button>
             </div>
           </div>

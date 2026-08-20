@@ -164,7 +164,7 @@ export class AppointmentsService {
     const targetDocId = doctorId || user?.id || user?._id;
 
     const filter = {
-      status: { $in: ['WAITING', 'IN_CONSULTATION', 'HOLD'] },
+      status: { $in: ['WAITING', 'IN_CONSULTATION', 'WAITING_NURSE', 'WAITING_DEPARTMENT', 'HOLD', 'COMPLETED'] },
     };
 
     if (targetDocId) {

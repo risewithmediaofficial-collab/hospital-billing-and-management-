@@ -207,9 +207,9 @@ export const DoctorDashboard = () => {
           params: targetDocId ? { doctorId: targetDocId } : {},
         });
         const allTokens = res.data || [];
-        const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION'].includes(t.status));
+        const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION', 'WAITING_NURSE'].includes(t.status));
         const done = allTokens.filter((t) => t.status === 'COMPLETED');
-        const held = allTokens.filter((t) => t.status === 'WAITING_DEPARTMENT');
+        const held = allTokens.filter((t) => ['WAITING_DEPARTMENT', 'WAITING_NURSE'].includes(t.status));
 
         setLiveQueue(waiting);
         setCompletedQueue(done);
@@ -461,8 +461,43 @@ export const DoctorDashboard = () => {
     setIsConsultationModalOpen(true);
   };
 
+  const handleDirectToBilling = async (tok) => {
+    const targetToken = tok || selectedToken;
+    if (!targetToken) return;
+    const patName = targetToken.patientId?.firstName
+      ? `${targetToken.patientId.firstName} ${targetToken.patientId.lastName || ''}`.trim()
+      : 'Patient';
+
+    const feeInput = window.prompt(
+      `Send ${patName} directly to Central Billing (No Pharmacy)?\nEnter Doctor Consultation Fee (₹):`,
+      '100'
+    );
+    if (feeInput === null) return; // cancelled
+
+    try {
+      await axiosClient.post('/emr/consultations', {
+        appointmentId: targetToken._id,
+        patientId: targetToken.patientId?._id || targetToken.patientId,
+        chiefComplaints: targetToken.chiefComplaints || 'General Consultation',
+        prescriptions: [],
+        pharmacyMode: 'EXTERNAL_NO_INHOUSE_PHARMACY',
+        consultationFee: Number(feeInput) || 0,
+        emergencyFee: 0,
+        doctorProcedureCharges: [],
+        adviceToPatient: 'Consultation completed without in-house pharmacy. Dispatched directly to Central Billing.',
+      });
+
+      alert(`✓ Consultation completed! Charges dispatched directly to Central Billing for ${patName}.`);
+      fetchOpdQueue();
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+    } catch (err) {
+      console.error('Failed to complete consultation directly to billing:', err);
+      alert(err.response?.data?.message || 'Failed to dispatch to billing');
+    }
+  };
+
   const handleCancelToken = async (tokenId) => {
-    if (!window.confirm('Are you sure you want to cancel this duplicate token / appointment?')) return;
+    if (!window.confirm('Are you sure you want to cancel this token / appointment?')) return;
     try {
       await axiosClient.patch(`/appointments/tokens/${tokenId}/status`, { status: 'CANCELLED' });
       fetchOpdQueue();
@@ -797,11 +832,25 @@ export const DoctorDashboard = () => {
                         </span>
                         <div className="flex items-center gap-1.5">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                            tok.status === 'IN_CONSULTATION'
+                            tok.status === 'WAITING_NURSE'
+                              ? 'bg-purple-50 text-purple-700 border-purple-300 animate-pulse'
+                              : tok.status === 'WAITING_DEPARTMENT'
+                              ? 'bg-sky-50 text-sky-700 border-sky-300 animate-pulse'
+                              : tok.departmentReturnedAt && tok.status === 'IN_CONSULTATION'
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-black ring-1 ring-emerald-400'
+                              : tok.status === 'IN_CONSULTATION'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
                               : 'bg-amber-50 text-amber-700 border-amber-300'
                           }`}>
-                            {tok.status === 'IN_CONSULTATION' ? 'IN CONSULT' : 'WAITING'}
+                            {tok.status === 'WAITING_NURSE'
+                              ? '💉 AT NURSE'
+                              : tok.status === 'WAITING_DEPARTMENT'
+                              ? '🧪 IN LAB/XRAY'
+                              : tok.departmentReturnedAt
+                              ? '✓ RETURNED'
+                              : tok.status === 'IN_CONSULTATION'
+                              ? 'IN CONSULT'
+                              : 'WAITING'}
                           </span>
                           <button
                             type="button"
@@ -810,7 +859,7 @@ export const DoctorDashboard = () => {
                               handleCancelToken(tok._id);
                             }}
                             className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
-                            title="Cancel Duplicate Token / Appointment"
+                            title="Cancel Token / Appointment"
                           >
                             <X size={13} />
                           </button>
@@ -854,21 +903,76 @@ export const DoctorDashboard = () => {
                   <p className="text-xs text-amber-800 font-extrabold mt-1">Chief Complaint: {selectedToken.chiefComplaints || 'Check-up'}</p>
                 </div>
 
-                <span className="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-300 font-mono font-black text-sm">
-                  TOKEN #{selectedToken.tokenNumber}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-300 font-mono font-black text-sm">
+                    TOKEN #{selectedToken.tokenNumber}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="font-bold text-xs"
+                    onClick={() => handleCancelToken(selectedToken._id)}
+                  >
+                    <X size={14} className="mr-1" /> Cancel Visit
+                  </Button>
+                </div>
               </div>
 
+              {/* Department Returned Ready Alert Banner */}
+              {selectedToken.departmentReturnedAt && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 size={22} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-black text-xs text-emerald-900">Treatment / Injection Administered by Nurse!</p>
+                      <p className="text-[11px] text-emerald-800">
+                        Patient has completed nursing procedure. Review administration notes below and finalize prescription or billing.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="success"
+                      className="font-bold text-xs"
+                      onClick={() => setIsConsultationModalOpen(true)}
+                    >
+                      <Pill size={14} className="mr-1" /> Prescribe & Send to Medical & Bill
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="font-bold text-xs bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                      onClick={() => handleDirectToBilling(selectedToken)}
+                    >
+                      <Receipt size={14} className="mr-1" /> Send Directly to Bill
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Primary Consultation Actions */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                 <Button
                   size="md"
                   variant="success"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() => setIsConsultationModalOpen(true)}
+                  title="Enter take-home prescription, clinical diagnosis, and send to in-house pharmacy and billing"
                 >
-                  <Stethoscope size={18} />
-                  <span>Start Consultation</span>
+                  <Pill size={18} />
+                  <span>Prescribe & Medical</span>
+                </Button>
+
+                <Button
+                  size="md"
+                  variant="primary"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={() => handleDirectToBilling(selectedToken)}
+                  title="Complete consultation and send directly to Central Billing without in-house pharmacy"
+                >
+                  <Receipt size={18} />
+                  <span>Direct to Bill</span>
                 </Button>
 
                 <Button
@@ -876,9 +980,10 @@ export const DoctorDashboard = () => {
                   variant="primary"
                   className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-purple-600 hover:bg-purple-700 text-white"
                   onClick={() => setIsInjectionModalOpen(true)}
+                  title="Send patient to Nurse Workstation for injection, IV fluid, or wound care"
                 >
                   <Syringe size={18} />
-                  <span>Send to Nurse / Injection</span>
+                  <span>Send to Nurse</span>
                 </Button>
 
                 <Button
@@ -886,6 +991,7 @@ export const DoctorDashboard = () => {
                   variant="primary"
                   className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm bg-sky-600 hover:bg-sky-700 text-white"
                   onClick={() => setIsRequestModalOpen(true)}
+                  title="Order Pathology lab test or Radiology X-ray/scan"
                 >
                   <TestTube size={18} />
                   <span>Request Test</span>
@@ -904,7 +1010,7 @@ export const DoctorDashboard = () => {
                 <Button
                   size="md"
                   variant="outline"
-                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50 col-span-2 sm:col-span-1"
+                  className="font-bold py-3 text-xs flex flex-col items-center justify-center gap-1 shadow-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                   onClick={() => {
                     setHistoryPatientId(currentPatient?.uhid || currentPatient?._id);
                     setIsHistoryOpen(true);
