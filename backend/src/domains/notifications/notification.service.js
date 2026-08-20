@@ -232,6 +232,28 @@ export class NotificationService {
   }
 
   /**
+   * Mark all unread notifications matching a route path as read
+   */
+  static async markRouteAsRead(routePath, context) {
+    if (!routePath) return { success: false };
+    const query = await recipientQuery(context);
+    const clean = String(routePath).split('?')[0].replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|billing|pharmacy|laboratory|radiology|emergency))/, '');
+    await Notification.updateMany(
+      {
+        ...query,
+        $or: [
+          { targetRoute: { $regex: new RegExp(clean, 'i') } },
+          { link: { $regex: new RegExp(clean, 'i') } },
+          { targetModule: { $regex: new RegExp(clean.replace('/', ''), 'i') } },
+        ],
+        isRead: false,
+      },
+      { isRead: true, readAt: new Date() }
+    );
+    return { success: true };
+  }
+
+  /**
    * Mark all unread notifications as read for current user context
    */
   static async markAllAsRead(context) {

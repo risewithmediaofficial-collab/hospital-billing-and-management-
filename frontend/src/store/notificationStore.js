@@ -48,6 +48,31 @@ export const useNotificationStore = create((set, get) => ({
     catch (error) { await get().fetchNotifications(); }
   },
 
+  markRouteAsRead: async (routePath) => {
+    if (!routePath) return;
+    const clean = String(routePath).split('?')[0];
+    set((state) => {
+      let readDeduction = 0;
+      const updated = state.notifications.map((n) => {
+        const link = n.linkedPath || n.targetRoute || n.link || '';
+        if (!n.isRead && link.includes(clean)) {
+          readDeduction += 1;
+          return { ...n, isRead: true };
+        }
+        return n;
+      });
+      return {
+        notifications: updated,
+        unreadCount: Math.max(0, state.unreadCount - readDeduction),
+      };
+    });
+    try {
+      await axiosClient.post('/notifications/read-route', { route: routePath });
+    } catch {
+      // ignore
+    }
+  },
+
   markAllAsRead: async () => {
     set((state) => ({ notifications: state.notifications.map((n) => ({ ...n, isRead: true })), unreadCount: 0 }));
     try { await axiosClient.post('/notifications/read-all'); }

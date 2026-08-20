@@ -2,6 +2,7 @@ import { Invoice } from '../../models/Invoice.js';
 import { Receipt } from '../../models/Receipt.js';
 import { Patient } from '../../models/Patient.js';
 import { Consultation } from '../../models/Consultation.js';
+import { Notification } from '../../models/Notification.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
 import { socketManager } from '../../events/socketManager.js';
@@ -193,6 +194,20 @@ export class BillingService {
     socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { resourceId: invoice._id, status: invoice.status });
 
     if (invoice.status === PAYMENT_STATUS.PAID) {
+      // Clear all unread billing notifications for this patient/invoice
+      await Notification.updateMany(
+        {
+          hospitalId: user.hospitalId,
+          $or: [
+            { relatedPatientId: invoice.patientId?._id || invoice.patientId },
+            { targetModule: 'billing' },
+            { targetRoute: { $regex: /^\/billing/ } },
+          ],
+          isRead: false,
+        },
+        { $set: { isRead: true, readAt: new Date() } }
+      ).catch(() => {});
+
       const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';
       const paymentPayload = {
         invoiceId: invoice._id,
@@ -205,6 +220,7 @@ export class BillingService {
       };
       WorkflowEventService.emitSync(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
+      socketManager.emitToBranch(invoice.branchId, 'workflow:notification_cleared', { targetModule: 'billing', patientId: invoice.patientId });
     }
 
     const populatedReceipt = await Receipt.findById(receipt._id)

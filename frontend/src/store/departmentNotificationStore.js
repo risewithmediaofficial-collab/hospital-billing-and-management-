@@ -28,13 +28,13 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   // If no target path exists, check targetModule
   if (!targetPath && metadata.targetModule) {
     const mod = (metadata.targetModule || '').toLowerCase();
-    if (mod === 'doctor' && baseNav.startsWith('/doctor')) return true;
-    if (mod === 'nursing' && (baseNav.startsWith('/nurse-incharge') || baseNav.startsWith('/nursing'))) return true;
-    if (mod === 'billing' && baseNav.startsWith('/billing')) return true;
-    if (mod === 'pharmacy' && baseNav.startsWith('/pharmacy')) return true;
-    if (mod === 'laboratory' && baseNav.startsWith('/laboratory')) return true;
-    if (mod === 'radiology' && baseNav.startsWith('/radiology')) return true;
-    if (mod === 'reception' && baseNav.startsWith('/reception')) return true;
+    if (mod === 'doctor' && baseNav.startsWith('/doctor') && (!nTab || nTab === 'LIVE' || nTab === 'OVERVIEW')) return true;
+    if (mod === 'nursing' && (baseNav.startsWith('/nurse-incharge') || baseNav.startsWith('/nursing')) && (!nTab || nTab === 'TASKS')) return true;
+    if (mod === 'billing' && baseNav.startsWith('/billing') && !nTab) return true;
+    if (mod === 'pharmacy' && baseNav.startsWith('/pharmacy') && !nTab) return true;
+    if (mod === 'laboratory' && baseNav.startsWith('/laboratory') && !nTab) return true;
+    if (mod === 'radiology' && baseNav.startsWith('/radiology') && !nTab) return true;
+    if (mod === 'reception' && baseNav.startsWith('/reception') && !nTab) return true;
   }
 
   if (!targetPath) return false;
@@ -105,7 +105,7 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   const isBillingNav = nPath.startsWith('/billing');
   if (isBillingTask && isBillingNav) {
     if (nTab === 'RECEIPTS') return tTab === 'RECEIPTS' || tPath.includes('/receipts');
-    if (!nTab) return !tTab || tTab === 'DASHBOARD' || metadata.targetModule === 'billing' || metadata.notificationType === 'BILLING_UPDATE';
+    if (!nTab) return !tTab || tTab === 'DASHBOARD';
     return tTab === nTab;
   }
 

@@ -52,6 +52,17 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Mark all as read for specific route/module
+router.post('/read-route', async (req, res, next) => {
+  try {
+    const { route } = req.body;
+    const result = await NotificationService.markRouteAsRead(route, req.user);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Mark all as read
 router.post('/read-all', async (req, res, next) => {
   try {

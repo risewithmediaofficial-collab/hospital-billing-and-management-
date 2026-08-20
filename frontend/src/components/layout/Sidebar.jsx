@@ -668,29 +668,38 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
         {/* Quick Department Activity Alert Bar (Highlights exactly which department has incoming data) */}
         {(() => {
-          const rawDepts = [];
+          const activeDepts = [];
+          const seenKeys = new Set();
+
           groupedCategories.forEach((grp) => {
             grp.items.forEach((item) => {
-              const count = item.path === '/emergency' ? activeCount : getUnreadCountForNav(item.path);
-              if (count > 0) {
-                rawDepts.push({
+              if (item.path === '/emergency') {
+                if (activeCount > 0 && !seenKeys.has('/emergency')) {
+                  seenKeys.add('/emergency');
+                  activeDepts.push({
+                    title: 'Emergency Console',
+                    category: grp.category,
+                    path: '/emergency',
+                    count: activeCount,
+                    isEmergency: true,
+                  });
+                }
+                return;
+              }
+
+              const count = getUnreadCountForNav(item.path);
+              const baseKey = item.path.split('?')[0];
+              if (count > 0 && !seenKeys.has(baseKey)) {
+                seenKeys.add(baseKey);
+                activeDepts.push({
                   title: item.title || item.name,
                   category: grp.category,
                   path: item.path,
                   count,
-                  isEmergency: item.path === '/emergency',
+                  isEmergency: false,
                 });
               }
             });
-          });
-
-          // Deduplicate chips by base path
-          const seen = new Set();
-          const activeDepts = rawDepts.filter((d) => {
-            const key = d.path.split('?')[0];
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
           });
 
           if (activeDepts.length === 0) return null;
@@ -751,7 +760,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
             const isCatActive = group.items.some((it) => isItemActive(it.path));
 
             const catEmergencyCount = group.items.reduce((acc, it) => acc + (it.path === '/emergency' ? activeCount : 0), 0);
-            const catUnreadCount = group.items.reduce((acc, it) => acc + (it.path !== '/emergency' ? getUnreadCountForNav(it.path) : 0), 0);
+            const catUnreadCount = (() => {
+              const catTasks = new Set();
+              group.items.forEach((it) => {
+                if (it.path === '/emergency') return;
+                const matching = deptNotifs.filter((task) => pathMatches(task.linkedPath, it.path, task));
+                matching.forEach((m) => catTasks.add(m.id || m.resourceId || m._id || m.linkedPath));
+              });
+              if (catTasks.size > 0) return catTasks.size;
+              return Math.max(0, ...group.items.filter((it) => it.path !== '/emergency').map((it) => getUnreadCountForNav(it.path)));
+            })();
             const hasCategoryAlerts = catEmergencyCount > 0 || catUnreadCount > 0;
 
             return (

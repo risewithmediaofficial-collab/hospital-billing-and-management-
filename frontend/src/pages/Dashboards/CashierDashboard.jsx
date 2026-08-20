@@ -18,6 +18,8 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useNotificationStore } from '../../store/notificationStore';
 
 // Map category codes to friendly labels + colors
 const CATEGORY_STYLES = {
@@ -119,6 +121,8 @@ export const CashierDashboard = () => {
     fetchUnpaidInvoices();
     fetchAllReceipts();
     fetchDeletedReceipts();
+    useDepartmentNotificationStore.getState().fetchPendingWork?.();
+    useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
   }, [fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
   // Real-time: refresh whenever doctor finalizes a new consultation, payment occurs, or bill is deleted
@@ -128,6 +132,8 @@ export const CashierDashboard = () => {
       fetchUnpaidInvoices();
       fetchAllReceipts();
       fetchDeletedReceipts();
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
     };
     socket.on('billing:invoice_created', handler);
     socket.on('billing:invoice_deleted', handler);
@@ -135,6 +141,7 @@ export const CashierDashboard = () => {
     socket.on('billing:receipt_deleted', handler);
     socket.on('workflow:pending_changed', handler);
     socket.on('workflow:notification', handler);
+    socket.on('workflow:notification_cleared', handler);
     socket.on('consultation:completed', handler);
     return () => {
       socket.off('billing:invoice_created', handler);
@@ -143,6 +150,7 @@ export const CashierDashboard = () => {
       socket.off('billing:receipt_deleted', handler);
       socket.off('workflow:pending_changed', handler);
       socket.off('workflow:notification', handler);
+      socket.off('workflow:notification_cleared', handler);
       socket.off('consultation:completed', handler);
     };
   }, [socket, fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
@@ -152,6 +160,8 @@ export const CashierDashboard = () => {
     fetchAllReceipts();
     fetchDeletedReceipts();
     setIsPaymentOpen(false);
+    useDepartmentNotificationStore.getState().fetchPendingWork?.();
+    useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
   };
 
   const handleConfirmDeleteBill = async () => {

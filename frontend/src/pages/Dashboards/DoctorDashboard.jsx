@@ -228,6 +228,8 @@ export const DoctorDashboard = () => {
           setSelectedToken(null);
           setPatientInvestigations([]);
         }
+        useDepartmentNotificationStore.getState().fetchPendingWork?.();
+        useNotificationStore.getState().markRouteAsRead?.('/doctor/dashboard');
       } catch (err) {
         console.error('Failed to load doctor OPD queue:', err);
       }

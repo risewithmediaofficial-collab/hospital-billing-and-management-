@@ -90,10 +90,26 @@ export class EmrService {
       const rxCount = await Prescription.countDocuments({ hospitalId: hospId });
       const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
 
-      const isExternalPharmacy = data.pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ||
-        sanitizedPrescriptions.every(p => p.treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || p.externalPurchaseRequired || ['INJECTION', 'IV_FLUID'].includes(p.dosageForm));
+      const hasTakeHomeInHouseMedicines = sanitizedPrescriptions.some(
+        (p) =>
+          !p.externalPurchaseRequired &&
+          p.treatmentType !== 'EXTERNAL_PURCHASE_OUTSIDE' &&
+          p.treatmentType !== 'NURSE_ADMINISTERED' &&
+          p.treatmentType !== 'DOCTOR_ADMINISTERED_NOW' &&
+          !['INJECTION', 'IV_FLUID'].includes(p.dosageForm)
+      );
+
+      const isExternalPharmacy = data.pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' || !hasTakeHomeInHouseMedicines;
 
       const finalMedicines = sanitizedPrescriptions.map(p => {
+        const isNurseTask = p.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(p.dosageForm);
+        if (isNurseTask) {
+          return {
+            ...p,
+            treatmentType: 'NURSE_ADMINISTERED',
+            itemStatus: 'NURSE_ADMINISTERED',
+          };
+        }
         if (isExternalPharmacy || p.treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || p.externalPurchaseRequired) {
           return {
             ...p,
@@ -119,17 +135,15 @@ export class EmrService {
         prescriptionNo: rxNo,
         medicines: finalMedicines,
         pharmacyMode: isExternalPharmacy ? 'EXTERNAL_NO_INHOUSE_PHARMACY' : 'IN_HOUSE_PHARMACY',
-        dispenseStatus: isExternalPharmacy ? 'DISPENSED' : 'PENDING_DISPENSE',
+        dispenseStatus: hasTakeHomeInHouseMedicines ? 'PENDING_DISPENSE' : 'DISPENSED',
         totalMedicineCharge: 0,
       });
 
       // Automatically extract nurse-administered treatments (injections, IV fluids, dressings) into Nurse Tasks
       nurseTasks = await NurseTasksService.createTasksFromPrescription(prescription, user, appointment._id);
 
-      // Only notify hospital pharmacy desk if there are in-house take-home medicines
-      const needsHospitalPharmacyDispense = !isExternalPharmacy && finalMedicines.some(m => m.treatmentType === 'ORAL_TAKE_HOME' && !m.externalPurchaseRequired);
-
-      if (needsHospitalPharmacyDispense) {
+      // Only notify hospital pharmacy desk if there are in-house take-home medicines to package & dispense
+      if (hasTakeHomeInHouseMedicines) {
         const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
         WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
           prescriptionId: prescription._id,
@@ -137,7 +151,7 @@ export class EmrService {
           patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
           uhid: patient?.uhid || 'N/A',
           doctorName: user.name || 'Doctor',
-          linkedPath: '/pharmacy/dispense-queue',
+          linkedPath: '/pharmacy/dashboard',
         }, brId);
       }
     }
