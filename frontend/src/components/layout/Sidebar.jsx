@@ -153,6 +153,11 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { socket } = useSocket();
   const getUnreadCountForNav = useDepartmentNotificationStore((state) => state.getUnreadCountForNav);
   const fetchPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
+  const deptNotifs = useDepartmentNotificationStore((state) => state.notifications);
+  const deptUnreadCount = useDepartmentNotificationStore((state) => state.unreadCount);
+  const deptByPath = useDepartmentNotificationStore((state) => state.byPath);
+  const bellNotifs = useNotificationStore((state) => state.notifications);
+  const bellUnreadCount = useNotificationStore((state) => state.unreadCount);
   const activeCount = useEmergencyStore((state) => state.activeCount);
   const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const location = useLocation();
@@ -161,14 +166,17 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     fetchPendingWork();
+    useNotificationStore.getState().fetchNotifications();
     const interval = setInterval(() => {
       fetchPendingWork();
+      useNotificationStore.getState().fetchNotifications();
     }, 10000);
 
     if (!socket) return () => clearInterval(interval);
 
     const handleRefresh = () => {
       fetchPendingWork();
+      useNotificationStore.getState().fetchNotifications();
     };
 
     socket.on('workflow:notification', handleRefresh);

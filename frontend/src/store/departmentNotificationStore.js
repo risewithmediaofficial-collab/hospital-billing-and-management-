@@ -2,68 +2,134 @@ import { create } from 'zustand';
 import { axiosClient } from '../api/axiosClient';
 import { useNotificationStore } from './notificationStore';
 
-export const pathMatches = (taskPath, navPath) => {
-  if (!taskPath || !navPath) return false;
-  const [taskPathname, taskSearch] = taskPath.split('?');
-  const [navPathname, navSearch] = navPath.split('?');
+// Strips protocol, host, and tenant prefix (e.g. /test-hospital-1/)
+const cleanPath = (raw) => {
+  if (!raw) return '';
+  let p = raw.trim();
+  // Strip protocol and host if present
+  try {
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+      const url = new URL(p);
+      p = url.pathname + url.search;
+    }
+  } catch {}
 
-  const isNursingTask = ['/nursing/dashboard', '/nurse-incharge/dashboard', '/nursing'].includes(taskPathname);
-  const isNursingNav = ['/nursing/dashboard', '/nurse-incharge/dashboard', '/nursing'].includes(navPathname);
-  if (isNursingTask && isNursingNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
+  // Strip tenant prefix: /tenant-name/(doctor|nursing|nurse-incharge|reception|billing|pharmacy|laboratory|radiology|admin|emergency)
+  p = p.replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|billing|pharmacy|laboratory|radiology|emergency))/, '');
+  return p;
+};
+
+export const pathMatches = (taskPath, navPath, metadata = {}) => {
+  if (!navPath) return false;
+
+  const targetPath = cleanPath(taskPath || metadata.targetRoute || metadata.link || metadata.linkedPath || '');
+  const baseNav = cleanPath(navPath);
+
+  // If no target path exists, check targetModule
+  if (!targetPath && metadata.targetModule) {
+    const mod = (metadata.targetModule || '').toLowerCase();
+    if (mod === 'doctor' && baseNav.startsWith('/doctor')) return true;
+    if (mod === 'nursing' && (baseNav.startsWith('/nurse-incharge') || baseNav.startsWith('/nursing'))) return true;
+    if (mod === 'billing' && baseNav.startsWith('/billing')) return true;
+    if (mod === 'pharmacy' && baseNav.startsWith('/pharmacy')) return true;
+    if (mod === 'laboratory' && baseNav.startsWith('/laboratory')) return true;
+    if (mod === 'radiology' && baseNav.startsWith('/radiology')) return true;
+    if (mod === 'reception' && baseNav.startsWith('/reception')) return true;
   }
 
-  const isReceptionTask = ['/reception/registered-patients', '/reception/dashboard', '/reception/register-patient', '/reception/tokens', '/reception'].includes(taskPathname);
-  const isReceptionNav = ['/reception/registered-patients', '/reception/dashboard', '/reception/register-patient', '/reception/tokens', '/reception'].includes(navPathname);
-  if (isReceptionTask && isReceptionNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
-  }
+  if (!targetPath) return false;
 
-  const isPharmacyTask = ['/pharmacy/dashboard', '/pharmacy/dispense-queue', '/pharmacy/prescriptions', '/pharmacy'].includes(taskPathname);
-  const isPharmacyNav = ['/pharmacy/dashboard', '/pharmacy/dispense-queue', '/pharmacy/prescriptions', '/pharmacy'].includes(navPathname);
-  if (isPharmacyTask && isPharmacyNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
-  }
+  const [tPath, tQueryStr = ''] = targetPath.split('?');
+  const [nPath, nQueryStr = ''] = baseNav.split('?');
 
-  const isBillingTask = ['/billing/dashboard', '/billing/receipts', '/billing'].includes(taskPathname);
-  const isBillingNav = ['/billing/dashboard', '/billing/receipts', '/billing'].includes(navPathname);
-  if (isBillingTask && isBillingNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
-  }
+  const tParams = new URLSearchParams(tQueryStr.toLowerCase());
+  const nParams = new URLSearchParams(nQueryStr.toLowerCase());
 
-  const isLabTask = ['/laboratory/dashboard', '/laboratory'].includes(taskPathname);
-  const isLabNav = ['/laboratory/dashboard', '/laboratory'].includes(navPathname);
-  if (isLabTask && isLabNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
-  }
+  const tTab = (tParams.get('tab') || '').toUpperCase();
+  const nTab = (nParams.get('tab') || '').toUpperCase();
 
-  const isRadioTask = ['/radiology/dashboard', '/radiology'].includes(taskPathname);
-  const isRadioNav = ['/radiology/dashboard', '/radiology'].includes(navPathname);
-  if (isRadioTask && isRadioNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
-  }
-
-  const isDoctorTask = ['/doctor/dashboard', '/doctor'].includes(taskPathname);
-  const isDoctorNav = ['/doctor/dashboard', '/doctor'].includes(navPathname);
+  // 1. Doctor Routes
+  const isDoctorTask = tPath.startsWith('/doctor');
+  const isDoctorNav = nPath.startsWith('/doctor');
   if (isDoctorTask && isDoctorNav) {
-    if (!navSearch) return true;
-    return taskSearch === navSearch;
+    if (nTab === 'DEPT_RESPONSES') {
+      return (
+        tTab === 'DEPT_RESPONSES' ||
+        tTab === 'SENT_DEPARTMENTS' ||
+        metadata.notificationType === 'DEPARTMENT_RESPONSE' ||
+        metadata.notificationType === 'NURSE_RESPONSE' ||
+        metadata.notificationType === 'SUBSTITUTION_REQUEST' ||
+        metadata.type === 'NURSE_TASK_COMPLETED' ||
+        metadata.type === 'REPORT_READY'
+      );
+    }
+    if (nTab === 'FOLLOW_UPS') return tTab === 'FOLLOW_UPS';
+    if (nTab === 'COMPLETED') return tTab === 'COMPLETED';
+    if (!nTab || nTab === 'OVERVIEW' || nTab === 'LIVE') {
+      return !tTab || tTab === 'OVERVIEW' || tTab === 'LIVE' || tTab === 'QUEUE';
+    }
+    return tTab === nTab;
   }
 
-  if (taskPathname !== navPathname) return false;
-  if (!navSearch) return true;
-  return taskSearch === navSearch;
+  // 2. Nursing Routes
+  const isNursingTask = tPath.startsWith('/nurse-incharge') || tPath.startsWith('/nursing');
+  const isNursingNav = nPath.startsWith('/nurse-incharge') || nPath.startsWith('/nursing');
+  if (isNursingTask && isNursingNav) {
+    if (nTab === 'TASKS') {
+      return !tTab || tTab === 'TASKS' || metadata.targetModule === 'nursing' || metadata.type === 'NEW_NURSE_TASKS' || metadata.notificationType === 'NEW_DATA';
+    }
+    if (nTab === 'REQUISITIONS') return tTab === 'REQUISITIONS' || metadata.type === 'ADMISSION_REQUISITION';
+    if (nTab === 'ADMITTED') return tTab === 'ADMITTED';
+    if (nTab === 'REQUESTS') return tTab === 'REQUESTS';
+    return tTab === nTab;
+  }
+
+  // 3. Bed Matrix
+  if (nPath.includes('/admin/bed-matrix')) {
+    return tPath.includes('/admin/bed-matrix') || tPath.includes('/beds');
+  }
+
+  // 4. Reception Routes
+  const isReceptionTask = tPath.startsWith('/reception');
+  const isReceptionNav = nPath.startsWith('/reception');
+  if (isReceptionTask && isReceptionNav) {
+    if (nTab === 'FOLLOW_UPS') return tTab === 'FOLLOW_UPS';
+    if (nTab === 'ALL') return tTab === 'ALL';
+    if (nPath.includes('/tokens')) return tPath.includes('/tokens') || tPath.includes('/queue');
+    if (!nTab) return !tTab || tTab === 'DASHBOARD' || tTab === 'REGISTERED';
+    return tTab === nTab;
+  }
+
+  // 5. Billing Desk
+  const isBillingTask = tPath.startsWith('/billing');
+  const isBillingNav = nPath.startsWith('/billing');
+  if (isBillingTask && isBillingNav) {
+    if (nTab === 'RECEIPTS') return tTab === 'RECEIPTS' || tPath.includes('/receipts');
+    if (!nTab) return !tTab || tTab === 'DASHBOARD' || metadata.targetModule === 'billing' || metadata.notificationType === 'BILLING_UPDATE';
+    return tTab === nTab;
+  }
+
+  // 6. Pharmacy
+  const isPharmacyTask = tPath.startsWith('/pharmacy');
+  const isPharmacyNav = nPath.startsWith('/pharmacy');
+  if (isPharmacyTask && isPharmacyNav) {
+    if (nPath.includes('/dispense-queue')) return tPath.includes('/dispense-queue') || tPath.includes('/prescriptions');
+    if (nPath.includes('/dashboard')) return tPath.includes('/dashboard');
+    return true;
+  }
+
+  // 7. Diagnostics (Lab / Radiology)
+  if (nPath.startsWith('/laboratory') && tPath.startsWith('/laboratory')) return true;
+  if (nPath.startsWith('/radiology') && tPath.startsWith('/radiology')) return true;
+  if (nPath.startsWith('/emergency') && tPath.startsWith('/emergency')) return true;
+
+  if (tPath !== nPath) return false;
+  if (!nTab) return true;
+  return tTab === nTab;
 };
 
 /**
- * Pending work is server state, not browser read history. Socket events only
- * request a fresh snapshot; they never increment a counter by themselves.
+ * Department and workflow notification store.
  */
 export const useDepartmentNotificationStore = create((set, get) => ({
   notifications: [],
@@ -99,7 +165,6 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   addNotification: () => get().fetchPendingWork(),
   resolvePending: () => get().fetchPendingWork(),
 
-  // Compatibility for workflow screens: a completed backend action triggers a recount.
   markAsRead: () => get().fetchPendingWork(),
   markAllAsRead: () => get().fetchPendingWork(),
   markAsReadForNav: () => {},
@@ -116,13 +181,16 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     if (override !== undefined) return override;
 
     // 1. Check matching pending tasks from /workflow/pending
-    const matchingPendingCount = get().notifications.filter((item) => pathMatches(item.linkedPath, navPath)).length;
+    const matchingPendingCount = get().notifications.filter((item) => pathMatches(item.linkedPath, navPath, item)).length;
 
-    // 2. Also check unread notifications from useNotificationStore
+    // 2. Check unread notifications from useNotificationStore (bell notifications)
     let bellUnreadCount = 0;
     try {
       const bellNotifs = useNotificationStore.getState().notifications || [];
-      bellUnreadCount = bellNotifs.filter((n) => !n.isRead && pathMatches(n.linkedPath || n.targetRoute, navPath)).length;
+      bellUnreadCount = bellNotifs.filter((n) => {
+        if (n.isRead || n.isCleared) return false;
+        return pathMatches(n.linkedPath || n.targetRoute || n.link, navPath, n);
+      }).length;
     } catch {
       // ignore
     }
