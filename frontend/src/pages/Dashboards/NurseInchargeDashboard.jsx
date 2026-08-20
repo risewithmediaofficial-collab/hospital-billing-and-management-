@@ -609,10 +609,10 @@ export const NurseInchargeDashboard = () => {
                       : 'bg-rose-50/25 border-rose-200 shadow-2xs'
                   }`}
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-extrabold text-slate-900 text-sm">{t.medicineName} ({t.dose})</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase">
                         {t.taskType || 'INJECTION'}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
@@ -626,13 +626,32 @@ export const NurseInchargeDashboard = () => {
                         {t.status}
                       </span>
                     </div>
-                    <p className="text-slate-700">
-                      Patient: <strong>{t.patientId?.firstName} {t.patientId?.lastName}</strong> (UHID: {t.patientId?.uhid || 'N/A'})
+
+                    <p className="text-slate-800 text-xs">
+                      Patient: <strong className="text-indigo-900">{t.patientId?.firstName} {t.patientId?.lastName}</strong> (UHID: <span className="font-mono font-bold text-slate-700">{t.patientId?.uhid || 'N/A'}</span>)
                     </p>
-                    <p className="text-slate-500">
-                      Dr. {t.doctorId?.name} &bull; Instructions: {t.doctorInstructions || 'Administer as scheduled'}
-                      {t.assignedNurseId?.name && ` • Assigned: ${t.assignedNurseId.name}`}
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                      <span><Stethoscope size={12} className="inline mr-1 text-indigo-600" /> Prescribed by: <strong className="text-slate-900">Dr. {t.doctorName || t.doctorId?.name || 'Consultant'}</strong> ({t.doctorDepartment || 'OPD Desk'})</span>
+                      <span>Order Time: <strong className="text-slate-800">{new Date(t.createdAt).toLocaleTimeString()}</strong></span>
+                      <span>Assigned Nurse: <strong className="text-slate-800">{t.assignedNurseName || t.assignedNurseId?.name || 'Duty Nurse / Station'}</strong></span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 italic bg-white/80 p-1.5 rounded-lg border border-slate-200/80">
+                      Doctor's Instructions: <strong className="text-slate-800 not-italic">"{t.doctorInstructions || 'Administer as scheduled'}"</strong>
                     </p>
+
+                    {t.status === 'ADMINISTERED' && (
+                      <div className="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          <CheckCircle2 size={13} className="inline mr-1 text-emerald-600" />
+                          Administered by <strong className="font-extrabold">{t.administrationDetails?.nurseName || 'Duty Nurse'}</strong> at <strong className="font-mono">{new Date(t.administrationDetails?.administeredAt || t.updatedAt).toLocaleTimeString()}</strong>
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-emerald-200/60 font-bold text-[10px]">
+                          ✓ Doctor Notified & Bill Logged
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {t.status !== 'ADMINISTERED' ? (
@@ -651,14 +670,16 @@ export const NurseInchargeDashboard = () => {
                           console.error('Failed to update task:', e);
                         }
                       }}
-                      className="gap-1.5 shadow-sm font-bold"
+                      className="gap-1.5 shadow-sm font-bold shrink-0"
                     >
                       <CheckCircle2 size={13} /> Mark Administered
                     </Button>
                   ) : (
-                    <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
-                      <CheckCircle2 size={14} /> Completed
-                    </span>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center gap-1">
+                        <CheckCircle2 size={14} className="text-emerald-600" /> Completed
+                      </span>
+                    </div>
                   )}
                 </div>
               ));

@@ -58,6 +58,19 @@ router.post('/nurse-tasks', createNurseTask);
 router.post('/request-injection', createNurseTask);
 router.get('/available-nurses', getAvailableNurses);
 router.patch('/nurse-tasks/:id/status', updateNurseTaskStatus);
+router.patch('/nurse-tasks/:id/doctor-review', async (req, res, next) => {
+  try {
+    const { NurseTask } = await import('../../models/NurseTask.js');
+    const task = await NurseTask.findOneAndUpdate(
+      { _id: req.params.id, hospitalId: req.user.hospitalId },
+      { $set: { doctorReviewedAt: new Date() } },
+      { new: true }
+    );
+    res.json({ success: true, data: task });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Prescription-time availability check for doctors
 router.post('/prescriptions/check-availability', async (req, res, next) => {

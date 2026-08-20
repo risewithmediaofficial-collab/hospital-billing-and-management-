@@ -108,12 +108,27 @@ export class NurseTasksService {
       : 'INJECTION'
     );
 
+    const doctorName = user.name || user.fullName || 'Consulting Doctor';
+    const doctorDepartment = user.department || 'Clinical Consultations';
+
+    let assignedNurseName = '';
+    if (assignedNurseId) {
+      try {
+        const { User } = await import('../../models/User.js');
+        const nurseObj = await User.findById(assignedNurseId).select('name');
+        if (nurseObj) assignedNurseName = nurseObj.name;
+      } catch (e) {}
+    }
+
     const task = await NurseTask.create({
       hospitalId,
       branchId,
       patientId: patient._id,
       doctorId: user.id || user._id,
+      doctorName,
+      doctorDepartment,
       assignedNurseId: assignedNurseId || null,
+      assignedNurseName,
       appointmentId: appointment?._id || null,
       taskType,
       medicineName: data.medicineName,
@@ -126,6 +141,20 @@ export class NurseTasksService {
       allergyInformation: data.allergyInformation || 'Check patient for allergies',
       scheduledTime: new Date(),
       status: 'PENDING',
+    });
+
+    await NotificationService.createNotification({
+      hospitalId,
+      branchId,
+      recipientUserId: assignedNurseId || null,
+      recipientRole: !assignedNurseId ? 'NURSE' : null,
+      title: `New Treatment Request: ${task.medicineName}`,
+      message: `Dr. ${doctorName} prescribed ${task.medicineName} (${task.dose}) for patient ${patient.firstName || ''} ${patient.lastName || ''} (UHID: ${patient.uhid || 'N/A'}). Instructions: ${task.doctorInstructions}`,
+      notificationType: 'NEW_DATA',
+      targetModule: 'nursing',
+      targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
+      relatedPatientId: patient._id,
+      relatedTaskId: String(task._id),
     });
 
     // Update appointment status to WAITING_NURSE if active
@@ -386,7 +415,75 @@ export class NurseTasksService {
       task.administrationDetails.reasonIfSkippedOrRefused = reasonIfSkippedOrRefused.trim();
     }
 
+    task.doctorReviewedAt = null;
     await task.save();
+
+    const { Patient } = await import('../../models/Patient.js');
+    const { Notification } = await import('../../models/Notification.js');
+    const patient = await Patient.findById(task.patientId).select('firstName lastName uhid').lean();
+    const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient';
+    const uhid = patient?.uhid || 'N/A';
+
+    // Mark previous nurse pending notifications as read so nurse badge count updates immediately
+    await Notification.updateMany(
+      { hospitalId: task.hospitalId, relatedTaskId: String(task._id), isRead: false },
+      { $set: { isRead: true, readAt: new Date() } }
+    ).catch(() => {});
+
+    if (status === 'ADMINISTERED') {
+      // 1. Notify the Prescribing Doctor
+      await NotificationService.createNotification({
+        hospitalId: task.hospitalId,
+        branchId: task.branchId,
+        recipientUserId: task.doctorId,
+        title: `Injection / Treatment Administered: ${task.medicineName}`,
+        message: `Nurse ${user.name} administered ${task.medicineName} (${task.dose}) for patient ${patientName} (UHID: ${uhid}). Route: ${task.administrationDetails?.siteOrRoute || 'IV'}.`,
+        notificationType: 'DEPARTMENT_RESPONSE',
+        targetModule: 'doctor',
+        targetRoute: '/doctor/dashboard?tab=DEPT_RESPONSES',
+        relatedPatientId: task.patientId,
+        relatedTaskId: String(task._id),
+      });
+
+      // 2. Notify Cashier / Central Billing
+      await NotificationService.createNotification({
+        hospitalId: task.hospitalId,
+        branchId: task.branchId,
+        recipientRole: 'CASHIER',
+        title: `Bill Ready (Post-Injection): ${task.medicineName}`,
+        message: `Nurse ${user.name} completed administration for patient ${patientName} (UHID: ${uhid}). Invoice charges logged for billing clearance.`,
+        notificationType: 'BILLING_UPDATE',
+        targetModule: 'billing',
+        targetRoute: '/billing/dashboard',
+        relatedPatientId: task.patientId,
+        relatedTaskId: String(task._id),
+      });
+
+      socketManager.emitToUser(String(task.doctorId), 'department:order_update', {
+        taskId: task._id,
+        status: 'ADMINISTERED',
+        medicineName: task.medicineName,
+        nurseName: user.name,
+      });
+
+      socketManager.emitToUser(String(task.doctorId), 'workflow:notification', {
+        type: 'NURSE_TASK_COMPLETED',
+        event: 'NURSE_REQUEST_COMPLETED',
+        title: 'Injection Administered',
+        message: `Nurse ${user.name} administered ${task.medicineName} for patient ${patientName}.`,
+        patientId: task.patientId,
+        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+      });
+
+      socketManager.emitToRole('CASHIER', 'workflow:notification', {
+        type: 'INVOICE_READY',
+        event: 'BILL_READY',
+        title: 'Bill Ready (Post-Injection)',
+        message: `Patient ${patientName} completed nurse administration (${task.medicineName}) and is cleared for billing.`,
+        patientId: task.patientId,
+        linkedPath: '/billing/dashboard',
+      });
+    }
 
     // Check if appointment should transition upon completing nurse tasks
     if (task.appointmentId) {
@@ -408,26 +505,6 @@ export class NurseTasksService {
               appointmentId: appt._id,
               status: appt.status,
               tokenNumber: appt.tokenNumber,
-            });
-
-            // Alert the consulting doctor
-            socketManager.emitToUser(String(task.doctorId), 'workflow:notification', {
-              type: 'NURSE_TASK_COMPLETED',
-              event: 'NURSE_REQUEST_COMPLETED',
-              title: 'Injection Administered',
-              message: `Nurse ${user.name} administered ${task.medicineName} for patient token #${appt.tokenNumber}. Ready for billing clearance.`,
-              patientId: task.patientId,
-              linkedPath: '/doctor/dashboard?tab=COMPLETED',
-            });
-
-            // Alert Cashier / Billing Desk
-            socketManager.emitToRole('CASHIER', 'workflow:notification', {
-              type: 'INVOICE_READY',
-              event: 'BILL_READY',
-              title: 'Bill Ready (Post-Injection)',
-              message: `Token #${appt.tokenNumber} has completed nurse administration and is cleared for billing.`,
-              patientId: task.patientId,
-              linkedPath: '/billing/dashboard',
             });
           }
         }

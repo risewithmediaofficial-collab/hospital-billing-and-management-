@@ -419,7 +419,9 @@ export const PharmacistDashboard = () => {
                         <div key={idx} className="flex items-center justify-between text-slate-700">
                           <div>
                             <span className="font-bold">{med.medicineName}</span> ({med.dosageForm} - {med.dosage}) — {med.frequency} for {med.durationDays} days
-                            <span className="ml-2 text-slate-400 font-mono">[{med.treatmentType}]</span>
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] font-extrabold ${med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-sky-100 text-sky-800 border border-sky-200'}`}>
+                              {med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? '💉 Nurse Station Administration' : '💊 Take-Home Medication'}
+                            </span>
                           </div>
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${med.itemStatus === 'DISPENSED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
                             {med.itemStatus}

@@ -251,6 +251,7 @@ export const RadiologistDashboard = () => {
                     </span>
                   </div>
                   <p className="font-bold text-slate-900 text-sm mt-1.5">{ord.patientName} ({ord.patientAge})</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Prescribed by: <strong className="text-slate-800">Dr. {ord.doctorName || 'Doctor'}</strong></p>
                   <div className="flex justify-between items-center mt-1.5 text-xs">
                     <span className="text-indigo-700 font-mono font-bold text-[11px]">UHID: {ord.uhid}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${

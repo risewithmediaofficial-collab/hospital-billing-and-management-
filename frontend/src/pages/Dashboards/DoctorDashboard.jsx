@@ -64,6 +64,8 @@ export const DoctorDashboard = () => {
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
 
   const [patientInvestigations, setPatientInvestigations] = useState([]);
+  const [nurseTasks, setNurseTasks] = useState([]);
+  const [patientNurseTasks, setPatientNurseTasks] = useState([]);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isInjectionModalOpen, setIsInjectionModalOpen] = useState(false);
@@ -112,6 +114,7 @@ export const DoctorDashboard = () => {
     fetchOpdQueue();
     fetchDepartmentOrders();
     fetchSubstitutionRequests();
+    fetchNurseTasks();
   }, []);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
@@ -124,9 +127,11 @@ export const DoctorDashboard = () => {
 
     const handleInvestigationUpdate = (data) => {
       fetchDepartmentOrders();
+      fetchNurseTasks();
       const activePatientId = selectedToken?.patientId?._id || selectedToken?.patientId || currentPatient?._id || currentPatient?.id;
       if (activePatientId) {
         fetchPatientInvestigations(activePatientId);
+        fetchPatientNurseTasks(activePatientId);
       }
       if (data && data.orderId) {
         addNotification({
@@ -163,14 +168,16 @@ export const DoctorDashboard = () => {
       socket.on('investigation:status_updated', handleInvestigationUpdate);
       socket.on('diagnostics:report_ready', handleInvestigationUpdate);
       socket.on('doctor:availability_changed', handleDoctorAvailability);
-      socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); });
+      socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); });
       socket.on('queue:update', fetchOpdQueue);
-      socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); });
+      socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); });
+      socket.on('workflow:pending_changed', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchNurseTasks(); });
 
       return () => {
         socket.off('workflow:notification');
         socket.off('queue:update', fetchOpdQueue);
         socket.off('department:order_update');
+        socket.off('workflow:pending_changed');
         socket.off('opd_queue:updated', handleQueueUpdate);
         socket.off('opd_queue:status_changed', handleQueueUpdate);
         socket.off('queue:patient_added', handleQueueUpdate);
@@ -259,6 +266,18 @@ export const DoctorDashboard = () => {
     }
   };
 
+  const fetchNurseTasks = async () => {
+    try {
+      const targetDocId = user?.id || user?._id;
+      const res = await axiosClient.get('/pharmacy/nurse-tasks', {
+        params: targetDocId ? { doctorId: targetDocId } : {},
+      });
+      setNurseTasks(res.data || []);
+    } catch (err) {
+      console.error('Failed to load nurse tasks:', err);
+    }
+  };
+
   const fetchPatientInvestigations = async (patientId) => {
     if (!patientId) return;
     try {
@@ -269,9 +288,23 @@ export const DoctorDashboard = () => {
     }
   };
 
+  const fetchPatientNurseTasks = async (patientId) => {
+    if (!patientId) return;
+    try {
+      const res = await axiosClient.get('/pharmacy/nurse-tasks', {
+        params: { patientId },
+      });
+      setPatientNurseTasks(res.data || []);
+    } catch (err) {
+      console.error('Failed to load patient nurse tasks:', err);
+    }
+  };
+
   const handleSelectToken = (tok) => {
     setSelectedToken(tok);
-    fetchPatientInvestigations(tok.patientId?._id || tok.patientId);
+    const pid = tok.patientId?._id || tok.patientId;
+    fetchPatientInvestigations(pid);
+    fetchPatientNurseTasks(pid);
   };
 
   const currentPatient = selectedToken?.patientId;
@@ -309,6 +342,14 @@ export const DoctorDashboard = () => {
     const tName = (ord.testName || '').toLowerCase();
     const search = queueSearchTerm.toLowerCase();
     return pName.includes(search) || uhid.includes(search) || tName.includes(search);
+  });
+
+  const filteredNurseTasks = nurseTasks.filter((t) => {
+    const pName = `${t.patientId?.firstName || ''} ${t.patientId?.lastName || ''}`.toLowerCase();
+    const uhid = (t.patientId?.uhid || '').toLowerCase();
+    const medName = (t.medicineName || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || medName.includes(search);
   });
 
   const pendingReportsCount = departmentResponses.filter((ord) =>
@@ -375,6 +416,48 @@ export const DoctorDashboard = () => {
 
     setSelectedToken(targetToken);
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
+    setIsConsultationModalOpen(true);
+  };
+
+  const handleContinueConsultationForNurseTask = async (task) => {
+    try {
+      await axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`);
+      resolvePending(task._id);
+      fetchNurseTasks();
+    } catch (e) {
+      console.error('Failed to review nurse task:', e);
+    }
+
+    let targetToken = departmentHoldQueue.find((t) => String(t._id) === String(task.appointmentId?._id || task.appointmentId))
+      || liveQueue.find((t) => String(t._id) === String(task.appointmentId?._id || task.appointmentId))
+      || liveQueue.find((t) => String(t.patientId?._id || t.patientId) === String(task.patientId?._id || task.patientId))
+      || departmentHoldQueue.find((t) => String(t.patientId?._id || t.patientId) === String(task.patientId?._id || task.patientId))
+      || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(task.patientId?._id || task.patientId));
+
+    if (!targetToken) {
+      const patientObj = typeof task.patientId === 'object' && task.patientId !== null
+        ? task.patientId
+        : {
+            _id: task.patientId || `pat_${Date.now()}`,
+            firstName: (task.patientName || 'Patient').split(' ')[0] || 'Patient',
+            lastName: (task.patientName || '').split(' ').slice(1).join(' ') || '',
+            uhid: task.uhid || 'UHID',
+            gender: 'GENERAL',
+          };
+
+      targetToken = {
+        _id: task.appointmentId?._id || task.appointmentId || `apt_${Date.now()}`,
+        tokenNumber: task.tokenNumber || 1,
+        status: 'IN_CONSULTATION',
+        patientId: patientObj,
+        chiefComplaints: `Follow-up on Nurse Treatment: ${task.medicineName} (${task.dose})`,
+      };
+    }
+
+    setSelectedToken(targetToken);
+    const pid = targetToken.patientId?._id || targetToken.patientId || task.patientId;
+    fetchPatientInvestigations(pid);
+    fetchPatientNurseTasks(pid);
     setIsConsultationModalOpen(true);
   };
 
@@ -832,19 +915,82 @@ export const DoctorDashboard = () => {
                 </Button>
               </div>
 
-              {/* Department requests are tracked exclusively from the dedicated sidebar module. */}
-              {false && (<div className="pt-2">
-                <div className="flex items-center justify-between mb-2">
+              {/* Multi-Department Real-Time Order & Response Tracker for Selected Patient */}
+              <div className="pt-3 border-t border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
                   <h4 className="font-extrabold text-black flex items-center gap-1.5 text-xs">
-                    <FileCheck2 className="text-sky-600" size={16} />
-                    Sent to Departments ({sentPatientInvestigations.length})
+                    <Activity className="text-indigo-600" size={16} />
+                    Active Patient Department Orders & Live Progress
                   </h4>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {patientNurseTasks.length + patientInvestigations.length} Total Orders
+                  </span>
                 </div>
 
-                <div className="space-y-2">
-                  {sentPatientInvestigations.length > 0 ? (
-                    sentPatientInvestigations.map((inv) => (
-                      <div key={inv._id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-2 text-black">
+                {/* 1. Nursing Care & Injection Administrations for this patient */}
+                {patientNurseTasks.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-extrabold text-slate-800 flex items-center gap-1">
+                      <Syringe size={13} className="text-rose-600" />
+                      <span>Prescribed Injections & Nursing Care ({patientNurseTasks.length})</span>
+                    </div>
+                    {patientNurseTasks.map((t) => (
+                      <div
+                        key={t._id}
+                        className={`p-3 rounded-xl border text-xs space-y-1.5 transition-all ${
+                          t.status === 'ADMINISTERED'
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                            : 'bg-rose-50/40 border-rose-200 text-rose-950'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-slate-900">{t.medicineName} ({t.dose})</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800 uppercase">
+                              {t.route || 'IV'}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                              t.status === 'ADMINISTERED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800 animate-pulse'
+                            }`}
+                          >
+                            {t.status === 'ADMINISTERED' ? '✓ ADMINISTERED' : '⏳ PENDING IN NURSING'}
+                          </span>
+                        </div>
+
+                        {t.status === 'ADMINISTERED' ? (
+                          <div className="text-[11px] text-emerald-900 bg-white/80 p-2 rounded-lg border border-emerald-200 flex flex-wrap items-center justify-between gap-2">
+                            <span>
+                              <CheckCircle2 size={13} className="inline mr-1 text-emerald-600" />
+                              Administered by <strong>Nurse {t.administrationDetails?.nurseName || 'Duty Nurse'}</strong> at <strong>{new Date(t.administrationDetails?.administeredAt || t.updatedAt).toLocaleTimeString()}</strong>
+                            </span>
+                            {t.administrationDetails?.notes && (
+                              <span className="italic text-slate-600">Notes: "{t.administrationDetails.notes}"</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-600 flex justify-between">
+                            <span>Target: <strong>{t.assignedNurseName || 'Nursing Station'}</strong></span>
+                            <span>Requested at: {new Date(t.createdAt).toLocaleTimeString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2. Diagnostic Investigations (Lab / Radiology) for this patient */}
+                {patientInvestigations.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-extrabold text-slate-800 flex items-center gap-1">
+                      <FileCheck2 size={13} className="text-sky-600" />
+                      <span>Diagnostics & Imaging ({patientInvestigations.length})</span>
+                    </div>
+                    {patientInvestigations.map((inv) => (
+                      <div key={inv._id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-black">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-600 text-white">
@@ -900,12 +1046,16 @@ export const DoctorDashboard = () => {
                           </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-slate-500 text-xs">No department requests are currently pending. Completed results move to Department Responses.</div>
-                  )}
-                </div>
-              </div>)}
+                    ))}
+                  </div>
+                )}
+
+                {patientNurseTasks.length === 0 && patientInvestigations.length === 0 && (
+                  <div className="p-3 text-center text-slate-500 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    No active departmental orders requested for this consultation yet. Use the buttons above to order injections, tests, or IPD admission.
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="p-8 text-center text-slate-500 text-sm">
@@ -973,18 +1123,149 @@ export const DoctorDashboard = () => {
 
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
-        <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div>
-              <h3 className="text-base font-extrabold text-black flex items-center gap-2">
-                <FileCheck2 size={18} className="text-amber-600" />
-                Department Request & Response Tracker ({filteredDeptOrders.length})
-              </h3>
-              <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                Track each request from dispatch through processing, report submission, and doctor review.
-              </p>
+        <div className="space-y-6">
+          {/* 1. Nurse Administrations & Injections */}
+          <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                  <Syringe size={18} className="text-rose-600" />
+                  Nurse Treatment & Injection Administration Responses ({filteredNurseTasks.length})
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                  Injections and bedside treatments administered by nurses. Review administration timestamp, batch, and patient reactions.
+                </p>
+              </div>
             </div>
-          </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                  <tr>
+                    <th className="p-3">Patient Name</th>
+                    <th className="p-3">UHID</th>
+                    <th className="p-3">Medicine & Dose</th>
+                    <th className="p-3">Route / Site</th>
+                    <th className="p-3">Administering Nurse</th>
+                    <th className="p-3">Administered Time</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Reaction / Notes</th>
+                    <th className="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-black">
+                  {filteredNurseTasks.length > 0 ? (
+                    filteredNurseTasks.map((task) => (
+                      <tr key={task._id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-bold text-black">
+                          {task.patientId?.firstName} {task.patientId?.lastName}
+                        </td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">
+                          {task.patientId?.uhid || '—'}
+                        </td>
+                        <td className="p-3 font-extrabold text-slate-900">
+                          {task.medicineName} ({task.dose})
+                        </td>
+                        <td className="p-3 text-slate-700 font-bold uppercase">
+                          {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
+                        </td>
+                        <td className="p-3 font-medium text-slate-800">
+                          {task.status === 'ADMINISTERED'
+                            ? `Nurse ${task.administrationDetails?.nurseName || 'Duty Nurse'}`
+                            : `Assigned: ${task.assignedNurseName || 'Nursing Station'}`}
+                        </td>
+                        <td className="p-3 text-slate-600 whitespace-nowrap">
+                          {task.administrationDetails?.administeredAt
+                            ? new Date(task.administrationDetails.administeredAt).toLocaleString()
+                            : new Date(task.createdAt).toLocaleString()}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${
+                              task.status === 'ADMINISTERED'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                : 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                            }`}
+                          >
+                            {task.status === 'ADMINISTERED' ? '✓ ADMINISTERED' : 'PENDING NURSING'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-600 max-w-xs truncate">
+                          {task.administrationDetails?.notes || (task.status === 'ADMINISTERED' ? 'Normal / Completed' : task.doctorInstructions || '—')}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {task.status === 'ADMINISTERED' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`);
+                                      resolvePending(task._id);
+                                      fetchNurseTasks();
+                                    } catch (e) {
+                                      console.error('Failed to review nurse task:', e);
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
+                                    task.doctorReviewedAt
+                                      ? 'bg-emerald-50 border border-emerald-300 text-emerald-700 font-extrabold'
+                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                                  }`}
+                                >
+                                  <CheckCircle2 size={12} />
+                                  {task.doctorReviewedAt ? 'Reviewed & Accepted' : 'Mark as Reviewed'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleContinueConsultationForNurseTask(task)}
+                                  className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                  title="Open consultation with this patient and finalize diagnosis/bill"
+                                >
+                                  <Stethoscope size={13} />
+                                  Continue Consultation & Bill
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
+                              >
+                                <Lock size={12} /> Pending at Station
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="p-6 text-center text-slate-500">
+                        No nurse-administered treatment tasks recorded today.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* 2. Diagnostics & Imaging Orders */}
+          <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                  <FileCheck2 size={18} className="text-amber-600" />
+                  Department Request & Response Tracker ({filteredDeptOrders.length})
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                  Track each request from dispatch through processing, report submission, and doctor review.
+                </p>
+              </div>
+            </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -1087,52 +1368,53 @@ export const DoctorDashboard = () => {
             </table>
           </div>
         </Card>
-      )}
 
-      {/* PHARMACY SUBSTITUTION REQUESTS (shown inside DEPT_RESPONSES) */}
-      {activeTab === 'DEPT_RESPONSES' && substitutionRequests.filter(r => r.status === 'PENDING').length > 0 && (
-        <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
-            <Pill size={18} className="text-amber-600" />
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({substitutionRequests.filter(r => r.status === 'PENDING').length})</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine. Review and respond.</p>
-            </div>
-          </div>
-          <div className="divide-y divide-amber-50 text-xs">
-            {substitutionRequests.filter(r => r.status === 'PENDING').map((req) => (
-              <div key={req._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <p className="font-bold text-slate-900 text-sm">
-                    {req.patientId?.firstName} {req.patientId?.lastName}
-                    <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
-                  </p>
-                  <p className="text-slate-600">
-                    <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
-                    {' '}&rarr;{' '}
-                    <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
-                  </p>
-                  <p className="text-slate-500">Reason: {req.reason}</p>
-                  <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
-                  >
-                    <CheckCircle2 size={13} /> Approve
-                  </button>
-                  <button
-                    onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
-                    className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5"
-                  >
-                    <X size={13} /> Reject
-                  </button>
-                </div>
+        {/* PHARMACY SUBSTITUTION REQUESTS (shown inside DEPT_RESPONSES) */}
+        {substitutionRequests.filter(r => r.status === 'PENDING').length > 0 && (
+          <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
+              <Pill size={18} className="text-amber-600" />
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({substitutionRequests.filter(r => r.status === 'PENDING').length})</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine. Review and respond.</p>
               </div>
-            ))}
-          </div>
-        </Card>
+            </div>
+            <div className="divide-y divide-amber-50 text-xs">
+              {substitutionRequests.filter(r => r.status === 'PENDING').map((req) => (
+                <div key={req._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-slate-900 text-sm">
+                      {req.patientId?.firstName} {req.patientId?.lastName}
+                      <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
+                    </p>
+                    <p className="text-slate-600">
+                      <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
+                      {' '}&rarr;{' '}
+                      <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
+                    </p>
+                    <p className="text-slate-500">Reason: {req.reason}</p>
+                    <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 size={13} /> Approve
+                    </button>
+                    <button
+                      onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
+                      className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5"
+                    >
+                      <X size={13} /> Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
       )}
 
       {/* FOLLOW-UP VISITS TAB */}
