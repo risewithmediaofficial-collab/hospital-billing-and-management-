@@ -6,9 +6,10 @@ import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLE_NAMES } from '../../utils/constants';
-import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote } from 'lucide-react';
+import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote, ChevronDown } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
+import { UserProfilePopover } from './UserProfilePopover';
 
 export const Navbar = ({ onToggleSidebar }) => {
   const location = useLocation();
@@ -20,6 +21,7 @@ export const Navbar = ({ onToggleSidebar }) => {
   const { unreadCount: notificationCount, fetchNotifications } = useNotificationStore();
   const { isAvailable, isToggling, handleToggle } = useAvailability();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const canSetAvailability = user && !['PATIENT', 'GUARDIAN', 'SUPER_ADMIN', 'HOSPITAL_ADMIN'].includes(user.role);
 
   const handleSwitchMode = (targetMode) => {
@@ -191,26 +193,40 @@ export const Navbar = ({ onToggleSidebar }) => {
           </div>
         )}
 
-        {/* User Identity */}
-        <div className="flex items-center gap-2.5 pl-2.5 border-l border-slate-200">
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-bold text-slate-800 leading-none">{user?.name}</p>
-            <p className="text-[11px] font-semibold text-indigo-500 mt-0.5">
-              {isGuardianView ? 'Guardian Portal' : (ROLE_NAMES[user?.role] || user?.role)}
-            </p>
-          </div>
+        {/* User Identity & Profile Popover Trigger */}
+        <div className="relative flex items-center pl-2.5 border-l border-slate-200">
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center gap-2.5 p-1 sm:px-2 sm:py-1 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer text-left select-none"
+            title="Click to view user profile, assigned roles & status"
+          >
+            <div className="text-right hidden md:block">
+              <p className="text-sm font-bold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors">
+                {user?.name}
+              </p>
+              <p className="text-[11px] font-semibold text-indigo-500 mt-0.5">
+                {isGuardianView ? 'Guardian Portal' : (ROLE_NAMES[user?.role] || user?.role)}
+              </p>
+            </div>
 
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm">
-            {user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
-          </div>
+            {/* Avatar */}
+            <div className="w-8 h-8 rounded-full bg-indigo-600 group-hover:bg-indigo-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm transition-transform group-hover:scale-105">
+              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
+            </div>
 
-          {/* Logout */}
+            <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-700 transition-transform hidden sm:block" />
+          </button>
+
+          {/* Profile Popover */}
+          <UserProfilePopover isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+
+          {/* Quick Logout Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={logout}
-            className="hidden sm:flex items-center gap-1.5"
+            className="hidden sm:flex items-center gap-1.5 ml-2"
           >
             <LogOut size={14} />
             <span className="hidden md:inline">Logout</span>
@@ -219,7 +235,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           {/* Mobile-only icon logout */}
           <button
             onClick={logout}
-            className="sm:hidden p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="sm:hidden p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors ml-1"
             aria-label="Logout"
           >
             <LogOut size={16} />

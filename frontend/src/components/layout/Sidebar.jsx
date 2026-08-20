@@ -570,59 +570,68 @@ export const Sidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Role Identity Badge */}
-        <div className="px-3 pt-3 pb-1 shrink-0">
-          <div className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
-            <div className="flex items-center justify-between">
-              <p className="text-indigo-400 uppercase tracking-wider text-[10px] font-bold">
-                Active User Role
-              </p>
-              {isDual && (
-                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${currentMode === 'WORK' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white'}`}>
-                  {currentMode === 'WORK' ? 'Work Mode' : 'Admin Mode'}
-                </span>
-              )}
-            </div>
-            <p className="font-bold text-indigo-700 mt-0.5 truncate text-sm">
-              {isGuardianView ? 'Guardian Portal' : primaryRoleName}
-            </p>
-            {additionalRoleNames && (
-              <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">
-                + {additionalRoleNames}
-              </p>
-            )}
+        {/* Quick Department Activity Alert Bar (Highlights exactly which department has incoming data) */}
+        {(() => {
+          const activeDepts = [];
+          groupedCategories.forEach((grp) => {
+            grp.items.forEach((item) => {
+              const count = item.path === '/emergency' ? activeCount : getUnreadCountForNav(item.path);
+              if (count > 0) {
+                activeDepts.push({
+                  title: item.title || item.name,
+                  category: grp.category,
+                  path: item.path,
+                  count,
+                  isEmergency: item.path === '/emergency',
+                });
+              }
+            });
+          });
 
-            {/* Dual Mode Switcher in Sidebar Header */}
-            {isDual && (
-              <div className="grid grid-cols-2 gap-1 p-1 bg-white/90 rounded-lg border border-indigo-200/80 mt-2 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMode('WORK')}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all ${
-                    currentMode === 'WORK'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                  title="Clinical & Patient Care Desks"
-                >
-                  <Icons.Stethoscope size={12} /> Work
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMode('ADMIN')}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all ${
-                    currentMode === 'ADMIN'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                  title="Hospital Admin & Settings"
-                >
-                  <Icons.Building2 size={12} /> Admin
-                </button>
+          if (activeDepts.length === 0) return null;
+
+          return (
+            <div className="mx-3 mt-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-indigo-50/50 to-amber-50/30 border border-amber-200/90 shadow-2xs">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-900">
+                    Incoming Dept Data
+                  </span>
+                </div>
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-black">
+                  {activeDepts.reduce((acc, d) => acc + d.count, 0)} New
+                </span>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="flex flex-wrap gap-1">
+                {activeDepts.map((dept) => (
+                  <button
+                    key={dept.path}
+                    type="button"
+                    onClick={() => {
+                      setOpenCategories((prev) => ({ ...prev, [dept.category]: true }));
+                      navigate(formatTenantPath(dept.path));
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 transition-all shadow-2xs ${
+                      dept.isEmergency
+                        ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
+                        : 'bg-white hover:bg-amber-100/60 text-slate-800 border-amber-200 hover:border-amber-300'
+                    }`}
+                    title={`Click to open ${dept.title} in ${dept.category}`}
+                  >
+                    <span className="truncate max-w-[100px]">{dept.title}</span>
+                    <span className={`px-1 rounded-full text-[9px] font-black ${dept.isEmergency ? 'bg-white text-rose-600' : 'bg-amber-500 text-white'}`}>
+                      {dept.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Navigation Links with Collapsible Dropdown Accordion */}
         <nav
@@ -638,6 +647,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
             const catEmergencyCount = group.items.reduce((acc, it) => acc + (it.path === '/emergency' ? activeCount : 0), 0);
             const catUnreadCount = group.items.reduce((acc, it) => acc + (it.path !== '/emergency' ? getUnreadCountForNav(it.path) : 0), 0);
+            const hasCategoryAlerts = catEmergencyCount > 0 || catUnreadCount > 0;
 
             return (
               <div key={group.category} className="rounded-xl overflow-hidden transition-all">
@@ -647,30 +657,42 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   onClick={() => toggleCategory(group.category)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all duration-150 group select-none ${
                     isCatActive
-                      ? 'text-indigo-950 font-black bg-indigo-50/80'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold'
+                      ? 'text-indigo-950 font-black bg-indigo-50/80 border border-indigo-100'
+                      : hasCategoryAlerts && !isCategoryOpen
+                      ? 'text-amber-950 font-black bg-amber-50/80 border border-amber-200 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold border border-transparent'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <CatIcon
                       size={15}
                       className={`shrink-0 transition-colors ${
-                        isCatActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
+                        isCatActive
+                          ? 'text-indigo-600'
+                          : hasCategoryAlerts
+                          ? 'text-amber-600'
+                          : 'text-slate-400 group-hover:text-slate-600'
                       }`}
                     />
                     <span className="text-[11px] uppercase tracking-wider truncate font-black">
                       {group.category}
                     </span>
+                    {hasCategoryAlerts && !isCategoryOpen && (
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {catEmergencyCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse">
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse shadow-xs">
                         {catEmergencyCount}
                       </span>
                     )}
                     {catUnreadCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-600 text-white">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black text-white shadow-xs ${!isCategoryOpen ? 'bg-amber-500 animate-pulse' : 'bg-indigo-600'}`}>
                         {catUnreadCount}
                       </span>
                     )}

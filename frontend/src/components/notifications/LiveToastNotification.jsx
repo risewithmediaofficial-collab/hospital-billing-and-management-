@@ -59,6 +59,38 @@ const getNotificationIcon = (item) => {
   return <Bell size={20} className="text-indigo-500 shrink-0" />;
 };
 
+const getDepartmentMeta = (item) => {
+  const type = String(item.type || item.event || '').toUpperCase();
+  const title = String(item.title || '').toUpperCase();
+  const linked = String(item.linkedPath || item.targetRoute || item.link || '').toLowerCase();
+
+  if (type.includes('EMERGENCY') || title.includes('EMERGENCY') || title.includes('CODE BLUE')) {
+    return { name: 'Emergency', badgeClass: 'bg-rose-500 text-white' };
+  }
+  if (type.includes('LAB') || title.includes('LAB') || linked.includes('/laboratory')) {
+    return { name: 'Laboratory', badgeClass: 'bg-cyan-500 text-white' };
+  }
+  if (type.includes('RADIOLOGY') || title.includes('SCAN') || title.includes('RADIOLOGY') || linked.includes('/radiology')) {
+    return { name: 'Radiology', badgeClass: 'bg-teal-500 text-white' };
+  }
+  if (type.includes('PHARMACY') || type.includes('PRESCRIPTION') || title.includes('PRESCRIPTION') || title.includes('MEDICINE') || linked.includes('/pharmacy')) {
+    return { name: 'Pharmacy', badgeClass: 'bg-amber-500 text-white' };
+  }
+  if (type.includes('BILL') || type.includes('INVOICE') || type.includes('PAYMENT') || title.includes('BILL') || title.includes('INVOICE') || linked.includes('/billing')) {
+    return { name: 'Central Billing', badgeClass: 'bg-emerald-500 text-white' };
+  }
+  if (type.includes('NURSE') || title.includes('INJECTION') || title.includes('NURSE') || title.includes('PROCEDURE') || title.includes('ADMISSION') || linked.includes('/nurse') || linked.includes('/nursing')) {
+    return { name: 'Inpatient & Ward', badgeClass: 'bg-pink-500 text-white' };
+  }
+  if (type.includes('PATIENT_QUEUED') || title.includes('PATIENT') || linked.includes('/doctor')) {
+    return { name: 'Clinical EMR', badgeClass: 'bg-indigo-500 text-white' };
+  }
+  if (linked.includes('/reception') || title.includes('RECEPTION') || title.includes('TOKEN')) {
+    return { name: 'Reception & Queue', badgeClass: 'bg-blue-500 text-white' };
+  }
+  return { name: 'Department Alert', badgeClass: 'bg-slate-700 text-slate-200' };
+};
+
 export const LiveToastNotification = () => {
   const { socket } = useSocket();
   const { user } = useAuthStore();
@@ -164,43 +196,52 @@ export const LiveToastNotification = () => {
 
   return (
     <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className="pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl transition-all duration-300 transform hover:scale-[1.02] flex items-start gap-3 animate-fade-in cursor-pointer group"
-          onClick={() => handleToastClick(toast)}
-        >
-          <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 mt-0.5">
-            {getNotificationIcon(toast)}
-          </div>
-          <div className="flex-1 min-w-0 pr-1">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="text-xs font-black text-white truncate tracking-tight group-hover:text-indigo-300 transition-colors">
-                {toast.title}
-              </h4>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeToast(toast.id);
-                }}
-                className="text-slate-400 hover:text-white p-0.5 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <X size={14} />
-              </button>
+      {toasts.map((toast) => {
+        const deptMeta = getDepartmentMeta(toast);
+
+        return (
+          <div
+            key={toast.id}
+            className="pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl transition-all duration-300 transform hover:scale-[1.02] flex items-start gap-3 animate-fade-in cursor-pointer group"
+            onClick={() => handleToastClick(toast)}
+          >
+            <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 mt-0.5">
+              {getNotificationIcon(toast)}
             </div>
-            <p className="text-[11px] text-slate-300 mt-1 leading-snug line-clamp-2">
-              {toast.message}
-            </p>
-            {toast.linkedPath && (
-              <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-indigo-400 group-hover:text-indigo-300">
-                <span>Open Workstation</span>
-                <ExternalLink size={10} />
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${deptMeta.badgeClass}`}>
+                    {deptMeta.name}
+                  </span>
+                  <h4 className="text-xs font-black text-white truncate tracking-tight group-hover:text-indigo-300 transition-colors">
+                    {toast.title}
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeToast(toast.id);
+                  }}
+                  className="text-slate-400 hover:text-white p-0.5 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X size={14} />
+                </button>
               </div>
-            )}
+              <p className="text-[11px] text-slate-300 mt-1 leading-snug line-clamp-2">
+                {toast.message}
+              </p>
+              {toast.linkedPath && (
+                <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-indigo-400 group-hover:text-indigo-300">
+                  <span>Open {deptMeta.name} Desk</span>
+                  <ExternalLink size={10} />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

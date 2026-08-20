@@ -662,57 +662,6 @@ export const DoctorDashboard = () => {
         </>
       )}
 
-      {/* ── WORKSTATION SUB-NAVIGATION TABS ── */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto bg-white/60 p-2 rounded-xl border">
-        <button
-          onClick={() => handleTabClick('OVERVIEW')}
-          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'OVERVIEW' || activeTab === 'LIVE'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <Users size={15} />
-          <span>Live OPD Queue ({liveQueue.length})</span>
-        </button>
-
-        <button
-          onClick={() => handleTabClick('FOLLOW_UPS')}
-          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'FOLLOW_UPS'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <Calendar size={15} />
-          <span>Follow-Up Visits & Missed Calls</span>
-        </button>
-
-        <button
-          onClick={() => handleTabClick('COMPLETED')}
-          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'COMPLETED'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <CheckCircle2 size={15} />
-          <span>Completed Consultations ({completedQueue.length})</span>
-        </button>
-
-        <button
-          onClick={() => handleTabClick('DEPT_RESPONSES')}
-          className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'DEPT_RESPONSES'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          <FileCheck2 size={15} />
-          <span>Department Responses ({pendingReportsCount})</span>
-        </button>
-      </div>
-
       {/* ── TAB VIEWS (Queued / Completed / Dept Responses) ── Search Bar + Content only */}
       {activeTab !== 'OVERVIEW' && activeTab !== 'FOLLOW_UPS' && (
         <div className="relative">

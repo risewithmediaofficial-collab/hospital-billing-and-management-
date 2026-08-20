@@ -263,6 +263,22 @@ export class WorkflowEventService {
         }
       }
 
+      // Also emit to Hospital Admins of this hospital/branch so supervisors in Work Mode receive real-time department alerts
+      const adminUsers = await User.find({
+        ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
+        role: 'HOSPITAL_ADMIN',
+        isActive: { $ne: false },
+        status: { $ne: 'INACTIVE' },
+      }).select('_id').lean().catch(() => []);
+
+      for (const admin of adminUsers) {
+        if (!roles.includes('HOSPITAL_ADMIN')) {
+          socketManager.emitToUser(String(admin._id), `workflow:${event.toLowerCase()}`, envelope);
+          socketManager.emitToUser(String(admin._id), 'workflow:notification', envelope);
+          socketManager.emitToUser(String(admin._id), 'workflow:pending_changed', { event });
+        }
+      }
+
       if (branchId) {
         socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
         socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });

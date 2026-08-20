@@ -180,6 +180,40 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
             const isSuperAdmin = user?.role === 'SUPER_ADMIN';
             const hasValidPatient = notif.patientName && notif.patientName !== 'Patient' && notif.patientName !== 'undefined' && notif.uhid && notif.uhid !== 'N/A';
 
+            const getDeptBadge = (item) => {
+              const target = (item.linkedPath || item.targetRoute || item.link || '').toLowerCase();
+              const type = String(item.type || item.notificationType || '').toUpperCase();
+              const title = String(item.title || '').toUpperCase();
+
+              if (target.includes('/emergency') || type.includes('EMERGENCY') || title.includes('EMERGENCY')) {
+                return { label: 'EMERGENCY', color: 'bg-rose-100 text-rose-800 border-rose-200' };
+              }
+              if (target.includes('/laboratory') || type.includes('LAB') || title.includes('LAB')) {
+                return { label: 'LABORATORY', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' };
+              }
+              if (target.includes('/radiology') || type.includes('RADIOLOGY') || title.includes('SCAN')) {
+                return { label: 'RADIOLOGY', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+              }
+              if (target.includes('/pharmacy') || type.includes('PHARMACY') || title.includes('PRESCRIPTION') || title.includes('MEDICINE')) {
+                return { label: 'PHARMACY', color: 'bg-amber-100 text-amber-800 border-amber-200' };
+              }
+              if (target.includes('/billing') || type.includes('BILL') || title.includes('BILL') || title.includes('INVOICE') || title.includes('PAYMENT')) {
+                return { label: 'CENTRAL BILLING', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+              }
+              if (target.includes('/nurse') || target.includes('/nursing') || type.includes('NURSE') || title.includes('NURSE') || title.includes('ADMISSION')) {
+                return { label: 'INPATIENT / NURSING', color: 'bg-pink-100 text-pink-800 border-pink-200' };
+              }
+              if (target.includes('/doctor') || type.includes('PATIENT_QUEUED') || title.includes('PATIENT')) {
+                return { label: 'CLINICAL EMR', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+              }
+              if (target.includes('/reception') || title.includes('RECEPTION') || title.includes('TOKEN')) {
+                return { label: 'RECEPTION', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+              }
+              return { label: 'DEPARTMENT ALERT', color: 'bg-slate-100 text-slate-700 border-slate-200' };
+            };
+
+            const deptBadge = getDeptBadge(notif);
+
             return (
               <div
                 key={notif.id}
@@ -194,8 +228,11 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
                   }`}>
                     <FileCheck2 size={16} />
                   </div>
-                  <div className="min-w-0 space-y-0.5 flex-1">
-                    <div className="flex items-center gap-1.5">
+                  <div className="min-w-0 space-y-1 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-black tracking-wide border ${deptBadge.color}`}>
+                        {deptBadge.label}
+                      </span>
                       <span className="font-extrabold text-slate-900 text-xs truncate">{notif.title}</span>
                       {!notif.isRead && (
                         <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
