@@ -15,6 +15,7 @@ axiosClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // 1. Super Admin selected hospital context
     try {
       const stored = localStorage.getItem('hpmbs_super_admin_context');
       if (stored) {
@@ -26,6 +27,37 @@ axiosClient.interceptors.request.use(
       }
     } catch {
       // ignore parse errors
+    }
+
+    // 2. User's own hospital context fallback
+    try {
+      const storedUser = localStorage.getItem('hpmbs_user');
+      if (storedUser && !config.headers['X-Hospital-Context']) {
+        const userObj = JSON.parse(storedUser);
+        const uHId = userObj?.hospitalId?._id || userObj?.hospitalId;
+        if (uHId) {
+          config.headers['X-Hospital-Context'] = String(uHId);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    // 3. URL tenant domain fallback (e.g. /test-hospital-1/...)
+    if (typeof window !== 'undefined' && window.location?.pathname) {
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const reservedSlugs = [
+        'login', 'admin', 'doctor', 'nurse', 'nursing', 'nurse-incharge',
+        'reception', 'pharmacy', 'laboratory', 'radiology', 'billing',
+        'patient', 'guardian', 'emergency', 'register-hospital', 'verify-email',
+        'forgot-password', 'reset-password', '403', '404'
+      ];
+      if (pathParts.length > 0 && !reservedSlugs.includes(pathParts[0].toLowerCase())) {
+        config.headers['X-Hospital-Slug'] = pathParts[0];
+        if (!config.headers['X-Hospital-Context']) {
+          config.headers['X-Hospital-Context'] = pathParts[0];
+        }
+      }
     }
 
     return config;

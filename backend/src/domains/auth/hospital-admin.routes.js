@@ -15,16 +15,67 @@ import { Consultation } from '../../models/Consultation.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
 
 const router = Router();
-const adminOrSuper = [verifyJwt, requireRole(ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN)];
+const adminOrSuper = [
+  verifyJwt,
+  requireRole(
+    ROLES.HOSPITAL_ADMIN,
+    ROLES.SUPER_ADMIN,
+    ROLES.DEPARTMENT_MANAGER,
+    ROLES.DOCTOR,
+    ROLES.ADMIN,
+    ROLES.BILLING_STAFF,
+    ROLES.CASHIER
+  ),
+];
+
+/**
+ * Resiliently resolve the target Hospital document from user token, headers, query params or fallback
+ */
+const resolveHospital = async (req) => {
+  let target =
+    req.user?.hospitalId?._id ||
+    req.user?.hospitalId ||
+    req.headers['x-hospital-context'] ||
+    req.query.hospitalId ||
+    req.query.hospitalDomain ||
+    req.query.hospital;
+
+  if (typeof target === 'object' && target?._id) {
+    target = target._id;
+  }
+
+  if (target && mongoose.Types.ObjectId.isValid(String(target))) {
+    const byId = await Hospital.findById(target).populate('subscriptionPlanId', 'name description price billingCycle features maxStaff maxPatients maxBranches').lean();
+    if (byId) return byId;
+  }
+
+  if (target && typeof target === 'string') {
+    const byQuery = await Hospital.findOne({
+      $or: [
+        { domain: target.toLowerCase() },
+        { code: target.toUpperCase() },
+        { name: target },
+      ],
+    }).populate('subscriptionPlanId', 'name description price billingCycle features maxStaff maxPatients maxBranches').lean();
+    if (byQuery) return byQuery;
+  }
+
+  // Fallback for Super Admin or multi-tenant operations
+  const fallback = await Hospital.findOne({ isActive: true })
+    .populate('subscriptionPlanId', 'name description price billingCycle features maxStaff maxPatients maxBranches')
+    .lean();
+  return fallback;
+};
 
 // ─── Hospital Admin Dashboard Summary ─────────────────────────────────────────
 router.get('/overview', ...adminOrSuper, async (req, res, next) => {
   try {
-    const rawHospitalId = req.user.hospitalId?._id || req.user.hospitalId;
+    const hospital = await resolveHospital(req);
+    const rawHospitalId = hospital?._id || req.user?.hospitalId;
     if (!rawHospitalId) return res.status(400).json({ message: 'Hospital context required' });
 
     let hospitalObjId = null;
-    if (rawHospitalId && mongoose.Types.ObjectId.isValid(rawHospitalId)) {
+    if (rawHospitalId && mongoose.Types.ObjectId.isValid(String(rawHospitalId))) {
       hospitalObjId = new mongoose.Types.ObjectId(String(rawHospitalId));
     }
     const hospitalMatch = hospitalObjId ? { $in: [hospitalObjId, String(rawHospitalId)] } : rawHospitalId;
@@ -89,7 +140,8 @@ router.get('/overview', ...adminOrSuper, async (req, res, next) => {
 // ─── Hospital Audit Logs ────────────────────────────────────────────────────
 router.get('/audit-logs', ...adminOrSuper, async (req, res, next) => {
   try {
-    const hospitalId = req.user.hospitalId;
+    const hospital = await resolveHospital(req);
+    const hospitalId = hospital?._id || req.user?.hospitalId;
     if (!hospitalId) return res.status(400).json({ message: 'Hospital context required' });
 
     const { module, limit = 100, page = 1 } = req.query;
@@ -129,24 +181,21 @@ router.get('/audit-logs', ...adminOrSuper, async (req, res, next) => {
 // ─── Plan Details & Subscription Status ────────────────────────────────────
 router.get('/plan-details', ...adminOrSuper, async (req, res, next) => {
   try {
-    const hospitalId = req.user.hospitalId;
-    const hospital = await Hospital.findById(hospitalId)
-      .populate('subscriptionPlanId', 'name description price billingCycle features maxStaff maxPatients maxBranches')
-      .lean();
+    const hospital = await resolveHospital(req);
     if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
 
     return sendSuccess(res, 200, 'Plan details retrieved', {
       hospitalName: hospital.name,
-      plan: hospital.plan,
-      isTrial: hospital.isTrial,
-      trialStatus: hospital.trialStatus,
+      plan: hospital.plan || 'PROFESSIONAL',
+      isTrial: hospital.isTrial ?? false,
+      trialStatus: hospital.trialStatus || 'ACTIVE',
       trialStartDate: hospital.trialStartDate,
       trialEndDate: hospital.trialEndDate,
       subscriptionStartDate: hospital.subscriptionStartDate,
       subscriptionEndDate: hospital.subscriptionEndDate,
-      enabledModules: hospital.enabledModules,
-      staffLimits: hospital.staffLimits,
-      usageLimits: hospital.usageLimits,
+      enabledModules: hospital.enabledModules || {},
+      staffLimits: hospital.staffLimits || {},
+      usageLimits: hospital.usageLimits || {},
       subscriptionPlan: hospital.subscriptionPlanId || null,
     });
   } catch (err) { next(err); }
@@ -155,11 +204,10 @@ router.get('/plan-details', ...adminOrSuper, async (req, res, next) => {
 // ─── Usage & Limits Live Check ─────────────────────────────────────────────
 router.get('/usage-limits', ...adminOrSuper, async (req, res, next) => {
   try {
-    const hospitalId = req.user.hospitalId;
-    const hospital = await Hospital.findById(hospitalId).lean();
+    const hospital = await resolveHospital(req);
     if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
 
-    const base = { hospitalId };
+    const base = { hospitalId: hospital._id };
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
     const now = new Date();
 
@@ -207,8 +255,7 @@ router.get('/usage-limits', ...adminOrSuper, async (req, res, next) => {
 // ─── Hospital Settings / Tariff Overview ──────────────────────────────────
 router.get('/settings', ...adminOrSuper, async (req, res, next) => {
   try {
-    const hospitalId = req.user.hospitalId;
-    const hospital = await Hospital.findById(hospitalId).lean();
+    const hospital = await resolveHospital(req);
     if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
 
     return sendSuccess(res, 200, 'Hospital settings retrieved', {
@@ -232,11 +279,12 @@ router.get('/settings', ...adminOrSuper, async (req, res, next) => {
 // ─── Reports: Monthly Revenue & Patient Summary ──────────────────────────
 router.get('/reports', ...adminOrSuper, async (req, res, next) => {
   try {
-    const rawHospitalId = req.user.hospitalId?._id || req.user.hospitalId;
+    const hospital = await resolveHospital(req);
+    const rawHospitalId = hospital?._id || req.user?.hospitalId;
     if (!rawHospitalId) return res.status(400).json({ message: 'Hospital context required' });
 
     let hospitalObjId = null;
-    if (rawHospitalId && mongoose.Types.ObjectId.isValid(rawHospitalId)) {
+    if (rawHospitalId && mongoose.Types.ObjectId.isValid(String(rawHospitalId))) {
       hospitalObjId = new mongoose.Types.ObjectId(String(rawHospitalId));
     }
     const hospitalMatch = hospitalObjId ? { $in: [hospitalObjId, String(rawHospitalId)] } : rawHospitalId;

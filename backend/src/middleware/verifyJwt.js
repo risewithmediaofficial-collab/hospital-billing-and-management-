@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { sendError } from '../utils/apiResponse.js';
 import { Branch } from '../models/Branch.js';
+import { Hospital } from '../models/Hospital.js';
 import { User } from '../models/User.js';
 import { hasPermission } from '../config/permissions.js';
 
@@ -25,17 +27,33 @@ const moduleForRequest = (url) => {
 const applyContextIfNeeded = async (req) => {
   if (req.user?.role !== 'SUPER_ADMIN') return;
 
-  const contextHospitalId = req.headers['x-hospital-context'];
+  const contextHospitalId = req.headers['x-hospital-context'] || req.query.hospitalId || req.query.hospitalDomain || req.query.hospital;
   if (!contextHospitalId) return;
 
-  req.user.hospitalId = contextHospitalId;
-  req.user._hospitalContextApplied = true;
+  let hospitalDoc = null;
+  if (mongoose.Types.ObjectId.isValid(String(contextHospitalId))) {
+    hospitalDoc = await Hospital.findById(contextHospitalId);
+  }
+  if (!hospitalDoc) {
+    hospitalDoc = await Hospital.findOne({
+      $or: [
+        { domain: String(contextHospitalId).toLowerCase() },
+        { code: String(contextHospitalId).toUpperCase() },
+        { name: String(contextHospitalId) },
+      ],
+    });
+  }
 
-  const branch =
-    (await Branch.findOne({ hospitalId: contextHospitalId, isMainBranch: true })) ||
-    (await Branch.findOne({ hospitalId: contextHospitalId }));
-  if (branch) {
-    req.user.branchId = branch._id.toString();
+  if (hospitalDoc) {
+    req.user.hospitalId = hospitalDoc._id.toString();
+    req.user._hospitalContextApplied = true;
+
+    const branch =
+      (await Branch.findOne({ hospitalId: hospitalDoc._id, isMainBranch: true })) ||
+      (await Branch.findOne({ hospitalId: hospitalDoc._id }));
+    if (branch) {
+      req.user.branchId = branch._id.toString();
+    }
   }
 };
 
@@ -63,13 +81,8 @@ export const verifyJwt = async (req, res, next) => {
 
     const decoded = jwt.verify(token, env.JWT_SECRET);
     req.user = decoded;
-    // DEBUG: log role for staff PATCH requests
-    if (req.method === 'PATCH' && req.originalUrl.includes('/auth/staff')) {
-      console.log(`[verifyJwt DEBUG] ${req.method} ${req.originalUrl} — tokenSource: ${req.headers.authorization ? 'header' : 'cookie'}, role: "${decoded.role}", id: ${decoded.id}`);
-    }
-    // The platform owner is intentionally not a hospital operator.  Platform
-    // administration is exposed through /saas only; operational APIs remain
-    // inaccessible even if a Super Admin crafts a direct request.
+
+    // Platform Super Admin operational rule
     if (
       decoded.role === 'SUPER_ADMIN' &&
       req.method !== 'GET' &&
@@ -80,24 +93,41 @@ export const verifyJwt = async (req, res, next) => {
     ) {
       return sendError(res, 403, 'Super Admin accounts have read-only platform access and cannot modify hospital operational data.', null, 'OPERATIONAL_ACCESS_FORBIDDEN');
     }
-    const module = moduleForRequest(req.originalUrl);
-    // PATIENT and GUARDIAN roles always pass permission check for their own portal routes
-    const isPortalRole = decoded.role === 'PATIENT' || decoded.role === 'GUARDIAN';
-    if (module && decoded.role !== 'SUPER_ADMIN' && !isPortalRole) {
-      const currentUser = await User.findById(decoded.id).select('hospitalId role additionalRoles isActive status permissions revokedPermissions departmentId additionalDepartments');
-      if (!currentUser || !currentUser.isActive || currentUser.status === 'INACTIVE') return sendError(res, 403, 'Your account is inactive.', null, 'ACCOUNT_INACTIVE');
-      if (currentUser.hospitalId && decoded.hospitalId && extractId(currentUser.hospitalId) !== extractId(decoded.hospitalId)) {
-        return sendError(res, 403, 'Hospital context is invalid.', null, 'HOSPITAL_CONTEXT_INVALID');
+
+    // Always keep currentUser roles, status, hospitalId & permissions in sync with DB
+    let currentUser = null;
+    if (decoded.id && decoded.role !== 'SUPER_ADMIN') {
+      currentUser = await User.findById(decoded.id)
+        .select('hospitalId branchId role additionalRoles isActive status permissions revokedPermissions departmentId additionalDepartments')
+        .lean();
+
+      if (currentUser) {
+        if (!currentUser.isActive || currentUser.status === 'INACTIVE') {
+          return sendError(res, 403, 'Your account is inactive.', null, 'ACCOUNT_INACTIVE');
+        }
+        req.user.role = currentUser.role || decoded.role;
+        req.user.additionalRoles = currentUser.additionalRoles || [];
+        req.user.additionalDepartments = currentUser.additionalDepartments || [];
+        req.user.permissions = currentUser.permissions || {};
+        req.user.departmentId = currentUser.departmentId;
+        if (currentUser.hospitalId) {
+          req.user.hospitalId = currentUser.hospitalId.toString();
+        }
+        if (currentUser.branchId) {
+          req.user.branchId = currentUser.branchId.toString();
+        }
       }
+    }
+
+    const module = moduleForRequest(req.originalUrl);
+    const isPortalRole = decoded.role === 'PATIENT' || decoded.role === 'GUARDIAN';
+    if (module && decoded.role !== 'SUPER_ADMIN' && !isPortalRole && currentUser) {
       const action = req.method === 'GET' ? 'view' : req.method === 'POST' ? 'create' : req.method === 'DELETE' ? 'delete' : 'edit';
       if (!hasPermission(currentUser, module, action)) {
         return sendError(res, 403, 'You do not have permission to perform this action.', null, 'FORBIDDEN');
       }
-      req.user.additionalRoles = currentUser.additionalRoles || [];
-      req.user.additionalDepartments = currentUser.additionalDepartments || [];
-      req.user.permissions = currentUser.permissions || {};
-      req.user.departmentId = currentUser.departmentId;
     }
+
     await applyContextIfNeeded(req);
     next();
   } catch (error) {

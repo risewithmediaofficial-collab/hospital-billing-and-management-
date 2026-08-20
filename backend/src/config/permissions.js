@@ -14,6 +14,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     treatment: ['view', 'create', 'edit'],
     laboratory: ['view', 'requestTest', 'create', 'edit', '*'],
     radiology: ['view', 'requestTest', 'create', 'edit', '*'],
+    billing: ['view', 'create', 'edit', 'printReceipt'],
     notifications: ['view'],
   },
   NURSE: {
@@ -116,8 +117,11 @@ export const ROLE_PERMISSION_DEFAULTS = {
   },
   DEPARTMENT_MANAGER: {
     dashboard: ['view'],
-    departments: ['view', 'manage'],
-    reports: ['view', 'generate'],
+    departments: ['view', 'manage', '*'],
+    reports: ['view', 'generate', '*'],
+    billing: ['view', 'create', 'edit'],
+    audit: ['view', '*'],
+    admin: ['view', '*'],
     notifications: ['view'],
   },
   SUPPORT_STAFF: {
@@ -230,13 +234,14 @@ export const hasPermission = (user, module, action = 'view', hospitalModules = n
   const userRoles = [role, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
 
   // Role domain overrides — domain staff always have full access to their primary and cross-department workflow modules
-  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology'].includes(module) && userRoles.includes('DOCTOR')) return true;
-  if (['nursing', 'ipd', 'beds', 'requests', 'pharmacy', 'emergency'].includes(module) && userRoles.some((r) => ['NURSE', 'NURSE_INCHARGE'].includes(r))) return true;
+  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology', 'billing'].includes(module) && userRoles.includes('DOCTOR')) return true;
+  if (['nursing', 'ipd', 'beds', 'requests', 'pharmacy', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['NURSE', 'NURSE_INCHARGE'].includes(r))) return true;
   if (['pharmacy', 'inventory', 'billing', 'emergency'].includes(module) && userRoles.some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) return true;
-  if (['laboratory', 'diagnostics', 'emergency'].includes(module) && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;
-  if (['radiology', 'diagnostics', 'emergency'].includes(module) && userRoles.some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) return true;
+  if (['laboratory', 'diagnostics', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;
+  if (['radiology', 'diagnostics', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) return true;
   if (['billing', 'cashier', 'reception', 'emergency'].includes(module) && userRoles.some((r) => ['CASHIER', 'BILLING_STAFF'].includes(r))) return true;
   if (['reception', 'patientRegistration', 'tokens', 'appointments', 'patients', 'billing', 'emergency'].includes(module) && userRoles.some((r) => ['RECEPTIONIST', 'OPD_STAFF'].includes(r))) return true;
+  if (['departments', 'reports', 'billing', 'dashboard', 'admin', 'audit', 'plan', 'settings', 'usage'].includes(module) && userRoles.includes('DEPARTMENT_MANAGER')) return true;
   if (module === 'emergency' && userRoles.some((r) => ['EMERGENCY_STAFF', 'NURSE', 'NURSE_INCHARGE', 'DOCTOR'].includes(r))) return true;
 
   const permissions = permissionsFor(user, hospitalModules);

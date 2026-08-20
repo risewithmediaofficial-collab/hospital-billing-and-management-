@@ -285,16 +285,15 @@ export class BillingService {
    * Fetch all voided/deleted bills for the hospital
    */
   static async getDeletedReceipts(user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId && user?.role === 'SUPER_ADMIN') {
-      const { Hospital } = await import('../../models/Hospital.js');
-      const h = await Hospital.findOne({});
-      hospitalId = h?._id;
-    }
-
     const query = { isDeleted: true };
-    if (user.branchId) query.branchId = user.branchId;
-    else if (hospitalId) query.hospitalId = hospitalId;
+    if (user?.role === 'SUPER_ADMIN') {
+      if (user._hospitalContextApplied && user.hospitalId) {
+        query.hospitalId = user.hospitalId;
+      }
+    } else {
+      if (user?.branchId) query.branchId = user.branchId;
+      else if (user?.hospitalId) query.hospitalId = user.hospitalId;
+    }
 
     const deletedReceipts = await Receipt.find(query)
       .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
