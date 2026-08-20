@@ -120,6 +120,8 @@ const checkItemPermission = (user, item) => {
         return true;
       }
     }
+  }
+
   // Department managers check
   if (user.department && user.role === 'DEPARTMENT_MANAGER') {
     const dept = user.department.toLowerCase();
