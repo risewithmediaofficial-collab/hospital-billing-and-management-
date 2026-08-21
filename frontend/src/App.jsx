@@ -8,6 +8,7 @@ import { useDepartmentNotificationStore } from './store/departmentNotificationSt
 import { useNotificationStore } from './store/notificationStore';
 
 import { LiveToastNotification } from './components/notifications/LiveToastNotification';
+import { TeamChatWidget } from './components/chat/TeamChatWidget';
 
 const ScrollToTop = () => {
   const { pathname, search } = useLocation();
@@ -41,6 +42,7 @@ export const App = () => {
         <BrowserRouter>
           <ScrollToTop />
           <LiveToastNotification />
+          <TeamChatWidget />
           <AppRoutes />
         </BrowserRouter>
       </SocketProvider>

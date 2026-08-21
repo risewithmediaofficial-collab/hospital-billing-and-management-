@@ -131,12 +131,14 @@ export const PharmacistDashboard = () => {
     };
     socket.on('pharmacy:new_prescription', refresh);
     socket.on('prescription:created', refresh);
+    socket.on('pharmacy:prescription_returned', refresh);
     socket.on('pharmacy:substitution_responded', refresh);
     socket.on('workflow:notification', refresh);
     socket.on('workflow:pending_changed', refresh);
     return () => {
       socket.off('pharmacy:new_prescription', refresh);
       socket.off('prescription:created', refresh);
+      socket.off('pharmacy:prescription_returned', refresh);
       socket.off('pharmacy:substitution_responded', refresh);
       socket.off('workflow:notification', refresh);
       socket.off('workflow:pending_changed', refresh);
@@ -412,6 +414,21 @@ export const PharmacistDashboard = () => {
                       <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">{rx.dispenseStatus}</span>
                     </div>
                     <p className="text-slate-500">Dr. {rx.doctorId?.name} · {rx.medicines?.length || 0} Prescribed Items</p>
+
+                    {/* Billing Query Banner if returned from Billing Desk */}
+                    {rx.billingQuery && !rx.billingQuery.resolved && (
+                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 flex items-start gap-2 text-amber-900 mt-1.5">
+                        <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-[11px] text-amber-950">
+                            Returned by Central Billing ({rx.billingQuery.requestedByName || 'Cashier'}):
+                          </p>
+                          <p className="text-[11px] text-amber-900 font-semibold mt-0.5">
+                            "{rx.billingQuery.query}"
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Medicines List */}
                     <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded border border-slate-100">

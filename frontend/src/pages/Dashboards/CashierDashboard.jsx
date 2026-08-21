@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ProcessPaymentModal } from '../../components/modals/ProcessPaymentModal';
 import { OfficialReceiptModal } from '../../components/modals/OfficialReceiptModal';
+import { ReturnToDepartmentModal } from '../../components/modals/ReturnToDepartmentModal';
 import { Modal } from '../../components/ui/Modal';
 import { axiosClient } from '../../api/axiosClient';
 import { useAuthStore } from '../../store/authStore';
@@ -13,7 +14,7 @@ import {
   CreditCard, Receipt, Lock, IndianRupee, Stethoscope,
   User, Pill, CheckCircle, Clock, RefreshCw, AlertCircle,
   Search, Printer, MessageCircle, Eye, FileText, Phone, CheckCircle2,
-  Trash2, Archive, ShieldAlert, X, XCircle
+  Trash2, Archive, ShieldAlert, X, XCircle, RotateCcw
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
@@ -70,6 +71,8 @@ export const CashierDashboard = () => {
   const [invoiceToDelete, setInvoiceToDelete] = useState(null);
   const [invoiceDeletionReason, setInvoiceDeletionReason] = useState('');
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isReturningToDept, setIsReturningToDept] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [receiptSearchTerm, setReceiptSearchTerm] = useState('');
@@ -84,7 +87,10 @@ export const CashierDashboard = () => {
       const invoices = res.data || [];
       setUnpaidInvoices(invoices);
       setSelectedInvoice((prev) => {
-        if (prev && invoices.some((i) => i._id === prev._id)) return prev;
+        if (prev) {
+          const fresh = invoices.find((i) => i._id === prev._id);
+          if (fresh) return fresh;
+        }
         return invoices.length > 0 ? invoices[0] : null;
       });
     } catch (err) {
@@ -122,7 +128,6 @@ export const CashierDashboard = () => {
     fetchAllReceipts();
     fetchDeletedReceipts();
     useDepartmentNotificationStore.getState().fetchPendingWork?.();
-    useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
   }, [fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
   // Real-time: refresh whenever doctor finalizes a new consultation, payment occurs, or bill is deleted
@@ -133,9 +138,9 @@ export const CashierDashboard = () => {
       fetchAllReceipts();
       fetchDeletedReceipts();
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
-      useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
     };
     socket.on('billing:invoice_created', handler);
+    socket.on('billing:invoice_updated', handler);
     socket.on('billing:invoice_deleted', handler);
     socket.on('billing:payment_collected', handler);
     socket.on('billing:receipt_deleted', handler);
@@ -145,6 +150,7 @@ export const CashierDashboard = () => {
     socket.on('consultation:completed', handler);
     return () => {
       socket.off('billing:invoice_created', handler);
+      socket.off('billing:invoice_updated', handler);
       socket.off('billing:invoice_deleted', handler);
       socket.off('billing:payment_collected', handler);
       socket.off('billing:receipt_deleted', handler);
@@ -161,7 +167,6 @@ export const CashierDashboard = () => {
     fetchDeletedReceipts();
     setIsPaymentOpen(false);
     useDepartmentNotificationStore.getState().fetchPendingWork?.();
-    useNotificationStore.getState().markRouteAsRead?.('/billing/dashboard');
   };
 
   const handleConfirmDeleteBill = async () => {
@@ -215,6 +220,28 @@ export const CashierDashboard = () => {
     }
   };
 
+  const handleConfirmReturnToDepartment = async ({ invoiceId, targetDepartment, reason, note }) => {
+    setIsReturningToDept(true);
+    try {
+      const res = await axiosClient.post(`/billing/invoices/${invoiceId}/return-to-department`, {
+        targetDepartment,
+        reason,
+        note,
+      });
+      alert(res.data?.message || res.message || 'Item/Prescription returned to department successfully!');
+      setIsReturnModalOpen(false);
+      setSelectedInvoice(null);
+      fetchUnpaidInvoices();
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+    } catch (err) {
+      console.error('Failed to return to department:', err);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to return to department.';
+      alert(msg);
+    } finally {
+      setIsReturningToDept(false);
+    }
+  };
+
   const handleSendReceiptWhatsApp = (rc) => {
     const pat = rc.patientId || rc.invoiceId?.patientId || {};
     const rawPhone = pat.phone || '';
@@ -255,7 +282,7 @@ export const CashierDashboard = () => {
   const doctorName = selectedInvoice?.doctorName || (doctor?.name ? `Dr. ${doctor.name}` : (consult?.doctorId?.name ? `Dr. ${consult.doctorId.name}` : null));
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-28">
       {/* Dynamic Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -316,6 +343,11 @@ export const CashierDashboard = () => {
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-mono font-bold text-indigo-700 text-[11px]">{pat.uhid || '—'}</span>
                         <div className="flex items-center gap-1.5">
+                          {inv.isReturnedToDept && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-wide">
+                              Returned
+                            </span>
+                          )}
                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                             inv.status === 'PARTIALLY_PAID'
                               ? 'bg-amber-50 text-amber-600 border-amber-200'
@@ -370,6 +402,15 @@ export const CashierDashboard = () => {
               </h3>
               {selectedInvoice && (
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsReturnModalOpen(true)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                    title="Return item or request price correction from Pharmacy / Lab / Doctor"
+                  >
+                    <RotateCcw size={14} className="text-amber-600" />
+                    <span>Return / Query Dept</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -457,13 +498,32 @@ export const CashierDashboard = () => {
                     <tbody className="divide-y divide-slate-200 text-slate-800">
                       {selectedInvoice.items?.map((item, idx) => (
                         <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2.5 text-slate-900 font-medium">{item.description}</td>
+                          <td className="p-2.5 text-slate-900 font-medium">
+                            {item.description}
+                            {item.unitPrice === 0 && item.category === 'PHARMACY' && (
+                              <span className="inline-block ml-2 px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                ₹0 Price Needs Correction
+                              </span>
+                            )}
+                          </td>
                           <td className="p-2.5 text-center">
                             <CategoryBadge cat={item.category} />
                           </td>
                           <td className="p-2.5 text-center text-slate-500">{item.qty}</td>
                           <td className="p-2.5 text-right font-mono">{formatCurrency(item.unitPrice)}</td>
-                          <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatCurrency(item.totalPrice)}</td>
+                          <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                            {formatCurrency(item.totalPrice)}
+                            {item.category === 'PHARMACY' && (
+                              <button
+                                type="button"
+                                onClick={() => setIsReturnModalOpen(true)}
+                                className="block ml-auto text-[10px] text-amber-600 hover:text-amber-800 font-sans hover:underline font-bold mt-0.5 cursor-pointer"
+                                title="Send back to Pharmacy for price / batch correction"
+                              >
+                                ↩️ Return to Pharmacy
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1027,6 +1087,15 @@ export const CashierDashboard = () => {
           </div>
         </Modal>
       )}
+
+      {/* Return to Department / Clarification Query Modal */}
+      <ReturnToDepartmentModal
+        isOpen={isReturnModalOpen}
+        onClose={() => setIsReturnModalOpen(false)}
+        invoice={selectedInvoice}
+        onConfirmReturn={handleConfirmReturnToDepartment}
+        isSubmitting={isReturningToDept}
+      />
     </div>
   );
 };

@@ -60,6 +60,12 @@ axiosClient.interceptors.request.use(
       }
     }
 
+    // 4. Active Branch Context
+    const activeBranchId = localStorage.getItem('hpmbs_active_branch_id');
+    if (activeBranchId) {
+      config.headers['X-Branch-Id'] = activeBranchId;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

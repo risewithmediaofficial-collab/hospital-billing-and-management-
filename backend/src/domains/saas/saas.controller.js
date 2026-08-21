@@ -210,3 +210,80 @@ export const updateHospitalDomain = async (req, res, next) => {
     return sendSuccess(res, 200, 'Hospital domain updated successfully', updated);
   } catch (error) { next(error); }
 };
+
+export const createBranchRequest = async (req, res, next) => {
+  try {
+    const result = await SaasService.createBranchRequest(req.body, req.user);
+    return sendSuccess(res, 201, 'Branch request submitted successfully. Pending Super Admin approval.', result);
+  } catch (error) { next(error); }
+};
+
+export const getBranchRequests = async (req, res, next) => {
+  try {
+    const results = await SaasService.getBranchRequests(req.query, req.user);
+    return sendSuccess(res, 200, 'Branch requests retrieved successfully', results);
+  } catch (error) { next(error); }
+};
+
+export const approveBranchRequest = async (req, res, next) => {
+  try {
+    const result = await SaasService.approveBranchRequest(req.params.id, req.user);
+    return sendSuccess(res, 200, 'Branch approved and activated successfully', result);
+  } catch (error) { next(error); }
+};
+
+export const rejectBranchRequest = async (req, res, next) => {
+  try {
+    const result = await SaasService.rejectBranchRequest(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Branch request rejected', result);
+  } catch (error) { next(error); }
+};
+
+export const getHospitalBranches = async (req, res, next) => {
+  try {
+    const hospitalId = req.query.hospitalId || req.params.hospitalId;
+    const branches = await SaasService.getHospitalBranches(hospitalId, req.user);
+    return sendSuccess(res, 200, 'Hospital branches retrieved successfully', branches);
+  } catch (error) { next(error); }
+};
+
+export const updateBranchStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const result = await SaasService.updateBranchStatus(id, status, req.user);
+    return sendSuccess(res, 200, `Branch status updated to ${result.status}`, result);
+  } catch (error) { next(error); }
+};
+
+export const deleteBranch = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await SaasService.deleteBranch(id, req.user);
+    return sendSuccess(res, 200, result.message, result);
+  } catch (error) { next(error); }
+};
+
+export const assignBranchPlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await SaasService.assignBranchPlan(id, req.body, req.user);
+    return sendSuccess(res, 200, `Plan assigned to branch successfully`, result);
+  } catch (error) { next(error); }
+};
+
+export const getBranchDetail = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await SaasService.getBranchDetail(id);
+    return sendSuccess(res, 200, 'Branch detail retrieved successfully', result);
+  } catch (error) { next(error); }
+};
+
+export const getAllBranches = async (req, res, next) => {
+  try {
+    const result = await SaasService.getAllBranches();
+    return sendSuccess(res, 200, 'All branches retrieved successfully', result);
+  } catch (error) { next(error); }
+};
+

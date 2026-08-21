@@ -5,6 +5,7 @@ import {
   UserCircle, BedDouble, Users, Calendar, IndianRupee, ShieldAlert, ClipboardList,
   Eye, EyeOff, Search, Key, Edit, CheckCircle2, Lock, X, ArrowDown,
   RefreshCw, AlertTriangle, Zap, TrendingUp, Globe, BadgeCheck, Clock,
+  Building2, PauseCircle, PlayCircle, Trash2, MapPin, Phone, Mail, ExternalLink,
 } from 'lucide-react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
@@ -401,7 +402,7 @@ export const SuperAdminHospitalDashboard = () => {
   if (isLoading) return <div className="text-center py-16 text-slate-500">Loading hospital overview...</div>;
   if (!detail) return <div className="text-center py-16 text-red-500">Hospital not found</div>;
 
-  const { hospital, stats, staffList = [], patientList = [] } = detail;
+  const { hospital, stats, staffList = [], patientList = [], branches = [] } = detail;
 
   const toggleShowPassword = (id) => {
     setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));

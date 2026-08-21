@@ -46,13 +46,13 @@ export const ROLE_PERMISSION_DEFAULTS = {
   },
   CASHIER: {
     dashboard: ['view'],
-    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt'],
+    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'edit', '*'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
   BILLING_STAFF: {
     dashboard: ['view'],
-    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt'],
+    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'edit', '*'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },

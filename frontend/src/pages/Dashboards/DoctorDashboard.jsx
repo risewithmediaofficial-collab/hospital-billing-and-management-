@@ -42,6 +42,8 @@ import {
   History,
   Calendar,
   Wifi,
+  Receipt,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
@@ -66,6 +68,8 @@ export const DoctorDashboard = () => {
   const [patientInvestigations, setPatientInvestigations] = useState([]);
   const [nurseTasks, setNurseTasks] = useState([]);
   const [patientNurseTasks, setPatientNurseTasks] = useState([]);
+  const [returnedBillingPrescriptions, setReturnedBillingPrescriptions] = useState([]);
+  const [selectedReturnedRx, setSelectedReturnedRx] = useState(null);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isInjectionModalOpen, setIsInjectionModalOpen] = useState(false);
@@ -115,6 +119,7 @@ export const DoctorDashboard = () => {
     fetchDepartmentOrders();
     fetchSubstitutionRequests();
     fetchNurseTasks();
+    fetchReturnedBillingPrescriptions();
   }, []);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
@@ -123,11 +128,13 @@ export const DoctorDashboard = () => {
 
     const handleQueueUpdate = () => {
       fetchOpdQueue();
+      fetchReturnedBillingPrescriptions();
     };
 
     const handleInvestigationUpdate = (data) => {
       fetchDepartmentOrders();
       fetchNurseTasks();
+      fetchReturnedBillingPrescriptions();
       const activePatientId = selectedToken?.patientId?._id || selectedToken?.patientId || currentPatient?._id || currentPatient?.id;
       if (activePatientId) {
         fetchPatientInvestigations(activePatientId);
@@ -159,36 +166,46 @@ export const DoctorDashboard = () => {
       }
     };
 
-      socket.on('opd_queue:updated', handleQueueUpdate);
-      socket.on('opd_queue:status_changed', handleQueueUpdate);
-      socket.on('queue:patient_added', handleQueueUpdate);
-      socket.on('token:generated', handleQueueUpdate);
-      socket.on('patient:registered', () => { fetchOpdQueue(); });
-      socket.on('investigation:new_request', handleInvestigationUpdate);
-      socket.on('investigation:status_updated', handleInvestigationUpdate);
-      socket.on('diagnostics:report_ready', handleInvestigationUpdate);
-      socket.on('doctor:availability_changed', handleDoctorAvailability);
-      socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); });
-      socket.on('queue:update', fetchOpdQueue);
-      socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); });
-      socket.on('workflow:pending_changed', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchNurseTasks(); });
+    const handleBillingQuery = () => {
+      fetchOpdQueue();
+      fetchReturnedBillingPrescriptions();
+    };
 
-      return () => {
-        socket.off('workflow:notification');
-        socket.off('queue:update', fetchOpdQueue);
-        socket.off('department:order_update');
-        socket.off('workflow:pending_changed');
-        socket.off('opd_queue:updated', handleQueueUpdate);
-        socket.off('opd_queue:status_changed', handleQueueUpdate);
-        socket.off('queue:patient_added', handleQueueUpdate);
-        socket.off('token:generated', handleQueueUpdate);
-        socket.off('patient:registered');
-        socket.off('investigation:new_request', handleInvestigationUpdate);
-        socket.off('investigation:status_updated', handleInvestigationUpdate);
-        socket.off('diagnostics:report_ready', handleInvestigationUpdate);
-        socket.off('doctor:availability_changed', handleDoctorAvailability);
-      };
-    }, [socket, selectedToken, user?.id, user?._id]);
+    socket.on('opd_queue:updated', handleQueueUpdate);
+    socket.on('opd_queue:status_changed', handleQueueUpdate);
+    socket.on('queue:patient_added', handleQueueUpdate);
+    socket.on('token:generated', handleQueueUpdate);
+    socket.on('patient:registered', () => { fetchOpdQueue(); });
+    socket.on('investigation:new_request', handleInvestigationUpdate);
+    socket.on('investigation:status_updated', handleInvestigationUpdate);
+    socket.on('diagnostics:report_ready', handleInvestigationUpdate);
+    socket.on('doctor:availability_changed', handleDoctorAvailability);
+    socket.on('doctor:billing_query', handleBillingQuery);
+    socket.on('pharmacy:prescription_returned', handleBillingQuery);
+    socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
+    socket.on('queue:update', fetchOpdQueue);
+    socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
+    socket.on('workflow:pending_changed', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
+
+    return () => {
+      socket.off('workflow:notification');
+      socket.off('queue:update', fetchOpdQueue);
+      socket.off('department:order_update');
+      socket.off('workflow:pending_changed');
+      socket.off('opd_queue:updated', handleQueueUpdate);
+      socket.off('opd_queue:status_changed', handleQueueUpdate);
+      socket.off('queue:patient_added', handleQueueUpdate);
+      socket.off('token:generated', handleQueueUpdate);
+      socket.off('patient:registered');
+      socket.off('investigation:new_request', handleInvestigationUpdate);
+      socket.off('investigation:status_updated', handleInvestigationUpdate);
+      socket.off('diagnostics:report_ready', handleInvestigationUpdate);
+      socket.off('doctor:availability_changed', handleDoctorAvailability);
+      socket.off('doctor:billing_query', handleBillingQuery);
+      socket.off('pharmacy:prescription_returned', handleBillingQuery);
+    };
+  }, [socket, selectedToken, user?.id, user?._id]);
+
 
     useEffect(() => {
       if (user?.isAvailable !== undefined) {
@@ -207,9 +224,9 @@ export const DoctorDashboard = () => {
           params: targetDocId ? { doctorId: targetDocId } : {},
         });
         const allTokens = res.data || [];
-        const waiting = allTokens.filter((t) => ['WAITING', 'IN_CONSULTATION', 'WAITING_NURSE'].includes(t.status));
+        const waiting = allTokens.filter((t) => t.status === 'WAITING' || (t.status === 'IN_CONSULTATION' && !t.departmentReturnedAt));
         const done = allTokens.filter((t) => t.status === 'COMPLETED');
-        const held = allTokens.filter((t) => ['WAITING_DEPARTMENT', 'WAITING_NURSE'].includes(t.status));
+        const held = allTokens.filter((t) => ['WAITING_DEPARTMENT', 'WAITING_NURSE'].includes(t.status) || (t.departmentReturnedAt && t.status !== 'COMPLETED'));
 
         setLiveQueue(waiting);
         setCompletedQueue(done);
@@ -224,12 +241,11 @@ export const DoctorDashboard = () => {
             fetchPatientInvestigations(activeTok.patientId?._id || activeTok.patientId);
             return activeTok;
           });
-        } else if (done.length > 0 && !selectedToken) {
+        } else {
           setSelectedToken(null);
           setPatientInvestigations([]);
         }
         useDepartmentNotificationStore.getState().fetchPendingWork?.();
-        useNotificationStore.getState().markRouteAsRead?.('/doctor/dashboard');
       } catch (err) {
         console.error('Failed to load doctor OPD queue:', err);
       }
@@ -280,6 +296,41 @@ export const DoctorDashboard = () => {
     }
   };
 
+  const fetchReturnedBillingPrescriptions = async () => {
+    try {
+const targetDocId = user?.id || user?._id;
+      const [res, invoiceRes] = await Promise.all([
+        axiosClient.get('/pharmacy/prescriptions', {
+          params: targetDocId ? { doctorId: targetDocId } : {},
+        }),
+        axiosClient.get('/billing/doctor-review-queries'),
+      ]);
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      const returned = list.filter(
+        (rx) => rx.dispenseStatus === 'RETURNED_TO_DOCTOR' || (rx.billingQuery && !rx.billingQuery.resolved)
+      );
+      const invoices = Array.isArray(invoiceRes?.data) ? invoiceRes.data : Array.isArray(invoiceRes) ? invoiceRes : [];
+      const prescriptionInvoiceIds = new Set(returned.map((rx) => String(rx.billingQuery?.invoiceId || '')).filter(Boolean));
+      const invoiceQueries = invoices
+        .filter((invoice) => !prescriptionInvoiceIds.has(String(invoice._id)))
+        .map((invoice) => ({
+          _id: `invoice-query-${invoice._id}`,
+          invoiceId: invoice._id,
+          appointmentId: invoice.doctorReviewQuery?.appointmentId,
+          patientId: invoice.patientId,
+          medicines: [],
+          invoiceItems: invoice.items || [],
+          billingQuery: invoice.doctorReviewQuery,
+          dispenseStatus: 'RETURNED_TO_DOCTOR',
+          createdAt: invoice.createdAt,
+          updatedAt: invoice.updatedAt,
+        }));
+      setReturnedBillingPrescriptions([...returned, ...invoiceQueries]);
+    } catch (err) {
+      console.error('Failed to load returned billing prescriptions:', err);
+    }
+  };
+
   const fetchPatientInvestigations = async (patientId) => {
     if (!patientId) return;
     try {
@@ -300,6 +351,45 @@ export const DoctorDashboard = () => {
     } catch (err) {
       console.error('Failed to load patient nurse tasks:', err);
     }
+  };
+
+  const handleReviewBillingQuery = (rx) => {
+    setSelectedReturnedRx(rx);
+    const patId = rx.patientId?._id || rx.patientId;
+    const patObj = typeof rx.patientId === 'object' && rx.patientId !== null
+      ? rx.patientId
+      : {
+          _id: patId || `pat_${Date.now()}`,
+          firstName: rx.patientName?.split(' ')[0] || 'Patient',
+          lastName: rx.patientName?.split(' ').slice(1).join(' ') || '',
+          uhid: rx.uhid || 'UHID',
+          gender: 'GENERAL',
+        };
+
+    let targetToken = liveQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
+      || departmentHoldQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
+      || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId));
+
+    if (!targetToken) {
+      targetToken = {
+        _id: rx.appointmentId || `apt_${Date.now()}`,
+        tokenNumber: 1,
+        status: 'IN_CONSULTATION',
+        patientId: patObj,
+        chiefComplaints: rx.consultationId?.chiefComplaints || rx.billingQuery?.query || 'Returned from Billing',
+        returnedPrescription: rx,
+      };
+    } else {
+      targetToken = {
+        ...targetToken,
+        returnedPrescription: rx,
+      };
+    }
+
+    setSelectedToken(targetToken);
+    fetchPatientInvestigations(patId);
+    fetchPatientNurseTasks(patId);
+    setIsConsultationModalOpen(true);
   };
 
   const handleSelectToken = (tok) => {
@@ -331,11 +421,13 @@ export const DoctorDashboard = () => {
   });
 
   const doctorUserId = String(user?.id || user?._id || '');
+
   const departmentResponses = departmentOrders.filter((ord) => {
     const isDocMatch = !doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId;
     const isResolved = ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL' || ord.chargeStatus === 'CANCELLED';
     return isDocMatch && !isResolved;
   });
+
   const sentPatientInvestigations = patientInvestigations.filter((ord) => !['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status));
 
   const filteredDeptOrders = departmentResponses.filter((ord) => {
@@ -346,7 +438,14 @@ export const DoctorDashboard = () => {
     return pName.includes(search) || uhid.includes(search) || tName.includes(search);
   });
 
-  const filteredNurseTasks = nurseTasks.filter((t) => {
+  const myNurseTasks = nurseTasks.filter((t) => {
+    const isDocMatch = !doctorUserId || String(t.doctorId?._id || t.doctorId || '') === doctorUserId;
+    // Disappear from active responses once reviewed or consultation is completed/billed
+    const isResolved = Boolean(t.doctorReviewedAt || t.isResolved || t.appointmentId?.status === 'COMPLETED');
+    return isDocMatch && !isResolved;
+  });
+
+  const filteredNurseTasks = myNurseTasks.filter((t) => {
     const pName = `${t.patientId?.firstName || ''} ${t.patientId?.lastName || ''}`.toLowerCase();
     const uhid = (t.patientId?.uhid || '').toLowerCase();
     const medName = (t.medicineName || '').toLowerCase();
@@ -354,9 +453,23 @@ export const DoctorDashboard = () => {
     return pName.includes(search) || uhid.includes(search) || medName.includes(search);
   });
 
-  const pendingReportsCount = departmentResponses.filter((ord) =>
-    ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'CANCELLED'
-  ).length;
+  const filteredReturnedBilling = returnedBillingPrescriptions.filter((rx) => {
+    if (rx.billingQuery?.resolved) return false;
+    const pName = (rx.patientName || `${rx.patientId?.firstName || ''} ${rx.patientId?.lastName || ''}`).toLowerCase();
+    const uhid = (rx.uhid || rx.patientId?.uhid || '').toLowerCase();
+    const queryText = (rx.billingQuery?.query || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || queryText.includes(search);
+  });
+
+  const pendingReportsCount = (
+    departmentResponses.filter((ord) =>
+      ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'CANCELLED'
+    ).length +
+    myNurseTasks.filter((t) => t.status === 'ADMINISTERED' && !t.doctorReviewedAt).length +
+    substitutionRequests.length +
+    returnedBillingPrescriptions.filter((rx) => !rx.billingQuery?.resolved).length
+  );
 
   const departmentLabel = (category) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(category)
     ? 'Radiology / X-Ray'
@@ -557,7 +670,6 @@ export const DoctorDashboard = () => {
 
   // Save OPD Cabin Number
   const handleSaveCabin = async (e) => {
-    e?.preventDefault();
     if (!tempCabin.trim()) return;
     setIsTogglingStatus(true);
     setStatusMessage(null);
@@ -777,8 +889,8 @@ export const DoctorDashboard = () => {
           {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard title="OPD Live Queue" value={`${liveQueue.length} Patients`} subtitle="Waiting Consultation" icon={Users} color="sky" />
-            <StatCard title="Completed Consultations" value={`${completedQueue.length} Patients`} subtitle="Moved to History" icon={CheckCircle2} color="emerald" />
-            <StatCard title="Department Responses" value={`${pendingReportsCount} Ready Reports`} subtitle={`${departmentOrders.length} Total Orders`} icon={FileCheck2} color="amber" />
+            <StatCard title="Completed Consultations" value={`${completedQueue.length} Patients`} subtitle="Moved to History" icon={CheckCircle2} color="emerald" onClick={() => handleTabClick('COMPLETED')} className="cursor-pointer hover:border-emerald-300" />
+            <StatCard title="Department Responses" value={`${pendingReportsCount} Ready Responses`} subtitle={`${departmentOrders.length + nurseTasks.length} Total Department Tasks`} icon={FileCheck2} color="amber" onClick={() => handleTabClick('DEPT_RESPONSES')} className="cursor-pointer hover:border-amber-400" />
             <StatCard title="Prescriptions Written" value={`${completedQueue.length}`} subtitle="FEFO Auto-Checked" icon={Pill} color="purple" />
           </div>
         </>
@@ -834,25 +946,11 @@ export const DoctorDashboard = () => {
                         </span>
                         <div className="flex items-center gap-1.5">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                            tok.status === 'WAITING_NURSE'
-                              ? 'bg-purple-50 text-purple-700 border-purple-300 animate-pulse'
-                              : tok.status === 'WAITING_DEPARTMENT'
-                              ? 'bg-sky-50 text-sky-700 border-sky-300 animate-pulse'
-                              : tok.departmentReturnedAt && tok.status === 'IN_CONSULTATION'
-                              ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-black ring-1 ring-emerald-400'
-                              : tok.status === 'IN_CONSULTATION'
+                            tok.status === 'IN_CONSULTATION'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
                               : 'bg-amber-50 text-amber-700 border-amber-300'
                           }`}>
-                            {tok.status === 'WAITING_NURSE'
-                              ? '💉 AT NURSE'
-                              : tok.status === 'WAITING_DEPARTMENT'
-                              ? '🧪 IN LAB/XRAY'
-                              : tok.departmentReturnedAt
-                              ? '✓ RETURNED'
-                              : tok.status === 'IN_CONSULTATION'
-                              ? 'IN CONSULT'
-                              : 'WAITING'}
+                            {tok.status === 'IN_CONSULTATION' ? 'IN CONSULT' : 'WAITING'}
                           </span>
                           <button
                             type="button"
@@ -919,39 +1017,6 @@ export const DoctorDashboard = () => {
                   </Button>
                 </div>
               </div>
-
-              {/* Department Returned Ready Alert Banner */}
-              {selectedToken.departmentReturnedAt && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 size={22} className="text-emerald-600 shrink-0" />
-                    <div>
-                      <p className="font-black text-xs text-emerald-900">Treatment / Injection Administered by Nurse!</p>
-                      <p className="text-[11px] text-emerald-800">
-                        Patient has completed nursing procedure. Review administration notes below and finalize prescription or billing.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="success"
-                      className="font-bold text-xs"
-                      onClick={() => setIsConsultationModalOpen(true)}
-                    >
-                      <Pill size={14} className="mr-1" /> Prescribe & Send to Medical & Bill
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="font-bold text-xs bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-100"
-                      onClick={() => handleDirectToBilling(selectedToken)}
-                    >
-                      <Receipt size={14} className="mr-1" /> Send Directly to Bill
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* Primary Consultation Actions */}
               <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
@@ -1232,6 +1297,100 @@ export const DoctorDashboard = () => {
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
         <div className="space-y-6">
+          {/* 0. Billing Desk Queries & Returned Prescriptions */}
+          {returnedBillingPrescriptions.length > 0 && (
+            <Card className="space-y-4 bg-white border-2 border-amber-300 shadow-md text-black overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-3 bg-amber-50/90 -mx-6 -mt-6 p-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-200 text-amber-900 shrink-0">
+                    <Receipt size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
+                      Billing Desk Queries &amp; Returned Cases ({returnedBillingPrescriptions.length})
+                    </h3>
+                    <p className="text-xs text-amber-800 mt-0.5 font-medium">
+                      Cases returned by Central Billing Desk for prescription or charge clarification. Review cashier notes, adjust consultation/medicines, and return to billing.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs animate-pulse self-start sm:self-auto shrink-0">
+                  ACTION REQUIRED
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-amber-100/60 text-slate-900 uppercase tracking-wider text-[10px] border-b border-amber-200 font-bold">
+                    <tr>
+                      <th className="p-3">Patient Name &amp; UHID</th>
+                      <th className="p-3">Cashier Query / Reason</th>
+                      <th className="p-3">Returned By</th>
+                      <th className="p-3">Prescribed Medicines</th>
+                      <th className="p-3">Returned Time</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 text-black">
+                    {returnedBillingPrescriptions.map((rx) => {
+                      const pat = rx.patientId || {};
+                      const queryInfo = rx.billingQuery || {};
+                      return (
+                        <tr key={rx._id} className="hover:bg-amber-50/40 transition-colors bg-white">
+                          <td className="p-3">
+                            <p className="font-extrabold text-slate-900 text-sm">
+                              {pat.firstName} {pat.lastName}
+                            </p>
+                            <span className="font-mono text-indigo-700 font-bold text-[11px]">
+                              {pat.uhid || '—'}
+                            </span>
+                          </td>
+                          <td className="p-3 max-w-xs">
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-950">
+                              &ldquo;{queryInfo.query || 'Prescription clarification requested'}&rdquo;
+                            </div>
+                          </td>
+                          <td className="p-3 font-medium text-slate-800">
+                            <span className="font-bold text-slate-900">{queryInfo.requestedByName || 'Cashier'}</span>
+                            <div className="text-[10px] text-slate-500">Central Billing</div>
+                          </td>
+                          <td className="p-3 text-slate-700">
+                            <div className="space-y-0.5 max-w-xs">
+                              {rx.medicines?.map((m, mIdx) => (
+                                <p key={mIdx} className="text-xs font-semibold text-slate-800 truncate">
+                                  &bull; {m.medicineName} ({m.dosage || 'Tab'}) &times; {m.quantity || m.dispensedQty || 10}
+                                </p>
+                              ))}
+                              {(!rx.medicines || rx.medicines.length === 0) && rx.invoiceItems?.map((item, itemIdx) => (
+                                <p key={itemIdx} className="text-xs font-semibold text-slate-800 truncate">
+                                  &bull; {item.description} &times; {item.qty || 1} (₹{Number(item.totalPrice || 0).toFixed(2)})
+                                </p>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-3 text-slate-600 whitespace-nowrap text-[11px]">
+                            {queryInfo.requestedAt ? new Date(queryInfo.requestedAt).toLocaleString() : new Date(rx.updatedAt || rx.createdAt).toLocaleString()}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleReviewBillingQuery(rx)}
+                              className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs inline-flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                              title="Open consultation with this patient to adjust prescription and send back to billing"
+                            >
+                              <Stethoscope size={14} />
+                              Review &amp; Re-Prescribe
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
           {/* 1. Nurse Administrations & Injections */}
           <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
@@ -1538,12 +1697,19 @@ export const DoctorDashboard = () => {
       {/* Pop-up Consultation Modal */}
       <ConsultationModal
         isOpen={isConsultationModalOpen}
-        onClose={() => setIsConsultationModalOpen(false)}
+        onClose={() => {
+          setIsConsultationModalOpen(false);
+          setSelectedReturnedRx(null);
+        }}
         token={selectedToken}
         patient={currentPatient}
+        returnedPrescription={selectedReturnedRx || selectedToken?.returnedPrescription}
         onSuccess={() => {
           fetchOpdQueue();
           fetchDepartmentOrders();
+          fetchNurseTasks();
+          fetchReturnedBillingPrescriptions();
+          setSelectedReturnedRx(null);
           useDepartmentNotificationStore.getState().fetchPendingWork?.();
         }}
       />

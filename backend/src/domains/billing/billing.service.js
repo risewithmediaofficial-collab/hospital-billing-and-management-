@@ -245,10 +245,41 @@ export class BillingService {
     const query = { isDeleted: { $ne: true } };
     if (user.branchId) query.branchId = user.branchId;
     else if (user.hospitalId) query.hospitalId = user.hospitalId;
-    return await Invoice.find(query)
+
+    // Find all patient IDs with pending pharmacy dispense in this hospital
+    const { Prescription } = await import('../../models/Prescription.js');
+    const rxQuery = { dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } };
+    if (user.branchId) rxQuery.branchId = user.branchId;
+    else if (user.hospitalId) rxQuery.hospitalId = user.hospitalId;
+    const pendingPrescriptions = await Prescription.find(rxQuery).select('patientId').lean().catch(() => []);
+    const pendingPatientIds = new Set(pendingPrescriptions.map(p => String(p.patientId?._id || p.patientId)));
+
+    const invoices = await Invoice.find(query)
       .populate('patientId')
       .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
       .sort({ createdAt: -1 });
+
+    // Exclude invoices for patients whose pharmacy dispensing is still in progress
+    return invoices.filter((inv) => !pendingPatientIds.has(String(inv.patientId?._id || inv.patientId)));
+  }
+
+  static async getDoctorReviewQueries(user) {
+    const doctorId = user?.id || user?._id;
+    if (!doctorId) throw new ApiError(401, 'Authenticated doctor is required');
+
+    const query = {
+      hospitalId: user.hospitalId,
+      'doctorReviewQuery.attendingDoctorId': doctorId,
+      'doctorReviewQuery.resolved': false,
+      isDeleted: { $ne: true },
+    };
+    if (user.branchId) query.branchId = user.branchId;
+
+    return Invoice.find(query)
+      .populate('patientId', 'firstName lastName uhid phone age gender')
+      .populate('doctorId', 'name specialization')
+      .sort({ 'doctorReviewQuery.requestedAt': -1 })
+      .lean();
   }
 
   static async getReceipts(user, queryParams = {}) {
@@ -584,6 +615,224 @@ export class BillingService {
       status: admission.status,
       stayItems,
       totalAccommodationCost,
+    };
+  }
+
+  static async returnInvoiceToDepartment(invoiceId, data, user) {
+    const { targetDepartment = 'PHARMACY', reason = '', note = '' } = data;
+    const queryMessage = note.trim() || reason || 'Returned from Central Billing for review / price correction';
+
+    const invoice = await Invoice.findById(invoiceId).populate('patientId');
+    if (!invoice) {
+      throw new ApiError(404, 'Invoice not found', null, 'NOT_FOUND');
+    }
+    if (invoice.status === 'PAID') {
+      throw new ApiError(400, 'Cannot return an already settled/paid invoice.', null, 'ALREADY_PAID');
+    }
+
+    const patientId = invoice.patientId?._id || invoice.patientId;
+    const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';
+    const uhid = invoice.patientId?.uhid || 'N/A';
+
+    const [{ Prescription }, { NotificationService }, { socketManager }, { Appointment }] = await Promise.all([
+      import('../../models/Prescription.js'),
+      import('../notifications/notification.service.js'),
+      import('../../events/socketManager.js'),
+      import('../../models/Appointment.js'),
+    ]);
+
+    if (targetDepartment === 'PHARMACY') {
+      const rx = await Prescription.findOne({
+        patientId,
+        hospitalId: invoice.hospitalId,
+      }).sort({ createdAt: -1 });
+
+      if (rx) {
+        rx.dispenseStatus = 'PENDING_DISPENSE';
+        rx.billingQuery = {
+          invoiceId: invoice._id,
+          query: queryMessage,
+          requestedBy: user.id || user._id,
+          requestedByName: user.name || 'Cashier',
+          requestedAt: new Date(),
+          resolved: false,
+          targetDepartment: 'PHARMACY',
+        };
+        await rx.save();
+
+        await Appointment.findOneAndUpdate(
+          { patientId, hospitalId: invoice.hospitalId },
+          { $set: { status: 'WAITING_PHARMACY' } },
+          { sort: { createdAt: -1 } }
+        ).catch(() => {});
+      }
+
+      // Remove / exclude pharmacy lines from unpaid invoice temporarily
+      const nonPharmacyItems = (invoice.items || []).filter((item) => item.category !== 'PHARMACY');
+      invoice.items = nonPharmacyItems;
+      invoice.subtotal = nonPharmacyItems.reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0);
+      invoice.totalAmount = Math.max(0, invoice.subtotal - (Number(invoice.discountAmount) || 0) + (Number(invoice.taxAmount) || 0));
+      invoice.balanceAmount = Math.max(0, invoice.totalAmount - (Number(invoice.paidAmount) || 0));
+      await invoice.save();
+
+      // Create notification for Pharmacist
+      await NotificationService.createNotification({
+        hospitalId: invoice.hospitalId,
+        branchId: invoice.branchId,
+        recipientRole: 'PHARMACIST',
+        targetModule: 'pharmacy',
+        notificationType: 'BILLING_QUERY',
+        type: 'BILLING_QUERY',
+        title: `Billing Query & Return: ${patientName}`,
+        message: `Billing Desk returned ${patientName}'s prescription (${uhid}): "${queryMessage}"`,
+        linkedPath: '/pharmacy/dashboard',
+        targetRoute: '/pharmacy/dashboard',
+        relatedPatientId: patientId,
+      });
+
+      // Emit real-time events — scoped to branch only (no global broadcast)
+      socketManager.emitToBranch(invoice.branchId, 'pharmacy:prescription_returned', {
+        prescriptionId: rx?._id,
+        patientId,
+        patientName,
+        uhid,
+        query: queryMessage,
+        requestedByName: user.name || 'Cashier',
+      });
+      socketManager.emitToBranch(invoice.branchId, 'billing:invoice_updated', {
+        invoiceId: invoice._id,
+        patientId,
+      });
+      socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', {});
+
+      return {
+        success: true,
+        message: `Prescription successfully returned to Pharmacy Desk with query: "${queryMessage}"`,
+        invoice,
+        prescription: rx,
+      };
+    }
+
+    if (targetDepartment === 'DOCTOR') {
+      const rx = await Prescription.findOne({
+        patientId,
+        hospitalId: invoice.hospitalId,
+      }).sort({ createdAt: -1 });
+
+      if (rx) {
+        rx.dispenseStatus = 'RETURNED_TO_DOCTOR';
+        rx.billingQuery = {
+          invoiceId: invoice._id,
+          query: queryMessage,
+          requestedBy: user.id || user._id,
+          requestedByName: user.name || 'Cashier',
+          requestedAt: new Date(),
+          resolved: false,
+          targetDepartment: 'DOCTOR',
+        };
+        await rx.save();
+      }
+
+      // Re-activate Appointment in Doctor's OPD live queue
+      const appointment = await Appointment.findOne({
+        patientId,
+        hospitalId: invoice.hospitalId,
+      }).sort({ createdAt: -1 });
+
+      if (appointment) {
+        appointment.status = 'WAITING';
+        appointment.departmentReturnedAt = new Date();
+        await appointment.save();
+      }
+
+      // Create high-priority notification for the ATTENDING Doctor only (not all doctors)
+      const attendingDoctorId = rx?.doctorId || invoice.doctorId || appointment?.doctorId;
+      if (!attendingDoctorId) {
+        throw new ApiError(409, 'No attending doctor is assigned to this invoice or patient visit.', null, 'ATTENDING_DOCTOR_NOT_FOUND');
+      }
+
+      invoice.doctorReviewQuery = {
+        query: queryMessage,
+        requestedBy: user.id || user._id,
+        requestedByName: user.name || 'Cashier',
+        requestedAt: new Date(),
+        attendingDoctorId,
+        appointmentId: appointment?._id,
+        resolved: false,
+      };
+      await invoice.save();
+      const linkedPathWithParams = `/doctor/dashboard?tab=DEPT_RESPONSES&patientId=${patientId}&appointmentId=${appointment?._id || ''}`;
+
+      await NotificationService.createNotification({
+        hospitalId: invoice.hospitalId,
+        branchId: invoice.branchId,
+        recipientUserId: attendingDoctorId,  // Target ONLY the attending doctor
+        targetModule: 'doctor',
+        notificationType: 'BILLING_QUERY',
+        type: 'BILLING_QUERY',
+        title: `Billing Review Required — ${patientName}`,
+        message: `Billing Desk has a query for ${patientName} (${uhid}) that requires your review: "${queryMessage}"`,
+        linkedPath: linkedPathWithParams,
+        targetRoute: linkedPathWithParams,
+        relatedPatientId: patientId,
+        metadata: {
+          patientId,
+          appointmentId: appointment?._id,
+          invoiceId: invoice._id,
+          patientName,
+          uhid,
+          query: queryMessage,
+        },
+      });
+
+      // Emit real-time events — targeted to the attending doctor only (no global broadcast)
+      if (attendingDoctorId) {
+        socketManager.emitToUser(String(attendingDoctorId), 'opd_queue:updated', { patientId });
+        socketManager.emitToUser(String(attendingDoctorId), 'doctor:billing_query', {
+          patientId,
+          patientName,
+          uhid,
+          query: queryMessage,
+          requestedByName: user.name || 'Cashier',
+          appointmentId: appointment?._id,
+        });
+        socketManager.emitToUser(String(attendingDoctorId), 'workflow:pending_changed', { patientId });
+        socketManager.emitToUser(String(attendingDoctorId), 'notification:created', {
+          title: `Billing Review Required — ${patientName}`,
+          message: queryMessage,
+          type: 'BILLING_QUERY',
+        });
+      }
+      // Also emit branch-scoped queue update so the OPD queue refreshes
+      socketManager.emitToBranch(invoice.branchId, 'opd_queue:updated', { patientId });
+
+      return {
+        success: true,
+        message: `Case & prescription successfully returned to Attending Doctor with query: "${queryMessage}"`,
+        invoice,
+        prescription: rx,
+      };
+    }
+
+    // Default generic department notification for other departments
+    await NotificationService.createNotification({
+      hospitalId: invoice.hospitalId,
+      branchId: invoice.branchId,
+      recipientRole: targetDepartment,
+      targetModule: targetDepartment.toLowerCase(),
+      notificationType: 'BILLING_QUERY',
+      type: 'BILLING_QUERY',
+      title: `Billing Query: ${patientName}`,
+      message: `Billing Desk query for ${patientName} (${uhid}): "${queryMessage}"`,
+      linkedPath: `/${targetDepartment.toLowerCase()}/dashboard`,
+      targetRoute: `/${targetDepartment.toLowerCase()}/dashboard`,
+      relatedPatientId: patientId,
+    });
+
+    return {
+      success: true,
+      message: `Query sent to ${targetDepartment} desk successfully.`,
+      invoice,
     };
   }
 }

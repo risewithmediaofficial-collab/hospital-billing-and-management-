@@ -127,11 +127,6 @@ export class AppointmentsService {
       socketManager.emitToBranch(targetBranch, 'queue:patient_added', queuePayload);
       socketManager.emitToBranch(targetBranch, 'token:generated', queuePayload);
     }
-    if (socketManager.io) {
-      socketManager.io.emit('opd_queue:updated', queuePayload);
-      socketManager.io.emit('queue:patient_added', queuePayload);
-      socketManager.io.emit('token:generated', queuePayload);
-    }
 
     // Always deliver directly to the specific doctor's private socket room
     socketManager.emitToUser(String(doctor._id), 'opd_queue:updated', queuePayload);

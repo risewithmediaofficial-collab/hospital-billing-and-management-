@@ -320,7 +320,7 @@ export class PharmacyService {
 
   // --- PRESCRIPTION DISPENSING (FEFO) ---
 
-  static async getPrescriptions(user) {
+  static async getPrescriptions(user, query = {}) {
     let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
     if (!rawHospitalId && user) {
       const defaultHosp = await import('../../models/Hospital.js').then((m) => m.Hospital.findOne({}));
@@ -337,12 +337,24 @@ export class PharmacyService {
       filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
     }
 
+    if (query?.patientId) {
+      filter.patientId = query.patientId;
+    }
+    if (query?.doctorId) {
+      filter.doctorId = query.doctorId;
+    }
+    if (query?.dispenseStatus) {
+      filter.dispenseStatus = query.dispenseStatus;
+    }
+
     return Prescription.find(filter)
-      .populate('patientId', 'firstName lastName uhid phone age gender')
+      .populate('patientId', 'firstName lastName uhid phone age gender chiefComplaints')
       .populate('doctorId', 'name specialization')
+      .populate('consultationId', 'chiefComplaints vitals prescriptions consultationFee')
       .sort({ createdAt: -1 })
       .lean();
   }
+
 
   static async dispense(prescriptionId, dispenseData, user) {
     const prescription = await Prescription.findOne({ _id: prescriptionId, hospitalId: user.hospitalId });
@@ -378,13 +390,26 @@ export class PharmacyService {
       const unitPrice = Number(dispenseReq.unitPrice || dispenseReq.price) || (medicine?.sellingPrice || 20.0);
 
       if (!medicine) {
-        // If medicine SKU not in inventory, treat as dispensed custom / external item
+        // If medicine SKU not in inventory, treat as dispensed custom / ad-hoc item
         item.itemStatus = 'DISPENSED';
         item.dispensedQty = requestedQty;
         item.price = unitPrice;
         item.unitPrice = unitPrice;
         item.totalPrice = unitPrice * requestedQty;
         anyDispensed = true;
+
+        if (unitPrice * requestedQty > 0) {
+          await PharmacyService.addPharmacyChargeToBill({
+            hospitalId: user.hospitalId,
+            branchId: user.branchId,
+            patientId: prescription.patientId,
+            doctorId: prescription.doctorId,
+            description: `[Prescription Medicine] ${item.medicineName} (${item.dosageForm || 'Tab'}) x ${requestedQty}`,
+            qty: requestedQty,
+            unitPrice,
+            taxPercentage: 0,
+          });
+        }
         continue;
       }
 
@@ -494,6 +519,9 @@ export class PharmacyService {
     prescription.dispensedBy = user.id;
     prescription.dispensedAt = new Date();
     prescription.pharmacyNotes = dispenseData?.pharmacyNotes || (isAllExternal ? 'Purchased externally by patient' : 'Processed by Pharmacy');
+    if (prescription.billingQuery) {
+      prescription.billingQuery.resolved = true;
+    }
     await prescription.save();
 
     // Fetch patient name & UHID for clean notification
@@ -555,7 +583,17 @@ export class PharmacyService {
         dispenseStatus: prescription.dispenseStatus,
         linkedPath: '/doctor/dashboard?tab=LIVE',
       }, prescription.branchId || user.branchId);
-    } catch (e) {}
+    } catch (notifErr) {
+      console.warn('[PharmacyService] Notification error:', notifErr.message);
+    }
+
+    try {
+      const { Appointment } = await import('../../models/Appointment.js');
+      await Appointment.updateMany(
+        { patientId: prescription.patientId, status: 'WAITING_PHARMACY' },
+        { $set: { status: 'COMPLETED' } }
+      );
+    } catch (appErr) {}
 
     socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'billing:invoice_updated', {
       patientId: prescription.patientId,
@@ -576,43 +614,9 @@ export class PharmacyService {
     }
 
     prescription.dispenseStatus = 'BILLED_SENT_TO_DOCTOR';
-    prescription.pharmacyNotes = data?.pharmacyNotes || 'Medicine bill calculated & sent for doctor review';
-    if (data?.totalMedicineCharge) prescription.totalMedicineCharge = Number(data.totalMedicineCharge);
-    if (Array.isArray(data?.items)) {
-      prescription.medicines = data.items;
-    }
+    prescription.pharmacyNotes = data?.pharmacyNotes || 'Billed and sent to Doctor for review';
+    prescription.totalMedicineCharge = Number(data?.totalMedicineCharge) || 0;
     await prescription.save();
-
-    const patientObj = prescription.patientId;
-    const patientName = patientObj ? `${patientObj.firstName} ${patientObj.lastName}`.trim() : 'Patient';
-
-    try {
-      const { NotificationService } = await import('../notifications/notification.service.js');
-      await NotificationService.createNotification({
-        hospitalId: prescription.hospitalId,
-        branchId: prescription.branchId,
-        recipientUserId: prescription.doctorId,
-        recipientRole: 'DOCTOR',
-        title: 'Pharmacy Medicine Billing Ready',
-        message: `Pharmacy calculated medicine bill for ${patientName} (UHID: ${patientObj?.uhid || 'N/A'}). Review and finalize bill in consultation workspace.`,
-        notificationType: 'ACTION_REQUIRED',
-        targetModule: 'doctor',
-        targetRoute: '/doctor/dashboard?tab=LIVE',
-        relatedPatientId: prescription.patientId,
-        relatedTaskId: String(prescription._id),
-      });
-    } catch (e) {}
-
-    socketManager.emitToUser(String(prescription.doctorId), 'pharmacy:billing_sent_to_doctor', {
-      prescriptionId: prescription._id,
-      patientId: prescription.patientId,
-      totalMedicineCharge: prescription.totalMedicineCharge,
-    });
-
-    socketManager.emitToBranch(prescription.branchId || user.hospitalId, 'workflow:pending_changed', {
-      resourceId: prescription._id,
-      status: 'BILLED_SENT_TO_DOCTOR',
-    });
 
     return prescription;
   }
@@ -620,24 +624,28 @@ export class PharmacyService {
   // --- AUTOMATED BILLING INTEGRATION ---
 
   static async addPharmacyChargeToBill({ hospitalId, branchId, patientId, doctorId, description, qty, unitPrice, taxPercentage }) {
+    const rawPatientId = patientId?._id || patientId;
+    const rawHospitalId = hospitalId?._id || hospitalId;
+    const rawBranchId = branchId?._id || branchId;
+
     const tax = (unitPrice * (taxPercentage || 0)) / 100;
     const itemUnitPrice = unitPrice + tax;
     const totalPrice = itemUnitPrice * qty;
 
     let invoice = await Invoice.findOne({
-      hospitalId,
-      patientId,
-      status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
+      hospitalId: rawHospitalId,
+      patientId: rawPatientId,
+      status: { $in: ['UNPAID', 'PARTIALLY_PAID'] },
     }).sort({ createdAt: -1 });
 
     if (!invoice) {
-      const invCount = await Invoice.countDocuments({ hospitalId });
+      const invCount = await Invoice.countDocuments({ hospitalId: rawHospitalId });
       const invoiceNo = `INV-PHARM-${Date.now().toString().slice(-4)}-${invCount + 1}`;
 
       invoice = new Invoice({
-        hospitalId,
-        branchId,
-        patientId,
+        hospitalId: rawHospitalId,
+        branchId: rawBranchId,
+        patientId: rawPatientId,
         doctorId,
         invoiceNo,
         items: [],
@@ -646,21 +654,25 @@ export class PharmacyService {
         grandTotal: 0,
         paidAmount: 0,
         balanceAmount: 0,
-        status: PAYMENT_STATUS.UNPAID,
+        status: 'UNPAID',
       });
     }
 
-    invoice.items.push({
+    // Replace or add pharmacy item cleanly
+    const cleanItems = (invoice.items || []).filter((it) => it.category !== 'PHARMACY');
+    cleanItems.push({
       description,
       category: 'PHARMACY',
       qty,
       unitPrice: itemUnitPrice,
       totalPrice,
     });
+    invoice.items = cleanItems;
 
-    invoice.subtotal = invoice.items.reduce((acc, i) => acc + i.totalPrice, 0);
-    invoice.grandTotal = Math.max(0, invoice.subtotal - (invoice.discountAmount || 0));
-    invoice.balanceAmount = invoice.grandTotal - (invoice.paidAmount || 0);
+    invoice.subtotal = invoice.items.reduce((acc, i) => acc + (Number(i.totalPrice) || 0), 0);
+    invoice.totalAmount = Math.max(0, invoice.subtotal - (Number(invoice.discountAmount) || 0) + (Number(invoice.taxAmount) || 0));
+    invoice.grandTotal = invoice.totalAmount;
+    invoice.balanceAmount = Math.max(0, invoice.totalAmount - (Number(invoice.paidAmount) || 0));
 
     await invoice.save();
     return invoice;

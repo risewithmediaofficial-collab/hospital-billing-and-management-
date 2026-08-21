@@ -6,6 +6,11 @@ import { User } from '../models/User.js';
 class SocketManager {
   constructor() {
     this.io = null;
+    this.onlineUsers = new Map(); // userId -> socketId / count
+  }
+
+  getOnlineUserIds() {
+    return new Set(this.onlineUsers.keys());
   }
 
   init(httpServer) {
@@ -47,8 +52,18 @@ class SocketManager {
       const rawBranchId = socket.user.branchId?._id || socket.user.branchId;
       const rawUserId = socket.user.id || socket.user._id;
 
+      if (rawUserId) {
+        const uIdStr = String(rawUserId);
+        const cur = this.onlineUsers.get(uIdStr) || 0;
+        this.onlineUsers.set(uIdStr, cur + 1);
+        if (rawHospId) {
+          this.io.to(`hospital:${rawHospId}`).emit('staff:presence_changed', { userId: uIdStr, isOnline: true });
+        }
+      }
+
       if (rawHospId) {
         socket.join(`hospital_${rawHospId}`);
+        socket.join(`hospital:${rawHospId}`);
       }
       if (rawBranchId) {
         socket.join(`branch_${rawBranchId}`);
@@ -62,7 +77,10 @@ class SocketManager {
         const currentUser = await User.findById(rawUserId).select('role additionalRoles hospitalId branchId');
         if (currentUser?.role) roles.add(currentUser.role);
         for (const role of currentUser?.additionalRoles || []) roles.add(role);
-        if (currentUser?.hospitalId) socket.join(`hospital_${currentUser.hospitalId}`);
+        if (currentUser?.hospitalId) {
+          socket.join(`hospital_${currentUser.hospitalId}`);
+          socket.join(`hospital:${currentUser.hospitalId}`);
+        }
         if (currentUser?.branchId) socket.join(`branch_${currentUser.branchId}`);
       } catch (error) {
         console.error(`[Socket.IO] Could not refresh roles for ${rawUserId}:`, error.message);
@@ -95,25 +113,71 @@ class SocketManager {
         console.log(`[Socket.IO] ${socket.user.name} joined ward_${wardId}`);
       });
 
+      socket.on('chat:typing', (data) => {
+        if (data?.recipientId) {
+          this.emitToUser(String(data.recipientId), 'chat:typing', {
+            senderId: socket.user.id || socket.user._id,
+            senderName: socket.user.name,
+            channel: data.channel || 'DIRECT',
+            isTyping: data.isTyping !== false,
+          });
+        } else if (data?.channel && rawHospId) {
+          socket.to(`hospital:${rawHospId}`).emit('chat:typing', {
+            senderId: socket.user.id || socket.user._id,
+            senderName: socket.user.name,
+            channel: data.channel,
+            isTyping: data.isTyping !== false,
+          });
+        }
+      });
+
       socket.on('disconnect', () => {
         console.log(`[Socket.IO] Client Disconnected: ${socket.id}`);
+        if (rawUserId) {
+          const uIdStr = String(rawUserId);
+          const cur = this.onlineUsers.get(uIdStr) || 1;
+          if (cur <= 1) {
+            this.onlineUsers.delete(uIdStr);
+            if (this.io && rawHospId) {
+              this.io.to(`hospital:${rawHospId}`).emit('staff:presence_changed', { userId: uIdStr, isOnline: false });
+            }
+          } else {
+            this.onlineUsers.set(uIdStr, cur - 1);
+          }
+        }
       });
     });
 
     console.log('[Socket.IO] Server Initialized Successfully');
   }
 
+  /**
+   * Emit to all sockets in a specific branch room.
+   * NEVER falls back to global broadcast — scoped to branch only.
+   */
   emitToBranch(branchId, event, data) {
-    if (this.io) {
-      if (branchId) this.io.to(`branch_${branchId}`).emit(event, data);
-      this.io.emit(event, data);
+    if (this.io && branchId) {
+      this.io.to(`branch_${branchId}`).emit(event, data);
     }
   }
 
+  /**
+   * Emit to all sockets in a specific hospital room.
+   * Use this instead of io.emit() for hospital-scoped events.
+   */
+  emitToHospital(hospitalId, event, data) {
+    if (this.io && hospitalId) {
+      this.io.to(`hospital_${hospitalId}`).emit(event, data);
+    }
+  }
+
+  /**
+   * Emit to all sockets in a specific role room.
+   * NEVER falls back to global broadcast — scoped to role only.
+   */
   emitToRole(role, event, data) {
     if (this.io && role) {
       this.io.to(`role_${role}`).emit(event, data);
-      this.io.emit(event, data);
     }
   }
 
@@ -129,12 +193,15 @@ class SocketManager {
     }
   }
 
+  /**
+   * Emit to multiple role rooms simultaneously.
+   * NEVER falls back to global broadcast.
+   */
   emitToRoles(roles, event, data) {
     if (this.io && Array.isArray(roles)) {
       roles.forEach((role) => {
         this.io.to(`role_${role}`).emit(event, data);
       });
-      this.io.emit(event, data);
     }
   }
 

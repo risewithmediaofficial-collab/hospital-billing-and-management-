@@ -5,7 +5,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
-import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info, Printer, Phone, Mail, Smartphone } from 'lucide-react';
+import { X, Ticket, CheckCircle, Search, UserCheck, RefreshCw, Stethoscope, Lock, AlertCircle, Info, Printer, Phone, Mail, Smartphone, ChevronDown } from 'lucide-react';
 
 export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = null, initialDoctorId = null }) => {
   useScrollLock(isOpen);
@@ -554,42 +554,47 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
 
               {/* Doctor Selection */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                  <Stethoscope size={13} className="text-indigo-500" /> Assigned Doctor
-                  {isDoctorLocked && <span className="ml-1 text-amber-600 text-[10px] flex items-center gap-0.5 font-medium"><Lock size={10} /> Pre-assigned</span>}
+                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <Stethoscope size={14} className="text-indigo-600" /> Assigned Doctor
+                  {isDoctorLocked && <span className="ml-1 text-amber-600 text-[10px] flex items-center gap-0.5 font-bold"><Lock size={10} /> Pre-assigned</span>}
                 </label>
                 {isDoctorLocked && selectedDoctor ? (
-                  <div className="w-full bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2.5 text-sm font-bold text-amber-900 flex items-center justify-between">
+                  <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm font-bold text-amber-900 flex items-center justify-between shadow-xs">
                     <span>{selectedDoctor.name?.startsWith('Dr.') ? selectedDoctor.name : `Dr. ${selectedDoctor.name}`} — {selectedDoctor.specialization || 'General OPD'}</span>
-                    <span className="text-amber-600 text-[10px] flex items-center gap-0.5 font-bold"><Lock size={10} /> Fixed</span>
+                    <span className="text-amber-600 text-xs flex items-center gap-1 font-bold"><Lock size={12} /> Fixed</span>
                   </div>
                 ) : (
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    className="w-full glass-input rounded-lg px-3.5 py-2 text-sm text-slate-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
-                  >
-                    {doctors.length > 0 ? (
-                      doctors.map((doc) => {
-                        const isAvail = doc.isAvailable !== false;
-                        const statusTag = isAvail
-                          ? ` (Available - ${doc.cabinNo || 'Cabin 101'})`
-                          : ' (Off Duty)';
-                        const roleTag = doc.role === 'HOSPITAL_ADMIN' ? ' [Admin / Clinic In-Charge]' : '';
-                        return (
-                          <option key={doc._id} value={doc._id}>
-                            {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}{roleTag} — {doc.specialization || 'General OPD'}{statusTag}
-                          </option>
-                        );
-                      })
-                    ) : (
-                      <option value="">No doctors registered in roster</option>
-                    )}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={selectedDoctorId}
+                      onChange={(e) => setSelectedDoctorId(e.target.value)}
+                      className="w-full bg-white border-2 border-slate-200 hover:border-indigo-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3 text-sm text-slate-900 font-semibold shadow-xs transition-all appearance-none cursor-pointer pr-10"
+                    >
+                      {doctors.length > 0 ? (
+                        doctors.map((doc) => {
+                          const isAvail = doc.isAvailable !== false;
+                          const statusTag = isAvail
+                            ? ` (Available - ${doc.cabinNo || 'Cabin 101'})`
+                            : ' (Off Duty)';
+                          const roleTag = doc.role === 'HOSPITAL_ADMIN' ? ' [Admin / Clinic In-Charge]' : '';
+                          return (
+                            <option key={doc._id} value={doc._id} className="py-2 text-slate-900 font-medium">
+                              {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}{roleTag} — {doc.specialization || 'General OPD'}{statusTag}
+                            </option>
+                          );
+                        })
+                      ) : (
+                        <option value="">No doctors registered in roster</option>
+                      )}
+                    </select>
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                      <ChevronDown size={18} />
+                    </div>
+                  </div>
                 )}
                 {selectedDoctor && selectedDoctor.isAvailable === false && (
-                  <div className="mt-1.5 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-center gap-1.5 font-bold">
-                    <AlertCircle size={14} className="flex-shrink-0 text-red-600" />
+                  <div className="mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 font-bold">
+                    <AlertCircle size={15} className="flex-shrink-0 text-red-600" />
                     This doctor is currently OFFLINE. Please select an AVAILABLE doctor from the dropdown above.
                   </div>
                 )}

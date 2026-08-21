@@ -37,6 +37,15 @@ export const getInvoices = async (req, res, next) => {
   }
 };
 
+export const getDoctorReviewQueries = async (req, res, next) => {
+  try {
+    const invoices = await BillingService.getDoctorReviewQueries(req.user);
+    return sendSuccess(res, 200, 'Doctor billing review queries retrieved', invoices);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getReceipts = async (req, res, next) => {
   try {
     const receipts = await BillingService.getReceipts(req.user, req.query);
@@ -82,6 +91,16 @@ export const calculateStayCharges = async (req, res, next) => {
     const { admissionId } = req.params;
     const result = await BillingService.calculateInpatientStayCharges(admissionId, req.user);
     return sendSuccess(res, 200, 'Inpatient stay accommodation charges calculated', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const returnInvoiceToDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await BillingService.returnInvoiceToDepartment(id, req.body, req.user);
+    return sendSuccess(res, 200, result.message, result);
   } catch (error) {
     next(error);
   }

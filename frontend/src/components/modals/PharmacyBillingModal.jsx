@@ -154,6 +154,27 @@ export const PharmacyBillingModal = ({
           </div>
         </div>
 
+        {/* Billing Query Banner if returned from Billing Desk */}
+        {prescription.billingQuery && !prescription.billingQuery.resolved && (
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex items-start gap-2.5 text-amber-900">
+            <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-extrabold text-xs text-amber-950 flex items-center gap-1.5">
+                <span>Billing Desk Query & Return</span>
+                <span className="font-normal text-[11px] text-amber-700">
+                  (From {prescription.billingQuery.requestedByName || 'Cashier'})
+                </span>
+              </p>
+              <p className="text-xs text-amber-900 font-semibold mt-1 bg-amber-100/70 p-2 rounded-lg border border-amber-200">
+                "{prescription.billingQuery.query}"
+              </p>
+              <p className="text-[11px] text-amber-800 mt-1">
+                Please edit the medicine unit prices below as needed, then click <strong>"Calculate Bill & Dispense"</strong> to re-send the updated amount to Central Billing.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Itemized Medicine Calculation Table */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">

@@ -94,7 +94,7 @@ export const getStockAdjustments = async (req, res, next) => {
 
 export const getPrescriptions = async (req, res, next) => {
   try {
-    const prescriptions = await PharmacyService.getPrescriptions(req.user);
+    const prescriptions = await PharmacyService.getPrescriptions(req.user, req.query);
     return sendSuccess(res, 200, 'Prescriptions retrieved', prescriptions);
   } catch (error) {
     next(error);

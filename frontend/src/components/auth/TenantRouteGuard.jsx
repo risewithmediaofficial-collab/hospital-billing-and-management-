@@ -101,11 +101,15 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
   }
 
   // Cross-tenant protection: Check user's hospitalDomain against route hospitalDomain
-  const userDomain = user.hospitalDomain || "";
-  if (hospitalDomain && userDomain && hospitalDomain.toLowerCase() !== userDomain.toLowerCase()) {
-    // Cross-tenant access denied! Redirect user to their own hospital portal
-    const targetRoute = user.defaultRoute || `/${userDomain}/admin/dashboard`;
-    return <Navigate to={targetRoute} replace />;
+  const userDomain = user.hospitalDomain || user.hospital?.domain || user.hospital?.subdomain || "";
+  const normalizedRouteDomain = hospitalDomain ? hospitalDomain.toLowerCase().trim() : "";
+  const normalizedUserDomain = userDomain ? userDomain.toLowerCase().trim() : "";
+
+  if (normalizedRouteDomain && (!normalizedUserDomain || normalizedRouteDomain !== normalizedUserDomain)) {
+    // Cross-tenant access denied! The logged-in user belongs to another hospital (or has no tenant domain)
+    // Redirect to the login page of the requested hospital workspace
+    const targetLogin = `/${normalizedRouteDomain}/login`;
+    return <Navigate to={targetLogin} state={{ from: location, tenantMismatch: true }} replace />;
   }
 
   // Role validation — check primary role AND any additional roles

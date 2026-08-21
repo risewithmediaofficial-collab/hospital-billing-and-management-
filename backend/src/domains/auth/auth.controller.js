@@ -142,14 +142,14 @@ export const updateDoctorAvailability = async (req, res, next) => {
     const { isAvailable, cabinNo } = req.body;
     const result = await AuthService.toggleDoctorAvailability(id, isAvailable, cabinNo, req.user);
     
-    // Broadcast real-time availability and cabin change across branch and all clients
+    // Broadcast real-time availability change — scoped to hospital only, not global
     const { socketManager } = await import('../../events/socketManager.js');
     if (result.branchId) {
       socketManager.emitToBranch(result.branchId, 'doctor:availability_changed', result);
     }
-    if (socketManager.io) {
-      socketManager.io.emit('doctor:availability_changed', result);
-      socketManager.io.emit('staff:availability_changed', result);
+    if (result.hospitalId) {
+      socketManager.emitToHospital(String(result.hospitalId), 'doctor:availability_changed', result);
+      socketManager.emitToHospital(String(result.hospitalId), 'staff:availability_changed', result);
     }
 
     if (result.isAvailable) {

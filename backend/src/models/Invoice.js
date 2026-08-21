@@ -25,6 +25,19 @@ const invoiceSchema = new mongoose.Schema(
     balanceAmount: { type: Number, required: true },
     consultationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation', index: true },
     followUpDate: { type: Date, default: null, index: true },
+    // Durable workflow record for a cashier query sent to the attending doctor.
+    // The notification only points here; it is not the source of the query data.
+    doctorReviewQuery: {
+      query: { type: String, default: '' },
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      requestedByName: { type: String, default: '' },
+      requestedAt: { type: Date },
+      attendingDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+      appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
+      resolved: { type: Boolean, default: false, index: true },
+      resolvedAt: { type: Date },
+      resolvedByDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    },
     status: { type: String, enum: Object.values(PAYMENT_STATUS), default: PAYMENT_STATUS.UNPAID, index: true },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },

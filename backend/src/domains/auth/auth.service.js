@@ -511,11 +511,14 @@ export class AuthService {
     if (!branchId && hospitalId) {
       let branch = await Branch.findOne({ hospitalId });
       if (!branch) {
-        branch = await Branch.findOne({});
-      }
-      if (!branch && hospitalId) {
         try {
-          branch = await Branch.create({ hospitalId, name: 'Main Branch', code: 'MAIN' });
+          const hosp = await Hospital.findById(hospitalId);
+          branch = await Branch.create({
+            hospitalId,
+            name: hosp?.name ? `${hosp.name} Main Branch` : 'Main Branch',
+            branchCode: hosp?.code ? `${hosp.code}-MAIN` : 'MAIN',
+            isMainBranch: true,
+          });
         } catch (e) {
           // ignore creation error
         }
@@ -772,12 +775,36 @@ export class AuthService {
     }
 
     const roleDoc = await Role.findOne({ code: user.role });
+    const domain = user.hospitalId?.domain || user.hospitalId?.subdomain || '';
+
+    let defaultRoute = '/dashboard';
+    if (user.role === 'SUPER_ADMIN') {
+      defaultRoute = '/admin/dashboard';
+    } else if (domain) {
+      const baseMap = {
+        HOSPITAL_ADMIN: `/${domain}/admin/dashboard`,
+        DOCTOR: `/${domain}/doctor/dashboard`,
+        NURSE: `/${domain}/nurse/dashboard`,
+        NURSE_INCHARGE: `/${domain}/nurse-incharge/dashboard`,
+        RECEPTIONIST: `/${domain}/reception/dashboard`,
+        PHARMACIST: `/${domain}/pharmacy/dashboard`,
+        LAB_TECH: `/${domain}/laboratory/dashboard`,
+        RADIOLOGIST: `/${domain}/radiology/dashboard`,
+        CASHIER: `/${domain}/billing/dashboard`,
+        PATIENT: `/${domain}/patient/dashboard`,
+        GUARDIAN: `/${domain}/guardian/dashboard`,
+      };
+      defaultRoute = baseMap[user.role] || `/${domain}/dashboard`;
+    } else if (roleDoc?.defaultRoute) {
+      defaultRoute = roleDoc.defaultRoute;
+    }
 
     return {
       id: user._id,
       name: user.name,
       email: user.email,
       phone: user.phone,
+      uhid: user.uhid,
       role: user.role,
       additionalRoles: user.additionalRoles || [],
       additionalDepartments: user.additionalDepartments || [],
@@ -785,9 +812,15 @@ export class AuthService {
       isActive: user.isActive,
       roleName: roleDoc ? roleDoc.name : user.role,
       permissions: permissionsFor(user, user.hospitalId?.enabledModules),
-      defaultRoute: roleDoc ? roleDoc.defaultRoute : '/dashboard',
+      defaultRoute,
       hospital: user.hospitalId,
+      hospitalId: user.hospitalId?._id || user.hospitalId,
+      hospitalName: user.hospitalId?.name,
+      hospitalDomain: domain,
+      enabledModules: user.hospitalId?.enabledModules || {},
       branch: user.branchId,
+      branchId: user.branchId?._id || user.branchId,
+      branchName: user.branchId?.name,
       department: user.departmentId,
       specialization: user.specialization,
       employeeId: user.employeeId,

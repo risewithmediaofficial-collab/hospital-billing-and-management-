@@ -49,6 +49,7 @@ export const WORKFLOW_EVENTS = {
   // Doctor / Nurse → Billing
   BILL_REQUESTED:          'BILL_REQUESTED',
   BILL_READY:              'BILL_READY',
+  PAYMENT_PENDING:         'PAYMENT_PENDING',
   PAYMENT_COLLECTED:       'PAYMENT_COLLECTED',
 
   // Nurse ↔ Doctor
@@ -69,31 +70,49 @@ export const WORKFLOW_EVENTS = {
 
 // ─── Which roles get notified for each event ─────────────────────────────────
 const TARGET_ROLES = {
-  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: ['RECEPTIONIST', 'NURSE_INCHARGE', 'NURSE', 'HOSPITAL_ADMIN'],
+  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: ['RECEPTIONIST', 'NURSE_INCHARGE', 'NURSE'],
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:  ['RECEPTIONIST'],
+
+  // Doctor finalizes consultation → Billing needs to generate invoice
   [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]:    ['CASHIER', 'BILLING_STAFF'],
+
+  // Doctor orders lab/radiology → only the target department gets notified
   [WORKFLOW_EVENTS.LAB_ORDER_CREATED]:        ['LAB_TECH', 'LABORATORY_STAFF'],
   [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]:  ['RADIOLOGIST', 'RADIOLOGY_STAFF'],
-  [WORKFLOW_EVENTS.LAB_ACCEPTED]:             ['DOCTOR'],
-  [WORKFLOW_EVENTS.LAB_SUBMITTED]:            ['DOCTOR'],
-  [WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED]:       ['DOCTOR'],
-  [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:      ['DOCTOR'],
+
+  // Lab/Radiology → Doctor: only when report is READY (not just "accepted")
+  // LAB_ACCEPTED / RADIOLOGY_ACCEPTED are internal dept status — no doctor notification
+  [WORKFLOW_EVENTS.LAB_SUBMITTED]:            ['DOCTOR'],  // report ready = actionable for doctor
+  [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]:      ['DOCTOR'],  // scan ready = actionable for doctor
+
+  // Doctor reviewed/acknowledged the report — notify the dept that submitted it
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]:      ['LAB_TECH', 'LABORATORY_STAFF'],
   [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]:['RADIOLOGIST', 'RADIOLOGY_STAFF'],
+
+  // Doctor issues prescription — pharmacy must dispense
   [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]:      ['PHARMACIST', 'PHARMACY_STAFF'],
-  [WORKFLOW_EVENTS.PHARMACY_ACCEPTED]:        ['DOCTOR'],
-  [WORKFLOW_EVENTS.PHARMACY_DISPENSED]:       ['DOCTOR', 'NURSE'],
+
+  // Pharmacy dispensed medicines — billing needs to collect payment (not doctor)
+  [WORKFLOW_EVENTS.PHARMACY_DISPENSED]:       ['CASHIER', 'BILLING_STAFF'],
+
+  // Billing events — only billing-side roles
   [WORKFLOW_EVENTS.BILL_REQUESTED]:           ['CASHIER', 'BILLING_STAFF'],
-  [WORKFLOW_EVENTS.BILL_READY]:               ['DOCTOR', 'RECEPTIONIST'],
-  [WORKFLOW_EVENTS.PAYMENT_COLLECTED]:        ['DOCTOR', 'RECEPTIONIST'],
+  [WORKFLOW_EVENTS.PAYMENT_PENDING]:          ['CASHIER', 'BILLING_STAFF'],
+  [WORKFLOW_EVENTS.BILL_READY]:               ['RECEPTIONIST'],
+  [WORKFLOW_EVENTS.PAYMENT_COLLECTED]:        ['RECEPTIONIST'],
+
+  // Nurse requests — nurse-side only
   [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]:     ['NURSE', 'NURSE_INCHARGE'],
   [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]:  ['DOCTOR'],
+
   // Emergency is broadcast to ALL — handled separately
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:         ['ALL'],
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:       ['ALL'],
-  [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:       ['HOSPITAL_ADMIN', 'RECEPTIONIST'],
+
+  // Staff presence — socket-only (no DB notification), hospital admin only
+  [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:       ['HOSPITAL_ADMIN'],
   [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:        ['HOSPITAL_ADMIN'],
 };
 
@@ -225,11 +244,14 @@ export class WorkflowEventService {
       socketManager.emitEmergency(event, envelope);
       if (branchId) socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
     } else {
+      const isDoctorDirected = roles.length === 1 && roles[0] === 'DOCTOR' && payload.doctorId;
+      const eventStr = String(event || '').toLowerCase();
+
       for (const role of roles) {
         const targetedEnvelope = { ...envelope, targetRole: role };
         const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
         if (targetUserId) {
-          socketManager.emitToUser(String(targetUserId), `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToUser(String(targetUserId), `workflow:${eventStr}`, targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'workflow:notification', targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'opd_queue:updated', targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'notification:created', targetedEnvelope);
@@ -242,51 +264,59 @@ export class WorkflowEventService {
             status: { $ne: 'INACTIVE' },
           }).select('_id').lean();
           for (const availableUser of availableUsers) {
-            socketManager.emitToUser(String(availableUser._id), `workflow:${event.toLowerCase()}`, targetedEnvelope);
+            socketManager.emitToUser(String(availableUser._id), `workflow:${eventStr}`, targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:notification', targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:pending_changed', { event });
             socketManager.emitToUser(String(availableUser._id), 'notification:created', targetedEnvelope);
           }
-          socketManager.emitToRole(role, `workflow:${event.toLowerCase()}`, targetedEnvelope);
+          socketManager.emitToRole(role, `workflow:${eventStr}`, targetedEnvelope);
           socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
           socketManager.emitToRole(role, 'workflow:pending_changed', { event });
           socketManager.emitToRole(role, 'notification:created', targetedEnvelope);
+        }
+      }
 
-          if (availableUsers.length === 0 && payload.senderUserId) {
-            unavailableRoles.push(role);
-            socketManager.emitToUser(String(payload.senderUserId), 'workflow:queue_warning', {
-              event, targetRole: role, title: 'Work queued — no staff available',
-              message: `No available ${role.replaceAll('_', ' ').toLowerCase()} is online. The work remains queued and will be shown when staff becomes available.`,
-            });
+      // Hospital Admins only receive emergency/IPD/escalation events
+      const ADMIN_RELEVANT_EVENTS = new Set([
+        WORKFLOW_EVENTS.EMERGENCY_RAISED,
+        WORKFLOW_EVENTS.EMERGENCY_RESOLVED,
+        WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED,
+        WORKFLOW_EVENTS.STAFF_WENT_OFFLINE,
+        WORKFLOW_EVENTS.STAFF_CAME_ONLINE,
+      ]);
+
+      if (!isDoctorDirected && !roles.includes('ALL') && ADMIN_RELEVANT_EVENTS.has(event)) {
+        const adminUsers = await User.find({
+          ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
+          role: 'HOSPITAL_ADMIN',
+          isActive: { $ne: false },
+          status: { $ne: 'INACTIVE' },
+        }).select('_id').lean().catch(() => []);
+
+        for (const admin of adminUsers) {
+          if (!roles.includes('HOSPITAL_ADMIN')) {
+            socketManager.emitToUser(String(admin._id), `workflow:${eventStr}`, envelope);
+            socketManager.emitToUser(String(admin._id), 'workflow:notification', envelope);
+            socketManager.emitToUser(String(admin._id), 'workflow:pending_changed', { event });
+            socketManager.emitToUser(String(admin._id), 'notification:created', envelope);
           }
         }
-      }
-
-      // Also emit to Hospital Admins of this hospital/branch so supervisors in Work Mode receive real-time department alerts
-      const adminUsers = await User.find({
-        ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
-        role: 'HOSPITAL_ADMIN',
-        isActive: { $ne: false },
-        status: { $ne: 'INACTIVE' },
-      }).select('_id').lean().catch(() => []);
-
-      for (const admin of adminUsers) {
-        if (!roles.includes('HOSPITAL_ADMIN')) {
-          socketManager.emitToUser(String(admin._id), `workflow:${event.toLowerCase()}`, envelope);
-          socketManager.emitToUser(String(admin._id), 'workflow:notification', envelope);
-          socketManager.emitToUser(String(admin._id), 'workflow:pending_changed', { event });
-          socketManager.emitToUser(String(admin._id), 'notification:created', envelope);
-        }
-      }
-
-      if (branchId) {
-        socketManager.emitToBranch(branchId, `workflow:${event.toLowerCase()}`, envelope);
-        socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
-        socketManager.emitToBranch(branchId, 'notification:created', envelope);
       }
     }
 
     // ── Persist to DB (non-blocking) ─────────────────────────────────────────
+    // Skip DB persistence for transient presence/internal events — socket-only signals
+    const SKIP_DB_EVENTS = new Set([
+      WORKFLOW_EVENTS.STAFF_WENT_OFFLINE,
+      WORKFLOW_EVENTS.STAFF_CAME_ONLINE,
+      WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT,  // Reception tracks this via queue
+      WORKFLOW_EVENTS.LAB_ACCEPTED,             // Internal lab status — not actionable
+      WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED,       // Internal radiology status — not actionable
+      WORKFLOW_EVENTS.PHARMACY_ACCEPTED,        // Internal pharmacy status — not actionable
+    ]);
+
+    if (SKIP_DB_EVENTS.has(event)) return;
+
     try {
       const { NotificationService } = await import('../domains/notifications/notification.service.js');
 
@@ -306,26 +336,31 @@ export class WorkflowEventService {
           metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
         });
       } else {
-        // Collect all target recipient user IDs across all roles in this event to avoid duplicate rows for multi-role staff
-        const { User } = await import('../models/User.js');
-        const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
-        if (effectiveHospitalId) userQuery.hospitalId = effectiveHospitalId;
-        if (effectiveBranchId) userQuery.$or = [{ branchId: effectiveBranchId }, { branchId: null }];
+        // Collect all target recipient user IDs across all roles in this event
+        let uniqueIds = [];
+        if (roles.length === 1 && roles[0] === 'DOCTOR' && payload.doctorId) {
+          uniqueIds = [String(payload.doctorId)];
+        } else {
+          const { User } = await import('../models/User.js');
+          const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
+          if (effectiveHospitalId) userQuery.hospitalId = effectiveHospitalId;
+          if (effectiveBranchId) userQuery.$or = [{ branchId: effectiveBranchId }, { branchId: null }];
 
-        const orConditions = [
-          { role: { $in: roles } },
-          { additionalRoles: { $in: roles } },
-        ];
-        if (payload.doctorId) {
-          orConditions.push({ _id: payload.doctorId });
-        }
-        userQuery.$and = [{ $or: orConditions }];
+          const orConditions = [
+            { role: { $in: roles } },
+            { additionalRoles: { $in: roles } },
+          ];
+          if (payload.doctorId && roles.includes('DOCTOR')) {
+            orConditions.push({ _id: payload.doctorId });
+          }
+          userQuery.$and = [{ $or: orConditions }];
 
-        const recipients = await User.find(userQuery).select('_id').lean();
-        const uniqueIds = Array.from(new Set(recipients.map((r) => String(r._id))));
+          const recipients = await User.find(userQuery).select('_id').lean();
+          uniqueIds = Array.from(new Set(recipients.map((r) => String(r._id))));
 
-        if (payload.doctorId && !uniqueIds.includes(String(payload.doctorId))) {
-          uniqueIds.push(String(payload.doctorId));
+          if (payload.doctorId && roles.includes('DOCTOR') && !uniqueIds.includes(String(payload.doctorId))) {
+            uniqueIds.push(String(payload.doctorId));
+          }
         }
 
         if (uniqueIds.length > 0) {
@@ -344,7 +379,15 @@ export class WorkflowEventService {
             relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
             isRead: false,
             status: 'ACTIVE',
-            metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
+            metadata: {
+              event,
+              patientName: payload.patientName,
+              uhid: payload.uhid,
+              orderId: payload.orderId || null,
+              appointmentId: payload.appointmentId || null,
+              invoiceId: payload.invoiceId || null,
+              patientId: payload.patientId || null,
+            },
           };
 
           await Notification.insertMany(
@@ -353,6 +396,10 @@ export class WorkflowEventService {
         }
 
         if (payload.senderUserId && unavailableRoles.length > 0) {
+          const safeSenderRoute = payload.senderRole === 'DOCTOR' || payload.doctorId === payload.senderUserId
+            ? '/doctor/dashboard?tab=DEPT_RESPONSES'
+            : (payload.linkedPath || '');
+
           await NotificationService.createNotification({
             recipientUserId: payload.senderUserId,
             hospitalId: effectiveHospitalId,
@@ -361,7 +408,7 @@ export class WorkflowEventService {
             message: `No available ${unavailableRoles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' or ')} is online. The request remains safely queued and will be surfaced when staff becomes available.`,
             notificationType: 'SYSTEM_ALERT',
             targetModule: payload.targetModule || '',
-            targetRoute: payload.linkedPath || '',
+            targetRoute: safeSenderRoute,
             relatedPatientId: payload.patientId || null,
             relatedTaskId: payload.orderId || payload.prescriptionId || payload.appointmentId || '',
             metadata: { event, queued: true, unavailableRoles },

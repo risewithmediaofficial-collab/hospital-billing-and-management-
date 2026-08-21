@@ -28,17 +28,17 @@ export const SuperAdminPendingApprovalsPage = () => {
   const fetchPending = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axiosClient.get('/saas/hospitals/pending');
-      setHospitals(res.data?.data || res.data || []);
-    } catch {
+      const hospRes = await axiosClient.get('/saas/hospitals/pending');
+      setHospitals(hospRes.data?.data || hospRes.data || []);
+    } catch (err) {
       try {
         const fallback = await axiosClient.get('/saas/hospitals');
         const list = fallback.data?.data || fallback.data || [];
         setHospitals(list.filter(
           (h) => !h.isDeleted && (h.status === 'PENDING_APPROVAL' || h.status === 'PENDING')
         ));
-      } catch (err) {
-        console.error('Failed to load pending approvals:', err);
+      } catch (e) {
+        console.error('Failed to load pending approvals:', e);
       }
     } finally {
       setIsLoading(false);
@@ -110,14 +110,11 @@ export const SuperAdminPendingApprovalsPage = () => {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Pending Approvals</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">Review and approve new hospital registration applications</p>
+              <p className="text-xs text-neutral-500 mt-0.5">Review and approve new hospital applications & branch expansion requests</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 font-black text-lg">
-            {hospitals.length} Pending
-          </div>
           <Button variant="outline" size="sm" onClick={fetchPending} className="gap-2">
             <RefreshCw size={14} />
             Refresh
@@ -145,10 +142,6 @@ export const SuperAdminPendingApprovalsPage = () => {
               <div className="h-5 bg-slate-100 rounded w-2/3 mb-4" />
               <div className="h-3 bg-slate-100 rounded w-full mb-2" />
               <div className="h-3 bg-slate-100 rounded w-3/4 mb-6" />
-              <div className="flex gap-3">
-                <div className="h-9 bg-slate-100 rounded-lg flex-1" />
-                <div className="h-9 bg-slate-100 rounded-lg flex-1" />
-              </div>
             </div>
           ))}
         </div>

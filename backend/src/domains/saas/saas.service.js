@@ -16,6 +16,7 @@ import { PatientRequest } from '../../models/PatientRequest.js';
 import { SubscriptionPlan } from '../../models/SubscriptionPlan.js';
 import { ROLES } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
+import { socketManager } from '../../events/socketManager.js';
 
 const PLATFORM_CODES = ['PLATFORM', 'PLATFORM-HQ'];
 
@@ -472,6 +473,12 @@ export class SaasService {
       .limit(200)
       .lean();
 
+    const branches = await Branch.find({
+      hospitalId: { $in: [hospitalObjId, hospitalStrId] }
+    })
+      .sort({ isMainBranch: -1, createdAt: 1 })
+      .lean();
+
     const adminLastLogin = admin?.lastLoginAt || null;
 
     return {
@@ -500,6 +507,7 @@ export class SaasService {
       },
       staffList,
       patientList,
+      branches,
     };
   }
 
@@ -1362,5 +1370,498 @@ export class SaasService {
 
     return hospital;
   }
+
+  // ── Multi-Branch Expansion Requests & Management ──────────────────────────────
+  static async createBranchRequest(data, user) {
+    const { BranchRequest } = await import('../../models/BranchRequest.js');
+    const { Branch } = await import('../../models/Branch.js');
+    const { Hospital } = await import('../../models/Hospital.js');
+
+    const hospitalId = user.hospitalId?._id || user.hospitalId || data.hospitalId;
+    if (!hospitalId) {
+      throw new ApiError(400, 'Hospital context is required for branch request.');
+    }
+
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Hospital organization not found.');
+    }
+
+    const branchName = String(data.branchName || '').trim();
+    const branchCode = String(data.branchCode || '').trim().toUpperCase();
+    const phone = String(data.phone || hospital.contactPhone || user.phone || '9999999999').trim();
+    const email = String(data.email || hospital.contactEmail || user.email || 'admin@hospital.com').trim();
+
+    const hospAddr = hospital.address || {};
+    const defaultAddress = typeof hospital.address === 'string'
+      ? hospital.address
+      : (hospAddr.street || hospAddr.city || branchName || 'Main Campus');
+    const defaultCity = typeof hospital.address === 'object'
+      ? (hospAddr.city || 'Hosur')
+      : (hospital.city || 'Hosur');
+    const defaultState = typeof hospital.address === 'object'
+      ? (hospAddr.state || 'Tamil Nadu')
+      : (hospital.state || 'Tamil Nadu');
+    const defaultPostalCode = typeof hospital.address === 'object'
+      ? (hospAddr.postalCode || '635109')
+      : (hospital.postalCode || '635109');
+
+    const address = String(data.address || defaultAddress).trim();
+    const city = String(data.city || defaultCity).trim();
+    const state = String(data.state || defaultState).trim();
+    const postalCode = String(data.postalCode || defaultPostalCode).trim();
+    const reason = String(data.reason || '').trim();
+
+    if (!branchName || !branchCode) {
+      throw new ApiError(400, 'Branch Name and Branch Code are required.');
+    }
+
+    // Check if branchCode already exists for this hospital
+    const existingBranch = await Branch.findOne({ hospitalId, branchCode });
+    if (existingBranch) {
+      throw new ApiError(400, `Branch with code '${branchCode}' already exists for this hospital.`);
+    }
+
+    const existingPending = await BranchRequest.findOne({ hospitalId, branchCode, status: 'PENDING' });
+    if (existingPending) {
+      throw new ApiError(400, `A pending request for branch code '${branchCode}' already exists.`);
+    }
+
+    const branchReq = await BranchRequest.create({
+      hospitalId,
+      requestedByUserId: user.id || user._id,
+      branchName,
+      branchCode,
+      phone,
+      email: email || hospital.contactEmail || 'admin@hospital.com',
+      address,
+      city,
+      state: state || 'Tamil Nadu',
+      postalCode: postalCode || '635109',
+      reason,
+      status: 'PENDING',
+    });
+
+    // Notify Super Admin
+    try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.createNotification({
+        recipientRole: 'SUPER_ADMIN',
+        title: 'New Branch Expansion Request',
+        message: `${hospital.name} requested approval for a new branch: "${branchName}" (${city}).`,
+        type: 'NEW_HOSPITAL_SIGNUP',
+        targetModule: 'super-admin',
+        targetRoute: '/admin/pending-approvals',
+      });
+    } catch (_) {}
+
+    // Real-time socket emission to Super Admin
+    if (socketManager.io) {
+      socketManager.io.to('super-admins').emit('branch_request:created', branchReq);
+      socketManager.io.emit('superadmin:pending_count_changed', { type: 'branch' });
+      socketManager.io.emit('notification:created', {
+        title: 'New Branch Expansion Request',
+        message: `${hospital.name} requested approval for a new branch: "${branchName}" (${city}).`,
+        targetRoute: '/admin/pending-approvals',
+      });
+    }
+
+    return branchReq;
+  }
+
+  static async getBranchRequests(query = {}, user) {
+    const { BranchRequest } = await import('../../models/BranchRequest.js');
+    const filter = {};
+    if (user.role !== 'SUPER_ADMIN') {
+      const hospitalId = user.hospitalId?._id || user.hospitalId;
+      if (hospitalId) filter.hospitalId = hospitalId;
+    }
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    const requests = await BranchRequest.find(filter)
+      .populate('hospitalId', 'name code domain plan contactName contactPhone')
+      .populate('requestedByUserId', 'name email phone role')
+      .populate('reviewedByUserId', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return requests;
+  }
+
+  static async approveBranchRequest(requestId, user) {
+    const { BranchRequest } = await import('../../models/BranchRequest.js');
+    const { Branch } = await import('../../models/Branch.js');
+    const { Hospital } = await import('../../models/Hospital.js');
+
+    const reqDoc = await BranchRequest.findById(requestId);
+    if (!reqDoc) {
+      throw new ApiError(404, 'Branch request not found.');
+    }
+    if (reqDoc.status !== 'PENDING') {
+      throw new ApiError(400, `Branch request has already been ${reqDoc.status.toLowerCase()}.`);
+    }
+
+    const hospital = await Hospital.findById(reqDoc.hospitalId);
+    if (!hospital) {
+      throw new ApiError(404, 'Associated hospital not found.');
+    }
+
+    // Create the active branch
+    const branch = await Branch.create({
+      hospitalId: hospital._id,
+      name: reqDoc.branchName,
+      branchCode: reqDoc.branchCode,
+      phone: reqDoc.phone,
+      email: reqDoc.email,
+      address: reqDoc.address,
+      city: reqDoc.city,
+      state: reqDoc.state,
+      postalCode: reqDoc.postalCode,
+      isMainBranch: false,
+      status: 'ACTIVE',
+    });
+
+    // Increment branch limit if needed
+    const currentLimit = Number(hospital.usageLimits?.branches || 1);
+    const activeBranchCount = await Branch.countDocuments({ hospitalId: hospital._id, status: 'ACTIVE' });
+    if (activeBranchCount > currentLimit) {
+      hospital.usageLimits = {
+        ...(hospital.usageLimits || {}),
+        branches: activeBranchCount,
+      };
+      await hospital.save();
+    }
+
+    reqDoc.status = 'APPROVED';
+    reqDoc.createdBranchId = branch._id;
+    reqDoc.reviewedByUserId = user.id || user._id;
+    reqDoc.reviewedAt = new Date();
+    await reqDoc.save();
+
+    // Notify Hospital Admin
+    try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.createNotification({
+        recipientRole: 'HOSPITAL_ADMIN',
+        hospitalId: hospital._id,
+        title: 'Branch Approved & Activated!',
+        message: `Your new branch "${reqDoc.branchName}" (${reqDoc.city}) has been approved and is now active. You can switch to it from the top navbar.`,
+        type: 'SUBSCRIPTION_ACTIVATED',
+        targetModule: 'admin',
+        targetRoute: '/admin/dashboard',
+      });
+    } catch (_) {}
+
+    return { branch, request: reqDoc };
+  }
+
+  static async rejectBranchRequest(requestId, { reason }, user) {
+    const { BranchRequest } = await import('../../models/BranchRequest.js');
+    const reqDoc = await BranchRequest.findById(requestId);
+    if (!reqDoc) {
+      throw new ApiError(404, 'Branch request not found.');
+    }
+    if (reqDoc.status !== 'PENDING') {
+      throw new ApiError(400, `Branch request has already been ${reqDoc.status.toLowerCase()}.`);
+    }
+
+    reqDoc.status = 'REJECTED';
+    reqDoc.rejectionReason = reason || 'Declined by platform administration.';
+    reqDoc.reviewedByUserId = user.id || user._id;
+    reqDoc.reviewedAt = new Date();
+    await reqDoc.save();
+
+    return reqDoc;
+  }
+
+  static async getHospitalBranches(hospitalId, user) {
+    const { Branch } = await import('../../models/Branch.js');
+    const targetHospId = hospitalId || user?.hospitalId?._id || user?.hospitalId;
+    if (!targetHospId) {
+      throw new ApiError(400, 'Hospital ID is required to fetch branches.');
+    }
+
+    const isAdmin = ['HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+    const filter = { hospitalId: targetHospId };
+    if (!isAdmin) {
+      filter.status = 'ACTIVE';
+    }
+
+    const branches = await Branch.find(filter)
+      .sort({ isMainBranch: -1, createdAt: 1 })
+      .lean();
+
+    return branches;
+  }
+
+  static async updateBranchStatus(branchId, status, user) {
+    const { Branch } = await import('../../models/Branch.js');
+    const branch = await Branch.findById(branchId);
+    if (!branch) {
+      throw new ApiError(404, 'Branch not found.');
+    }
+
+    if (user.role !== 'SUPER_ADMIN') {
+      const userHospId = String(user.hospitalId?._id || user.hospitalId || '');
+      if (String(branch.hospitalId) !== userHospId) {
+        throw new ApiError(403, 'Unauthorized to modify branches of another hospital.');
+      }
+    }
+
+    if (branch.isMainBranch && status !== 'ACTIVE') {
+      throw new ApiError(400, 'The Main Campus branch cannot be suspended or deactivated.');
+    }
+
+    const validStatuses = ['ACTIVE', 'SUSPENDED', 'INACTIVE'];
+    const cleanStatus = String(status || '').toUpperCase();
+    if (!validStatuses.includes(cleanStatus)) {
+      throw new ApiError(400, `Invalid branch status '${status}'. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    branch.status = cleanStatus;
+    await branch.save();
+
+    if (socketManager.io) {
+      socketManager.io.emit('branch:updated', branch);
+    }
+
+    return branch;
+  }
+
+  static async deleteBranch(branchId, user) {
+    const { Branch } = await import('../../models/Branch.js');
+    const { BranchRequest } = await import('../../models/BranchRequest.js');
+    const branch = await Branch.findById(branchId);
+    if (!branch) {
+      throw new ApiError(404, 'Branch not found.');
+    }
+
+    if (user.role !== 'SUPER_ADMIN') {
+      const userHospId = String(user.hospitalId?._id || user.hospitalId || '');
+      if (String(branch.hospitalId) !== userHospId) {
+        throw new ApiError(403, 'Unauthorized to delete branches of another hospital.');
+      }
+    }
+
+    if (branch.isMainBranch) {
+      throw new ApiError(400, 'The Main Campus branch cannot be deleted.');
+    }
+
+    await Branch.findByIdAndDelete(branchId);
+    await BranchRequest.deleteMany({ createdBranchId: branchId });
+
+    if (socketManager.io) {
+      socketManager.io.emit('branch:deleted', { branchId });
+    }
+
+    return { message: `Branch "${branch.name}" has been deleted.` };
+  }
+
+  static async assignBranchPlan(branchId, planData, user) {
+    const { Branch } = await import('../../models/Branch.js');
+    const { Hospital } = await import('../../models/Hospital.js');
+
+    const branch = await Branch.findById(branchId);
+    if (!branch) {
+      throw new ApiError(404, 'Branch not found.');
+    }
+
+    const {
+      planCode,
+      billingCycle = 'MONTHLY',
+      paymentAmount,
+      paymentMethod = 'Cash',
+      paymentRef,
+      paidAt = new Date(),
+      renewalNote,
+    } = planData;
+
+    const validPlans = ['BASIC', 'STANDARD', 'UNLIMITED', 'PROFESSIONAL', 'ENTERPRISE', 'STARTER'];
+    if (!validPlans.includes(planCode)) {
+      throw new ApiError(400, `Invalid plan code '${planCode}'. Must be one of: ${validPlans.join(', ')}`);
+    }
+
+    const startDate = new Date(paidAt || Date.now());
+    const daysToAdd = billingCycle === 'YEARLY' ? 365 : 30;
+    const endDate = new Date(startDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+
+    branch.plan = planCode;
+    branch.billingCycle = billingCycle;
+    branch.subscriptionStartDate = startDate;
+    branch.subscriptionEndDate = endDate;
+    branch.isTrial = false;
+    branch.status = 'ACTIVE';
+
+    if (!Array.isArray(branch.subscriptionHistory)) {
+      branch.subscriptionHistory = [];
+    }
+
+    branch.subscriptionHistory.push({
+      plan: planCode,
+      billingCycle,
+      amount: paymentAmount ? Number(paymentAmount) : undefined,
+      paymentMethod,
+      paymentRef,
+      paidAt: startDate,
+      renewalNote,
+      renewedBy: user.id || user._id,
+      createdAt: new Date(),
+    });
+
+    await branch.save();
+
+    await AuditLog.create({
+      hospitalId: branch.hospitalId,
+      userId: user.id || user._id,
+      userRole: user.role,
+      action: 'BRANCH_PLAN_ASSIGNED',
+      module: 'SAAS',
+      details: `Plan '${planCode}' (${billingCycle}) assigned to sub-branch '${branch.name}' (${branch.branchCode}). Valid until ${endDate.toLocaleDateString()}`,
+    });
+
+    if (socketManager.io) {
+      socketManager.io.emit('branch:updated', branch);
+    }
+
+    return branch;
+  }
+
+  static async getBranchDetail(branchId) {
+    const { Branch } = await import('../../models/Branch.js');
+    const { Hospital } = await import('../../models/Hospital.js');
+    const { User } = await import('../../models/User.js');
+    const { Patient } = await import('../../models/Patient.js');
+    const { Invoice } = await import('../../models/Invoice.js');
+    const { Consultation } = await import('../../models/Consultation.js');
+    const { Appointment } = await import('../../models/Appointment.js');
+    const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
+
+    const branch = await Branch.findById(branchId).populate('hospitalId');
+    if (!branch) {
+      throw new ApiError(404, 'Branch not found.');
+    }
+
+    const hospital = branch.hospitalId;
+    const branchObjId = branch._id;
+    const branchStrId = String(branch._id);
+    const branchCode = branch.branchCode;
+
+    // Staff filter: staff with branchId matching or assigned to hospital
+    const branchStaffFilter = {
+      hospitalId: hospital._id,
+      role: { $nin: ['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'] },
+      $or: [
+        { branchId: { $in: [branchObjId, branchStrId] } },
+        { assignedBranchCode: branchCode },
+        ...(branch.isMainBranch ? [{ branchId: { $exists: false } }, { branchId: null }] : []),
+      ],
+    };
+
+    const rawStaff = await User.find(branchStaffFilter).select('-passwordHash').sort({ createdAt: -1 }).lean();
+
+    // Invoices for this branch
+    const branchInvFilter = {
+      hospitalId: hospital._id,
+      $or: [
+        { branchId: { $in: [branchObjId, branchStrId] } },
+        { branchCode: branchCode },
+        ...(branch.isMainBranch ? [{ branchId: { $exists: false } }, { branchId: null }] : []),
+      ],
+    };
+    const invoices = await Invoice.find(branchInvFilter).sort({ createdAt: -1 }).lean();
+    const totalBranchRevenue = invoices.reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+
+    const consultations = await Consultation.find(branchInvFilter).lean();
+    const appointments = await Appointment.find(branchInvFilter).lean();
+    const diagnostics = await DiagnosticOrder.find(branchInvFilter).lean();
+
+    const staffList = rawStaff.map((s) => {
+      let patientsHandled = 0;
+      let revenueGenerated = 0;
+
+      if (s.role === 'DOCTOR') {
+        patientsHandled = consultations.filter((c) => String(c.doctorId) === String(s._id)).length;
+        revenueGenerated = invoices
+          .filter((inv) => String(inv.doctorId) === String(s._id))
+          .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+      } else if (s.role === 'RECEPTIONIST') {
+        patientsHandled = appointments.filter((a) => String(a.createdBy || a.receptionistId) === String(s._id)).length;
+      } else {
+        revenueGenerated = invoices
+          .filter((inv) => String(inv.createdBy || inv.cashierId) === String(s._id))
+          .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
+      }
+
+      const credentialHint = s.assignedPasswordHint || hospital.initialAdminPassword || `${s.role.charAt(0) + s.role.slice(1).toLowerCase()}123!`;
+
+      return {
+        ...s,
+        credentialHint,
+        patientsHandled,
+        revenueGenerated,
+      };
+    });
+
+    // Patients registered at or associated with this branch
+    const branchPatientFilter = {
+      hospitalId: hospital._id,
+      $or: [
+        { branchId: { $in: [branchObjId, branchStrId] } },
+        { registrationBranchCode: branchCode },
+        ...(branch.isMainBranch ? [{ branchId: { $exists: false } }, { branchId: null }] : []),
+      ],
+    };
+
+    const patientList = await Patient.find(branchPatientFilter).sort({ createdAt: -1 }).limit(100).lean();
+
+    const stats = {
+      doctors: staffList.filter((s) => s.role === 'DOCTOR').length,
+      receptionists: staffList.filter((s) => s.role === 'RECEPTIONIST').length,
+      nurses: staffList.filter((s) => ['NURSE', 'NURSE_INCHARGE'].includes(s.role)).length,
+      labStaff: staffList.filter((s) => s.role === 'LAB_TECH').length,
+      radiologyStaff: staffList.filter((s) => s.role === 'RADIOLOGIST').length,
+      pharmacyStaff: staffList.filter((s) => s.role === 'PHARMACIST').length,
+      billingStaff: staffList.filter((s) => s.role === 'CASHIER').length,
+      activeStaff: staffList.filter((s) => s.isActive).length,
+      inactiveStaff: staffList.filter((s) => !s.isActive).length,
+      totalPatients: patientList.length,
+      opdPatients: consultations.length,
+      ipdPatients: patientList.filter((p) => p.isIPD || p.admissionStatus === 'ADMITTED').length,
+      totalBranchRevenue,
+      todayConsultations: consultations.filter((c) => {
+        const d = new Date(c.createdAt || c.consultationDate);
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
+      }).length,
+    };
+
+    return {
+      branch: branch.toObject(),
+      hospital: {
+        _id: hospital._id,
+        name: hospital.name,
+        code: hospital.code,
+        domain: hospital.domain,
+        contactEmail: hospital.contactEmail,
+        contactPhone: hospital.contactPhone,
+        plan: hospital.plan,
+      },
+      stats,
+      staffList,
+      patientList,
+      invoices: invoices.slice(0, 50),
+    };
+  }
+
+  static async getAllBranches() {
+    const { Branch } = await import('../../models/Branch.js');
+    return await Branch.find({})
+      .populate('hospitalId', 'name code domain plan')
+      .sort({ isMainBranch: -1, createdAt: 1 })
+      .lean();
+  }
 }
+
 

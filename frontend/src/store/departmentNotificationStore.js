@@ -48,30 +48,48 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   const tTab = (tParams.get('tab') || '').toUpperCase();
   const nTab = (nParams.get('tab') || '').toUpperCase();
 
-  // 1. Doctor Routes
+  // Admin Management Views: Only match exact admin routes or explicit admin notifications
+  if (nPath.startsWith('/admin/')) {
+    if (nPath.includes('/bed-matrix')) return tPath.includes('/admin/bed-matrix') || tPath.includes('/beds');
+    return tPath === nPath;
+  }
+
+  // 1. Doctor Routes (Work Mode)
   const isDoctorTask = tPath.startsWith('/doctor');
   const isDoctorNav = nPath.startsWith('/doctor');
   if (isDoctorTask && isDoctorNav) {
+    const isDeptResponse = Boolean(
+      tTab === 'DEPT_RESPONSES' ||
+      tTab === 'SENT_DEPARTMENTS' ||
+      metadata.notificationType === 'DEPARTMENT_RESPONSE' ||
+      metadata.notificationType === 'DEPT_RESPONSE' ||
+      metadata.notificationType === 'NURSE_RESPONSE' ||
+      metadata.notificationType === 'SUBSTITUTION_REQUEST' ||
+      metadata.notificationType === 'BILLING_QUERY' ||
+      metadata.type === 'BILLING_QUERY' ||
+      metadata.type === 'DEPT_RESPONSE' ||
+      metadata.type === 'NURSE_TASK_COMPLETED' ||
+      metadata.type === 'REPORT_READY' ||
+      metadata.type === 'SUBSTITUTION_REQUEST' ||
+      metadata.event === 'billing:returned_to_doctor' ||
+      metadata.event === 'nurse:request_completed' ||
+      metadata.event === 'diagnostics:report_ready' ||
+      metadata.event === 'pharmacy:substitution_requested'
+    );
+
     if (nTab === 'DEPT_RESPONSES') {
-      return (
-        tTab === 'DEPT_RESPONSES' ||
-        tTab === 'SENT_DEPARTMENTS' ||
-        metadata.notificationType === 'DEPARTMENT_RESPONSE' ||
-        metadata.notificationType === 'NURSE_RESPONSE' ||
-        metadata.notificationType === 'SUBSTITUTION_REQUEST' ||
-        metadata.type === 'NURSE_TASK_COMPLETED' ||
-        metadata.type === 'REPORT_READY'
-      );
+      return isDeptResponse;
     }
     if (nTab === 'FOLLOW_UPS') return tTab === 'FOLLOW_UPS';
     if (nTab === 'COMPLETED') return tTab === 'COMPLETED';
     if (!nTab || nTab === 'OVERVIEW' || nTab === 'LIVE') {
+      if (isDeptResponse) return false;
       return !tTab || tTab === 'OVERVIEW' || tTab === 'LIVE' || tTab === 'QUEUE';
     }
     return tTab === nTab;
   }
 
-  // 2. Nursing Routes
+  // 2. Nursing Routes (Work Mode)
   const isNursingTask = tPath.startsWith('/nurse-incharge') || tPath.startsWith('/nursing');
   const isNursingNav = nPath.startsWith('/nurse-incharge') || nPath.startsWith('/nursing');
   if (isNursingTask && isNursingNav) {
@@ -81,15 +99,10 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
     if (nTab === 'REQUISITIONS') return tTab === 'REQUISITIONS' || metadata.type === 'ADMISSION_REQUISITION';
     if (nTab === 'ADMITTED') return tTab === 'ADMITTED';
     if (nTab === 'REQUESTS') return tTab === 'REQUESTS';
-    return tTab === nTab;
+    return true;
   }
 
-  // 3. Bed Matrix
-  if (nPath.includes('/admin/bed-matrix')) {
-    return tPath.includes('/admin/bed-matrix') || tPath.includes('/beds');
-  }
-
-  // 4. Reception Routes
+  // 3. Reception Routes (Work Mode)
   const isReceptionTask = tPath.startsWith('/reception');
   const isReceptionNav = nPath.startsWith('/reception');
   if (isReceptionTask && isReceptionNav) {
@@ -97,28 +110,26 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
     if (nTab === 'ALL') return tTab === 'ALL';
     if (nPath.includes('/tokens')) return tPath.includes('/tokens') || tPath.includes('/queue');
     if (!nTab) return !tTab || tTab === 'DASHBOARD' || tTab === 'REGISTERED';
-    return tTab === nTab;
+    return true;
   }
 
-  // 5. Billing Desk
+  // 4. Billing Desk (Work Mode)
   const isBillingTask = tPath.startsWith('/billing');
   const isBillingNav = nPath.startsWith('/billing');
   if (isBillingTask && isBillingNav) {
     if (nTab === 'RECEIPTS') return tTab === 'RECEIPTS' || tPath.includes('/receipts');
     if (!nTab) return !tTab || tTab === 'DASHBOARD';
-    return tTab === nTab;
-  }
-
-  // 6. Pharmacy
-  const isPharmacyTask = tPath.startsWith('/pharmacy');
-  const isPharmacyNav = nPath.startsWith('/pharmacy');
-  if (isPharmacyTask && isPharmacyNav) {
-    if (nPath.includes('/dispense-queue')) return tPath.includes('/dispense-queue') || tPath.includes('/prescriptions');
-    if (nPath.includes('/dashboard')) return tPath.includes('/dashboard');
     return true;
   }
 
-  // 7. Diagnostics (Lab / Radiology)
+  // 5. Pharmacy (Work Mode)
+  const isPharmacyTask = tPath.startsWith('/pharmacy');
+  const isPharmacyNav = nPath.startsWith('/pharmacy');
+  if (isPharmacyTask && isPharmacyNav) {
+    return true;
+  }
+
+  // 6. Diagnostics (Lab / Radiology)
   if (nPath.startsWith('/laboratory') && tPath.startsWith('/laboratory')) return true;
   if (nPath.startsWith('/radiology') && tPath.startsWith('/radiology')) return true;
   if (nPath.startsWith('/emergency') && tPath.startsWith('/emergency')) return true;

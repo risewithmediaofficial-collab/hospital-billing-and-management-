@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
-import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useDepartmentNotificationStore, pathMatches } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useEmergencyStore } from '../../store/emergencyStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
@@ -688,9 +688,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
               }
 
               const count = getUnreadCountForNav(item.path);
-              const baseKey = item.path.split('?')[0];
-              if (count > 0 && !seenKeys.has(baseKey)) {
-                seenKeys.add(baseKey);
+              const fullKey = item.path;
+              if (count > 0 && !seenKeys.has(fullKey)) {
+                seenKeys.add(fullKey);
                 activeDepts.push({
                   title: item.title || item.name,
                   category: grp.category,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
+import { useNavigate, Link, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -11,6 +11,7 @@ import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOf
 
 export const LoginPage = () => {
   const { hospitalDomain } = useParams();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('STAFF'); // 'STAFF' | 'PATIENT' | 'GUARDIAN'
 
   // Domain verification state
@@ -32,8 +33,18 @@ export const LoginPage = () => {
   const [guardianPatientMobile, setGuardianPatientMobile] = useState('');
   const [guardianUHID, setGuardianUHID] = useState('');
 
-  const { login, patientLogin, guardianLogin, isLoading, error } = useAuthStore();
+  const { user: currentUser, logout, login, patientLogin, guardianLogin, isLoading, error } = useAuthStore();
   const navigate = useNavigate();
+
+  // If user is navigating to a specific tenant login and has a session from another tenant, clear it
+  useEffect(() => {
+    if (hospitalDomain && currentUser && currentUser.role !== 'SUPER_ADMIN') {
+      const userDomain = currentUser.hospitalDomain || currentUser.hospital?.domain || currentUser.hospital?.subdomain || '';
+      if (userDomain && userDomain.toLowerCase() !== hospitalDomain.toLowerCase()) {
+        logout();
+      }
+    }
+  }, [hospitalDomain, currentUser, logout]);
 
   useEffect(() => {
     if (!hospitalDomain) {
@@ -198,6 +209,13 @@ export const LoginPage = () => {
               Guardian
             </button>
           </div>
+
+          {location.state?.tenantMismatch && (
+            <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-medium flex items-center gap-2">
+              <Info size={15} className="flex-shrink-0 text-indigo-600" />
+              <span>You switched to <strong>{hospitalInfo?.name || hospitalDomain}</strong>. Please sign in with your credentials for this hospital.</span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">

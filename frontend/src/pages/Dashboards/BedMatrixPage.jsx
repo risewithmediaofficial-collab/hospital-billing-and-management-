@@ -53,7 +53,13 @@ import {
   Eye,
 } from 'lucide-react';
 
+import { useAuthStore } from '../../store/authStore';
+
 export const BedMatrixPage = () => {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'HOSPITAL_ADMIN';
+  const isNurse = user?.role === 'NURSE' || user?.role === 'NURSE_INCHARGE';
+  const isDoctor = user?.role === 'DOCTOR';
   const { socket } = useSocket();
 
   // Active Main Tab
@@ -316,26 +322,30 @@ export const BedMatrixPage = () => {
             <Zap size={14} className="text-rose-600" /> Rapid Emergency Finder
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsBulkModalOpen(true)}
-            className="font-bold text-xs bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100"
-          >
-            <Sparkles size={14} className="text-violet-600" /> Bulk Generator Wizard
-          </Button>
+          {isAdmin && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkModalOpen(true)}
+                className="font-bold text-xs bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100"
+              >
+                <Sparkles size={14} className="text-violet-600" /> Bulk Generator Wizard
+              </Button>
 
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setSelectedBedToEdit(null);
-              setIsBedModalOpen(true);
-            }}
-            className="font-bold text-xs bg-indigo-600 hover:bg-indigo-700"
-          >
-            <Plus size={14} /> Add Bed
-          </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setSelectedBedToEdit(null);
+                  setIsBedModalOpen(true);
+                }}
+                className="font-bold text-xs bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Plus size={14} /> Add Bed
+              </Button>
+            </>
+          )}
 
           <Button
             variant="outline"
@@ -415,13 +425,13 @@ export const BedMatrixPage = () => {
       {/* 3. Main Navigation Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto pb-px">
         {[
-          { id: 'MATRIX', label: 'Live Bed Matrix & Visual Grid', icon: LayoutGrid },
-          { id: 'SETUP', label: 'Physical Hierarchy Setup', icon: Building2 },
-          { id: 'CLEANING', label: `Housekeeping & Cleaning (${summary.cleaning || 0})`, icon: Sparkles },
-          { id: 'MAINTENANCE', label: `Maintenance Desk (${summary.maintenance || 0})`, icon: Wrench },
-          { id: 'TRANSFERS', label: 'Transfers & Audit Log', icon: ArrowRightLeft },
-          { id: 'ANALYTICS', label: 'Occupancy & Turnover Reports', icon: PieChart },
-        ].map((tab) => {
+          { id: 'MATRIX', label: 'Live Bed Matrix & Visual Grid', icon: LayoutGrid, visible: true },
+          { id: 'SETUP', label: 'Physical Hierarchy Setup', icon: Building2, visible: isAdmin },
+          { id: 'CLEANING', label: `Housekeeping & Cleaning (${summary.cleaning || 0})`, icon: Sparkles, visible: isAdmin || isNurse },
+          { id: 'MAINTENANCE', label: `Maintenance Desk (${summary.maintenance || 0})`, icon: Wrench, visible: isAdmin || isNurse },
+          { id: 'TRANSFERS', label: 'Transfers & Audit Log', icon: ArrowRightLeft, visible: true },
+          { id: 'ANALYTICS', label: 'Occupancy & Turnover Reports', icon: PieChart, visible: true },
+        ].filter((tab) => tab.visible).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -957,7 +967,7 @@ export const BedMatrixPage = () => {
       {/* ========================================================================= */}
       {/* TAB 2: PHYSICAL HIERARCHY SETUP (BLOCKS, FLOORS, WARDS, ROOMS, BEDS) */}
       {/* ========================================================================= */}
-      {activeTab === 'SETUP' && (
+      {activeTab === 'SETUP' && isAdmin && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-4">
             {/* Sub-nav inside Setup */}

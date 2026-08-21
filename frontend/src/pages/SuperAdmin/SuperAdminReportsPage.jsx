@@ -34,6 +34,7 @@ export const SuperAdminReportsPage = () => {
 
   // Domain Datasets
   const [allStaff, setAllStaff] = useState([]);
+  const [hospitalAdminsData, setHospitalAdminsData] = useState([]);
   const [doctorsData, setDoctorsData] = useState([]);
   const [receptionData, setReceptionData] = useState([]);
   const [nursingData, setNursingData] = useState([]);
@@ -90,6 +91,7 @@ export const SuperAdminReportsPage = () => {
         : rawStaff;
 
       setAllStaff(hospStaff);
+      setHospitalAdminsData(hospStaff.filter((s) => ['HOSPITAL_ADMIN', 'ADMIN'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('HOSPITAL_ADMIN'))));
       setDoctorsData(hospStaff.filter((s) => ['DOCTOR', 'PHYSICIAN'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))));
       setReceptionData(hospStaff.filter((s) => ['RECEPTIONIST', 'RECEPTION', 'FRONT_DESK'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('RECEPTIONIST'))));
       setNursingData(hospStaff.filter((s) => ['NURSE', 'NURSE_INCHARGE', 'NURSING', 'NURSE_STAFF'].includes(String(s.role || '').toUpperCase()) || (Array.isArray(s.additionalRoles) && (s.additionalRoles.includes('NURSE') || s.additionalRoles.includes('NURSE_INCHARGE')))));
@@ -180,18 +182,20 @@ export const SuperAdminReportsPage = () => {
   const METRIC_TABS = [
     { id: 'overview', label: 'Executive Overview', icon: BarChart3 },
     { id: 'staff', label: 'All Staff Roster', icon: Users, count: allStaff.length },
-    { id: 'reception', label: 'Reception & Front Desk', icon: ConciergeBell, count: receptionData.length },
+    { id: 'hospital-admins', label: 'Hospital Admins', icon: ShieldCheck, count: hospitalAdminsData.length },
     { id: 'doctors', label: 'Doctors & Consults', icon: Stethoscope, count: doctorsData.length },
+    { id: 'reception', label: 'Reception & Front Desk', icon: ConciergeBell, count: receptionData.length },
     { id: 'nursing', label: 'Nursing & Ward Tasks', icon: Activity, count: nursingData.length },
-    { id: 'laboratory', label: 'Pathology & Lab', icon: TestTube, count: labOrders.length },
-    { id: 'radiology', label: 'Radiology & Imaging', icon: Scan, count: radiologyOrders.length },
-    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill, count: pharmacyData.medicines.length },
-    { id: 'billing', label: 'Billing & Revenue', icon: CreditCard, count: invoices.length },
+    { id: 'laboratory', label: 'Pathology & Lab', icon: TestTube, count: labStaffData.length },
+    { id: 'radiology', label: 'Radiology & Imaging', icon: Scan, count: radiologyStaffData.length },
+    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill, count: pharmacyStaffData.length },
+    { id: 'billing', label: 'Billing & Cashiers', icon: CreditCard, count: billingStaffData.length },
     { id: 'patients', label: 'Patients & Admissions', icon: Users, count: patients.length },
   ];
 
   // Route alias resolution
   const activeTabId =
+    ['hospital-admins', 'hospital-admin', 'admins', 'admin', 'hospitaladmins'].includes(metric) ? 'hospital-admins' :
     ['reception', 'receptionists'].includes(metric) ? 'reception' :
     ['staff', 'all-staff'].includes(metric) ? 'staff' :
     ['doctors', 'physicians'].includes(metric) ? 'doctors' :
@@ -395,13 +399,27 @@ export const SuperAdminReportsPage = () => {
           {activeTabId === 'staff' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
-                <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Cross-Department Roster" icon={Users} color="purple" />
-                <StatCard title="On Duty Available" value={`${allStaff.filter(s => s.isAvailable !== false).length} Active`} subtitle="Working Shift" icon={CheckCircle2} color="emerald" />
-                <StatCard title="Reception & Front Desk" value={`${receptionData.length} Receptionists`} subtitle="Registration Desk" icon={ConciergeBell} color="blue" />
+                <StatCard title="Total Staff" value={`${allStaff.length} Members`} subtitle="Cross-Department Roster" icon={Users} color="purple" />
+                <StatCard title="Hospital Admins" value={`${hospitalAdminsData.length} Admins`} subtitle="Facility Leadership" icon={ShieldCheck} color="indigo" />
                 <StatCard title="Doctors & Specialists" value={`${doctorsData.length} Doctors`} subtitle="OPD Clinics" icon={Stethoscope} color="sky" />
+                <StatCard title="On Duty Available" value={`${allStaff.filter(s => s.isAvailable !== false).length} Active`} subtitle="Working Shift" icon={CheckCircle2} color="emerald" />
               </div>
 
               {renderStaffTable(allStaff, 'Complete Platform Staff & Credentials Directory', Users)}
+            </div>
+          )}
+
+          {/* ── METRIC: HOSPITAL ADMINISTRATORS ── */}
+          {activeTabId === 'hospital-admins' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+                <StatCard title="Hospital Administrators" value={`${hospitalAdminsData.length} Admins`} subtitle="Facility Leadership" icon={ShieldCheck} color="purple" />
+                <StatCard title="Active On Duty" value={`${hospitalAdminsData.filter(a => a.isAvailable !== false).length} Active`} subtitle="Access Enabled" icon={CheckCircle2} color="emerald" />
+                <StatCard title="Managed Hospitals" value={`${hospitals.length} Hospitals`} subtitle="Registered Tenants" icon={Building2} color="sky" />
+                <StatCard title="Total Platform Staff" value={`${allStaff.length} Users`} subtitle="Under Management" icon={Users} color="indigo" />
+              </div>
+
+              {renderStaffTable(hospitalAdminsData, 'Hospital Administrators & Facility Directors Directory', ShieldCheck)}
             </div>
           )}
 

@@ -91,17 +91,6 @@ export const EmergencyBanner = () => {
         </div>
       )}
 
-      {/* Floating Trigger Emergency Button for Staff & Guardian */}
-      <div className="fixed bottom-4 right-4 z-40">
-        <button
-          onClick={() => setIsRaiseModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-2xl transition-all cursor-pointer border-2 border-white hover:scale-105 active:scale-95"
-        >
-          <BellRing size={18} className="animate-bounce" />
-          <span>RAISE EMERGENCY</span>
-        </button>
-      </div>
-
       {/* Raise Emergency Modal */}
       {isRaiseModalOpen && (
         <div className="modal-overlay animate-fade-in">

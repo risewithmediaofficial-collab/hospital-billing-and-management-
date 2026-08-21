@@ -23,42 +23,62 @@ const recipientQuery = async (context = {}) => {
   const tenantBranchId = branchId || user?.branchId;
 
   if (activeRole === 'SUPER_ADMIN') {
+    const validSuperAdminTypes = [
+      'TRIAL_EXPIRED',
+      'TRIAL_EXPIRING',
+      'PLAN_EXPIRATION',
+      'PLATFORM_REVENUE',
+      'SECURITY_LOGIN',
+      'NEW_HOSPITAL_SIGNUP',
+      'SAAS_ALERT',
+      'SUBSCRIPTION_EXPIRED',
+      'SUBSCRIPTION_WARNING',
+      'PAYMENT_RECEIVED',
+      'HOSPITAL_REGISTRATION',
+      'HOSPITAL_APPROVED',
+      'HOSPITAL_SUSPENDED',
+      'HOSPITAL_CREATED',
+      'SYSTEM_ALERT',
+    ];
+
+    const clinicalExclusions = [
+      'WORKFLOW',
+      'WORKFLOW_ALERT',
+      'NEW_DATA',
+      'DEPT_RESPONSE',
+      'DEPARTMENT_RESPONSE',
+      'NURSE_RESPONSE',
+      'BILLING_UPDATE',
+      'PRESCRIPTION_ISSUED',
+      'PATIENT_QUEUED',
+      'DIAGNOSTIC_ORDER',
+      'NURSE_TASK_CREATED',
+      'NURSE_TASK_COMPLETED',
+      'REPORT_READY',
+      'CONSULTATION_COMPLETE',
+    ];
+
     return {
       $and: [
         {
           $or: [
-            ...(userId ? [
-              { recipientUserId: userId },
-              ...(mongoose.Types.ObjectId.isValid(String(userId)) ? [{ recipientUserId: new mongoose.Types.ObjectId(String(userId)) }] : []),
-            ] : []),
             { recipientRole: 'SUPER_ADMIN' },
-            { targetModule: { $in: ['super-admin', 'SUPER_ADMIN', 'saas', 'SAAS', 'admin'] } },
-            {
-              type: {
-                $in: [
-                  'TRIAL_EXPIRED',
-                  'TRIAL_EXPIRING',
-                  'PLAN_EXPIRATION',
-                  'PLATFORM_REVENUE',
-                  'SECURITY_LOGIN',
-                  'NEW_HOSPITAL_SIGNUP',
-                  'SAAS_ALERT',
-                  'SUBSCRIPTION_EXPIRED',
-                  'SUBSCRIPTION_WARNING',
-                  'PAYMENT_RECEIVED',
-                ],
-              },
-            },
+            { targetModule: { $in: ['super-admin', 'SUPER_ADMIN', 'saas', 'SAAS'] } },
+            { type: { $in: validSuperAdminTypes } },
+            { notificationType: { $in: ['PLATFORM_REVENUE', 'SECURITY_LOGIN', 'NEW_HOSPITAL_SIGNUP', 'SAAS_ALERT', 'SUBSCRIPTION_EXPIRED', 'PAYMENT_RECEIVED', 'HOSPITAL_REGISTRATION'] } },
           ],
         },
-        // Super Admin NEVER sees hospital tenant patient/token/clinical/pharmacy/billing notifications
         {
-          notificationType: {
-            $nin: ['WORKFLOW', 'WORKFLOW_ALERT', 'NEW_DATA', 'DEPT_RESPONSE'],
-          },
+          notificationType: { $nin: clinicalExclusions },
         },
         {
-          recipientRole: { $ne: 'ALL' },
+          type: { $nin: ['NURSE_TASKS', 'LAB_ORDER_CREATED', 'PATIENT_QUEUED', 'DOCTOR_PATIENT', 'NURSE_RESPONSE', 'DEPARTMENT_RESPONSE', 'BILLING_WORK', 'LAB_WORK', 'RADIOLOGY_WORK'] },
+        },
+        {
+          targetModule: { $nin: ['doctor', 'nursing', 'pharmacy', 'laboratory', 'radiology', 'billing', 'reception', 'ipd', 'opd'] },
+        },
+        {
+          recipientRole: { $nin: ['ALL', 'DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'RECEPTIONIST', 'CASHIER', 'LAB_TECH', 'RADIOLOGIST', 'PHARMACIST', 'PATIENT', 'GUARDIAN', 'HOSPITAL_ADMIN'] },
         },
       ],
     };
@@ -79,22 +99,153 @@ const recipientQuery = async (context = {}) => {
     clauses.push({ $or: orConditions });
   }
 
+  // 1. Doctor role notification isolation: doctors should only receive clinical responses, reports, and returned queries
+  if (activeRole === 'DOCTOR' || userRoles.includes('DOCTOR')) {
+    const doctorExclusions = [
+      'New Bill Pending',
+      'Pharmacy Dispensed & Billed',
+      'Pharmacy Clearance (External Purchase)',
+      'Pharmacy Clearance',
+      'Medicines Dispensed',
+      'Invoice Generated',
+      'Bill Generation Requested',
+      'Payment Collected',
+      'Payment Received',
+      'Bill Ready (Post-Injection)',
+      'Bill Ready',
+      'Billing Query & Return',
+    ];
+    clauses.push({
+      $and: [
+        { title: { $nin: doctorExclusions } },
+        { title: { $not: /(New Bill|Medicines Dispensed|Pharmacy Dispensed|Pharmacy Clearance|Invoice Generated|Payment Collected|Payment Received|Bill Ready|Bill Generation)/i } },
+        { recipientRole: { $nin: ['CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'PHARMACY_STAFF', 'RECEPTIONIST'] } },
+        {
+          $or: [
+            {
+              $and: [
+                { targetModule: { $nin: ['billing', 'cashier'] } },
+                { targetRoute: { $not: /\/(billing|cashier)/i } },
+                { link: { $not: /\/(billing|cashier)/i } },
+              ],
+            },
+            { notificationType: 'BILLING_QUERY' },
+            { type: 'BILLING_QUERY' },
+            { title: { $regex: /Billing (Query|Review)/i } },
+          ],
+        },
+        {
+          $or: [
+            {
+              $and: [
+                { targetModule: { $nin: ['pharmacy', 'stock', 'inventory'] } },
+                { targetRoute: { $not: /\/(pharmacy|stock|inventory)/i } },
+                { link: { $not: /\/(pharmacy|stock|inventory)/i } },
+              ],
+            },
+            { notificationType: 'SUBSTITUTION_REQUEST' },
+            { type: 'SUBSTITUTION_REQUEST' },
+            { title: { $regex: /Substitution/i } },
+          ],
+        },
+      ],
+    });
+  }
+
+  // 2. Pharmacist role notification isolation
+  if ((activeRole === 'PHARMACIST' || activeRole === 'PHARMACY_STAFF') && !userRoles.includes('DOCTOR') && !userRoles.includes('CASHIER')) {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'LAB_TECH', 'RADIOLOGIST', 'NURSE', 'NURSE_INCHARGE'] } },
+        { targetRoute: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge)/i } },
+        { link: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge)/i } },
+        { targetModule: { $nin: ['laboratory', 'radiology', 'doctor', 'nursing'] } },
+        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Doctor Reviewed|Injection|Nurse Task|Treatment Request)/i } },
+      ],
+    });
+  }
+
+  // 3. Cashier / Billing role notification isolation
+  if ((activeRole === 'CASHIER' || activeRole === 'BILLING_STAFF') && !userRoles.includes('DOCTOR')) {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'NURSE', 'NURSE_INCHARGE'] } },
+        { targetRoute: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge|pharmacy\/dashboard)/i } },
+        { link: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge|pharmacy\/dashboard)/i } },
+        { targetModule: { $nin: ['laboratory', 'radiology', 'doctor', 'nursing'] } },
+        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Doctor Reviewed|Treatment Request|New Treatment)/i } },
+      ],
+    });
+  }
+
+  // 4. Lab Tech role notification isolation
+  if (activeRole === 'LAB_TECH' || activeRole === 'LABORATORY_STAFF') {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'RADIOLOGIST', 'NURSE', 'RECEPTIONIST'] } },
+        { targetRoute: { $not: /\/(radiology|pharmacy|billing|cashier|nursing|reception)/i } },
+        { link: { $not: /\/(radiology|pharmacy|billing|cashier|nursing|reception)/i } },
+        { targetModule: { $nin: ['radiology', 'pharmacy', 'billing', 'cashier', 'nursing', 'reception'] } },
+        { title: { $not: /(Radiology|Scan|Prescription|Medicine Dispensed|Pharmacy Dispensed|Invoice|Payment|Bill|Injection)/i } },
+      ],
+    });
+  }
+
+  // 5. Radiologist role notification isolation
+  if (activeRole === 'RADIOLOGIST' || activeRole === 'RADIOLOGY_STAFF') {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'LAB_TECH', 'NURSE', 'RECEPTIONIST'] } },
+        { targetRoute: { $not: /\/(laboratory|pharmacy|billing|cashier|nursing|reception)/i } },
+        { link: { $not: /\/(laboratory|pharmacy|billing|cashier|nursing|reception)/i } },
+        { targetModule: { $nin: ['laboratory', 'pharmacy', 'billing', 'cashier', 'nursing', 'reception'] } },
+        { title: { $not: /(Lab Request|Blood|Urine|Prescription|Medicine Dispensed|Pharmacy Dispensed|Invoice|Payment|Bill|Injection)/i } },
+      ],
+    });
+  }
+
+  // 6. Nurse role notification isolation
+  if ((activeRole === 'NURSE' || activeRole === 'NURSE_INCHARGE') && !userRoles.includes('DOCTOR')) {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST'] } },
+        { targetRoute: { $not: /\/(pharmacy|billing|cashier)/i } },
+        { link: { $not: /\/(pharmacy|billing|cashier)/i } },
+        { targetModule: { $nin: ['pharmacy', 'billing', 'cashier'] } },
+        { title: { $not: /(Pharmacy Dispensed|Medicines Dispensed|Invoice Generated|Payment Collected|Bill Ready)/i } },
+      ],
+    });
+  }
+
+  // 7. Receptionist role notification isolation
+  if ((activeRole === 'RECEPTIONIST' || activeRole === 'OPD_STAFF') && !userRoles.includes('DOCTOR') && !userRoles.includes('HOSPITAL_ADMIN')) {
+    clauses.push({
+      $and: [
+        { recipientRole: { $nin: ['DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST'] } },
+        { targetRoute: { $not: /\/(laboratory|radiology|pharmacy|nurse-incharge)/i } },
+        { link: { $not: /\/(laboratory|radiology|pharmacy|nurse-incharge)/i } },
+        { targetModule: { $nin: ['laboratory', 'radiology', 'pharmacy'] } },
+        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Medicines Dispensed|Pharmacy Dispensed|Injection Administered)/i } },
+      ],
+    });
+  }
+
   if (tenantId) {
-    const hIdStr = String(tenantId);
-    const hConditions = [{ hospitalId: hIdStr }, { hospitalId: null }];
+    const hIdStr = typeof tenantId === 'object' ? String(tenantId._id || tenantId) : String(tenantId);
     if (mongoose.Types.ObjectId.isValid(hIdStr)) {
-      hConditions.push({ hospitalId: new mongoose.Types.ObjectId(hIdStr) });
+      clauses.push({ hospitalId: new mongoose.Types.ObjectId(hIdStr) });
+    } else {
+      clauses.push({ hospitalId: tenantId });
     }
-    clauses.push({ $or: hConditions });
   }
 
   if (tenantBranchId) {
-    const bIdStr = String(tenantBranchId);
-    const bConditions = [{ branchId: bIdStr }, { branchId: null }];
+    const bIdStr = typeof tenantBranchId === 'object' ? String(tenantBranchId._id || tenantBranchId) : String(tenantBranchId);
     if (mongoose.Types.ObjectId.isValid(bIdStr)) {
-      bConditions.push({ branchId: new mongoose.Types.ObjectId(bIdStr) });
+      clauses.push({ $or: [{ branchId: new mongoose.Types.ObjectId(bIdStr) }, { branchId: null }] });
+    } else {
+      clauses.push({ $or: [{ branchId: tenantBranchId }, { branchId: null }] });
     }
-    clauses.push({ $or: bConditions });
   }
 
   return clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});

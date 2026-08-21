@@ -7,7 +7,7 @@ const prescriptionSchema = new mongoose.Schema(
     consultationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation', required: true },
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true, index: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    prescriptionNo: { type: String, required: true, unique: true },
+    prescriptionNo: { type: String, required: true, trim: true, index: true },
     medicines: [
       {
         medicineId: { type: mongoose.Schema.Types.ObjectId, ref: 'Medicine' },
@@ -45,13 +45,22 @@ const prescriptionSchema = new mongoose.Schema(
     },
     dispenseStatus: {
       type: String,
-      enum: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED', 'DISPENSED', 'CANCELLED', 'BILLED_SENT_TO_DOCTOR'],
+      enum: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED', 'DISPENSED', 'CANCELLED', 'BILLED_SENT_TO_DOCTOR', 'RETURNED_TO_DOCTOR'],
       default: 'PENDING_DISPENSE',
       index: true,
     },
     dispensedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     dispensedAt: { type: Date },
     pharmacyNotes: { type: String, default: '' },
+    billingQuery: {
+      invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+      query: { type: String, default: '' },
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      requestedByName: { type: String, default: '' },
+      requestedAt: { type: Date },
+      resolved: { type: Boolean, default: false },
+      targetDepartment: { type: String, default: 'PHARMACY' },
+    },
   },
   { timestamps: true }
 );

@@ -106,7 +106,8 @@ export const SuperAdminDashboardPage = () => {
   };
 
   const totalAlerts = (subAlerts.expiringSoon?.length || 0) + (subAlerts.trialsExpiringSoon?.length || 0);
-  const hasAlerts = pendingCount > 0 || totalAlerts > 0 || (metrics?.emergencyCases || 0) > 0;
+  const totalPending = pendingCount;
+  const hasAlerts = totalPending > 0 || totalAlerts > 0 || (metrics?.emergencyCases || 0) > 0;
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-slate-500">Loading platform dashboard...</div>;
@@ -126,16 +127,16 @@ export const SuperAdminDashboardPage = () => {
             <Bell size={18} className="text-amber-600" />
             <h3 className="font-bold text-amber-800">Platform Alerts — Action Required</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {pendingCount > 0 && (
               <button
                 onClick={() => navigate('/admin/pending-approvals')}
                 className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200 hover:bg-amber-50 transition-colors text-left shadow-sm"
               >
                 <div>
-                  <p className="text-xs font-bold text-amber-700">Pending Approvals</p>
+                  <p className="text-xs font-bold text-amber-700">Hospital Approvals</p>
                   <p className="text-2xl font-black text-slate-900">{pendingCount}</p>
-                  <p className="text-[10px] text-slate-500">hospitals awaiting review</p>
+                  <p className="text-[10px] text-slate-500">new hospitals awaiting review</p>
                 </div>
                 <ArrowRight size={16} className="text-amber-500" />
               </button>

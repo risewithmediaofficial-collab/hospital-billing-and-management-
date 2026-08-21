@@ -6,10 +6,11 @@ import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLE_NAMES } from '../../utils/constants';
-import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote, ChevronDown } from 'lucide-react';
+import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote, ChevronDown, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 import { UserProfilePopover } from './UserProfilePopover';
+import { useTeamChatStore } from '../../store/teamChatStore';
 
 export const Navbar = ({ onToggleSidebar }) => {
   const location = useLocation();
@@ -18,7 +19,9 @@ export const Navbar = ({ onToggleSidebar }) => {
   const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
   const { socket } = useSocket();
-  const { unreadCount: notificationCount, fetchNotifications } = useNotificationStore();
+  const { unreadCount, notifications, fetchNotifications } = useNotificationStore();
+  // Bell badge = number of UNREAD notifications only. 0 = nothing to read.
+  const notificationCount = unreadCount || 0;
   const { isAvailable, isToggling, handleToggle } = useAvailability();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -96,7 +99,7 @@ export const Navbar = ({ onToggleSidebar }) => {
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shadow-sm">
-      {/* Left: Hamburger + Hospital Name */}
+      {/* Left: Hamburger + Hospital & Branch Switcher Button */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
@@ -106,19 +109,35 @@ export const Navbar = ({ onToggleSidebar }) => {
           <Menu size={20} />
         </button>
 
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
-            <Building2 size={17} />
+        {user?.role === 'SUPER_ADMIN' ? (
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
+              <Building2 size={17} />
+            </div>
+            <div className="hidden sm:block min-w-0">
+              <h1 className="text-sm font-bold text-slate-800 leading-none truncate max-w-[180px] lg:max-w-xs">
+                Super Admin Console
+              </h1>
+              <span className="text-[11px] text-slate-400 font-medium truncate block">
+                Platform Control
+              </span>
+            </div>
           </div>
-          <div className="hidden sm:block min-w-0">
-            <h1 className="text-sm font-bold text-slate-800 leading-none truncate max-w-[180px] lg:max-w-xs">
-              {user?.branchName || 'Metro General Hospital'}
-            </h1>
-            <span className="text-[11px] text-slate-400 font-medium truncate block">
-              {user?.hospitalName || 'Central Branch'}
-            </span>
+        ) : (
+          <div className="flex items-center gap-2.5 p-1.5 -ml-1.5 rounded-xl text-left">
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
+              <Building2 size={17} />
+            </div>
+            <div className="hidden sm:block min-w-0">
+              <h1 className="text-sm font-bold text-slate-800 leading-none truncate max-w-[180px] lg:max-w-xs">
+                {user?.hospitalName || 'Healthcare System'}
+              </h1>
+              <span className="text-[11px] text-slate-400 font-medium truncate block">
+                Hospital Portal
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Center: Dual-Mode Switcher for Multi-Role / Hospital Admin */}
@@ -171,6 +190,37 @@ export const Navbar = ({ onToggleSidebar }) => {
           </button>
         )}
 
+
+        {/* Rapid Emergency Trigger Button */}
+        {user && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('open-emergency-modal'))}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-[11px] font-extrabold shadow-sm transition-all cursor-pointer border border-rose-500"
+            title="Raise Emergency / Code Blue Broadcast"
+          >
+            <ShieldAlert size={14} className="animate-pulse" />
+            <span className="hidden sm:inline">Emergency</span>
+          </button>
+        )}
+
+        {/* Hospital Staff Team Chat Button */}
+        {user && !['PATIENT', 'GUARDIAN'].includes(user.role) && (
+          <button
+            type="button"
+            onClick={() => useTeamChatStore.getState().toggleOpen()}
+            className="relative p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-150 flex items-center justify-center cursor-pointer"
+            aria-label="Hospital Team Chat"
+            title="Hospital Staff Team Chat & Communication"
+          >
+            <MessageSquare size={18} />
+            {useTeamChatStore.getState().unreadTotal > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                {useTeamChatStore.getState().unreadTotal}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Notification Bell */}
         {hasNotificationsPermission && (

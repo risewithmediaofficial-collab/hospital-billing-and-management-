@@ -30,16 +30,6 @@ export class NurseTasksService {
       .select('name role isAvailable shiftDetails cabinNo departmentId additionalRoles')
       .lean();
 
-    // If no dedicated nurses exist (e.g. small solo clinic where doctor handles everything), include current user
-    if (nurses.length === 0 && user) {
-      nurses.push({
-        _id: user.id || user._id,
-        name: `${user.name || 'Doctor'} (Self / Clinic Desk)`,
-        role: user.role || 'DOCTOR',
-        isAvailable: true,
-      });
-    }
-
     // Compute live workload (pending tasks count) for each nurse
     const nurseListWithWorkload = await Promise.all(
       nurses.map(async (nurse) => {
@@ -75,6 +65,7 @@ export class NurseTasksService {
 
     const { Patient } = await import('../../models/Patient.js');
     const { Appointment } = await import('../../models/Appointment.js');
+    const { User } = await import('../../models/User.js');
 
     const patient = await Patient.findById(data.patientId);
     if (!patient) {
@@ -87,7 +78,19 @@ export class NurseTasksService {
     }
 
     let assignedNurseId = data.assignedNurseId;
-    if (!assignedNurseId || assignedNurseId === 'AUTO_ASSIGN') {
+    if (assignedNurseId && assignedNurseId !== 'AUTO_ASSIGN') {
+      const nurseUser = await User.findOne({
+        _id: assignedNurseId,
+        $or: [
+          { role: { $in: ['NURSE', 'NURSE_INCHARGE', 'NURSING'] } },
+          { additionalRoles: { $in: ['NURSE', 'NURSE_INCHARGE', 'NURSING'] } },
+        ],
+      });
+      if (!nurseUser) {
+        assignedNurseId = null;
+      }
+    } else {
+      assignedNurseId = null;
       try {
         const availableNurses = await NurseTasksService.getAvailableNurses(user);
         if (availableNurses.length > 0) {
@@ -111,10 +114,9 @@ export class NurseTasksService {
     const doctorName = user.name || user.fullName || 'Consulting Doctor';
     const doctorDepartment = user.department || 'Clinical Consultations';
 
-    let assignedNurseName = '';
+    let assignedNurseName = 'Unassigned / Nursing Pool';
     if (assignedNurseId) {
       try {
-        const { User } = await import('../../models/User.js');
         const nurseObj = await User.findById(assignedNurseId).select('name');
         if (nurseObj) assignedNurseName = nurseObj.name;
       } catch (e) {}
@@ -143,20 +145,6 @@ export class NurseTasksService {
       status: 'PENDING',
     });
 
-    await NotificationService.createNotification({
-      hospitalId,
-      branchId,
-      recipientUserId: assignedNurseId || null,
-      recipientRole: !assignedNurseId ? 'NURSE' : null,
-      title: `New Treatment Request: ${task.medicineName}`,
-      message: `Dr. ${doctorName} prescribed ${task.medicineName} (${task.dose}) for patient ${patient.firstName || ''} ${patient.lastName || ''} (UHID: ${patient.uhid || 'N/A'}). Instructions: ${task.doctorInstructions}`,
-      notificationType: 'NEW_DATA',
-      targetModule: 'nursing',
-      targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
-      relatedPatientId: patient._id,
-      relatedTaskId: String(task._id),
-    });
-
     // Update appointment status to WAITING_NURSE if active
     if (appointment) {
       appointment.status = 'WAITING_NURSE';
@@ -169,6 +157,23 @@ export class NurseTasksService {
         tokenNumber: appointment.tokenNumber,
       });
     }
+
+    const isDedicatedNurse = assignedNurseId && String(assignedNurseId) !== String(user.id || user._id);
+
+    await NotificationService.createNotification({
+      hospitalId,
+      branchId,
+      recipientUserId: isDedicatedNurse ? assignedNurseId : null,
+      recipientRole: isDedicatedNurse ? null : 'NURSE',
+      title: `Doctor Prescribed: ${task.medicineName}`,
+      message: `Dr. ${doctorName} requested ${task.medicineName} (${task.dose}) for patient ${patient.firstName || ''} ${patient.lastName || ''} (UHID: ${patient.uhid || 'N/A'}).`,
+      notificationType: 'WORKFLOW',
+      targetModule: 'nursing',
+      targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
+      relatedPatientId: patient._id,
+      relatedTaskId: String(task._id),
+      metadata: { event: 'NURSE_TASK_CREATED', patientName: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(), uhid: patient.uhid },
+    });
 
     const envelope = {
       type: 'NEW_NURSE_TASKS',
@@ -184,25 +189,16 @@ export class NurseTasksService {
       linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
     };
 
-    if (assignedNurseId) {
+    if (isDedicatedNurse) {
       socketManager.emitToUser(String(assignedNurseId), 'workflow:notification', envelope);
+      socketManager.emitToUser(String(assignedNurseId), 'workflow:new_nurse_tasks', envelope);
     }
     socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
+    socketManager.emitToRole('NURSE', 'workflow:new_nurse_tasks', envelope);
     socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
-
-    await NotificationService.createNotification({
-      hospitalId,
-      branchId,
-      recipientUserId: assignedNurseId || null,
-      recipientRole: assignedNurseId ? null : 'NURSE',
-      title: `New Injection / Procedure Task (Token #${appointment?.tokenNumber || 'OPD'})`,
-      message: `Doctor ${user.name || 'Consultant'} requested ${task.medicineName} (${task.dose}, ${task.route}) for patient ${patient.firstName} ${patient.lastName} (UHID: ${patient.uhid}).`,
-      notificationType: 'NEW_DATA',
-      targetModule: 'nursing',
-      targetRoute: '/nurse-incharge/dashboard?tab=TASKS',
-      relatedPatientId: patient._id,
-      relatedTaskId: String(task._id),
-    });
+    socketManager.emitToRole('NURSE_INCHARGE', 'workflow:new_nurse_tasks', envelope);
+    socketManager.emitToRole('HOSPITAL_ADMIN', 'workflow:notification', envelope);
+    socketManager.emitToRole('HOSPITAL_ADMIN', 'workflow:new_nurse_tasks', envelope);
 
     socketManager.emitToBranch(branchId || hospitalId, 'workflow:pending_changed', envelope);
 
@@ -278,12 +274,20 @@ export class NurseTasksService {
         linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
       };
       
-      const targetNurseIds = Array.from(new Set(pendingNurseTasks.map(t => t.assignedNurseId).filter(Boolean)));
+      const doctorUserIdStr = String(user?.id || user?._id || prescription.doctorId || '');
+      const targetNurseIds = Array.from(new Set(pendingNurseTasks.map(t => String(t.assignedNurseId || '')).filter(id => id && id !== doctorUserIdStr)));
       if (targetNurseIds.length > 0) {
-        targetNurseIds.forEach(nId => socketManager.emitToUser(String(nId), 'workflow:notification', envelope));
+        targetNurseIds.forEach(nId => {
+          socketManager.emitToUser(String(nId), 'workflow:notification', envelope);
+          socketManager.emitToUser(String(nId), 'workflow:new_nurse_tasks', envelope);
+        });
       }
       socketManager.emitToRole('NURSE', 'workflow:notification', envelope);
+      socketManager.emitToRole('NURSE', 'workflow:new_nurse_tasks', envelope);
       socketManager.emitToRole('NURSE_INCHARGE', 'workflow:notification', envelope);
+      socketManager.emitToRole('NURSE_INCHARGE', 'workflow:new_nurse_tasks', envelope);
+      socketManager.emitToRole('HOSPITAL_ADMIN', 'workflow:notification', envelope);
+      socketManager.emitToRole('HOSPITAL_ADMIN', 'workflow:new_nurse_tasks', envelope);
 
       await NotificationService.createNotification({
         hospitalId: prescription.hospitalId,
@@ -497,8 +501,8 @@ export class NurseTasksService {
           });
 
           if (remainingPending === 0) {
-            // Return patient to Doctor consultation for final clinical review, take-home prescription, and billing routing
-            appt.status = 'IN_CONSULTATION';
+            // Keep patient on department hold so it routes cleanly to "Department Responses"
+            appt.status = 'WAITING_DEPARTMENT';
             appt.departmentReturnedAt = new Date();
             await appt.save();
 
@@ -508,10 +512,12 @@ export class NurseTasksService {
               tokenNumber: appt.tokenNumber,
             });
 
-            socketManager.emitToUser(String(task.doctorId), 'opd_queue:updated', {
-              appointmentId: appt._id,
-              status: appt.status,
-              tokenNumber: appt.tokenNumber,
+            socketManager.emitToUser(String(task.doctorId), 'department:order_update', {
+              taskId: task._id,
+              status: 'ADMINISTERED',
+              medicineName: task.medicineName,
+              nurseName: user.name,
+              linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
             });
           }
         }

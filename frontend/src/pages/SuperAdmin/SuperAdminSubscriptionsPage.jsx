@@ -74,7 +74,7 @@ export const SuperAdminSubscriptionsPage = () => {
   const tabs = [
     { key: 'overview', label: 'Overview', count: null },
     { key: 'alerts', label: 'Alerts', count: totalAlerts, urgent: totalAlerts > 0 },
-    { key: 'active', label: 'Active', count: activeHospitals.length },
+    { key: 'active', label: 'Active Hospitals', count: activeHospitals.length },
     { key: 'expired', label: 'Expired', count: expiredHospitals.length },
   ];
 

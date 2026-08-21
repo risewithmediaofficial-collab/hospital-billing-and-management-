@@ -11,7 +11,7 @@ import {
   BedDouble, UserCheck, Phone
 } from 'lucide-react';
 
-export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }) => {
+export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, returnedPrescription }) => {
   useScrollLock(isOpen);
   const { socket } = useSocket();
 
@@ -68,6 +68,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
 
   const [pharmacyBilledPrescriptions, setPharmacyBilledPrescriptions] = useState([]);
 
+  const activeReturnedPrescription = returnedPrescription || token?.returnedPrescription || null;
+  const returnedQuery = activeReturnedPrescription?.billingQuery || token?.billingQuery || null;
 
   const fetchInventory = async () => {
     try {
@@ -107,8 +109,6 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
     }
   }, [patient]);
 
-
-
   useEffect(() => {
     if (isOpen && token) {
       setChiefComplaints(token.chiefComplaints || '');
@@ -118,30 +118,53 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
       setConsultationFee(0);
       setEmergencyFee(0);
       setDoctorProcedureCharges([]);
-      setPrescriptions([
-        {
-          medicineName: '',
-          genericName: '',
-          dosageForm: 'TABLET',
-          dosage: '1 Tablet',
-          frequency: 'TWICE_DAILY',
-          durationDays: 5,
-          timing: 'AFTER_FOOD',
-          treatmentType: 'ORAL_TAKE_HOME',
-          instructions: '',
-          externalPurchaseRequired: false,
-          unitPrice: 0,
-          quantity: 10,
-          totalPrice: 0,
-        },
-      ]);
+
+      // Pre-fill existing medicines if returned from Billing or Pharmacy
+      const prevMeds = activeReturnedPrescription?.medicines || token?.prescriptions;
+      if (Array.isArray(prevMeds) && prevMeds.length > 0) {
+        setPrescriptions(
+          prevMeds.map((m) => ({
+            medicineName: m.medicineName || '',
+            genericName: m.genericName || '',
+            dosageForm: m.dosageForm || 'TABLET',
+            dosage: m.dosage || '1 Tablet',
+            frequency: m.frequency || 'TWICE_DAILY',
+            durationDays: Number(m.durationDays) || 5,
+            timing: m.timing || 'AFTER_FOOD',
+            treatmentType: m.treatmentType || 'ORAL_TAKE_HOME',
+            instructions: m.instructions || '',
+            externalPurchaseRequired: Boolean(m.externalPurchaseRequired),
+            unitPrice: Number(m.unitPrice || m.price || 0),
+            quantity: Number(m.quantity || m.dispensedQty || 10),
+            totalPrice: Number(m.totalPrice || 0),
+          }))
+        );
+      } else {
+        setPrescriptions([
+          {
+            medicineName: '',
+            genericName: '',
+            dosageForm: 'TABLET',
+            dosage: '1 Tablet',
+            frequency: 'TWICE_DAILY',
+            durationDays: 5,
+            timing: 'AFTER_FOOD',
+            treatmentType: 'ORAL_TAKE_HOME',
+            instructions: '',
+            externalPurchaseRequired: false,
+            unitPrice: 0,
+            quantity: 10,
+            totalPrice: 0,
+          },
+        ]);
+      }
       setErrorMsg(null);
       setShowConfirmModal(false);
       fetchInventory();
       fetchDepartmentOrders();
       fetchPharmacyBilled();
     }
-  }, [isOpen, token, fetchDepartmentOrders, fetchPharmacyBilled]);
+  }, [isOpen, token, activeReturnedPrescription, fetchDepartmentOrders, fetchPharmacyBilled]);
 
   useEffect(() => {
     if (!socket || !isOpen) return;
@@ -355,6 +378,31 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess }
             {errorMsg && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center gap-2">
                 <AlertCircle size={15} /> {errorMsg}
+              </div>
+            )}
+
+            {/* Billing Return Query Banner */}
+            {returnedQuery && !returnedQuery.resolved && (
+              <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-xs text-amber-950 flex items-start gap-3 shadow-xs animate-fade-in">
+                <div className="p-2 rounded-lg bg-amber-200/80 text-amber-800 shrink-0 mt-0.5">
+                  <Receipt size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-black text-amber-900 text-sm">
+                      Case Returned by Central Billing ({returnedQuery.requestedByName || 'Cashier'})
+                    </p>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-2xs shrink-0">
+                      BILLING QUERY
+                    </span>
+                  </div>
+                  <div className="mt-1.5 p-2 rounded-lg bg-white/90 border border-amber-200 font-semibold text-slate-800 text-xs">
+                    "{returnedQuery.query}"
+                  </div>
+                  <p className="text-[11px] text-amber-800 mt-1 font-medium">
+                    Please review or update the prescription / consultation fee below. Clicking &ldquo;Finalize Consultation &amp; Send to Billing&rdquo; will automatically resolve this query and update the bill.
+                  </p>
+                </div>
               </div>
             )}
 

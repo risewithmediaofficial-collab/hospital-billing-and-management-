@@ -474,10 +474,9 @@ export class PatientsService {
         if (branchId) {
           socketManager.emitToBranch(String(branchId), 'patient:registered', regPayload);
           socketManager.emitToBranch(String(branchId), 'patient:created', regPayload);
-        }
-        if (socketManager.io) {
-          socketManager.io.emit('patient:registered', regPayload);
-          socketManager.io.emit('patient:created', regPayload);
+        } else if (patient.hospitalId) {
+          socketManager.emitToHospital(String(patient.hospitalId), 'patient:registered', regPayload);
+          socketManager.emitToHospital(String(patient.hospitalId), 'patient:created', regPayload);
         }
       } catch (sockErr) {
         // non-blocking

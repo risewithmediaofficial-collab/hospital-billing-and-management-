@@ -8,6 +8,7 @@ import { GlobalCodeBlueModal } from '../components/emergency/GlobalCodeBlueModal
 import { GenericSubView } from '../components/common/GenericSubView';
 import { ROLES, ROLE_NAVIGATION } from '../utils/constants';
 import { useAuthStore } from '../store/authStore';
+import { useNotificationStore } from '../store/notificationStore';
 
 import { LoginPage } from '../pages/LoginPage';
 import { HospitalRegisterPage } from '../pages/HospitalRegisterPage';
@@ -96,6 +97,7 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
     if (mainRef.current) {
       mainRef.current.scrollTop = 0;
     }
+    useNotificationStore.getState().markRouteAsRead?.(location.pathname + location.search);
   }, [location.pathname, location.search]);
 
   const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];

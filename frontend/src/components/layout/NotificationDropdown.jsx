@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useNotificationStore, isUnauthorizedForRole } from '../../store/notificationStore';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -80,7 +80,35 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       return;
     }
 
-    const target = notif.linkedPath || notif.targetRoute;
+    // Build the target path — start from linkedPath or targetRoute stored in DB
+    let target = notif.linkedPath || notif.targetRoute || notif.link || '';
+
+    // Enrich with entity IDs from metadata so the target page can auto-select the record
+    if (target) {
+      const meta = notif.metadata || {};
+      const params = new URLSearchParams();
+
+      // Preserve any existing query params already in the target path
+      const [basePath, existingQuery] = target.split('?');
+      if (existingQuery) {
+        new URLSearchParams(existingQuery).forEach((v, k) => params.set(k, v));
+      }
+
+      // Append entity IDs from metadata or top-level fields
+      const orderId = meta.orderId || notif.relatedTaskId;
+      const patientId = meta.patientId || notif.relatedPatientId;
+      const appointmentId = meta.appointmentId;
+      const invoiceId = meta.invoiceId;
+
+      if (orderId && !params.has('orderId')) params.set('orderId', orderId);
+      if (patientId && !params.has('patientId')) params.set('patientId', patientId);
+      if (appointmentId && !params.has('appointmentId')) params.set('appointmentId', appointmentId);
+      if (invoiceId && !params.has('invoiceId')) params.set('invoiceId', invoiceId);
+
+      const queryStr = params.toString();
+      target = queryStr ? `${basePath}?${queryStr}` : basePath;
+    }
+
     const userRole = user?.role || 'GUEST';
     const userRoles = [
       userRole,
@@ -111,16 +139,18 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
 
     if (isAllowedPath) {
       navigate(formatTenantPath(target));
-    } else if (target) {
-      navigate(formatTenantPath(target));
     } else {
       const fallback = defaultRoleDashboard[userRole] || '/';
       navigate(formatTenantPath(fallback));
     }
   };
 
-  // Deduplicate notifications by ID and content signature
+  // Deduplicate notifications by ID and content signature, and exclude unauthorized items for role
   const uniqueNotifications = notifications.filter((notif, index, self) => {
+    if (isUnauthorizedForRole(notif, user?.role, user?.additionalRoles)) {
+      return false;
+    }
+
     const key = `${notif.title || ''}|${notif.message || ''}|${notif.relatedTaskId || ''}|${notif.createdAt ? new Date(notif.createdAt).getMinutes() : ''}`;
     return index === self.findIndex((t) => (
       t.id === notif.id || `${t.title || ''}|${t.message || ''}|${t.relatedTaskId || ''}|${t.createdAt ? new Date(t.createdAt).getMinutes() : ''}` === key

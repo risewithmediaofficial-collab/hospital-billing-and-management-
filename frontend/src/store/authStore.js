@@ -14,6 +14,22 @@ export const useAuthStore = create((set, get) => ({
   isAuthenticated: !!localStorage.getItem('hpmbs_access_token'),
   isLoading: !!localStorage.getItem('hpmbs_access_token'),
   error: null,
+  activeBranchId: localStorage.getItem('hpmbs_active_branch_id') || null,
+  activeBranchName: localStorage.getItem('hpmbs_active_branch_name') || null,
+
+  setActiveBranch: (branchId, branchName) => {
+    if (branchId) {
+      localStorage.setItem('hpmbs_active_branch_id', branchId);
+      localStorage.setItem('hpmbs_active_branch_name', branchName || '');
+    } else {
+      localStorage.removeItem('hpmbs_active_branch_id');
+      localStorage.removeItem('hpmbs_active_branch_name');
+    }
+    set({
+      activeBranchId: branchId || null,
+      activeBranchName: branchName || null,
+    });
+  },
 
   login: async (email, password, hospitalDomain = null) => {
     set({ isLoading: true, error: null });

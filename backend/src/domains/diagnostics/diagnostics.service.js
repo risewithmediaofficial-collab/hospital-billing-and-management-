@@ -145,13 +145,18 @@ export class DiagnosticsService {
     WorkflowEventService.emitSync(evtName, {
       orderId: newOrder._id,
       hospitalId,
+      patientId: patient._id,
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
       doctorName,
       testName,
       testCategory,
       priority,
-      linkedPath: isRadio ? '/radiology/dashboard' : '/laboratory/dashboard',
+      // linkedPath includes orderId so notification click opens exact order
+      linkedPath: isRadio
+        ? `/radiology/dashboard?orderId=${newOrder._id}`
+        : `/laboratory/dashboard?orderId=${newOrder._id}`,
+      targetModule: isRadio ? 'radiology' : 'laboratory',
     }, branchId);
 
     return newOrder;
@@ -217,31 +222,39 @@ export class DiagnosticsService {
     if (order.branchId) {
       socketManager.emitToBranch(order.branchId, 'investigation:status_updated', payload);
     }
-    if (socketManager.io) {
-      socketManager.io.emit('investigation:status_updated', payload);
+    // emitToHospital instead of global io.emit
+    if (order.hospitalId) {
+      socketManager.emitToHospital(String(order.hospitalId), 'investigation:status_updated', payload);
     }
 
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
+    // LAB_ACCEPTED / RADIOLOGY_ACCEPTED: internal status, no DB notification (handled by SKIP_DB_EVENTS in workflowEventService)
     if (status === 'ACCEPTED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED : WORKFLOW_EVENTS.LAB_ACCEPTED;
       WorkflowEventService.emitSync(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
+        patientId: order.patientId,
         patientName: order.patientName,
         uhid: order.uhid,
         testName: order.testName,
-        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+        // linkedPath for doctor's dept_responses tab with exact orderId
+        linkedPath: `/doctor/dashboard?tab=DEPT_RESPONSES&orderId=${order._id}&patientId=${order.patientId}`,
+        targetModule: 'doctor',
       }, order.branchId);
     } else if (status === 'COMPLETED' || status === 'REPORT_UPLOADED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED;
       WorkflowEventService.emitSync(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
+        patientId: order.patientId,
         patientName: order.patientName,
         uhid: order.uhid,
         testName: order.testName,
         reportSummary: order.reportSummary,
-        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+        // linkedPath for doctor's dept_responses tab with exact orderId
+        linkedPath: `/doctor/dashboard?tab=DEPT_RESPONSES&orderId=${order._id}&patientId=${order.patientId}`,
+        targetModule: 'doctor',
       }, order.branchId);
     }
 
@@ -315,13 +328,12 @@ export class DiagnosticsService {
       attachments: order.attachments,
     };
 
-    if (order.branchId) {
-      socketManager.emitToBranch(order.branchId, 'diagnostics:report_ready', reportPayload);
-      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', reportPayload);
+    if (order.doctorId) {
+      socketManager.emitToUser(String(order.doctorId), 'diagnostics:report_ready', reportPayload);
+      socketManager.emitToUser(String(order.doctorId), 'investigation:status_updated', reportPayload);
     }
-    if (socketManager.io) {
-      socketManager.io.emit('diagnostics:report_ready', reportPayload);
-      socketManager.io.emit('investigation:status_updated', reportPayload);
+    if (order.branchId) {
+      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', reportPayload);
     }
 
     // A report upload is itself the completed department handoff. Do not make

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
+import { Modal } from '../../components/ui/Modal';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAMES } from '../../utils/constants';
 import { useSocket } from '../../providers/SocketProvider';
@@ -11,7 +12,7 @@ import {
   Stethoscope, Activity, ConciergeBell, CreditCard, TestTube, Scan, Pill,
   Users, ClipboardList, BedDouble, ShieldAlert, Edit, Key, Eye, UserCog,
   CheckCircle, AlertCircle, TrendingUp, Clock, FileSpreadsheet, ShieldCheck,
-  Trash2, Archive, Search
+  Trash2, Archive, Search, Receipt
 } from 'lucide-react';
 
 export const HospitalAdminManagementViews = ({ viewType }) => {
@@ -36,9 +37,12 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
   };
   const [staffList, setStaffList] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [invoicesList, setInvoicesList] = useState([]);
   const [receiptsList, setReceiptsList] = useState([]);
   const [deletedReceiptsList, setDeletedReceiptsList] = useState([]);
+  const [pendingBillingSearch, setPendingBillingSearch] = useState('');
   const [deletedBillingSearch, setDeletedBillingSearch] = useState('');
+  const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
   const [billingSummary, setBillingSummary] = useState({
     totalRevenue: 0,
     totalBills: 0,
@@ -87,9 +91,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [staffRes, patientsRes, billingRes, deletedBillingRes] = await Promise.all([
+      const [staffRes, patientsRes, invoicesRes, billingRes, deletedBillingRes] = await Promise.all([
         axiosClient.get('/auth/staff').catch(() => ({ data: [] })),
         axiosClient.get('/patients').catch(() => []),
+        axiosClient.get('/billing/invoices').catch(() => ({ data: [] })),
         axiosClient.get('/billing/receipts').catch(() => ({ data: [] })),
         axiosClient.get('/billing/deleted-receipts').catch(() => ({ data: [] })),
       ]);
@@ -100,20 +105,23 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       const pList = Array.isArray(patientsRes) ? patientsRes : (patientsRes.data || []);
       setPatients(pList);
 
+      const invoices = invoicesRes.data || invoicesRes || [];
       const receipts = billingRes.data || billingRes || [];
       const deletedReceipts = deletedBillingRes.data || deletedBillingRes || [];
+      setInvoicesList(invoices);
       setReceiptsList(receipts);
       setDeletedReceiptsList(deletedReceipts);
 
       const revenue = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
       const deletedRevenue = deletedReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+      const unpaidInvoices = invoices.filter((i) => i.status !== 'PAID' && !i.isDeleted);
 
       setBillingSummary({
         totalRevenue: revenue,
         totalBills: receipts.length,
         totalDeletedRevenue: deletedRevenue,
         deletedBillsCount: deletedReceipts.length,
-        pendingBills: Math.max(0, 15 - receipts.length),
+        pendingBills: unpaidInvoices.length,
       });
     } catch (err) {
       console.error('Failed to load management view data:', err);
@@ -389,6 +397,17 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
           return name.includes(q) || uhid.includes(q) || rcNo.includes(q) || invNo.includes(q) || reason.includes(q) || deletedBy.includes(q) || cashier.includes(q);
         });
 
+        const unpaidInvoices = invoicesList.filter((i) => i.status !== 'PAID' && !i.isDeleted);
+        const filteredUnpaidInvoices = unpaidInvoices.filter((inv) => {
+          const pat = inv.patientId || {};
+          const name = `${pat.firstName || ''} ${pat.lastName || ''}`.toLowerCase();
+          const uhid = (pat.uhid || '').toLowerCase();
+          const invNo = (inv.invoiceNo || '').toLowerCase();
+          const doc = (inv.doctorName || inv.doctorId?.name || '').toLowerCase();
+          const q = pendingBillingSearch.toLowerCase();
+          return name.includes(q) || uhid.includes(q) || invNo.includes(q) || doc.includes(q);
+        });
+
         return (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -398,20 +417,136 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Billing & Revenue Management Desk
                 </h2>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Executive Financial Analytics, Cashier Collections & Voided Bills Audit Trail
+                  Executive Financial Analytics, Pending Unpaid Bills, Cashier Collections & Voided Bills Audit Trail
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={navigateToStaff}>
-                <UserCog size={16} /> Manage Billing Staff
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate(formatTenantPath('/billing/dashboard?tab=RECEIPTS'))}>
+                  <FileSpreadsheet size={15} /> Receipts & Paid Ledger
+                </Button>
+                <Button variant="primary" size="sm" onClick={navigateToStaff}>
+                  <UserCog size={16} /> Manage Billing Staff
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Active Revenue (Net)" value={`₹${billingSummary.totalRevenue.toLocaleString()}`} subtitle="Valid Paid Receipts (Excludes Voided)" icon={CreditCard} color="emerald" />
+              <StatCard title="Pending Unpaid Bills" value={`${unpaidInvoices.length} Invoices`} subtitle="Awaiting Cashier Payment" icon={Clock} color={unpaidInvoices.length > 0 ? 'amber' : 'sky'} />
               <StatCard title="Active Receipts Issued" value={`${billingSummary.totalBills} Receipts`} subtitle="Cleared Patient Bills" icon={FileSpreadsheet} color="purple" />
               <StatCard title="Deleted / Voided Bills" value={`${billingSummary.deletedBillsCount || 0} Voided`} subtitle={`₹${(billingSummary.totalDeletedRevenue || 0).toLocaleString()} Excluded from Revenue`} icon={Trash2} color="rose" />
-              <StatCard title="Billing Personnel" value={`${billingStaff.length} Cashiers`} subtitle="Assigned Billing Desks" icon={Users} color="sky" />
             </div>
+
+            {/* Live Unpaid Bills & Pending Cashier Collections Queue */}
+            <Card className="border-amber-200 bg-amber-50/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-amber-200">
+                <div>
+                  <h3 className="text-base font-bold text-amber-950 flex items-center gap-2">
+                    <Clock size={18} className="text-amber-600" />
+                    Live Unpaid Bills & Pending Cashier Collections ({unpaidInvoices.length})
+                  </h3>
+                  <p className="text-xs text-amber-700/80">
+                    Real-time patient bills awaiting cashier settlement from OPD consultations and pharmacy dispensing.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <input
+                    type="text"
+                    placeholder="Search pending bill, patient, UHID..."
+                    value={pendingBillingSearch}
+                    onChange={(e) => setPendingBillingSearch(e.target.value)}
+                    className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 border-amber-300 focus:border-amber-500"
+                  />
+                  <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="border border-amber-200 rounded-xl overflow-hidden bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-amber-100/60 text-amber-900 uppercase text-[10px] border-b border-amber-200">
+                    <tr>
+                      <th className="p-3">Invoice Number</th>
+                      <th className="p-3">Patient Details</th>
+                      <th className="p-3">Attending Doctor</th>
+                      <th className="p-3">Billed Items Breakdown</th>
+                      <th className="p-3 text-right">Bill Total</th>
+                      <th className="p-3 text-right">Balance Due</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Audit & View</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 text-slate-800">
+                    {filteredUnpaidInvoices.length > 0 ? (
+                      filteredUnpaidInvoices.map((inv) => {
+                        const pat = inv.patientId || {};
+                        const items = inv.items || [];
+                        return (
+                          <tr key={inv._id} className="hover:bg-amber-50/40 transition-colors">
+                            <td className="p-3">
+                              <span className="font-mono font-bold text-indigo-700 text-xs">{inv.invoiceNo || 'INV'}</span>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                {inv.createdAt ? new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </p>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
+                              <p className="text-slate-500 text-[10px] font-mono">
+                                UHID: {pat.uhid || '—'} {pat.phone && `• ${pat.phone}`}
+                              </p>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-700">
+                              {inv.doctorName || inv.doctorId?.name || 'Medical Officer'}
+                            </td>
+                            <td className="p-3 max-w-[220px]">
+                              <div className="space-y-0.5">
+                                {items.slice(0, 2).map((it, idx) => (
+                                  <p key={idx} className="text-[11px] text-slate-700 truncate font-medium">
+                                    • {it.description} (₹{it.totalPrice || it.unitPrice})
+                                  </p>
+                                ))}
+                                {items.length > 2 && (
+                                  <p className="text-[10px] text-slate-400 font-semibold">
+                                    +{items.length - 2} more item(s)
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-bold text-slate-900">
+                              ₹{(inv.grandTotal || inv.subtotal || 0).toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-extrabold text-amber-700 font-mono text-sm">
+                              ₹{(inv.balanceAmount ?? inv.grandTotal ?? 0).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                {inv.status || 'UNPAID'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-white hover:bg-slate-50 text-slate-800 border-slate-300 font-bold text-[11px] flex items-center gap-1.5 ml-auto shadow-2xs"
+                                onClick={() => setSelectedInvoiceForView(inv)}
+                              >
+                                <Eye size={13} className="text-indigo-600" /> View Breakdown
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400 font-medium">
+                          {pendingBillingSearch ? 'No matching unpaid bills found.' : 'All bills settled. No pending patient payments in queue.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
 
             {/* Cashiers Roster & Real Collections */}
             <Card>
@@ -561,6 +696,117 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                 </table>
               </div>
             </Card>
+
+            {/* Read-Only Bill Breakdown Inspection Modal for Admin */}
+            {selectedInvoiceForView && (
+              <Modal
+                isOpen={Boolean(selectedInvoiceForView)}
+                onClose={() => setSelectedInvoiceForView(null)}
+                title={`Invoice Audit & Breakdown — ${selectedInvoiceForView.invoiceNo || 'INV'}`}
+                subtitle="Read-Only Executive Financial Audit"
+                icon={CreditCard}
+                maxWidth="max-w-2xl"
+              >
+                <div className="space-y-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Patient Name</p>
+                      <p className="font-bold text-slate-900 text-sm">
+                        {selectedInvoiceForView.patientId?.firstName || ''} {selectedInvoiceForView.patientId?.lastName || ''}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">UHID</p>
+                      <p className="font-mono font-bold text-indigo-700">
+                        {selectedInvoiceForView.patientId?.uhid || selectedInvoiceForView.uhid || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Attending Doctor</p>
+                      <p className="font-semibold text-slate-800">
+                        {selectedInvoiceForView.doctorName || selectedInvoiceForView.doctorId?.name || 'Medical Officer'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Invoice Date</p>
+                      <p className="text-slate-700">
+                        {selectedInvoiceForView.createdAt ? new Date(selectedInvoiceForView.createdAt).toLocaleString() : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Payment Status</p>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        selectedInvoiceForView.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {selectedInvoiceForView.status || 'UNPAID'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Balance Due</p>
+                      <p className="font-mono font-extrabold text-amber-700 text-sm">
+                        ₹{(selectedInvoiceForView.balanceAmount ?? selectedInvoiceForView.grandTotal ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Items breakdown table */}
+                  <div>
+                    <h4 className="font-bold text-slate-900 mb-2">Billed Line Items</h4>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold">
+                          <tr>
+                            <th className="p-2.5">Item Description</th>
+                            <th className="p-2.5">Category</th>
+                            <th className="p-2.5 text-center">Qty</th>
+                            <th className="p-2.5 text-right">Unit Price</th>
+                            <th className="p-2.5 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(selectedInvoiceForView.items || []).map((it, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="p-2.5 font-bold text-slate-800">{it.description || 'Service / Item'}</td>
+                              <td className="p-2.5 text-slate-500 text-[11px]">{it.itemType || it.category || 'General'}</td>
+                              <td className="p-2.5 text-center font-mono">{it.quantity || 1}</td>
+                              <td className="p-2.5 text-right font-mono">₹{(it.unitPrice || 0).toLocaleString()}</td>
+                              <td className="p-2.5 text-right font-mono font-bold text-slate-900">₹{(it.totalPrice || it.unitPrice || 0).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                          {(!selectedInvoiceForView.items || selectedInvoiceForView.items.length === 0) && (
+                            <tr>
+                              <td colSpan={5} className="p-4 text-center text-slate-400">No item breakdown available.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                          <tr>
+                            <td colSpan={4} className="p-2.5 text-right text-slate-600">Grand Total:</td>
+                            <td className="p-2.5 text-right font-mono text-slate-900 text-sm">
+                              ₹{(selectedInvoiceForView.grandTotal || selectedInvoiceForView.subtotal || 0).toLocaleString()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Admin Notice */}
+                  <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-[11px] text-indigo-900 flex items-start gap-2">
+                    <AlertCircle size={15} className="text-indigo-600 shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Administrative Read-Only Mode:</strong> As an Administrator, you can audit all unpaid and completed bills. Payment collection and official receipt generation are handled at the Cashier Workstation by authorized billing staff in Work Mode.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedInvoiceForView(null)}>
+                      Close Inspection
+                    </Button>
+                  </div>
+                </div>
+              </Modal>
+            )}
           </div>
         );
       }

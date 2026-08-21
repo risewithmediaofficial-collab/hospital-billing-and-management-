@@ -9,6 +9,7 @@ import { Emergency } from '../../models/Emergency.js';
 import { GuardianLink } from '../../models/GuardianLink.js';
 import { Hospital } from '../../models/Hospital.js';
 import { User } from '../../models/User.js';
+import { Patient } from '../../models/Patient.js';
 import { PharmacySubstitutionRequest } from '../../models/PharmacySubstitutionRequest.js';
 import { NurseTask } from '../../models/NurseTask.js';
 import { Bed } from '../../models/Bed.js';
@@ -55,8 +56,16 @@ export class WorkflowService {
       const rawHospitalId = identity.hospitalId?._id || identity.hospitalId;
       const rawBranchId = identity.branchId?._id || identity.branchId;
 
-      const hospitalId = rawHospitalId && mongoose.Types.ObjectId.isValid(rawHospitalId) ? rawHospitalId : null;
-      const branchId = rawBranchId && mongoose.Types.ObjectId.isValid(rawBranchId) ? rawBranchId : null;
+      let hospitalId = rawHospitalId && mongoose.Types.ObjectId.isValid(rawHospitalId) ? rawHospitalId : null;
+      let branchId = rawBranchId && mongoose.Types.ObjectId.isValid(rawBranchId) ? rawBranchId : null;
+
+      if (user.role === 'SUPER_ADMIN') {
+        if (user._hospitalContextApplied && user.hospitalId) {
+          hospitalId = user.hospitalId;
+        } else {
+          hospitalId = null;
+        }
+      }
 
       const scope = { ...(hospitalId ? { hospitalId } : {}) };
       const tasks = [];
@@ -68,16 +77,15 @@ export class WorkflowService {
       ].filter(Boolean));
 
       const isSupervisorOrAdmin = userRoles.has('HOSPITAL_ADMIN') || userRoles.has('SUPER_ADMIN');
-      const isHospitalStaff = !userRoles.has('SUPER_ADMIN') && !userRoles.has('PATIENT') && !userRoles.has('GUARDIAN');
 
       if (userRoles.has('DOCTOR') || isSupervisorOrAdmin) {
         const docId = userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null;
         try {
-          const docQuery = docId ? { doctorId: docId } : {};
+          const docQuery = docId && !isSupervisorOrAdmin ? { doctorId: docId } : {};
           const [appointments, reports, doctorRequests, subRequests, nurseResponses] = await Promise.all([
             Appointment.find({ ...scope, ...docQuery, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean().catch(() => []),
             DiagnosticOrder.find({ ...scope, ...docQuery, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean().catch(() => []),
-            PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, ...(docId ? { $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] } : {}) }).populate('patientId').lean().catch(() => []),
+            PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, ...(docId && !isSupervisorOrAdmin ? { $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] } : {}) }).populate('patientId').lean().catch(() => []),
             PharmacySubstitutionRequest.find({ ...scope, ...docQuery, status: 'PENDING' }).populate('patientId').lean().catch(() => []),
             NurseTask.find({ ...scope, ...docQuery, status: 'ADMINISTERED', doctorReviewedAt: null }).populate('patientId').lean().catch(() => []),
           ]);
@@ -91,16 +99,24 @@ export class WorkflowService {
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(r)) || isSupervisorOrAdmin || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(r)) || isSupervisorOrAdmin) {
         try {
+          const pendingPrescriptions = await Prescription.find({
+            ...scope,
+            dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] },
+          }).select('patientId').lean().catch(() => []);
+          const pendingPatientIds = new Set(pendingPrescriptions.map(p => String(p.patientId?._id || p.patientId)));
+
           const records = await Invoice.find({ ...scope, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }).populate('patientId').lean().catch(() => []);
-          records.forEach((item) => item && tasks.push(task('BILLING_WORK', item, '/billing/dashboard', `Collect payment: ${item.invoiceNo || 'Invoice'}`, { targetModule: 'billing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: `Balance: ${item.balanceAmount || 0}` })));
+          records
+            .filter((item) => !pendingPatientIds.has(String(item.patientId?._id || item.patientId)))
+            .forEach((item) => item && tasks.push(task('BILLING_WORK', item, '/billing/dashboard', `Collect payment: ${item.invoiceNo || 'Invoice'}`, { targetModule: 'billing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: `Balance: ${item.balanceAmount || 0}` })));
         } catch (billErr) {
           console.warn('[WorkflowService] Billing tasks error:', billErr.message);
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'].includes(r)) || isSupervisorOrAdmin || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['LAB_TECH', 'LABORATORY_STAFF', 'PATHOLOGIST'].includes(r)) || isSupervisorOrAdmin) {
         try {
           const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: LAB_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean().catch(() => []);
           records.forEach((item) => item && tasks.push(task('LAB_WORK', item, '/laboratory/dashboard', `Lab pending: ${item.testName || 'Test'}`, { targetModule: 'laboratory' })));
@@ -109,7 +125,7 @@ export class WorkflowService {
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r)) || isSupervisorOrAdmin || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r)) || isSupervisorOrAdmin) {
         try {
           const records = await DiagnosticOrder.find({ ...scope, testCategory: { $in: RADIOLOGY_CATEGORIES }, status: { $in: ACTIVE_DIAGNOSTIC_STATUSES } }).lean().catch(() => []);
           records.forEach((item) => item && tasks.push(task('RADIOLOGY_WORK', item, '/radiology/dashboard', `Radiology pending: ${item.testName || 'Scan'}`, { targetModule: 'radiology' })));
@@ -118,19 +134,19 @@ export class WorkflowService {
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r)) || isSupervisorOrAdmin || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r)) || isSupervisorOrAdmin) {
         try {
           const prescriptions = await Prescription.find({ ...scope, dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] } }).populate('patientId').lean().catch(() => []);
-          prescriptions.forEach((item) => item && tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dispense-queue', `Dispense prescription: ${item.prescriptionNo || 'Rx'}`, { targetModule: 'pharmacy', status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+          prescriptions.forEach((item) => item && tasks.push(task('PHARMACY_WORK', item, '/pharmacy/dashboard', `Dispense prescription: ${item.prescriptionNo || 'Rx'}`, { targetModule: 'pharmacy', status: item.dispenseStatus, patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
         } catch (pharmaErr) {
           console.warn('[WorkflowService] Pharmacy tasks error:', pharmaErr.message);
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['NURSE', 'NURSE_INCHARGE', 'NURSING', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(r)) || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['NURSE', 'NURSE_INCHARGE', 'NURSING'].includes(r)) || isSupervisorOrAdmin) {
         try {
           const filter = { ...scope, requestCategory: 'NURSE', status: { $in: ACTIVE_REQUEST_STATUSES } };
-          if (!userRoles.has('NURSE_INCHARGE') && !isSupervisorOrAdmin && userId && mongoose.Types.ObjectId.isValid(userId) && !isHospitalStaff) {
+          if (!userRoles.has('NURSE_INCHARGE') && !isSupervisorOrAdmin && userId && mongoose.Types.ObjectId.isValid(userId)) {
             filter.$or = [{ assignedNurseId: userId }, { assignedNurseId: null }];
           }
           const [records, admissions, emergencies, nurseTasks, admittedInpatients, totalBeds] = await Promise.all([
@@ -150,7 +166,7 @@ export class WorkflowService {
         }
       }
 
-      if (Array.from(userRoles).some((r) => ['RECEPTIONIST', 'OPD_STAFF', 'FRONT_DESK'].includes(r)) || isSupervisorOrAdmin || isHospitalStaff) {
+      if (Array.from(userRoles).some((r) => ['RECEPTIONIST', 'OPD_STAFF', 'FRONT_DESK'].includes(r)) || isSupervisorOrAdmin) {
         try {
           const records = await Appointment.find({ ...scope, status: 'BOOKED' }).populate('patientId').lean().catch(() => []);
           records.forEach((item) => item && tasks.push(task('RECEPTION_WORK', item, '/reception/registered-patients', `Appointment booked: ${item.patientId?.firstName || ''}`, { targetModule: 'reception', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
@@ -272,20 +288,6 @@ export class WorkflowService {
           currentStageLabel = 'Bill Settled & Patient Discharged';
           handlingStaff = { name: apptInvoice.createdByName || 'Cashier Desk', role: 'CASHIER', department: 'Central Billing' };
           nextDestination = 'Visit Closed / Patient Discharged';
-        } else if (hasUnpaidInvoice) {
-          currentStage = 'AT_BILLING';
-          currentStageLabel = 'At Central Billing Desk (Awaiting Payment Collection)';
-          handlingStaff = { name: 'Cashier Desk', role: 'CASHIER', department: 'Central Billing' };
-          nextDestination = 'Final Payment Settlement & Receipt Print';
-          if (new Date(apptInvoice.createdAt).getTime() < now.getTime() - 20 * 60 * 1000) {
-            isDelayed = true;
-            auditAlerts.push({ type: 'UNCOLLECTED_BILL', message: `Unpaid invoice of ₹${apptInvoice.balanceAmount || apptInvoice.totalAmount} waiting for >20 mins.` });
-          }
-        } else if (hasPendingPharmacy) {
-          currentStage = 'AT_PHARMACY';
-          currentStageLabel = 'At Pharmacy Desk (Take-Home Medication Packaging)';
-          handlingStaff = { name: 'Duty Pharmacist', role: 'PHARMACIST', department: 'Pharmacy' };
-          nextDestination = 'Central Billing Desk for Payment';
         } else if (hasPendingNurse || appt.status === 'WAITING_NURSE') {
           currentStage = 'AT_NURSE';
           currentStageLabel = 'At Nurse Station (Injection / IV Administration)';
@@ -310,6 +312,20 @@ export class WorkflowService {
             department: activeDiag?.testCategory === 'RADIOLOGY' ? 'Radiology & Imaging' : 'Pathology & Lab',
           };
           nextDestination = 'Doctor Report Review';
+        } else if (hasPendingPharmacy || appt.status === 'WAITING_PHARMACY') {
+          currentStage = 'AT_PHARMACY';
+          currentStageLabel = 'At Pharmacy Desk (Take-Home Medication Packaging)';
+          handlingStaff = { name: 'Duty Pharmacist', role: 'PHARMACIST', department: 'Pharmacy' };
+          nextDestination = 'Central Billing Desk for Payment';
+        } else if (hasUnpaidInvoice) {
+          currentStage = 'AT_BILLING';
+          currentStageLabel = 'At Central Billing Desk (Awaiting Payment Collection)';
+          handlingStaff = { name: 'Cashier Desk', role: 'CASHIER', department: 'Central Billing' };
+          nextDestination = 'Final Payment Settlement & Receipt Print';
+          if (new Date(apptInvoice.createdAt).getTime() < now.getTime() - 20 * 60 * 1000) {
+            isDelayed = true;
+            auditAlerts.push({ type: 'UNCOLLECTED_BILL', message: `Unpaid invoice of ₹${apptInvoice.balanceAmount || apptInvoice.totalAmount} waiting for >20 mins.` });
+          }
         } else if (appt.departmentReturnedAt && appt.status === 'IN_CONSULTATION') {
           currentStage = 'RETURNED_TO_DOCTOR';
           currentStageLabel = 'Returned from Department (Ready for Doctor Finalization)';

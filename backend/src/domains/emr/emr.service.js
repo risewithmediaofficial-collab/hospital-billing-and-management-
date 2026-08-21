@@ -88,7 +88,15 @@ export class EmrService {
     let nurseTasks = [];
     if (sanitizedPrescriptions.length > 0) {
       const rxCount = await Prescription.countDocuments({ hospitalId: hospId });
-      const rxNo = `RX-${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
+      const hospitalDoc = await Hospital.findById(hospId).select('code').lean().catch(() => null);
+      const hospCode = hospitalDoc?.code ? `${hospitalDoc.code}-` : '';
+      let rxNo = `RX-${hospCode}${new Date().getFullYear()}-${String(rxCount + 1).padStart(5, '0')}`;
+
+      let attempts = 0;
+      while (await Prescription.exists({ hospitalId: hospId, prescriptionNo: rxNo }) && attempts < 100) {
+        attempts++;
+        rxNo = `RX-${hospCode}${new Date().getFullYear()}-${String(rxCount + 1 + attempts).padStart(5, '0')}`;
+      }
 
       const hasTakeHomeInHouseMedicines = sanitizedPrescriptions.some(
         (p) =>
@@ -156,10 +164,75 @@ export class EmrService {
       }
     }
 
-    // If there are nurse-administered injections/treatments, token transitions to WAITING_NURSE
+    // Resolve any previous nurse tasks, department orders, and returned billing queries for this consultation
+    try {
+      const { NurseTask } = await import('../../models/NurseTask.js');
+      await NurseTask.updateMany(
+        {
+          $or: [{ appointmentId: appointment._id }, { patientId: appointment.patientId }],
+          doctorReviewedAt: null,
+        },
+        { $set: { doctorReviewedAt: new Date() } }
+      );
+      // Auto-resolve any pending billing query on previous prescriptions for this patient
+      const { Prescription: RxModel } = await import('../../models/Prescription.js');
+      await RxModel.updateMany(
+        {
+          patientId: appointment.patientId,
+          'billingQuery.resolved': false,
+        },
+        {
+          $set: {
+            'billingQuery.resolved': true,
+            'billingQuery.resolvedAt': new Date(),
+            'billingQuery.resolvedByDoctorId': user.id || user._id,
+          },
+        }
+      );
+      const { Invoice } = await import('../../models/Invoice.js');
+      await Invoice.updateMany(
+        {
+          patientId: appointment.patientId,
+          'doctorReviewQuery.attendingDoctorId': user.id || user._id,
+          'doctorReviewQuery.resolved': false,
+        },
+        {
+          $set: {
+            'doctorReviewQuery.resolved': true,
+            'doctorReviewQuery.resolvedAt': new Date(),
+            'doctorReviewQuery.resolvedByDoctorId': user.id || user._id,
+          },
+        }
+      );
+    } catch (ntErr) {
+      console.warn('Failed to auto-resolve nurse tasks or billing queries:', ntErr?.message);
+    }
+
+    // Determine workflow state:
+    // 1. Nurse administration takes first clinical precedence
+    // 2. In-house pharmacy take-home packaging takes second precedence (BEFORE billing)
+    // 3. Otherwise, directly to central billing / completed
     const hasPendingNurseAdministration = nurseTasks && nurseTasks.length > 0;
+    const hasPendingPharmacyDispense = sanitizedPrescriptions.some(
+      (p) =>
+        !p.externalPurchaseRequired &&
+        p.treatmentType !== 'EXTERNAL_PURCHASE_OUTSIDE' &&
+        p.treatmentType !== 'NURSE_ADMINISTERED' &&
+        p.treatmentType !== 'DOCTOR_ADMINISTERED_NOW' &&
+        !['INJECTION', 'IV_FLUID'].includes(p.dosageForm)
+    ) && (data.pharmacyMode !== 'EXTERNAL_NO_INHOUSE_PHARMACY');
+
     if (hasPendingNurseAdministration) {
       appointment.status = 'WAITING_NURSE';
+      appointment.departmentReturnedAt = null;
+      await appointment.save();
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+        appointmentId: appointment._id,
+        status: appointment.status,
+        tokenNumber: appointment.tokenNumber,
+      });
+    } else if (hasPendingPharmacyDispense) {
+      appointment.status = 'WAITING_PHARMACY';
       appointment.departmentReturnedAt = null;
       await appointment.save();
       socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
@@ -352,47 +425,63 @@ export class EmrService {
       status: PAYMENT_STATUS.UNPAID,
     });
 
-    // Notify Central Billing Desk (CASHIER / BILLING_STAFF)
+    // Auto-resolve completed nurse tasks for this patient so they disappear from active department responses
     try {
-      const { Patient } = await import('../../models/Patient.js');
-      const { NotificationService } = await import('../notifications/notification.service.js');
-      const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
-
-      const patObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid').lean();
-      const patientName = patObj ? `${patObj.firstName} ${patObj.lastName}`.trim() : 'Patient';
-
-      await NotificationService.createNotification({
-        hospitalId: hospId,
-        branchId: brId,
-        recipientRole: 'CASHIER',
-        title: 'New Bill Pending',
-        message: `Consultation & billing finalized for ${patientName} (UHID: ${patObj?.uhid || 'N/A'}). Invoice ${invoiceNo} (₹${subtotal.toLocaleString()}) ready for payment collection.`,
-        notificationType: 'NEW_DATA',
-        targetModule: 'billing',
-        targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
-        relatedPatientId: appointment.patientId,
-        relatedTaskId: String(invoice._id),
-      });
-
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
-        invoiceId: invoice._id,
-        invoiceNo,
-        patientName,
-        uhid: patObj?.uhid || 'N/A',
-        doctorName: user.name || 'Doctor',
-        grandTotal: subtotal,
-        linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
-      }, brId);
+      const { NurseTask } = await import('../../models/NurseTask.js');
+      await NurseTask.updateMany(
+        {
+          patientId: appointment.patientId,
+          doctorReviewedAt: null,
+        },
+        { $set: { doctorReviewedAt: new Date() } }
+      );
     } catch (e) {
-      console.error('Failed to notify central billing desk:', e);
+      console.error('Failed to resolve nurse tasks on consultation completion:', e);
     }
 
-    socketManager.emitToBranch(brId, 'billing:invoice_created', {
-      invoiceId: invoice._id,
-      invoiceNo,
-      patientId: appointment.patientId,
-      grandTotal: subtotal,
-    });
+    // Notify Central Billing Desk (CASHIER / BILLING_STAFF) ONLY if patient is not waiting at pharmacy
+    if (!hasPendingPharmacyDispense && !hasPendingNurseAdministration) {
+      try {
+        const { Patient } = await import('../../models/Patient.js');
+        const { NotificationService } = await import('../notifications/notification.service.js');
+        const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+
+        const patObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid').lean();
+        const patientName = patObj ? `${patObj.firstName} ${patObj.lastName}`.trim() : 'Patient';
+
+        await NotificationService.createNotification({
+          hospitalId: hospId,
+          branchId: brId,
+          recipientRole: 'CASHIER',
+          title: 'New Bill Pending',
+          message: `Consultation & billing finalized for ${patientName} (UHID: ${patObj?.uhid || 'N/A'}). Invoice ${invoiceNo} (₹${subtotal.toLocaleString()}) ready for payment collection.`,
+          notificationType: 'NEW_DATA',
+          targetModule: 'billing',
+          targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
+          relatedPatientId: appointment.patientId,
+          relatedTaskId: String(invoice._id),
+        });
+
+        WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+          invoiceId: invoice._id,
+          invoiceNo,
+          patientName,
+          uhid: patObj?.uhid || 'N/A',
+          doctorName: user.name || 'Doctor',
+          grandTotal: subtotal,
+          linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
+        }, brId);
+      } catch (e) {
+        console.error('Failed to notify central billing desk:', e);
+      }
+
+      socketManager.emitToBranch(brId, 'billing:invoice_created', {
+        invoiceId: invoice._id,
+        invoiceNo,
+        patientId: appointment.patientId,
+        grandTotal: subtotal,
+      });
+    }
 
     const populatedConsultation = await Consultation.findById(consultation._id)
       .populate('patientId')

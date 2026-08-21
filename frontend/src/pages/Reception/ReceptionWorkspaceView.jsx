@@ -177,11 +177,11 @@ export const ReceptionWorkspaceView = () => {
         prevDocs.map((doc) =>
           String(doc._id) === String(data.id || data._id)
             ? {
-                ...doc,
-                isAvailable: data.isAvailable !== undefined ? data.isAvailable : doc.isAvailable,
-                cabinNo: data.cabinNo || doc.cabinNo,
-                availabilityUpdatedAt: data.availabilityUpdatedAt || doc.availabilityUpdatedAt,
-              }
+              ...doc,
+              isAvailable: data.isAvailable !== undefined ? data.isAvailable : doc.isAvailable,
+              cabinNo: data.cabinNo || doc.cabinNo,
+              availabilityUpdatedAt: data.availabilityUpdatedAt || doc.availabilityUpdatedAt,
+            }
             : doc
         )
       );
@@ -334,156 +334,95 @@ export const ReceptionWorkspaceView = () => {
 
       {/* ── Quick Summary Stat Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Registered Patients"
-          value={`${patients.length} Total`}
-          subtitle={`${registeredAwaitingToken.length} Awaiting Token`}
-          icon={UserPlus}
-          color="indigo"
-        />
-        <StatCard
-          title="OPD Doctor Roster"
-          value={`${activeDoctors.length} / ${doctors.length} Online`}
-          subtitle="Available for Consults"
-          icon={Stethoscope}
-          color="emerald"
-        />
-        <StatCard
-          title="Active Live Queue"
-          value={`${queuedPatients.length} Waiting`}
-          subtitle="Real-time OPD Line"
-          icon={Ticket}
-          color="amber"
-        />
-        <StatCard
-          title="Completed &amp; Billed"
-          value={`${completedPatients.length} Visits`}
-          subtitle="Cleared Consultations"
-          icon={CheckCircle2}
-          color="purple"
-        />
+        <div onClick={() => handleTabChange('REGISTERED')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+          <StatCard
+            title="Registered Patients"
+            value={`${patients.length} Total`}
+            subtitle={`${registeredAwaitingToken.length} Awaiting Token`}
+            icon={UserPlus}
+            color="indigo"
+          />
+        </div>
+        <div onClick={() => handleTabChange('DOCTORS')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+          <StatCard
+            title="OPD Doctor Roster"
+            value={`${activeDoctors.length} / ${doctors.length} Online`}
+            subtitle="Available for Consults"
+            icon={Stethoscope}
+            color="emerald"
+          />
+        </div>
+        <div onClick={() => handleTabChange('QUEUED')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+          <StatCard
+            title="Active Live Queue"
+            value={`${queuedPatients.length} Waiting`}
+            subtitle="Real-time OPD Line"
+            icon={Ticket}
+            color="amber"
+          />
+        </div>
+        <div onClick={() => handleTabChange('COMPLETED')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+          <StatCard
+            title="Completed &amp; Billed"
+            value={`${completedPatients.length} Visits`}
+            subtitle="Cleared Consultations"
+            icon={CheckCircle2}
+            color="purple"
+          />
+        </div>
       </div>
 
-      {/* ── Tab Switcher Navigation Bar ── */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => handleTabChange('QUEUED')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'QUEUED'
-              ? 'bg-white text-amber-900 shadow-xs border border-amber-200/80 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Ticket size={16} className={activeTab === 'QUEUED' ? 'text-amber-600' : 'text-slate-400'} />
-          <span>Active OPD Live Queue</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-            activeTab === 'QUEUED' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {queuedPatients.length}
+      {/* ── Active Section Header & Search ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <span className="p-2.5 rounded-xl bg-slate-100 border border-slate-200">
+            {activeTab === 'QUEUED' && <Ticket size={18} className="text-amber-600" />}
+            {activeTab === 'REGISTERED' && <UserCheck size={18} className="text-indigo-600" />}
+            {activeTab === 'FOLLOW_UPS' && <Calendar size={18} className="text-purple-600" />}
+            {activeTab === 'COMPLETED' && <CheckCircle2 size={18} className="text-emerald-600" />}
+            {activeTab === 'ALL' && <FolderOpen size={18} className="text-slate-600" />}
+            {activeTab === 'DOCTORS' && <Stethoscope size={18} className="text-teal-600" />}
           </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('REGISTERED')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'REGISTERED'
-              ? 'bg-white text-indigo-900 shadow-xs border border-indigo-200/80 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <UserCheck size={16} className={activeTab === 'REGISTERED' ? 'text-indigo-600' : 'text-slate-400'} />
-          <span>Awaiting Token</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-            activeTab === 'REGISTERED' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {registeredAwaitingToken.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('FOLLOW_UPS')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'FOLLOW_UPS'
-              ? 'bg-white text-purple-900 shadow-xs border border-purple-200/80 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Calendar size={16} className={activeTab === 'FOLLOW_UPS' ? 'text-purple-600' : 'text-slate-400'} />
-          <span>Follow-Up Visits</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('COMPLETED')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'COMPLETED'
-              ? 'bg-white text-emerald-900 shadow-xs border border-emerald-200/80 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <CheckCircle2 size={16} className={activeTab === 'COMPLETED' ? 'text-emerald-600' : 'text-slate-400'} />
-          <span>Completed &amp; Billed</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-            activeTab === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {completedPatients.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('ALL')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'ALL'
-              ? 'bg-white text-slate-900 shadow-xs border border-slate-300 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <FolderOpen size={16} className={activeTab === 'ALL' ? 'text-indigo-600' : 'text-slate-400'} />
-          <span>All Hospital Patients</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-            activeTab === 'ALL' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {patients.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('DOCTORS')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'DOCTORS'
-              ? 'bg-white text-teal-900 shadow-xs border border-teal-200 font-black'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Stethoscope size={16} className={activeTab === 'DOCTORS' ? 'text-teal-600' : 'text-slate-400'} />
-          <span>Doctor Roster</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-            activeTab === 'DOCTORS' ? 'bg-teal-100 text-teal-800' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {activeDoctors.length} Online
-          </span>
-        </button>
-      </div>
-
-      {/* ── Search Input (Visible across directory tabs) ── */}
-      {activeTab !== 'FOLLOW_UPS' && activeTab !== 'DOCTORS' && (
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative max-w-md w-full">
-            <Input
-              placeholder="Search by UHID, Patient Name, Phone, Doctor, or Reason..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="py-2 text-xs pl-9 bg-white border-slate-300 shadow-2xs"
-            />
-            <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              {activeTab === 'QUEUED' && 'Active OPD Live Queue'}
+              {activeTab === 'REGISTERED' && 'Registered Patients Awaiting Token'}
+              {activeTab === 'FOLLOW_UPS' && 'Scheduled Follow-Up Visits'}
+              {activeTab === 'COMPLETED' && 'Completed & Billed Consultations'}
+              {activeTab === 'ALL' && 'All Hospital Patients Master Directory'}
+              {activeTab === 'DOCTORS' && 'OPD Doctor On-Duty Roster'}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {activeTab === 'QUEUED' && `${queuedPatients.length} Waiting`}
+                {activeTab === 'REGISTERED' && `${registeredAwaitingToken.length} Awaiting`}
+                {activeTab === 'COMPLETED' && `${completedPatients.length} Visits`}
+                {activeTab === 'ALL' && `${patients.length} Total`}
+                {activeTab === 'DOCTORS' && `${activeDoctors.length} / ${doctors.length} Online`}
+              </span>
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium">
+              {activeTab === 'QUEUED' && 'Patients currently queued with active OPD tokens awaiting doctor consultation'}
+              {activeTab === 'REGISTERED' && 'Newly registered patients ready for token generation and doctor assignment'}
+              {activeTab === 'FOLLOW_UPS' && 'Patients scheduled for returning OPD follow-up consultations'}
+              {activeTab === 'COMPLETED' && 'Consultations finished by doctor and cleared by billing'}
+              {activeTab === 'ALL' && 'Complete hospital patient registry with medical history and records'}
+              {activeTab === 'DOCTORS' && 'Real-time doctor availability and consultation room allocations'}
+            </p>
           </div>
         </div>
-      )}
+
+        {/* Search Input */}
+        {activeTab !== 'FOLLOW_UPS' && activeTab !== 'DOCTORS' && (
+          <div className="relative max-w-xs sm:max-w-sm w-full">
+            <Input
+              placeholder="Search by UHID, Patient Name, Phone, Doctor..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="py-1.5 text-xs pl-9 bg-white border-slate-300"
+            />
+            <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
+          </div>
+        )}
+      </div>
 
       {/* ── TAB 1: ACTIVE OPD LIVE QUEUE ── */}
       {activeTab === 'QUEUED' && (
@@ -548,11 +487,10 @@ export const ReceptionWorkspaceView = () => {
                         <td className="p-3 text-slate-700 font-medium">{tok.cabinNo || doc.cabinNo || 'Cabin 101'}</td>
                         <td className="p-3 text-amber-700 font-medium">{tok.chiefComplaints || 'OPD Check-up'}</td>
                         <td className="p-3">
-                          <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold border inline-flex items-center gap-1 ${
-                            tok.status === 'IN_CONSULTATION'
+                          <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold border inline-flex items-center gap-1 ${tok.status === 'IN_CONSULTATION'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
                               : 'bg-amber-50 text-amber-700 border-amber-300'
-                          }`}>
+                            }`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${tok.status === 'IN_CONSULTATION' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                             {tok.status === 'IN_CONSULTATION' ? 'IN CONSULTATION' : 'WAITING IN QUEUE'}
                           </span>
@@ -836,22 +774,20 @@ export const ReceptionWorkspaceView = () => {
                 return (
                   <div
                     key={doc._id}
-                    className={`p-4 rounded-xl border transition-all space-y-3 ${
-                      isAvail
+                    className={`p-4 rounded-xl border transition-all space-y-3 ${isAvail
                         ? 'bg-white border-teal-200 hover:border-teal-400 shadow-sm'
                         : 'bg-red-50/70 border-red-200 opacity-75'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <p className="font-bold text-slate-900 text-sm">
                         {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}
                         {doc.role === 'HOSPITAL_ADMIN' && <span className="ml-1 text-[10px] font-bold text-indigo-600">[Admin]</span>}
                       </p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                        isAvail
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${isAvail
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                           : 'bg-red-100 text-red-700 border-red-300'
-                      }`}>
+                        }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${isAvail ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                         {isAvail ? 'AVAILABLE' : 'OFF DUTY'}
                       </span>
