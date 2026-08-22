@@ -29,6 +29,7 @@ import {
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
+  Building2,
 } from 'lucide-react';
 
 export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
@@ -156,6 +157,10 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   };
 
   const handleCreateRequest = async (requestType, notes = '') => {
+    if (!hasActiveAdmission) {
+      setRequestFeedback({ type: 'error', message: 'In-bed care requests require an active admission.' });
+      return;
+    }
     setIsLoading(true);
     setRequestFeedback(null);
     try {
@@ -182,6 +187,11 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   };
 
   const handleTriggerEmergency = async () => {
+    if (!hasActiveAdmission) {
+      setRequestFeedback({ type: 'error', message: 'Inpatient emergency dispatch requires an active admission.' });
+      setShowEmergencyModal(false);
+      return;
+    }
     setEmergencySubmitting(true);
     try {
       await axiosClient.post('/patient-portal/my-requests', {
@@ -460,7 +470,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
           )}
 
           {/* Quick Care Request Launcher */}
-          <Card>
+          {hasActiveAdmission ? <Card>
             <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
               <Bell size={18} className="text-amber-600" />
               Quick In-Bed Care Requests
@@ -494,7 +504,15 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                 Blanket / Pillow
               </Button>
             </div>
-          </Card>
+          </Card> : (
+            <Card className="border-slate-200 bg-slate-50">
+              <h3 className="text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
+                <Bell size={18} className="text-slate-400" />
+                In-Bed Care Requests Unavailable
+              </h3>
+              <p className="text-xs text-slate-500">These requests are available only during an active hospital admission.</p>
+            </Card>
+          )}
         </div>
       )}
 

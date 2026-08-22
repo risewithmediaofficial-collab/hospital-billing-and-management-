@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const chatMessageSchema = new mongoose.Schema(
   {
@@ -77,4 +78,4 @@ chatMessageSchema.index({ hospitalId: 1, recipientId: 1, createdAt: -1 });
 chatMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 604800 });
 chatMessageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
+export const ChatMessage = tenantAwareModel(mongoose.model('ChatMessage', chatMessageSchema));

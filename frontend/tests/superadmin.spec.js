@@ -31,8 +31,10 @@ test.describe('Super Admin Module Suite', () => {
     await expect(page).toHaveURL('/admin/subscriptions');
   });
 
-  test('should redirect unallowed global staff route to 403', async ({ page }) => {
+  test('should access read-only cross-hospital staff governance', async ({ page }) => {
     await page.goto('/admin/staff');
-    await expect(page).toHaveURL('/403');
+    await expect(page).toHaveURL('/admin/staff');
+    await expect(page.getByRole('heading', { name: 'All Staff', exact: true })).toBeVisible();
+    await expect(page.getByText(/Cross-hospital visibility/i)).toBeVisible();
   });
 });

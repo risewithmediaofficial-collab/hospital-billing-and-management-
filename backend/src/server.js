@@ -1,10 +1,12 @@
 import http from 'http';
 import app from './app.js';
-import { env } from './config/env.js';
+import { env, validateProductionEnvironment } from './config/env.js';
 import { connectDB } from './config/database.js';
 import { socketManager } from './events/socketManager.js';
 
 const server = http.createServer(app);
+
+validateProductionEnvironment();
 
 // Initialize Socket.IO Server
 socketManager.init(server);

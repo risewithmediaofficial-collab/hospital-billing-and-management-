@@ -1,51 +1,30 @@
 import { Appointment } from '../../models/Appointment.js';
 import { Patient } from '../../models/Patient.js';
 import { User } from '../../models/User.js';
-import { Hospital } from '../../models/Hospital.js';
-import { Branch } from '../../models/Branch.js';
 import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
+import { requireBranchContext, requireHospitalContext } from '../../utils/tenantContext.js';
 
 export const FIFO_QUEUE_SORT = { appointmentDate: 1, tokenNumber: 1, createdAt: 1, _id: 1 };
 
 export class AppointmentsService {
   static async issueToken(data, user) {
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
-
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
-    if (!branchId) {
-      const defaultBranch = await Branch.findOne({ hospitalId });
-      branchId = defaultBranch?._id;
-    }
+    const hospitalId = requireHospitalContext(user);
+    const branchId = requireBranchContext(user);
 
     // Bulletproof Doctor Resolution & Availability Check
     let doctor = null;
     if (user?.role === 'DOCTOR') {
-      doctor = await User.findById(user.id || user._id);
+      doctor = await User.findOne({ _id: user.id || user._id, hospitalId, branchId });
     }
     if (!doctor && data.doctorId) {
-      doctor = await User.findById(data.doctorId);
+      doctor = await User.findOne({ _id: data.doctorId, hospitalId, $or: [{ branchId }, { branchId: null }] });
       if (doctor && doctor.isAvailable === false) {
         throw new ApiError(400, 'This doctor is currently unavailable. Please select another available doctor.', null, 'DOCTOR_UNAVAILABLE');
       }
     }
-    if (!doctor && hospitalId) {
-      doctor = await User.findOne({ hospitalId, role: 'DOCTOR', isAvailable: { $ne: false } });
-    }
-    if (!doctor) {
-      doctor = await User.findOne({ role: 'DOCTOR', isAvailable: { $ne: false } });
-    }
-    if (!doctor) {
-      doctor = await User.findOne({ hospitalId, isAvailable: { $ne: false } });
-    }
-    if (!doctor) {
-      doctor = await User.findOne({ isAvailable: { $ne: false } });
-    }
+    if (!doctor) doctor = await User.findOne({ hospitalId, $or: [{ branchId }, { branchId: null }], role: 'DOCTOR', isAvailable: { $ne: false }, isActive: { $ne: false } });
 
     if (!doctor) {
       throw new ApiError(400, 'No active/available doctor exists in system to assign token. Please select an available doctor.', null, 'NO_DOCTOR_AVAILABLE');
@@ -54,9 +33,9 @@ export class AppointmentsService {
     // Find Patient or create walk-in patient
     let patient = null;
     if (data.patientId) {
-      patient = await Patient.findById(data.patientId);
+      patient = await Patient.findOne({ _id: data.patientId, hospitalId });
     } else if (data.uhid) {
-      patient = await Patient.findOne({ uhid: data.uhid.toUpperCase() });
+      patient = await Patient.findOne({ hospitalId, uhid: data.uhid.toUpperCase() });
     }
 
     if (!patient) {
@@ -117,7 +96,7 @@ export class AppointmentsService {
       patientName: `${patient.firstName} ${patient.lastName}`,
       senderUserId: user?.id || user?._id,
       uhid: patient.uhid,
-      linkedPath: '/doctor/dashboard',
+      linkedPath: `/doctor/dashboard?tab=LIVE&appointmentId=${appointment._id}&patientId=${patient._id}`,
       timestamp: new Date(),
     };
 
@@ -133,7 +112,7 @@ export class AppointmentsService {
     socketManager.emitToUser(String(doctor._id), 'queue:patient_added', queuePayload);
     socketManager.emitToUser(String(doctor._id), 'token:generated', queuePayload);
 
-    WorkflowEventService.emitSync(WORKFLOW_EVENTS.PATIENT_QUEUED, {
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.PATIENT_QUEUED, {
       patientId: patient._id,
       patientName: `${patient.firstName} ${patient.lastName}`,
       uhid: patient.uhid,
@@ -143,29 +122,24 @@ export class AppointmentsService {
       hospitalId: hospitalId || doctor.hospitalId,
       branchId: branchId || doctor.branchId,
       appointmentId: appointment._id,
-      linkedPath: '/doctor/dashboard',
+      linkedPath: `/doctor/dashboard?tab=LIVE&appointmentId=${appointment._id}&patientId=${patient._id}`,
     }, branchId || doctor.branchId);
 
     return await Appointment.findById(appointment._id).populate('patientId').populate('doctorId');
   }
 
   static async getOpdQueue(user, doctorId = null) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId && user) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
+    const hospitalId = requireHospitalContext(user);
 
     const targetDocId = doctorId || user?.id || user?._id;
 
     const filter = {
+      hospitalId,
       status: { $in: ['WAITING', 'IN_CONSULTATION', 'WAITING_NURSE', 'WAITING_DEPARTMENT', 'HOLD', 'COMPLETED'] },
     };
 
     if (targetDocId) {
       filter.doctorId = targetDocId;
-    } else if (hospitalId) {
-      filter.hospitalId = hospitalId;
     }
 
     return await Appointment.find(filter)
@@ -175,7 +149,8 @@ export class AppointmentsService {
   }
 
   static async updateTokenStatus(appointmentId, status, user) {
-    const appointment = await Appointment.findById(appointmentId).populate('patientId').populate('doctorId');
+    const hospitalId = requireHospitalContext(user);
+    const appointment = await Appointment.findOne({ _id: appointmentId, hospitalId }).populate('patientId').populate('doctorId');
     if (!appointment) {
       throw new ApiError(404, 'OPD token appointment not found', null, 'NOT_FOUND');
     }
@@ -194,19 +169,27 @@ export class AppointmentsService {
     const docName = appointment.doctorId?.name || user?.name || 'Doctor';
 
     if (status === 'IN_CONSULTATION') {
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT, {
         patientName: pName,
         senderUserId: user?.id || user?._id,
         uhid,
         doctorName: docName,
+        hospitalId,
+        branchId: appointment.branchId,
+        appointmentId: appointment._id,
+        patientId: appointment.patientId?._id,
         linkedPath: '/reception/registered-patients?tab=QUEUED',
       }, appointment.branchId);
     } else if (status === 'COMPLETED') {
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
         patientName: pName,
         senderUserId: user?.id || user?._id,
         uhid,
         doctorName: docName,
+        hospitalId,
+        branchId: appointment.branchId,
+        appointmentId: appointment._id,
+        patientId: appointment.patientId?._id,
         linkedPath: '/billing/dashboard',
       }, appointment.branchId);
     }

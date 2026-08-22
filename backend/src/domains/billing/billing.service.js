@@ -7,6 +7,7 @@ import { PAYMENT_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
 import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
+import { requireHospitalContext } from '../../utils/tenantContext.js';
 
 export class BillingService {
   /**
@@ -14,12 +15,7 @@ export class BillingService {
    * full patient + consultation context already populated.
    */
   static async getUnpaidInvoices(user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const { Hospital } = await import('../../models/Hospital.js');
-      const h = await Hospital.findOne({});
-      hospitalId = h?._id;
-    }
+    const hospitalId = requireHospitalContext(user);
 
     const invoices = await Invoice.find({
       hospitalId,
@@ -64,7 +60,8 @@ export class BillingService {
    * Manually create an invoice (used when no doctor consultation exists).
    */
   static async createInvoice(data, user) {
-    const patient = await Patient.findById(data.patientId);
+    const hospitalId = requireHospitalContext(user);
+    const patient = await Patient.findOne({ _id: data.patientId, hospitalId });
     if (!patient) {
       throw new ApiError(404, 'Patient record not found for billing', null, 'NOT_FOUND');
     }
@@ -106,14 +103,21 @@ export class BillingService {
   }
 
   static async processPayment(data, user) {
-    const invoice = await Invoice.findById(data.invoiceId).populate('patientId');
+    const hospitalId = requireHospitalContext(user);
+    const invoice = await Invoice.findOne({ _id: data.invoiceId, hospitalId }).populate('patientId');
     if (!invoice) {
       throw new ApiError(404, 'Invoice record not found', null, 'NOT_FOUND');
+    }
+    if (invoice.doctorReviewQuery?.query && invoice.doctorReviewQuery.resolved === false) {
+      throw new ApiError(409, 'This invoice is awaiting the attending doctor response.', null, 'DOCTOR_REVIEW_PENDING');
     }
 
     const amountPaid = Number(data.amountPaid);
     if (isNaN(amountPaid) || amountPaid <= 0) {
       throw new ApiError(400, 'Valid payment amount is required', null, 'INVALID_AMOUNT');
+    }
+    if (amountPaid > Number(invoice.balanceAmount || 0)) {
+      throw new ApiError(400, 'Payment cannot exceed the outstanding invoice balance.', null, 'OVERPAYMENT_NOT_ALLOWED');
     }
 
     // Handle Split / Multi-Tender Payments
@@ -194,15 +198,13 @@ export class BillingService {
     socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { resourceId: invoice._id, status: invoice.status });
 
     if (invoice.status === PAYMENT_STATUS.PAID) {
-      // Clear all unread billing notifications for this patient/invoice
+      // Resolve only billing alerts for this paid patient. Never mark unrelated
+      // cashier notifications as read merely because they share the module.
       await Notification.updateMany(
         {
-          hospitalId: user.hospitalId,
-          $or: [
-            { relatedPatientId: invoice.patientId?._id || invoice.patientId },
-            { targetModule: 'billing' },
-            { targetRoute: { $regex: /^\/billing/ } },
-          ],
+          hospitalId,
+          relatedPatientId: invoice.patientId?._id || invoice.patientId,
+          targetModule: 'billing',
           isRead: false,
         },
         { $set: { isRead: true, readAt: new Date() } }
@@ -212,13 +214,14 @@ export class BillingService {
       const paymentPayload = {
         invoiceId: invoice._id,
         invoiceNo: invoice.invoiceNo,
+        receiptId: receipt._id,
         patientId: invoice.patientId?._id || invoice.patientId,
         patientName,
         uhid: invoice.patientId?.uhid || 'N/A',
         receiptNo: receipt.receiptNo,
-        linkedPath: '/reception/registered-patients?tab=COMPLETED',
+        linkedPath: `/reception/registered-patients?tab=COMPLETED&receiptId=${receipt._id}&patientId=${invoice.patientId?._id || invoice.patientId}`,
       };
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
       socketManager.emitToBranch(invoice.branchId, 'workflow:notification_cleared', { targetModule: 'billing', patientId: invoice.patientId });
     }
@@ -266,9 +269,10 @@ export class BillingService {
   static async getDoctorReviewQueries(user) {
     const doctorId = user?.id || user?._id;
     if (!doctorId) throw new ApiError(401, 'Authenticated doctor is required');
+    const hospitalId = requireHospitalContext(user);
 
     const query = {
-      hospitalId: user.hospitalId,
+      hospitalId,
       'doctorReviewQuery.attendingDoctorId': doctorId,
       'doctorReviewQuery.resolved': false,
       isDeleted: { $ne: true },
@@ -280,6 +284,77 @@ export class BillingService {
       .populate('doctorId', 'name specialization')
       .sort({ 'doctorReviewQuery.requestedAt': -1 })
       .lean();
+  }
+
+  static async respondToDoctorReviewQuery(invoiceId, data, user) {
+    const hospitalId = requireHospitalContext(user);
+    const doctorId = user?.id || user?._id;
+    const invoice = await Invoice.findOne({ _id: invoiceId, hospitalId, isDeleted: { $ne: true } });
+    if (!invoice) throw new ApiError(404, 'Invoice not found', null, 'NOT_FOUND');
+    const query = invoice.doctorReviewQuery;
+    if (!query?.query || query.resolved) {
+      throw new ApiError(409, 'This billing query is no longer pending.', null, 'BILLING_QUERY_NOT_PENDING');
+    }
+    if (String(query.attendingDoctorId || '') !== String(doctorId || '')) {
+      throw new ApiError(403, 'Only the attending doctor can resolve this billing query.', null, 'NOT_ATTENDING_DOCTOR');
+    }
+
+    if (data.consultationFee !== undefined && data.consultationFee !== null && data.consultationFee !== '') {
+      const fee = Number(data.consultationFee);
+      if (!Number.isFinite(fee) || fee < 0) throw new ApiError(400, 'Consultation fee must be a non-negative amount.', null, 'INVALID_AMOUNT');
+      const line = invoice.items.find((item) => item.category === 'CONSULTATION');
+      if (!line) throw new ApiError(409, 'This invoice has no consultation charge to correct.', null, 'CONSULTATION_LINE_NOT_FOUND');
+      line.unitPrice = fee;
+      line.totalPrice = fee * (Number(line.qty) || 1);
+    }
+
+    invoice.subtotal = invoice.items.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
+    invoice.grandTotal = Math.max(0, invoice.subtotal - (Number(invoice.discountAmount) || 0));
+    invoice.balanceAmount = Math.max(0, invoice.grandTotal - (Number(invoice.paidAmount) || 0));
+    invoice.doctorReviewQuery.resolved = true;
+    invoice.doctorReviewQuery.resolvedAt = new Date();
+    invoice.doctorReviewQuery.resolvedByDoctorId = doctorId;
+    invoice.doctorReviewQuery.responseNote = String(data.responseNote || 'Reviewed and confirmed by the attending doctor.').trim();
+    await invoice.save();
+
+    const { Prescription } = await import('../../models/Prescription.js');
+    await Prescription.updateMany(
+      { hospitalId, 'billingQuery.invoiceId': invoice._id, 'billingQuery.resolved': false },
+      { $set: { 'billingQuery.resolved': true, 'billingQuery.resolvedAt': new Date(), 'billingQuery.resolvedByDoctorId': doctorId, dispenseStatus: 'DISPENSED' } },
+    );
+    const { Appointment } = await import('../../models/Appointment.js');
+    if (query.appointmentId) {
+      await Appointment.updateOne(
+        { _id: query.appointmentId, hospitalId },
+        { $set: { status: 'COMPLETED', departmentReturnedAt: new Date() } },
+      );
+    }
+    await Notification.updateMany(
+      { hospitalId, recipientUserId: doctorId, entityId: String(invoice._id), actionType: 'REVIEW_BILLING_QUERY', isRead: false },
+      { $set: { isRead: true, readAt: new Date() } },
+    );
+
+    if (query.requestedBy) {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.createNotification({
+        hospitalId,
+        branchId: invoice.branchId,
+        recipientUserId: query.requestedBy,
+        recipientRole: 'CASHIER',
+        title: `Doctor responded to billing query: ${invoice.invoiceNo}`,
+        message: invoice.doctorReviewQuery.responseNote,
+        notificationType: 'DEPARTMENT_RESPONSE',
+        sourceModule: 'doctor',
+        targetModule: 'billing',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        actionType: 'COLLECT_PAYMENT',
+        targetRoute: `/billing/dashboard?tab=CENTRAL_DESK&invoiceId=${invoice._id}&patientId=${invoice.patientId}`,
+        relatedPatientId: invoice.patientId,
+        relatedTaskId: String(invoice._id),
+      });
+    }
+    return invoice;
   }
 
   static async getReceipts(user, queryParams = {}) {
@@ -363,9 +438,10 @@ export class BillingService {
    * Delete / void a receipt with audit log
    */
   static async deleteReceipt(receiptId, deletionReason, user) {
+    const hospitalId = requireHospitalContext(user);
     const reason = (deletionReason && String(deletionReason).trim()) ? String(deletionReason).trim() : 'Voided by cashier / staff';
 
-    const receipt = await Receipt.findById(receiptId)
+    const receipt = await Receipt.findOne({ _id: receiptId, hospitalId })
       .populate('patientId')
       .populate('cashierId', 'name email');
 
@@ -388,7 +464,7 @@ export class BillingService {
     // Rollback invoice payment amounts
     let invoice = null;
     if (receipt.invoiceId) {
-      invoice = await Invoice.findById(receipt.invoiceId);
+      invoice = await Invoice.findOne({ _id: receipt.invoiceId, hospitalId });
       if (invoice) {
         invoice.paidAmount = Math.max(0, (invoice.paidAmount || 0) - receipt.amountPaid);
         invoice.balanceAmount = Math.max(0, invoice.grandTotal - invoice.paidAmount);
@@ -458,9 +534,10 @@ export class BillingService {
    * Cancel / delete a pending unpaid invoice with audit log
    */
   static async deleteInvoice(invoiceId, deletionReason, user) {
+    const hospitalId = requireHospitalContext(user);
     const reason = (deletionReason && String(deletionReason).trim()) ? String(deletionReason).trim() : 'Cancelled by cashier / staff';
 
-    const invoice = await Invoice.findById(invoiceId)
+    const invoice = await Invoice.findOne({ _id: invoiceId, hospitalId })
       .populate('patientId')
       .populate('doctorId', 'name email');
 
@@ -537,12 +614,13 @@ export class BillingService {
     const { Admission } = await import('../../models/Admission.js');
     const { BedTransfer } = await import('../../models/BedTransfer.js');
 
-    const admission = await Admission.findById(admissionId).populate('patientId');
+    const hospitalId = requireHospitalContext(user);
+    const admission = await Admission.findOne({ _id: admissionId, hospitalId }).populate('patientId');
     if (!admission) {
       throw new ApiError(404, 'Admission record not found', null, 'NOT_FOUND');
     }
 
-    const transfers = await BedTransfer.find({ admissionId: admission._id }).sort({ transferDate: 1 });
+    const transfers = await BedTransfer.find({ admissionId: admission._id, hospitalId }).sort({ transferDate: 1 });
     const startTime = new Date(admission.admittedAt || admission.createdAt);
     const endTime = admission.dischargedAt ? new Date(admission.dischargedAt) : new Date();
 
@@ -619,10 +697,16 @@ export class BillingService {
   }
 
   static async returnInvoiceToDepartment(invoiceId, data, user) {
-    const { targetDepartment = 'PHARMACY', reason = '', note = '' } = data;
+    const hospitalId = requireHospitalContext(user);
+    const targetDepartment = String(data.targetDepartment || 'PHARMACY').toUpperCase();
+    const { reason = '', note = '' } = data;
+    const allowedDepartments = ['PHARMACY', 'LABORATORY', 'RADIOLOGY', 'DOCTOR'];
+    if (!allowedDepartments.includes(targetDepartment)) {
+      throw new ApiError(400, 'Unsupported billing return department.', null, 'INVALID_TARGET_DEPARTMENT');
+    }
     const queryMessage = note.trim() || reason || 'Returned from Central Billing for review / price correction';
 
-    const invoice = await Invoice.findById(invoiceId).populate('patientId');
+    const invoice = await Invoice.findOne({ _id: invoiceId, hospitalId }).populate('patientId');
     if (!invoice) {
       throw new ApiError(404, 'Invoice not found', null, 'NOT_FOUND');
     }
@@ -647,9 +731,12 @@ export class BillingService {
         hospitalId: invoice.hospitalId,
       }).sort({ createdAt: -1 });
 
-      if (rx) {
-        rx.dispenseStatus = 'PENDING_DISPENSE';
-        rx.billingQuery = {
+      if (!rx) {
+        throw new ApiError(409, 'No prescription is linked to this patient invoice.', null, 'PRESCRIPTION_NOT_FOUND');
+      }
+
+      rx.dispenseStatus = 'PENDING_DISPENSE';
+      rx.billingQuery = {
           invoiceId: invoice._id,
           query: queryMessage,
           requestedBy: user.id || user._id,
@@ -657,15 +744,14 @@ export class BillingService {
           requestedAt: new Date(),
           resolved: false,
           targetDepartment: 'PHARMACY',
-        };
-        await rx.save();
+      };
+      await rx.save();
 
         await Appointment.findOneAndUpdate(
           { patientId, hospitalId: invoice.hospitalId },
           { $set: { status: 'WAITING_PHARMACY' } },
           { sort: { createdAt: -1 } }
         ).catch(() => {});
-      }
 
       // Remove / exclude pharmacy lines from unpaid invoice temporarily
       const nonPharmacyItems = (invoice.items || []).filter((item) => item.category !== 'PHARMACY');
@@ -675,30 +761,27 @@ export class BillingService {
       invoice.balanceAmount = Math.max(0, invoice.totalAmount - (Number(invoice.paidAmount) || 0));
       await invoice.save();
 
-      // Create notification for Pharmacist
+      // Notify both supported pharmacy role codes; each alert opens the exact prescription.
+      const pharmacyTargetRoute = `/pharmacy/dashboard?prescriptionId=${rx._id}&tab=BILLING_QUERIES`;
       await NotificationService.createNotification({
         hospitalId: invoice.hospitalId,
         branchId: invoice.branchId,
-        recipientRole: 'PHARMACIST',
+        recipientRoles: ['PHARMACIST', 'PHARMACY_STAFF'],
         targetModule: 'pharmacy',
         notificationType: 'BILLING_QUERY',
         type: 'BILLING_QUERY',
         title: `Billing Query & Return: ${patientName}`,
         message: `Billing Desk returned ${patientName}'s prescription (${uhid}): "${queryMessage}"`,
-        linkedPath: '/pharmacy/dashboard',
-        targetRoute: '/pharmacy/dashboard',
+        targetRoute: pharmacyTargetRoute,
         relatedPatientId: patientId,
+        sourceModule: 'billing',
+        entityType: 'PRESCRIPTION',
+        entityId: rx._id,
+        actionType: 'REVIEW_BILLING_QUERY',
+        metadata: { invoiceId: invoice._id, prescriptionId: rx._id, patientId, query: queryMessage },
       });
 
       // Emit real-time events — scoped to branch only (no global broadcast)
-      socketManager.emitToBranch(invoice.branchId, 'pharmacy:prescription_returned', {
-        prescriptionId: rx?._id,
-        patientId,
-        patientName,
-        uhid,
-        query: queryMessage,
-        requestedByName: user.name || 'Cashier',
-      });
       socketManager.emitToBranch(invoice.branchId, 'billing:invoice_updated', {
         invoiceId: invoice._id,
         patientId,
@@ -761,7 +844,7 @@ export class BillingService {
         resolved: false,
       };
       await invoice.save();
-      const linkedPathWithParams = `/doctor/dashboard?tab=DEPT_RESPONSES&patientId=${patientId}&appointmentId=${appointment?._id || ''}`;
+      const linkedPathWithParams = `/doctor/dashboard?tab=DEPT_RESPONSES&invoiceId=${invoice._id}&patientId=${patientId}&appointmentId=${appointment?._id || ''}`;
 
       await NotificationService.createNotification({
         hospitalId: invoice.hospitalId,
@@ -775,6 +858,10 @@ export class BillingService {
         linkedPath: linkedPathWithParams,
         targetRoute: linkedPathWithParams,
         relatedPatientId: patientId,
+        sourceModule: 'billing',
+        entityType: 'INVOICE',
+        entityId: invoice._id,
+        actionType: 'REVIEW_BILLING_QUERY',
         metadata: {
           patientId,
           appointmentId: appointment?._id,
@@ -797,11 +884,6 @@ export class BillingService {
           appointmentId: appointment?._id,
         });
         socketManager.emitToUser(String(attendingDoctorId), 'workflow:pending_changed', { patientId });
-        socketManager.emitToUser(String(attendingDoctorId), 'notification:created', {
-          title: `Billing Review Required — ${patientName}`,
-          message: queryMessage,
-          type: 'BILLING_QUERY',
-        });
       }
       // Also emit branch-scoped queue update so the OPD queue refreshes
       socketManager.emitToBranch(invoice.branchId, 'opd_queue:updated', { patientId });
@@ -814,25 +896,88 @@ export class BillingService {
       };
     }
 
-    // Default generic department notification for other departments
-    await NotificationService.createNotification({
-      hospitalId: invoice.hospitalId,
-      branchId: invoice.branchId,
-      recipientRole: targetDepartment,
-      targetModule: targetDepartment.toLowerCase(),
-      notificationType: 'BILLING_QUERY',
-      type: 'BILLING_QUERY',
-      title: `Billing Query: ${patientName}`,
-      message: `Billing Desk query for ${patientName} (${uhid}): "${queryMessage}"`,
-      linkedPath: `/${targetDepartment.toLowerCase()}/dashboard`,
-      targetRoute: `/${targetDepartment.toLowerCase()}/dashboard`,
-      relatedPatientId: patientId,
-    });
+    if (targetDepartment === 'LABORATORY' || targetDepartment === 'RADIOLOGY') {
+      const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
+      const radiologyCategories = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'];
+      const categoryQuery = targetDepartment === 'RADIOLOGY'
+        ? { $in: radiologyCategories }
+        : { $nin: radiologyCategories };
+      const order = await DiagnosticOrder.findOne({
+        hospitalId: invoice.hospitalId,
+        patientId,
+        testCategory: categoryQuery,
+        chargeStatus: { $ne: 'CANCELLED' },
+      }).sort({ createdAt: -1 });
 
-    return {
-      success: true,
-      message: `Query sent to ${targetDepartment} desk successfully.`,
-      invoice,
-    };
+      if (!order) {
+        throw new ApiError(
+          409,
+          `No ${targetDepartment.toLowerCase()} order is linked to this patient invoice.`,
+          null,
+          'DIAGNOSTIC_ORDER_NOT_FOUND',
+        );
+      }
+
+      order.chargeStatus = 'CORRECTION_REQUESTED';
+      order.correctionNote = queryMessage;
+      order.billingQuery = {
+        invoiceId: invoice._id,
+        query: queryMessage,
+        requestedBy: user.id || user._id,
+        requestedByName: user.name || 'Cashier',
+        requestedAt: new Date(),
+        resolved: false,
+        targetDepartment,
+      };
+      order.timeline.push({
+        status: order.status,
+        timestamp: new Date(),
+        updatedBy: user.name || 'Cashier',
+        notes: `Billing correction requested: ${queryMessage}`,
+      });
+      await order.save();
+
+      const isRadiology = targetDepartment === 'RADIOLOGY';
+      const recipientRoles = isRadiology
+        ? ['RADIOLOGIST', 'RADIOLOGY_STAFF']
+        : ['LAB_TECH', 'LABORATORY_STAFF'];
+      const moduleName = isRadiology ? 'radiology' : 'laboratory';
+      const targetRoute = `/${moduleName}/dashboard?orderId=${order._id}&tab=BILLING_QUERIES`;
+
+      await NotificationService.createNotification({
+        hospitalId: invoice.hospitalId,
+        branchId: invoice.branchId,
+        recipientRoles,
+        targetModule: moduleName,
+        notificationType: 'BILLING_QUERY',
+        type: 'BILLING_QUERY',
+        title: `Billing Review Required: ${patientName}`,
+        message: `Billing Desk returned ${patientName}'s ${moduleName} charge (${uhid}): "${queryMessage}"`,
+        targetRoute,
+        relatedPatientId: patientId,
+        sourceModule: 'billing',
+        entityType: 'DIAGNOSTIC_ORDER',
+        entityId: order._id,
+        actionType: 'REVIEW_BILLING_QUERY',
+        metadata: { invoiceId: invoice._id, orderId: order._id, patientId, query: queryMessage },
+      });
+
+      const diagnosticQueryPayload = {
+        orderId: order._id,
+        patientId,
+        targetDepartment,
+      };
+      recipientRoles.forEach((recipientRole) => {
+        socketManager.emitToBranchRole(invoice.branchId, recipientRole, 'diagnostics:billing_query', diagnosticQueryPayload);
+      });
+      return {
+        success: true,
+        message: `${targetDepartment} order returned for billing correction.`,
+        invoice,
+        diagnosticOrder: order,
+      };
+    }
+
+    throw new ApiError(400, 'Unsupported billing return workflow.', null, 'INVALID_TARGET_DEPARTMENT');
   }
 }

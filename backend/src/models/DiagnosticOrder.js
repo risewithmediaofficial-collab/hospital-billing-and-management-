@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const diagnosticOrderSchema = new mongoose.Schema(
@@ -69,6 +70,15 @@ const diagnosticOrderSchema = new mongoose.Schema(
     },
     cancellationReason: { type: String, default: '' },
     correctionNote: { type: String, default: '' },
+    billingQuery: {
+      invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+      query: { type: String, default: '' },
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      requestedByName: { type: String, default: '' },
+      requestedAt: { type: Date },
+      resolved: { type: Boolean, default: false },
+      targetDepartment: { type: String, enum: ['LABORATORY', 'RADIOLOGY'] },
+    },
     status: {
       type: String,
       enum: ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS', 'REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'],
@@ -108,4 +118,4 @@ diagnosticOrderSchema.plugin(encryptedFieldsPlugin, {
   fields: ['clinicalNotes', 'cancellationReason', 'correctionNote', 'reportSummary'],
 });
 
-export const DiagnosticOrder = mongoose.model('DiagnosticOrder', diagnosticOrderSchema);
+export const DiagnosticOrder = tenantAwareModel(mongoose.model('DiagnosticOrder', diagnosticOrderSchema));

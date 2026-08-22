@@ -20,7 +20,7 @@ const globalPatientSchema = new mongoose.Schema(
     lastName: { type: String, required: true, trim: true },
     dob: { type: Date },
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'], default: 'MALE' },
-    primaryPhone: { type: String, required: true, trim: true, index: true },
+    primaryPhone: { type: String, required: true, trim: true },
     email: { type: String, trim: true, lowercase: true, default: '' },
     nationalId: { type: String, default: '', trim: true },
     bloodGroup: {

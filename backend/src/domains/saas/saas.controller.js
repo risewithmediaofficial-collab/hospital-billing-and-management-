@@ -1,5 +1,8 @@
 import { SaasService } from './saas.service.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
+import { TenantMigrationService } from './tenantMigration.service.js';
+import { TenantExportService, safeExportJson } from './tenantExport.service.js';
+import { once } from 'node:events';
 
 export const registerHospital = async (req, res, next) => {
   try {
@@ -25,6 +28,48 @@ export const approveHospital = async (req, res, next) => {
     const result = await SaasService.approveHospital(id, req.user);
     return sendSuccess(res, 200, 'Hospital tenant approved & Hospital Admin account provisioned!', result);
   } catch (error) {
+    next(error);
+  }
+};
+
+export const prepareDedicatedDatabase = async (req, res, next) => {
+  try {
+    const result = await TenantMigrationService.prepareDedicatedDatabase(req.params.id, req.user);
+    return sendSuccess(res, 200, 'Dedicated tenant database copy prepared and verified. Runtime activation remains disabled.', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const activateDedicatedDatabase = async (req, res, next) => {
+  try {
+    const result = await TenantMigrationService.activateDedicatedDatabase(req.params.id, req.user);
+    return sendSuccess(res, 200, 'Dedicated tenant database activated after final verified cutover.', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const exportHospitalData = async (req, res, next) => {
+  try {
+    const exportJob = await TenantExportService.open(req.params.id, req.user);
+    const filename = `${exportJob.hospital.domain || exportJob.hospital.code || 'hospital'}-export-${new Date().toISOString().slice(0, 10)}.ndjson`;
+    res.status(200);
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+
+    if (!res.write(`${safeExportJson({ type: 'manifest', data: exportJob.metadata })}\n`)) {
+      await once(res, 'drain');
+    }
+    for await (const record of exportJob.records()) {
+      if (!res.write(`${safeExportJson({ type: 'record', ...record })}\n`)) {
+        await once(res, 'drain');
+      }
+    }
+    res.end();
+  } catch (error) {
+    if (res.headersSent) return res.destroy(error);
     next(error);
   }
 };
@@ -65,7 +110,7 @@ export const getPlatformMetrics = async (req, res, next) => {
 
 export const getHospitalDetail = async (req, res, next) => {
   try {
-    const result = await SaasService.getHospitalDetail(req.params.id);
+    const result = await SaasService.getHospitalDetail(req.params.id, req.user);
     return sendSuccess(res, 200, 'Hospital detail retrieved', result);
   } catch (error) {
     next(error);

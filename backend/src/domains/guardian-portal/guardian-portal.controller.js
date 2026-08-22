@@ -29,6 +29,15 @@ export class GuardianPortalController {
     }
   }
 
+  static async submitDoctorMessage(req, res, next) {
+    try {
+      const request = await GuardianPortalService.submitDoctorMessage(req.user, req.body);
+      res.status(201).json({ success: true, data: request });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async listAllLinks(req, res, next) {
     try {
       const links = await GuardianPortalService.listAllLinks(req.user);

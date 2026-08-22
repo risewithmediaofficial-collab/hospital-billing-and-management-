@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const medicineSchema = new mongoose.Schema(
   {
@@ -29,4 +30,4 @@ const medicineSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Medicine = mongoose.model('Medicine', medicineSchema);
+export const Medicine = tenantAwareModel(mongoose.model('Medicine', medicineSchema));

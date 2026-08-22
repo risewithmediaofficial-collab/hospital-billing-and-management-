@@ -20,6 +20,7 @@ export const LabTechDashboard = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const requestedOrderId = searchParams.get('orderId');
 
   const [activeTab, setActiveTab] = useState(tabParam || 'ACTIVE');
   const [orders, setOrders] = useState([]);
@@ -37,7 +38,7 @@ export const LabTechDashboard = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [requestedOrderId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -62,12 +63,32 @@ export const LabTechDashboard = () => {
       const list = res.data || [];
       setOrders(list);
       if (list.length > 0) {
-        setSelectedOrder((prev) => (prev ? list.find((o) => o._id === prev._id) || list[0] : list[0]));
+        setSelectedOrder((prev) => (
+          list.find((o) => o._id === requestedOrderId) ||
+          (prev ? list.find((o) => o._id === prev._id) : null) ||
+          list[0]
+        ));
       } else {
         setSelectedOrder(null);
       }
     } catch (err) {
       console.error('Failed to load pathology orders:', err);
+    }
+  };
+
+  const handleResolveBillingQuery = async () => {
+    if (!selectedOrder?.billingQuery || selectedOrder.billingQuery.resolved) return;
+    setIsLoading(true);
+    try {
+      await axiosClient.patch(`/diagnostics/orders/${selectedOrder._id}/charge`, {
+        price: Number(selectedOrder.price) || 0,
+        additionalCharges: selectedOrder.additionalCharges || [],
+      });
+      await fetchOrders();
+    } catch (err) {
+      console.error('Failed to resubmit corrected laboratory charge:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -318,6 +339,18 @@ export const LabTechDashboard = () => {
 
           {selectedOrder ? (
             <div className="space-y-4 text-xs">
+              {selectedOrder.billingQuery && !selectedOrder.billingQuery.resolved && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 space-y-3" data-testid="billing-query-banner">
+                  <div className="font-black flex items-center gap-2"><AlertCircle size={16} /> Billing correction required</div>
+                  <p>Returned by {selectedOrder.billingQuery.requestedByName || 'Billing Desk'}: “{selectedOrder.billingQuery.query}”</p>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                    <label className="flex-1 font-bold">Corrected charge (₹)
+                      <input className="mt-1 w-full glass-input rounded-lg p-2" type="number" min="0" value={selectedOrder.price ?? ''} onChange={(event) => setSelectedOrder((current) => ({ ...current, price: event.target.value }))} />
+                    </label>
+                    <Button type="button" variant="primary" size="sm" isLoading={isLoading} onClick={handleResolveBillingQuery}>Resubmit to Billing</Button>
+                  </div>
+                </div>
+              )}
               <div className="p-3 rounded-xl bg-white border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div>
                   <p className="text-slate-500">Patient Name:</p>

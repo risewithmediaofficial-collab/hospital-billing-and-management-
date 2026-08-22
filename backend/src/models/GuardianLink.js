@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const guardianLinkSchema = new mongoose.Schema(
@@ -44,4 +45,4 @@ const guardianLinkSchema = new mongoose.Schema(
 guardianLinkSchema.index({ guardianUserId: 1, patientId: 1 }, { unique: true });
 guardianLinkSchema.plugin(encryptedFieldsPlugin, { fields: ['notes'] });
 
-export const GuardianLink = mongoose.model('GuardianLink', guardianLinkSchema);
+export const GuardianLink = tenantAwareModel(mongoose.model('GuardianLink', guardianLinkSchema));

@@ -1,10 +1,20 @@
 import { Router } from 'express';
 import { PatientPortalController } from './patient-portal.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
+import { sendError } from '../../utils/apiResponse.js';
 
 const router = Router();
 
 router.use(verifyJwt);
+
+const patientOnly = (req, res, next) => {
+  if (req.user?.role !== 'PATIENT') {
+    return sendError(res, 403, 'This endpoint is available only to the authenticated patient portal.', null, 'FORBIDDEN');
+  }
+  next();
+};
+
+router.use(patientOnly);
 
 router.get('/dashboard', PatientPortalController.getDashboard);
 router.get('/history', PatientPortalController.getTreatmentHistory);

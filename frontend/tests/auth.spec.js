@@ -7,16 +7,16 @@ test.describe('Authentication & Registration Suite', () => {
 
   test('should render login page with all inputs and controls', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'HPMBS Enterprise' })).toBeVisible();
-    await expect(page.locator('input[placeholder*="email"]')).toBeVisible();
+    await expect(page.getByLabel(/Account Email \/ Phone \/ Login ID/i)).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Sign In to Workstation/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sign In as Staff \/ Admin/i })).toBeVisible();
   });
 
   test('should toggle password visibility when clicking eye icon', async ({ page }) => {
-    const passwordInput = page.locator('input[placeholder="Enter your password"]');
+    const passwordInput = page.getByLabel('Password');
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    const toggleBtn = page.getByTitle(/Show Password|Hide Password/i);
+    const toggleBtn = page.getByRole('button', { name: /Show password|Hide password/i });
     await toggleBtn.click();
     await expect(passwordInput).toHaveAttribute('type', 'text');
 
@@ -36,13 +36,14 @@ test.describe('Authentication & Registration Suite', () => {
   test('should fill hospital registration form fields', async ({ page }) => {
     await page.goto('/register-hospital');
 
-    await page.locator('input[placeholder="Metro City General Hospital"]').fill('Metro Care Hospital');
-    await page.locator('input[placeholder="metrocity"]').fill('metrocare');
-    await page.locator('input[placeholder="Dr. Sarah Jenkins"]').fill('Dr. Sarah Jenkins');
-    await page.locator('input[placeholder="admin@metrocityhospital.org"]').fill('sarah@metrocare.com');
-    await page.locator('input[placeholder="Create secure password"]').fill('Password123!');
+    await page.getByLabel('Hospital Name').fill('Metro Care Hospital');
+    await page.getByLabel(/Hospital Domain/).fill('metrocare');
+    await page.getByLabel('Contact Officer Name').fill('Dr. Sarah Jenkins');
+    await page.getByLabel('Authorized Contact Email').fill('sarah@metrocare.com');
+    await page.getByLabel('Desired Hospital Admin Password').fill('Password123!');
+    await page.getByLabel('Confirm Admin Password').fill('Password123!');
 
-    const registerBtn = page.getByRole('button', { name: /Submit SaaS Application/i });
+    const registerBtn = page.getByRole('button', { name: /Submit Application/i });
     await expect(registerBtn).toBeVisible();
   });
 });

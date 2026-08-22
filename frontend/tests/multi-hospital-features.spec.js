@@ -52,7 +52,7 @@ async function mockMultiHospitalPatientSession(page, options = {}) {
     { role: 'NURSE', userId: { name: 'Nurse Priya', role: 'NURSE', phone: '8765432109' }, userName: 'Nurse Priya', assignedAt: new Date().toISOString(), removedAt: null },
   ];
 
-  await page.route('**', async (route) => {
+  await page.route('**/api/v1/**', async (route) => {
     const url = route.request().url();
 
     if (url.includes('/auth/me')) {
@@ -93,7 +93,7 @@ async function mockGuardianDischargedSession(page) {
     liveAccessActive: false,
   };
 
-  await page.route('**', async (route) => {
+  await page.route('**/api/v1/**', async (route) => {
     const url = route.request().url();
     if (url.includes('/api/v1/auth/me') || url.endsWith('/auth/me')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { id: 'guardian-id', name: 'Suresh Kumar', role: 'GUARDIAN', permissions: { '*': ['*'] } } }) });
@@ -240,7 +240,9 @@ test.describe('GuardianDashboard — Discharge Read-Only Lock', () => {
   test('should show guardian portal header after discharge banner', async ({ page }) => {
     await page.goto('/guardian-portal/dashboard');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('Guardian Care').first()).toBeVisible({ timeout: 8000 });
+    await expect(
+      page.getByRole('heading', { name: 'Guardian Inpatient Care Portal', exact: true })
+    ).toBeVisible({ timeout: 8000 });
   });
 
 });
@@ -290,7 +292,8 @@ test.describe('Patient Portal — New Multi-Hospital Routes', () => {
     await page.goto('/patient-portal/dashboard');
     await page.waitForLoadState('networkidle');
     await expect(
-      page.getByText('Ravi Kumar').or(page.getByText('Patient Workspace'))
+      page.getByRole('heading', { name: 'Ravi Kumar', exact: true })
+        .or(page.getByRole('heading', { name: 'Patient Workspace', exact: true }))
     ).toBeVisible({ timeout: 8000 });
   });
 
@@ -356,33 +359,21 @@ test.describe('New API Endpoints — Frontend Route Intercepts', () => {
   });
 
   test('GET /patient-portal/hospitals should return hospitals list', async ({ page }) => {
-    let hospitalsApiCalled = false;
-    page.on('request', req => {
-      if (req.url().includes('/patient-portal/hospitals')) hospitalsApiCalled = true;
-    });
-    await page.goto('/patient-portal/dashboard');
+    const requestPromise = page.waitForRequest((req) => req.url().includes('/patient-portal/hospitals'));
+    await Promise.all([requestPromise, page.goto('/patient-portal/dashboard')]);
     await page.waitForLoadState('networkidle');
-    expect(hospitalsApiCalled).toBe(true);
   });
 
   test('GET /patient-portal/active-context should be called on dashboard load', async ({ page }) => {
-    let activeContextCalled = false;
-    page.on('request', req => {
-      if (req.url().includes('/patient-portal/active-context')) activeContextCalled = true;
-    });
-    await page.goto('/patient-portal/dashboard');
+    const requestPromise = page.waitForRequest((req) => req.url().includes('/patient-portal/active-context'));
+    await Promise.all([requestPromise, page.goto('/patient-portal/dashboard')]);
     await page.waitForLoadState('networkidle');
-    expect(activeContextCalled).toBe(true);
   });
 
   test('GET /patient-portal/dashboard should be called on load', async ({ page }) => {
-    let dashboardCalled = false;
-    page.on('request', req => {
-      if (req.url().includes('/patient-portal/dashboard')) dashboardCalled = true;
-    });
-    await page.goto('/patient-portal/dashboard');
+    const requestPromise = page.waitForRequest((req) => req.url().includes('/patient-portal/dashboard'));
+    await Promise.all([requestPromise, page.goto('/patient-portal/dashboard')]);
     await page.waitForLoadState('networkidle');
-    expect(dashboardCalled).toBe(true);
   });
 
 });

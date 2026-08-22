@@ -44,6 +44,7 @@ import {
   Wifi,
   Receipt,
   AlertTriangle,
+  Bell,
 } from 'lucide-react';
 
 export const DoctorDashboard = () => {
@@ -63,6 +64,11 @@ export const DoctorDashboard = () => {
   const [selectedToken, setSelectedToken] = useState(null);
   const [selectedDeptOrder, setSelectedDeptOrder] = useState(null);
   const [substitutionRequests, setSubstitutionRequests] = useState([]);
+  const requestedSubstitutionId = new URLSearchParams(location.search).get('substitutionId');
+  const requestedNurseTaskId = new URLSearchParams(location.search).get('taskId');
+  const requestedPatientRequestId = new URLSearchParams(location.search).get('requestId');
+  const requestedInvoiceId = new URLSearchParams(location.search).get('invoiceId');
+  const [doctorRequests, setDoctorRequests] = useState([]);
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
 
   const [patientInvestigations, setPatientInvestigations] = useState([]);
@@ -70,6 +76,7 @@ export const DoctorDashboard = () => {
   const [patientNurseTasks, setPatientNurseTasks] = useState([]);
   const [returnedBillingPrescriptions, setReturnedBillingPrescriptions] = useState([]);
   const [selectedReturnedRx, setSelectedReturnedRx] = useState(null);
+  const [resolvingBillingInvoiceId, setResolvingBillingInvoiceId] = useState(null);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isInjectionModalOpen, setIsInjectionModalOpen] = useState(false);
@@ -120,6 +127,7 @@ export const DoctorDashboard = () => {
     fetchSubstitutionRequests();
     fetchNurseTasks();
     fetchReturnedBillingPrescriptions();
+    fetchDoctorRequests();
   }, []);
 
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
@@ -182,7 +190,7 @@ export const DoctorDashboard = () => {
     socket.on('doctor:availability_changed', handleDoctorAvailability);
     socket.on('doctor:billing_query', handleBillingQuery);
     socket.on('pharmacy:prescription_returned', handleBillingQuery);
-    socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
+    socket.on('workflow:notification', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); fetchDoctorRequests(); });
     socket.on('queue:update', fetchOpdQueue);
     socket.on('department:order_update', () => { fetchDepartmentOrders(); fetchSubstitutionRequests(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
     socket.on('workflow:pending_changed', () => { fetchOpdQueue(); fetchDepartmentOrders(); fetchNurseTasks(); fetchReturnedBillingPrescriptions(); });
@@ -331,6 +339,45 @@ const targetDocId = user?.id || user?._id;
     }
   };
 
+  const fetchDoctorRequests = async () => {
+    try {
+      const res = await axiosClient.get('/requests', { params: { category: 'DOCTOR' } });
+      setDoctorRequests(Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error('Failed to load patient or guardian doctor requests:', err);
+    }
+  };
+
+  const updateDoctorRequest = async (requestId, status) => {
+    try {
+      await axiosClient.patch(`/requests/${requestId}/status`, { status });
+      resolvePending(requestId);
+      await fetchDoctorRequests();
+    } catch (err) {
+      console.error('Failed to update doctor request:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!requestedSubstitutionId || activeTab !== 'DEPT_RESPONSES' || substitutionRequests.length === 0) return;
+    document.getElementById(`substitution-${requestedSubstitutionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [requestedSubstitutionId, activeTab, substitutionRequests]);
+
+  useEffect(() => {
+    if (!requestedNurseTaskId || activeTab !== 'DEPT_RESPONSES' || nurseTasks.length === 0) return;
+    document.getElementById(`doctor-nurse-task-${requestedNurseTaskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [requestedNurseTaskId, activeTab, nurseTasks]);
+
+  useEffect(() => {
+    if (!requestedPatientRequestId || activeTab !== 'DEPT_RESPONSES' || doctorRequests.length === 0) return;
+    document.getElementById(`doctor-patient-request-${requestedPatientRequestId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [requestedPatientRequestId, activeTab, doctorRequests]);
+
+  useEffect(() => {
+    if (!requestedInvoiceId || activeTab !== 'DEPT_RESPONSES' || returnedBillingPrescriptions.length === 0) return;
+    document.getElementById(`doctor-billing-query-${requestedInvoiceId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [requestedInvoiceId, activeTab, returnedBillingPrescriptions]);
+
   const fetchPatientInvestigations = async (patientId) => {
     if (!patientId) return;
     try {
@@ -390,6 +437,25 @@ const targetDocId = user?.id || user?._id;
     fetchPatientInvestigations(patId);
     fetchPatientNurseTasks(patId);
     setIsConsultationModalOpen(true);
+  };
+
+  const handleConfirmBillingQuery = async (rx) => {
+    const invoiceId = rx.invoiceId || rx.billingQuery?.invoiceId;
+    if (!invoiceId || resolvingBillingInvoiceId) return;
+    if (!window.confirm('Confirm the current clinical charges and return this invoice to Central Billing?')) return;
+    setResolvingBillingInvoiceId(String(invoiceId));
+    try {
+      await axiosClient.post(`/billing/invoices/${invoiceId}/doctor-review-response`, {
+        responseNote: 'Clinical charges reviewed and confirmed by the attending doctor.',
+      });
+      resolvePending(String(invoiceId));
+      await fetchReturnedBillingPrescriptions();
+      setStatusMessage({ type: 'success', text: 'Billing query resolved and returned to Central Billing.' });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: err.response?.data?.message || 'Failed to resolve the billing query.' });
+    } finally {
+      setResolvingBillingInvoiceId(null);
+    }
   };
 
   const handleSelectToken = (tok) => {
@@ -1297,6 +1363,43 @@ const targetDocId = user?.id || user?._id;
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
         <div className="space-y-6">
+          <Card className="space-y-4 bg-white border border-purple-200 shadow-sm text-black">
+            <div className="border-b border-purple-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Bell size={18} className="text-purple-600" />
+                Patient &amp; Guardian Messages ({doctorRequests.length})
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">Messages routed only to the attending doctor or the hospital doctor queue when no doctor is assigned.</p>
+            </div>
+            {doctorRequests.length > 0 ? (
+              <div className="space-y-3">
+                {doctorRequests.map((request) => (
+                  <div
+                    id={`doctor-patient-request-${request._id}`}
+                    key={request._id}
+                    className={`p-4 rounded-xl border ${String(request._id) === String(requestedPatientRequestId) ? 'border-purple-500 bg-purple-100 ring-2 ring-purple-200' : 'border-slate-200 bg-slate-50'}`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <p className="font-extrabold text-slate-900">{request.patientId?.firstName} {request.patientId?.lastName} <span className="font-mono text-xs text-indigo-700">{request.patientId?.uhid}</span></p>
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap break-words">{request.notes || 'Doctor review requested.'}</p>
+                        <p className="text-[10px] text-slate-500">Sent by {request.requestedBy || 'PATIENT'} · {request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Just now'} · {request.status}</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        {!['ACCEPTED', 'IN_PROGRESS'].includes(request.status) && (
+                          <Button size="sm" variant="outline" onClick={() => updateDoctorRequest(request._id, 'ACCEPTED')}>Acknowledge</Button>
+                        )}
+                        <Button size="sm" variant="success" onClick={() => updateDoctorRequest(request._id, 'COMPLETED')}>Mark Reviewed</Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 py-3">No pending patient or guardian messages.</p>
+            )}
+          </Card>
+
           {/* 0. Billing Desk Queries & Returned Prescriptions */}
           {returnedBillingPrescriptions.length > 0 && (
             <Card className="space-y-4 bg-white border-2 border-amber-300 shadow-md text-black overflow-hidden">
@@ -1336,7 +1439,11 @@ const targetDocId = user?.id || user?._id;
                       const pat = rx.patientId || {};
                       const queryInfo = rx.billingQuery || {};
                       return (
-                        <tr key={rx._id} className="hover:bg-amber-50/40 transition-colors bg-white">
+                        <tr
+                          key={rx._id}
+                          id={`doctor-billing-query-${rx.invoiceId || rx.billingQuery?.invoiceId || rx._id}`}
+                          className={`transition-colors ${String(rx.invoiceId || rx.billingQuery?.invoiceId || '') === String(requestedInvoiceId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-500' : 'bg-white hover:bg-amber-50/40'}`}
+                        >
                           <td className="p-3">
                             <p className="font-extrabold text-slate-900 text-sm">
                               {pat.firstName} {pat.lastName}
@@ -1372,15 +1479,27 @@ const targetDocId = user?.id || user?._id;
                             {queryInfo.requestedAt ? new Date(queryInfo.requestedAt).toLocaleString() : new Date(rx.updatedAt || rx.createdAt).toLocaleString()}
                           </td>
                           <td className="p-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleReviewBillingQuery(rx)}
-                              className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs inline-flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
-                              title="Open consultation with this patient to adjust prescription and send back to billing"
-                            >
-                              <Stethoscope size={14} />
-                              Review &amp; Re-Prescribe
-                            </button>
+                            <div className="inline-flex flex-col gap-1.5 items-stretch">
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmBillingQuery(rx)}
+                                disabled={String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId)}
+                                className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                                title="Confirm existing charges without creating another consultation"
+                              >
+                                <Check size={14} />
+                                {String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId) ? 'Returning…' : 'Confirm & Return'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleReviewBillingQuery(rx)}
+                                className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                title="Open consultation only when clinical details or charges need correction"
+                              >
+                                <Stethoscope size={14} />
+                                Review &amp; Correct
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1423,7 +1542,12 @@ const targetDocId = user?.id || user?._id;
                 <tbody className="divide-y divide-slate-200 text-black">
                   {filteredNurseTasks.length > 0 ? (
                     filteredNurseTasks.map((task) => (
-                      <tr key={task._id} className="hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={task._id}
+                        id={`doctor-nurse-task-${task._id}`}
+                        data-testid={`doctor-nurse-task-${task._id}`}
+                        className={`transition-colors ${String(task._id) === String(requestedNurseTaskId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-400' : 'hover:bg-slate-50'}`}
+                      >
                         <td className="p-3 font-bold text-black">
                           {task.patientId?.firstName} {task.patientId?.lastName}
                         </td>
@@ -1648,7 +1772,12 @@ const targetDocId = user?.id || user?._id;
             </div>
             <div className="divide-y divide-amber-50 text-xs">
               {substitutionRequests.filter(r => r.status === 'PENDING').map((req) => (
-                <div key={req._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div
+                  key={req._id}
+                  id={`substitution-${req._id}`}
+                  data-testid={`substitution-request-${req._id}`}
+                  className={`py-3 px-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedSubstitutionId) ? 'bg-amber-100 ring-2 ring-amber-400' : ''}`}
+                >
                   <div className="space-y-0.5">
                     <p className="font-bold text-slate-900 text-sm">
                       {req.patientId?.firstName} {req.patientId?.lastName}

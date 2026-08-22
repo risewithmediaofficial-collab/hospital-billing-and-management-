@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { PAYMENT_STATUS } from '../config/constants.js';
 
 const invoiceSchema = new mongoose.Schema(
@@ -12,6 +13,7 @@ const invoiceSchema = new mongoose.Schema(
     items: [
       {
         description: { type: String, required: true },
+        sourceRef: { type: String, default: '', index: true },
         category: { type: String, enum: ['CONSULTATION', 'LAB', 'RADIOLOGY', 'PHARMACY', 'BED_TARIFF', 'OTHER'], default: 'CONSULTATION' },
         qty: { type: Number, required: true, default: 1 },
         unitPrice: { type: Number, required: true },
@@ -37,6 +39,7 @@ const invoiceSchema = new mongoose.Schema(
       resolved: { type: Boolean, default: false, index: true },
       resolvedAt: { type: Date },
       resolvedByDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      responseNote: { type: String, default: '' },
     },
     status: { type: String, enum: Object.values(PAYMENT_STATUS), default: PAYMENT_STATUS.UNPAID, index: true },
     isDeleted: { type: Boolean, default: false, index: true },
@@ -55,4 +58,4 @@ invoiceSchema.index({ hospitalId: 1, status: 1, isDeleted: 1 });
 invoiceSchema.index({ hospitalId: 1, patientId: 1, createdAt: -1 });
 invoiceSchema.index({ hospitalId: 1, doctorId: 1, createdAt: -1 });
 
-export const Invoice = mongoose.model('Invoice', invoiceSchema);
+export const Invoice = tenantAwareModel(mongoose.model('Invoice', invoiceSchema));

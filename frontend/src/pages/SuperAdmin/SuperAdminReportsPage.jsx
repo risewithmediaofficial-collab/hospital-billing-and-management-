@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import {
   BarChart3, Scan, TestTube, Pill, Stethoscope, CreditCard, Users,
   Activity, Search, Download, Filter, FileText, CheckCircle2, Clock,
-  Calendar, ShieldAlert, IndianRupee, Eye, EyeOff, Key, Edit, Lock, X,
+  Calendar, ShieldAlert, IndianRupee, Key, Edit, Lock, X,
   ConciergeBell, Building2, ShieldCheck, UserCheck, Check, ChevronRight
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
@@ -23,7 +23,6 @@ export const SuperAdminReportsPage = () => {
   const [hospitals, setHospitals] = useState([]);
   const [selectedHospitalId, setSelectedHospitalId] = useState(hospitalId || 'ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showPasswords, setShowPasswords] = useState({});
 
   // Password Update Modal State
   const [selectedStaffForPassword, setSelectedStaffForPassword] = useState(null);
@@ -123,10 +122,6 @@ export const SuperAdminReportsPage = () => {
     setSearchParams({ metric: newMetric });
   };
 
-  const toggleShowPassword = (id) => {
-    setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const handleOpenPasswordModal = (staff) => {
     setSelectedStaffForPassword(staff);
     setNewPasswordInput('');
@@ -135,8 +130,8 @@ export const SuperAdminReportsPage = () => {
   };
 
   const handleSavePassword = async () => {
-    if (!newPasswordInput || newPasswordInput.trim().length < 4) {
-      setPasswordUpdateError('Password must be at least 4 characters long');
+    if (!newPasswordInput || newPasswordInput.trim().length < 8) {
+      setPasswordUpdateError('Password must be at least 8 characters long');
       return;
     }
 
@@ -152,7 +147,7 @@ export const SuperAdminReportsPage = () => {
       const updateList = (prev) =>
         prev.map((d) =>
           d._id === selectedStaffForPassword._id
-            ? { ...d, assignedPasswordHint: newPasswordInput.trim(), credentialHint: newPasswordInput.trim() }
+            ? d
             : d
         );
 
@@ -246,15 +241,13 @@ export const SuperAdminReportsPage = () => {
                 <th className="p-3">Role</th>
                 <th className="p-3">Hospital</th>
                 <th className="p-3">Login Email</th>
-                <th className="p-3">Assigned Password / Credential</th>
+                <th className="p-3">Password Management</th>
                 <th className="p-3">Duty Status</th>
                 <th className="p-3 text-right">Super Admin Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((s) => {
-                const isShown = showPasswords[s._id];
-                const pwdHint = s.assignedPasswordHint || s.credentialHint || `${s.role ? s.role.charAt(0) + s.role.slice(1).toLowerCase() : 'Staff'}123!`;
                 const hospName = s.hospitalId?.name || hospMap[String(s.hospitalId?._id || s.hospitalId)] || 'Platform Hospital';
 
                 return (
@@ -274,16 +267,8 @@ export const SuperAdminReportsPage = () => {
                       <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
                         <Key size={13} className="text-amber-500 shrink-0" />
                         <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
-                          {isShown ? pwdHint : '••••••••••••'}
+                          Secure hash only — reset when required
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleShowPassword(s._id)}
-                          className="text-slate-400 hover:text-slate-700 ml-1 transition-colors"
-                          title={isShown ? "Hide Password" : "Show Password"}
-                        >
-                          {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
                       </div>
                     </td>
                     <td className="p-3">

@@ -14,7 +14,7 @@ export class DoctorUpdatesController {
     try {
       const { patientId } = req.params;
       const { visibility } = req.query;
-      const data = await DoctorUpdatesService.getPatientUpdates(patientId, visibility);
+      const data = await DoctorUpdatesService.getPatientUpdates(patientId, visibility, req.user);
       res.json({ success: true, data });
     } catch (err) {
       next(err);

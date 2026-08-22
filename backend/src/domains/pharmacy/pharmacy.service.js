@@ -11,6 +11,7 @@ import { AuditLog } from '../../models/AuditLog.js';
 import { ApiError } from '../../utils/apiError.js';
 import { socketManager } from '../../events/socketManager.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
+import { requireHospitalContext } from '../../utils/tenantContext.js';
 
 export class PharmacyService {
   // --- INVENTORY MANAGEMENT ---
@@ -321,21 +322,7 @@ export class PharmacyService {
   // --- PRESCRIPTION DISPENSING (FEFO) ---
 
   static async getPrescriptions(user, query = {}) {
-    let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
-    if (!rawHospitalId && user) {
-      const defaultHosp = await import('../../models/Hospital.js').then((m) => m.Hospital.findOne({}));
-      rawHospitalId = defaultHosp?._id;
-    }
-
-    const filter = {};
-    if (rawHospitalId && user?.role !== 'SUPER_ADMIN') {
-      const hIdStr = String(rawHospitalId);
-      const conditions = [hIdStr];
-      if (mongoose.Types.ObjectId.isValid(hIdStr)) {
-        conditions.push(new mongoose.Types.ObjectId(hIdStr));
-      }
-      filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
-    }
+    const filter = { hospitalId: requireHospitalContext(user) };
 
     if (query?.patientId) {
       filter.patientId = query.patientId;
@@ -405,6 +392,7 @@ export class PharmacyService {
             patientId: prescription.patientId,
             doctorId: prescription.doctorId,
             description: `[Prescription Medicine] ${item.medicineName} (${item.dosageForm || 'Tab'}) x ${requestedQty}`,
+            sourceRef: `prescription:${prescription._id}:medicine:${item._id}`,
             qty: requestedQty,
             unitPrice,
             taxPercentage: 0,
@@ -471,6 +459,7 @@ export class PharmacyService {
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
           description: `${item.medicineName} (${item.dosageForm || 'Tab'}) [Batch: ${usedBatchNo}]`,
+          sourceRef: `prescription:${prescription._id}:medicine:${item._id}`,
           qty: qtyDispensed,
           unitPrice,
           taxPercentage: medicine.taxPercentage,
@@ -484,7 +473,7 @@ export class PharmacyService {
     // Handle any extra custom items / consumables added by pharmacist
     let extraCharge = 0;
     if (Array.isArray(dispenseData?.items)) {
-      for (const extraItem of dispenseData.items) {
+      for (const [extraIndex, extraItem] of dispenseData.items.entries()) {
         if (extraItem.isCustom || !prescription.medicines.some(m => String(m.medicineName || '').toLowerCase() === String(extraItem.medicineName || '').toLowerCase())) {
           const cQty = Number(extraItem.qty || 1);
           const cPrice = Number(extraItem.unitPrice || 0);
@@ -497,6 +486,7 @@ export class PharmacyService {
               patientId: prescription.patientId,
               doctorId: prescription.doctorId,
               description: `[Pharmacy Item] ${extraItem.medicineName} (${extraItem.dosageForm || 'Consumable'})`,
+              sourceRef: `prescription:${prescription._id}:extra:${extraIndex}`,
               qty: cQty,
               unitPrice: cPrice,
               taxPercentage: 0,
@@ -526,7 +516,7 @@ export class PharmacyService {
 
     // Fetch patient name & UHID for clean notification
     const { Patient } = await import('../../models/Patient.js');
-    const pat = await Patient.findById(prescription.patientId).select('firstName lastName uhid').lean();
+    const pat = await Patient.findOne({ _id: prescription.patientId, hospitalId: user.hospitalId }).select('firstName lastName uhid').lean();
     const patientName = pat ? `${pat.firstName} ${pat.lastName}`.trim() : 'Patient';
     const patientUhid = pat?.uhid || 'N/A';
 
@@ -535,6 +525,7 @@ export class PharmacyService {
       const { Notification } = await import('../../models/Notification.js');
       await Notification.updateMany(
         {
+          hospitalId: user.hospitalId,
           $or: [
             { relatedTaskId: String(prescription._id) },
             { relatedRequestId: String(prescription._id) },
@@ -547,33 +538,17 @@ export class PharmacyService {
 
     // Notify Central Billing / Cashier Desk
     try {
-      const { NotificationService } = await import('../notifications/notification.service.js');
       const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
 
-      await NotificationService.createNotification({
+      const billingInvoice = await Invoice.findOne({
         hospitalId: user.hospitalId,
-        branchId: user.branchId,
-        recipientRole: 'CASHIER',
-        title: (isAllExternal || allAreExternal) ? 'Pharmacy Clearance (External Purchase)' : 'Pharmacy Dispensed & Billed',
-        message: (isAllExternal || allAreExternal)
-          ? `Patient ${patientName} (${patientUhid}) marked for external medicine purchase (₹0). Ready for consultation billing & receipt.`
-          : `Pharmacy medicines billed (₹${prescription.totalMedicineCharge || 0}) for ${patientName} (${patientUhid}). Ready for cashier payment.`,
-        notificationType: 'NEW_DATA',
-        targetModule: 'billing',
-        targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
-        relatedPatientId: prescription.patientId,
-        relatedTaskId: String(prescription._id),
-      });
-
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PAYMENT_PENDING, {
         patientId: prescription.patientId,
-        patientName,
-        uhid: patientUhid,
-        pharmacyCharge: prescription.totalMedicineCharge || 0,
-        linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
-      }, prescription.branchId || user.branchId);
-
-      WorkflowEventService.emitSync(WORKFLOW_EVENTS.PHARMACY_DISPENSED, {
+        status: { $in: ['UNPAID', 'PARTIALLY_PAID'] },
+      }).sort({ createdAt: -1 }).select('_id').lean();
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.PHARMACY_DISPENSED, {
+        hospitalId: user.hospitalId,
+        branchId: prescription.branchId || user.branchId,
+        invoiceId: billingInvoice?._id,
         prescriptionId: prescription._id,
         patientId: prescription.patientId,
         patientName,
@@ -581,7 +556,6 @@ export class PharmacyService {
         doctorId: prescription.doctorId,
         dispensedBy: user.name || 'Pharmacist',
         dispenseStatus: prescription.dispenseStatus,
-        linkedPath: '/doctor/dashboard?tab=LIVE',
       }, prescription.branchId || user.branchId);
     } catch (notifErr) {
       console.warn('[PharmacyService] Notification error:', notifErr.message);
@@ -590,7 +564,7 @@ export class PharmacyService {
     try {
       const { Appointment } = await import('../../models/Appointment.js');
       await Appointment.updateMany(
-        { patientId: prescription.patientId, status: 'WAITING_PHARMACY' },
+        { hospitalId: user.hospitalId, patientId: prescription.patientId, status: 'WAITING_PHARMACY' },
         { $set: { status: 'COMPLETED' } }
       );
     } catch (appErr) {}
@@ -607,23 +581,9 @@ export class PharmacyService {
     return prescription;
   }
 
-  static async sendBillingToDoctor(id, data, user) {
-    const prescription = await Prescription.findById(id).populate('patientId');
-    if (!prescription) {
-      throw new ApiError(404, 'Prescription not found', null, 'NOT_FOUND');
-    }
-
-    prescription.dispenseStatus = 'BILLED_SENT_TO_DOCTOR';
-    prescription.pharmacyNotes = data?.pharmacyNotes || 'Billed and sent to Doctor for review';
-    prescription.totalMedicineCharge = Number(data?.totalMedicineCharge) || 0;
-    await prescription.save();
-
-    return prescription;
-  }
-
   // --- AUTOMATED BILLING INTEGRATION ---
 
-  static async addPharmacyChargeToBill({ hospitalId, branchId, patientId, doctorId, description, qty, unitPrice, taxPercentage }) {
+  static async addPharmacyChargeToBill({ hospitalId, branchId, patientId, doctorId, description, sourceRef, qty, unitPrice, taxPercentage }) {
     const rawPatientId = patientId?._id || patientId;
     const rawHospitalId = hospitalId?._id || hospitalId;
     const rawBranchId = branchId?._id || branchId;
@@ -658,10 +618,17 @@ export class PharmacyService {
       });
     }
 
-    // Replace or add pharmacy item cleanly
-    const cleanItems = (invoice.items || []).filter((it) => it.category !== 'PHARMACY');
+    const stableRef = String(sourceRef || `pharmacy:${description}`).slice(0, 250);
+    // Replace only the same producer line so a retry is idempotent without
+    // erasing the other medicines already accumulated on this invoice.
+    const cleanItems = (invoice.items || []).filter((it) => {
+      if (it.category !== 'PHARMACY') return true;
+      return String(it.sourceRef || '') !== stableRef
+        && !(String(it.sourceRef || '') === '' && it.description === description);
+    });
     cleanItems.push({
       description,
+      sourceRef: stableRef,
       category: 'PHARMACY',
       qty,
       unitPrice: itemUnitPrice,
@@ -716,7 +683,7 @@ export class PharmacyService {
     try {
       const { NotificationService } = await import('../notifications/notification.service.js');
       const { Patient } = await import('../../models/Patient.js');
-      const patient = await Patient.findById(prescription.patientId).select('firstName lastName uhid').lean();
+      const patient = await Patient.findOne({ _id: prescription.patientId, hospitalId: user.hospitalId }).select('firstName lastName uhid').lean();
       const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient';
 
       await NotificationService.createNotification({
@@ -727,14 +694,18 @@ export class PharmacyService {
         title: 'Medicine Substitution Request',
         message: `Pharmacy requested substitution for ${patientName} (${patient?.uhid || 'N/A'}): Replace "${originalMedicineName}" with "${suggestedMed.name}" (${suggestedMed.manufacturer ? `Brand/Mfg: ${suggestedMed.manufacturer}` : 'Alternative Company'}). Reason: ${req.reason}`,
         notificationType: 'ACTION_REQUIRED',
+        sourceModule: 'pharmacy',
+        entityType: 'PharmacySubstitutionRequest',
+        entityId: req._id,
+        actionType: 'REVIEW_SUBSTITUTION',
         targetModule: 'doctor',
-        targetRoute: '/doctor/dashboard?tab=LIVE',
+        targetRoute: `/doctor/dashboard?tab=DEPT_RESPONSES&substitutionId=${req._id}`,
         relatedPatientId: prescription.patientId,
         relatedTaskId: String(req._id),
       });
     } catch (e) {}
 
-    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:notification', {
+    socketManager.emitToUser(String(prescription.doctorId), 'workflow:notification', {
       type: 'SUBSTITUTION_REQUEST',
       doctorId: prescription.doctorId,
       requestId: req._id,
@@ -752,7 +723,7 @@ export class PharmacyService {
     req.respondedAt = new Date();
     await req.save();
 
-    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:notification', {
+    socketManager.emitToUser(String(req.pharmacistId), 'workflow:notification', {
       type: 'SUBSTITUTION_RESPONSE',
       requestId: req._id,
       status,

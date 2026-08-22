@@ -2,6 +2,7 @@ import { Consultation } from '../../models/Consultation.js';
 import { Prescription } from '../../models/Prescription.js';
 import { Appointment } from '../../models/Appointment.js';
 import { Patient } from '../../models/Patient.js';
+import { Hospital } from '../../models/Hospital.js';
 import { Invoice } from '../../models/Invoice.js';
 import { NurseTasksService } from '../pharmacy/nurse-tasks.service.js';
 import { PAYMENT_STATUS } from '../../config/constants.js';
@@ -11,7 +12,8 @@ import { ApiError } from '../../utils/apiError.js';
 
 export class EmrService {
   static async createConsultation(data, user) {
-    const appointment = await Appointment.findById(data.appointmentId);
+    const hospitalId = user.hospitalId;
+    const appointment = await Appointment.findOne({ _id: data.appointmentId, hospitalId });
     if (!appointment) {
       throw new ApiError(404, 'Appointment not found for consultation', null, 'NOT_FOUND');
     }
@@ -24,10 +26,8 @@ export class EmrService {
     // Check for any department requests for this patient/appointment
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const departmentOrders = await DiagnosticOrder.find({
-      $or: [
-        { appointmentId: appointment._id },
-        { appointmentId: null, patientId: appointment.patientId },
-      ],
+      hospitalId,
+      appointmentId: appointment._id,
       chargeStatus: { $ne: 'CANCELLED' },
     });
 
@@ -115,7 +115,9 @@ export class EmrService {
           return {
             ...p,
             treatmentType: 'NURSE_ADMINISTERED',
-            itemStatus: 'NURSE_ADMINISTERED',
+            // Administration is tracked by the linked NurseTask. The medicine
+            // remains pending until a nurse records the actual administration.
+            itemStatus: 'PENDING',
           };
         }
         if (isExternalPharmacy || p.treatmentType === 'EXTERNAL_PURCHASE_OUTSIDE' || p.externalPurchaseRequired) {
@@ -152,14 +154,17 @@ export class EmrService {
 
       // Only notify hospital pharmacy desk if there are in-house take-home medicines to package & dispense
       if (hasTakeHomeInHouseMedicines) {
-        const patient = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
-        WorkflowEventService.emitSync(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
+        const patient = await Patient.findOne({ _id: appointment.patientId, hospitalId: hospId }).select('firstName lastName uhid');
+        await WorkflowEventService.emit(WORKFLOW_EVENTS.PRESCRIPTION_ISSUED, {
+          hospitalId: hospId,
+          branchId: brId,
           prescriptionId: prescription._id,
+          patientId: appointment.patientId,
           senderUserId: user.id || user._id,
           patientName: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
           uhid: patient?.uhid || 'N/A',
           doctorName: user.name || 'Doctor',
-          linkedPath: '/pharmacy/dashboard',
+          linkedPath: `/pharmacy/dashboard?prescriptionId=${prescription._id}&patientId=${appointment.patientId}`,
         }, brId);
       }
     }
@@ -169,6 +174,7 @@ export class EmrService {
       const { NurseTask } = await import('../../models/NurseTask.js');
       await NurseTask.updateMany(
         {
+          hospitalId: hospId,
           $or: [{ appointmentId: appointment._id }, { patientId: appointment.patientId }],
           doctorReviewedAt: null,
         },
@@ -178,6 +184,7 @@ export class EmrService {
       const { Prescription: RxModel } = await import('../../models/Prescription.js');
       await RxModel.updateMany(
         {
+          hospitalId: hospId,
           patientId: appointment.patientId,
           'billingQuery.resolved': false,
         },
@@ -192,6 +199,7 @@ export class EmrService {
       const { Invoice } = await import('../../models/Invoice.js');
       await Invoice.updateMany(
         {
+          hospitalId: hospId,
           patientId: appointment.patientId,
           'doctorReviewQuery.attendingDoctorId': user.id || user._id,
           'doctorReviewQuery.resolved': false,
@@ -263,7 +271,7 @@ export class EmrService {
           if (gInfo.phone) updateFields['emergencyContact.phone'] = gInfo.phone.trim();
           if (gInfo.relationship) updateFields['emergencyContact.relation'] = gInfo.relationship;
           if (gInfo.address) updateFields.address = gInfo.address.trim();
-          await Patient.updateOne({ _id: appointment.patientId }, { $set: updateFields });
+          await Patient.updateOne({ _id: appointment.patientId, hospitalId: hospId }, { $set: updateFields });
         }
 
         // Trigger official admission requisition
@@ -274,8 +282,8 @@ export class EmrService {
           admissionReason: data.ipdRecommendation.admissionReason || data.chiefComplaints || 'Doctor Inpatient Admission Recommendation',
         }, user);
 
-        const patientObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid');
-        WorkflowEventService.emitSync(WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED, {
+        const patientObj = await Patient.findOne({ _id: appointment.patientId, hospitalId: hospId }).select('firstName lastName uhid');
+        await WorkflowEventService.emit(WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED, {
           patientId: appointment.patientId,
           patientName: patientObj ? `${patientObj.firstName} ${patientObj.lastName}`.trim() : 'Patient',
           uhid: patientObj?.uhid || 'N/A',
@@ -351,58 +359,6 @@ export class EmrService {
         totalPrice: chgAmount,
       });
 
-      ord.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
-      ord.status = 'REVIEWED';
-      if (!ord.reviewedAt) ord.reviewedAt = new Date();
-      await ord.save();
-    }
-
-    // Include pharmacy billed medicine items
-    try {
-      const { Prescription } = await import('../../models/Prescription.js');
-      const billedPrescriptions = await Prescription.find({
-        patientId: appointment.patientId,
-        dispenseStatus: { $in: ['BILLED_SENT_TO_DOCTOR', 'DISPENSED', 'PARTIALLY_DISPENSED'] },
-        chargeStatus: { $ne: 'INCLUDED_IN_FINAL_BILL' },
-      });
-
-      if (billedPrescriptions.length > 0) {
-        for (const rx of billedPrescriptions) {
-          for (const med of rx.medicines || []) {
-            if (med.itemStatus === 'PURCHASED_EXTERNALLY') continue;
-            const medPrice = Number(med.price !== undefined ? med.price : (med.unitPrice !== undefined ? med.unitPrice : 0));
-            const qty = Number(med.dispensedQty || med.quantity || med.durationDays || 1);
-            const lineTotal = Number(med.totalPrice !== undefined ? med.totalPrice : (medPrice * qty));
-            items.push({
-              description: `[Pharmacy] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
-              category: 'PHARMACY',
-              qty,
-              unitPrice: medPrice,
-              totalPrice: lineTotal,
-            });
-          }
-          rx.chargeStatus = 'INCLUDED_IN_FINAL_BILL';
-          rx.dispenseStatus = 'DISPENSED';
-          await rx.save();
-        }
-      } else if (prescription && data.prescriptions && Array.isArray(data.prescriptions)) {
-        for (const med of data.prescriptions) {
-          if (med.externalPurchaseRequired || med.itemStatus === 'PURCHASED_EXTERNALLY' || !med.medicineName?.trim()) continue;
-          const medPrice = Number(med.price !== undefined ? med.price : (med.unitPrice !== undefined ? med.unitPrice : 0));
-          const isNurse = med.treatmentType === 'NURSE_ADMINISTERED' || ['INJECTION', 'IV_FLUID'].includes(med.dosageForm);
-          const qty = isNurse ? 1 : Number(med.quantity || med.dispensedQty || (Number(med.durationDays) || 5) * 2);
-          const lineTotal = isNurse ? medPrice : Number(med.totalPrice !== undefined ? med.totalPrice : (medPrice * qty));
-          items.push({
-            description: `[${isNurse ? 'Nurse Treatment' : 'Prescription Medicine'}] ${med.medicineName} (${med.dosageForm || 'Tab'}) x ${qty}`,
-            category: 'PHARMACY',
-            qty,
-            unitPrice: medPrice,
-            totalPrice: lineTotal,
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to include pharmacy billed medicines:', e);
     }
 
     const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
@@ -425,11 +381,19 @@ export class EmrService {
       status: PAYMENT_STATUS.UNPAID,
     });
 
+    if (activeDeptOrders.length > 0) {
+      await DiagnosticOrder.updateMany(
+        { hospitalId: hospId, _id: { $in: activeDeptOrders.map((order) => order._id) } },
+        { $set: { chargeStatus: 'INCLUDED_IN_FINAL_BILL' } },
+      );
+    }
+
     // Auto-resolve completed nurse tasks for this patient so they disappear from active department responses
     try {
       const { NurseTask } = await import('../../models/NurseTask.js');
       await NurseTask.updateMany(
         {
+          hospitalId: hospId,
           patientId: appointment.patientId,
           doctorReviewedAt: null,
         },
@@ -441,39 +405,22 @@ export class EmrService {
 
     // Notify Central Billing Desk (CASHIER / BILLING_STAFF) ONLY if patient is not waiting at pharmacy
     if (!hasPendingPharmacyDispense && !hasPendingNurseAdministration) {
-      try {
-        const { Patient } = await import('../../models/Patient.js');
-        const { NotificationService } = await import('../notifications/notification.service.js');
-        const { WorkflowEventService, WORKFLOW_EVENTS } = await import('../../events/workflowEventService.js');
+      const patObj = await Patient.findOne({ _id: appointment.patientId, hospitalId: hospId }).select('firstName lastName uhid').lean();
+      const patientName = patObj ? `${patObj.firstName} ${patObj.lastName}`.trim() : 'Patient';
+      const billingRoute = `/billing/dashboard?tab=CENTRAL_DESK&invoiceId=${invoice._id}`;
 
-        const patObj = await Patient.findById(appointment.patientId).select('firstName lastName uhid').lean();
-        const patientName = patObj ? `${patObj.firstName} ${patObj.lastName}`.trim() : 'Patient';
-
-        await NotificationService.createNotification({
-          hospitalId: hospId,
-          branchId: brId,
-          recipientRole: 'CASHIER',
-          title: 'New Bill Pending',
-          message: `Consultation & billing finalized for ${patientName} (UHID: ${patObj?.uhid || 'N/A'}). Invoice ${invoiceNo} (₹${subtotal.toLocaleString()}) ready for payment collection.`,
-          notificationType: 'NEW_DATA',
-          targetModule: 'billing',
-          targetRoute: '/billing/dashboard?tab=CENTRAL_DESK',
-          relatedPatientId: appointment.patientId,
-          relatedTaskId: String(invoice._id),
-        });
-
-        WorkflowEventService.emitSync(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
-          invoiceId: invoice._id,
-          invoiceNo,
-          patientName,
-          uhid: patObj?.uhid || 'N/A',
-          doctorName: user.name || 'Doctor',
-          grandTotal: subtotal,
-          linkedPath: '/billing/dashboard?tab=CENTRAL_DESK',
-        }, brId);
-      } catch (e) {
-        console.error('Failed to notify central billing desk:', e);
-      }
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+        hospitalId: hospId,
+        branchId: brId,
+        invoiceId: invoice._id,
+        patientId: appointment.patientId,
+        invoiceNo,
+        patientName,
+        uhid: patObj?.uhid || 'N/A',
+        doctorName: user.name || 'Doctor',
+        grandTotal: subtotal,
+        linkedPath: billingRoute,
+      }, brId);
 
       socketManager.emitToBranch(brId, 'billing:invoice_created', {
         invoiceId: invoice._id,
@@ -497,17 +444,22 @@ export class EmrService {
 
   static async getPatientEhr(identifier, user) {
     let patient = null;
+    const currentTenantHospitalId = user?.hospitalId?._id || user?.hospitalId;
+    if (!currentTenantHospitalId) {
+      throw new ApiError(403, 'Hospital context is required to access an EHR.', null, 'HOSPITAL_CONTEXT_REQUIRED');
+    }
     const { mongoose } = await import('mongoose');
     const { DiagnosticOrder } = await import('../../models/DiagnosticOrder.js');
     const { NurseTask } = await import('../../models/NurseTask.js');
     const { Hospital } = await import('../../models/Hospital.js');
 
     if (mongoose.Types.ObjectId.isValid(identifier)) {
-      patient = await Patient.findById(identifier).populate('hospitalId', 'name domain code');
+      patient = await Patient.findOne({ _id: identifier, hospitalId: currentTenantHospitalId }).populate('hospitalId', 'name domain code');
     }
     if (!patient && identifier) {
       const clean = String(identifier).trim();
       patient = await Patient.findOne({
+        hospitalId: currentTenantHospitalId,
         $or: [
           { uhid: clean },
           { uhid: { $regex: `^${clean}$`, $options: 'i' } },
@@ -521,7 +473,8 @@ export class EmrService {
       throw new ApiError(404, 'Patient record not found for this UHID / Phone / ID', null, 'NOT_FOUND');
     }
 
-    // Identify all matching patient records across hospitals for universal longitudinal health record
+    // EHR access stays inside the authenticated hospital. Cross-hospital records
+    // must use the explicit MedicalRecordShare consent workflow.
     const patientSearchConditions = [{ _id: patient._id }];
     if (patient.uhid) patientSearchConditions.push({ uhid: patient.uhid });
     if (patient.phone && patient.phone.trim().length >= 7) {
@@ -531,27 +484,27 @@ export class EmrService {
       patientSearchConditions.push({ globalPatientId: patient.globalPatientId });
     }
 
-    const matchedPatients = await Patient.find({ $or: patientSearchConditions })
+    const matchedPatients = await Patient.find({ hospitalId: currentTenantHospitalId, $or: patientSearchConditions })
       .select('_id hospitalId uhid')
       .lean();
     const patientIds = Array.from(new Set(matchedPatients.map((p) => p._id.toString())));
 
     const [consultations, prescriptions, diagnosticOrders, nurseTasks, invoices] = await Promise.all([
-      Consultation.find({ patientId: { $in: patientIds } })
+      Consultation.find({ hospitalId: currentTenantHospitalId, patientId: { $in: patientIds } })
         .populate('doctorId', 'name specialization cabinNo')
         .populate('hospitalId', 'name domain code')
         .sort({ createdAt: -1 }),
-      Prescription.find({ patientId: { $in: patientIds } })
+      Prescription.find({ hospitalId: currentTenantHospitalId, patientId: { $in: patientIds } })
         .populate('doctorId', 'name specialization')
         .populate('hospitalId', 'name domain code')
         .sort({ createdAt: -1 }),
-      DiagnosticOrder.find({ patientId: { $in: patientIds } })
+      DiagnosticOrder.find({ hospitalId: currentTenantHospitalId, patientId: { $in: patientIds } })
         .populate('hospitalId', 'name domain code')
         .sort({ createdAt: -1 }),
-      NurseTask.find({ patientId: { $in: patientIds } })
+      NurseTask.find({ hospitalId: currentTenantHospitalId, patientId: { $in: patientIds } })
         .populate('assignedNurseId', 'name')
         .sort({ createdAt: -1 }),
-      Invoice.find({ patientId: { $in: patientIds }, isDeleted: { $ne: true } })
+      Invoice.find({ hospitalId: currentTenantHospitalId, patientId: { $in: patientIds }, isDeleted: { $ne: true } })
         .populate('hospitalId', 'name domain code')
         .sort({ createdAt: -1 }),
     ]);

@@ -140,6 +140,7 @@ export const useAuthStore = create((set, get) => ({
       if (userData && (userData.id || userData._id || userData.role)) {
         localStorage.setItem('hpmbs_user', JSON.stringify(userData));
         set({ user: userData, isAuthenticated: true, isLoading: false });
+        return userData;
       }
     } catch (err) {
       localStorage.removeItem('hpmbs_access_token');

@@ -10,9 +10,7 @@ export const requireRole = (...allowedRoles) => {
 
     const userRoles = [req.user.role, ...(Array.isArray(req.user.additionalRoles) ? req.user.additionalRoles : [])].filter(Boolean);
     const hasRoleMatch = allowedRoles.some((role) => userRoles.includes(role))
-      || userRoles.includes('SUPER_ADMIN')
-      || userRoles.includes('HOSPITAL_ADMIN')
-      || userRoles.includes('ADMIN');
+      || userRoles.includes('SUPER_ADMIN');
 
     if (!hasRoleMatch) {
       // DEBUG: log the actual role mismatch details
@@ -28,6 +26,18 @@ export const requireRole = (...allowedRoles) => {
 
     next();
   };
+};
+
+/** Exact operational assignment check. Unlike requireRole, governance roles do
+ * not receive an implicit override; Hospital Admin must carry an additional
+ * staff role and SuperAdmin remains read-only for tenant work. */
+export const requireAssignedRole = (...allowedRoles) => (req, res, next) => {
+  if (!req.user) return sendError(res, 401, 'Unauthenticated user context', null, 'UNAUTHORIZED');
+  const roles = [req.user.role, ...(Array.isArray(req.user.additionalRoles) ? req.user.additionalRoles : [])].filter(Boolean);
+  if (!allowedRoles.some((role) => roles.includes(role))) {
+    return sendError(res, 403, `Operational role required: [${allowedRoles.join(', ')}].`, null, 'OPERATIONAL_ROLE_REQUIRED');
+  }
+  next();
 };
 
 export const requirePermission = (permissionScope) => {

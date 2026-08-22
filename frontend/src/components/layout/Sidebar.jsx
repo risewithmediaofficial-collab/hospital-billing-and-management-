@@ -5,7 +5,7 @@ import { useSocket } from '../../providers/SocketProvider';
 import { useDepartmentNotificationStore, pathMatches } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useEmergencyStore } from '../../store/emergencyStore';
-import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
+import { getDefaultWorkRoute, useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { axiosClient } from '../../api/axiosClient';
 import { ROLE_NAVIGATION, ROLE_NAMES } from '../../utils/constants';
 import * as Icons from 'lucide-react';
@@ -14,35 +14,41 @@ let savedSidebarScrollTop = 0;
 
 export const WORK_MODE_NAVIGATION = [
   // Clinical Workstation
-  { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
-  { title: 'Follow-Up Visits', path: '/doctor/dashboard?tab=FOLLOW_UPS', icon: 'Calendar', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
-  { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
-  { title: 'Dept Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR', 'HOSPITAL_ADMIN'] },
+  { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR'] },
+  { title: 'Follow-Up Visits', path: '/doctor/dashboard?tab=FOLLOW_UPS', icon: 'Calendar', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR'] },
+  { title: 'Completed Visits', path: '/doctor/dashboard?tab=COMPLETED', icon: 'CheckCircle2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR'] },
+  { title: 'Dept Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR'] },
 
   // Front Desk & Billing
-  { title: 'Reception Desk', path: '/reception/registered-patients', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
-  { title: 'Follow-Up Visits', path: '/reception/registered-patients?tab=FOLLOW_UPS', icon: 'Calendar', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'HOSPITAL_ADMIN'] },
-  { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'DOCTOR', 'HOSPITAL_ADMIN'] },
-  { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
-  { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
+  { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
+  { title: 'Reception Desk', path: '/reception/registered-patients', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
+  { title: 'Follow-Up Visits', path: '/reception/registered-patients?tab=FOLLOW_UPS', icon: 'Calendar', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
+  { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF', 'DOCTOR'] },
+  { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF'] },
+  { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing', category: 'Front Desk & Billing', requiredRoles: ['CASHIER', 'BILLING_STAFF'] },
 
   // Inpatient & Ward
-  { title: 'IPD Requisitions', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
-  { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
-  { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'ipd', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
-  { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
-  { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'HOSPITAL_ADMIN', 'DOCTOR'] },
+  { title: 'IPD Requisitions', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR'] },
+  { title: 'Admitted Inpatients', path: '/nurse-incharge/dashboard?tab=ADMITTED', icon: 'UserCheck', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR'] },
+  { title: 'Ward Bed Matrix', path: '/admin/bed-matrix', icon: 'LayoutGrid', module: 'ipd', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR'] },
+  { title: 'Patient Requests', path: '/nurse-incharge/dashboard?tab=REQUESTS', icon: 'Activity', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR'] },
+  { title: 'Medication & Tasks', path: '/nurse-incharge/dashboard?tab=TASKS', icon: 'Stethoscope', module: 'nursing', category: 'Inpatient & Ward', requiredRoles: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR'] },
 
   // Support & Diagnostics
-  { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF', 'HOSPITAL_ADMIN'] },
-  { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF', 'HOSPITAL_ADMIN'] },
-  { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF', 'HOSPITAL_ADMIN'] },
+  { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF'] },
+  { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF'] },
+  { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF'] },
 
   // Live Tracking & Audit
   { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker', category: 'Live Tracking & Audit', requiredRoles: ['*'] },
 
   // Emergency
   { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services', requiredRoles: ['*'] },
+
+  // Clinic Operations
+  { title: 'Inventory Desk', path: '/inventory/dashboard', icon: 'Boxes', module: 'inventory', category: 'Clinic Operations', requiredRoles: ['INVENTORY_MANAGER'] },
+  { title: 'HR Desk', path: '/hr/dashboard', icon: 'UserCheck', module: 'hr', category: 'Clinic Operations', requiredRoles: ['HR_MANAGER'] },
 ];
 
 const ALL_MODULE_NAVIGATION = [
@@ -240,7 +246,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
     const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
 
     if (targetMode === 'WORK') {
-      const target = domain ? `/${domain}/doctor/dashboard` : '/doctor/dashboard';
+      const workRoute = getDefaultWorkRoute(user);
+      if (!workRoute) return;
+      const target = domain ? `/${domain}${workRoute}` : workRoute;
       navigate(target);
     } else if (targetMode === 'ADMIN') {
       if (user?.role === 'SUPER_ADMIN') {
@@ -315,8 +323,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
         return false;
       }
       if (item.requiredRoles.includes('*')) return true;
-      // If user is HOSPITAL_ADMIN or has any matching required role
-      if (user.role === 'HOSPITAL_ADMIN' || user.role === 'SUPER_ADMIN') return true;
       return item.requiredRoles.some((r) => userRoles.includes(r));
     });
   } else if (user?.role === 'HOSPITAL_ADMIN') {
@@ -392,26 +398,23 @@ export const Sidebar = ({ isOpen, onClose }) => {
       DOCTOR_REVIEWED_LAB: '/laboratory/dashboard?tab=REPORTS',
       DOCTOR_REVIEWED_RADIOLOGY: '/radiology/dashboard?tab=REPORTS',
       PRESCRIPTION_ISSUED: '/pharmacy/dashboard',
-      PHARMACY_ACCEPTED: '/doctor/dashboard',
-      PHARMACY_DISPENSED: '/doctor/dashboard',
+      PHARMACY_ACCEPTED: '/pharmacy/dashboard',
+      PHARMACY_DISPENSED: '/billing/dashboard?tab=CENTRAL_DESK',
       BILL_REQUESTED: '/billing/dashboard',
       BILL_READY: '/reception/registered-patients?tab=COMPLETED',
       PAYMENT_COLLECTED: '/reception/registered-patients?tab=COMPLETED',
       NURSE_REQUEST_RAISED: '/nursing/requests',
       NURSE_REQUEST_COMPLETED: '/doctor/dashboard',
+      PATIENT_CARE_REQUEST_RAISED: '/nurse-incharge/dashboard?tab=REQUESTS',
     };
 
     const resolveWorkflowPath = (data) => {
-      if (data.event === 'CONSULTATION_COMPLETE') {
-        return '/billing/dashboard';
-      }
-      if (data.event === 'PAYMENT_COLLECTED' && data.targetRole === 'DOCTOR') return '/doctor/dashboard?tab=COMPLETED';
-      return workflowPaths[data.event] || data.linkedPath || data.payload?.linkedPath || null;
+      return data.targetRoute || data.linkedPath || data.payload?.linkedPath || workflowPaths[data.event] || null;
     };
 
     const handleWorkflowEvent = (data) => {
       const linkedPath = resolveWorkflowPath(data);
-      const resourceId = data.payload?.orderId || data.payload?.appointmentId || data.payload?.patientId || data.payload?.uhid || 'item';
+      const resourceId = data.entityId || data.payload?.requestId || data.payload?.taskId || data.payload?.orderId || data.payload?.invoiceId || data.payload?.appointmentId || data.payload?.patientId || data.payload?.uhid || 'item';
       const notificationId = data.id || `wf_${data.event}_${resourceId}`;
       useDepartmentNotificationStore.getState().addNotification({
         id: notificationId,
@@ -423,7 +426,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         orderId: data.payload?.orderId || null,
         linkedPath,
         timestamp: data.timestamp,
-        isPending: ['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED'].includes(data.event),
+        isPending: ['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED', 'PATIENT_CARE_REQUEST_RAISED'].includes(data.event),
       });
     };
 
@@ -435,18 +438,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
         message: data.patientName ? `Patient ${data.patientName} queued for consultation` : 'New patient registered in OPD Queue',
         patientName: data.patientName || 'OPD Patient',
         linkedPath: '/doctor/dashboard',
-        timestamp: new Date(),
-      });
-    };
-
-    const handleNursingRequestNotification = (data) => {
-      useDepartmentNotificationStore.getState().addNotification({
-        id: `nurse_req_${Date.now()}_${Math.random()}`,
-        event: 'CARE_REQUEST',
-        title: `Care Request: ${data.requestType || 'In-Bed Alert'}`,
-        message: `Patient requested ${data.requestType || 'assistance'}`,
-        patientName: data.patientName || 'Inpatient',
-        linkedPath: '/nursing/dashboard',
         timestamp: new Date(),
       });
     };
@@ -476,7 +467,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
     socket.on('queue:patient_added', handleDoctorQueueNotification);
     socket.on('token:generated', handleDoctorQueueNotification);
     socket.on('appointment:created', handleDoctorQueueNotification);
-    socket.on('patient_request:created', handleNursingRequestNotification);
     socket.on('workflow:notification', handleWorkflowEvent);
     socket.on('workflow:pending_changed', handlePendingChanged);
     socket.on('patient_request:updated', () => useNotificationStore.getState().fetchNotifications());
@@ -486,7 +476,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('queue:patient_added', handleDoctorQueueNotification);
       socket.off('token:generated', handleDoctorQueueNotification);
       socket.off('appointment:created', handleDoctorQueueNotification);
-      socket.off('patient_request:created', handleNursingRequestNotification);
       socket.off('workflow:notification', handleWorkflowEvent);
       socket.off('workflow:pending_changed', handlePendingChanged);
     };

@@ -46,6 +46,15 @@ export const getDoctorReviewQueries = async (req, res, next) => {
   }
 };
 
+export const respondToDoctorReviewQuery = async (req, res, next) => {
+  try {
+    const result = await BillingService.respondToDoctorReviewQuery(req.params.id, req.body, req.user);
+    return sendSuccess(res, 200, 'Billing query resolved and returned to the billing desk', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getReceipts = async (req, res, next) => {
   try {
     const receipts = await BillingService.getReceipts(req.user, req.query);

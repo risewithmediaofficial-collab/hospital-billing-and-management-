@@ -24,6 +24,12 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
 
   const targetPath = cleanPath(taskPath || metadata.targetRoute || metadata.link || metadata.linkedPath || '');
   const baseNav = cleanPath(navPath);
+  const [tPath, tQueryStr = ''] = targetPath.split('?');
+  const [nPath, nQueryStr = ''] = baseNav.split('?');
+  const tParams = new URLSearchParams(tQueryStr.toLowerCase());
+  const nParams = new URLSearchParams(nQueryStr.toLowerCase());
+  const tTab = (tParams.get('tab') || '').toUpperCase();
+  const nTab = (nParams.get('tab') || '').toUpperCase();
 
   // If no target path exists, check targetModule
   if (!targetPath && metadata.targetModule) {
@@ -38,15 +44,6 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   }
 
   if (!targetPath) return false;
-
-  const [tPath, tQueryStr = ''] = targetPath.split('?');
-  const [nPath, nQueryStr = ''] = baseNav.split('?');
-
-  const tParams = new URLSearchParams(tQueryStr.toLowerCase());
-  const nParams = new URLSearchParams(nQueryStr.toLowerCase());
-
-  const tTab = (tParams.get('tab') || '').toUpperCase();
-  const nTab = (nParams.get('tab') || '').toUpperCase();
 
   // Admin Management Views: Only match exact admin routes or explicit admin notifications
   if (nPath.startsWith('/admin/')) {

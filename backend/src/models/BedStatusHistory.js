@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const bedStatusHistorySchema = new mongoose.Schema(
   {
@@ -21,4 +22,4 @@ const bedStatusHistorySchema = new mongoose.Schema(
 
 bedStatusHistorySchema.index({ hospitalId: 1, bedId: 1, timestamp: -1 });
 
-export const BedStatusHistory = mongoose.model('BedStatusHistory', bedStatusHistorySchema);
+export const BedStatusHistory = tenantAwareModel(mongoose.model('BedStatusHistory', bedStatusHistorySchema));

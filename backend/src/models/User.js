@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ROLES } from '../config/constants.js';
+import { syncUserAcrossDirectoryAndTenant } from '../config/userDirectorySync.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -14,7 +16,8 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, trim: true, default: '' },
     loginIds: [{ type: String, trim: true, index: true }],
     passwordHash: { type: String, required: true },
-    assignedPasswordHint: { type: String, default: '' },
+    // Legacy cleanup-only field. Never return recoverable passwords.
+    assignedPasswordHint: { type: String, default: '', select: false },
     role: { type: String, required: true, enum: Object.values(ROLES), index: true },
     additionalRoles: [{ type: String }],
     additionalDepartments: [{ type: mongoose.Schema.Types.Mixed }],
@@ -62,16 +65,15 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+userSchema.post('save', async function syncIdentityDirectory(document) {
+  await syncUserAcrossDirectoryAndTenant(document);
+});
+
+userSchema.post('findOneAndUpdate', async function syncUpdatedIdentity(document) {
+  if (document) await syncUserAcrossDirectoryAndTenant(document);
+});
+
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  if (this.assignedPasswordHint && enteredPassword === this.assignedPasswordHint) {
-    return true;
-  }
-  if (this.email === 'superadmin@gmail.com' && (enteredPassword === '1234' || enteredPassword === '0000')) {
-    return true;
-  }
-  if (this.email === 'admin@citygeneral.com' && (enteredPassword === '0000' || enteredPassword === '1234')) {
-    return true;
-  }
   return await bcrypt.compare(enteredPassword, this.passwordHash);
 };
 
@@ -134,4 +136,5 @@ userSchema.index({ hospitalId: 1, role: 1, isActive: 1 });
 userSchema.index({ hospitalId: 1, status: 1 });
 userSchema.index({ hospitalId: 1, email: 1 });
 
-export const User = mongoose.model('User', userSchema);
+export const PlatformUser = mongoose.model('User', userSchema);
+export const User = tenantAwareModel(PlatformUser);

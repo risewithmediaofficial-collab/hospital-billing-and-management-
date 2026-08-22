@@ -50,6 +50,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     urgentNotes: '',
   });
   const [sendDataSuccess, setSendDataSuccess] = useState(null);
+  const [sendDataError, setSendDataError] = useState(null);
 
   useEffect(() => {
     setCurrentTab(activeTab);
@@ -101,7 +102,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
     setLinkFeedback(null);
     try {
       await axiosClient.post('/guardian-portal/request-link', linkFormData);
-      setLinkFeedback('Patient UHID linked successfully! Care monitoring console active.');
+      setLinkFeedback('Patient link request submitted for hospital approval. Access will begin only after verification.');
       setLinkFormData({ patientUhid: '', relationship: 'FATHER', notes: '' });
       setLinkModalOpen(false);
       fetchLinkedPatients();
@@ -115,19 +116,19 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
   const handleSendPatientData = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setSendDataError(null);
     try {
-      await axiosClient.post('/patient-requests/request', {
+      await axiosClient.post('/guardian-portal/doctor-message', {
         patientId: selectedPatientId,
-        requestType: 'CARETAKER',
-        category: 'CARETAKER',
-        notes: `[Guardian Medical History] Notes: ${patientHistoryData.historyNotes || 'N/A'} | Medications: ${patientHistoryData.previousMedications || 'N/A'} | Allergies: ${patientHistoryData.allergies || 'None'} | Notes: ${patientHistoryData.urgentNotes || 'None'}`,
-      }).catch(() => null);
+        messageType: 'HISTORY',
+        ...patientHistoryData,
+      });
 
       setSendDataSuccess('Patient Medical History & Data sent to Doctor & Hospital successfully! Treatment is currently in progress.');
       setSendDataModalOpen(false);
       setPatientHistoryData({ historyNotes: '', previousMedications: '', allergies: '', urgentNotes: '' });
     } catch (err) {
-      console.error(err);
+      setSendDataError(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to send patient history.');
     } finally {
       setIsLoading(false);
     }
@@ -136,23 +137,24 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
   const [remindDoctorModalOpen, setRemindDoctorModalOpen] = useState(false);
   const [remindNotes, setRemindNotes] = useState('');
   const [remindSuccess, setRemindSuccess] = useState(null);
+  const [remindError, setRemindError] = useState(null);
 
   const handleSendDoctorReminder = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setRemindError(null);
     try {
-      await axiosClient.post('/patient-requests/request', {
+      await axiosClient.post('/guardian-portal/doctor-message', {
         patientId: selectedPatientId,
-        requestType: 'DOCTOR_REMINDER',
-        category: 'URGENT',
-        notes: `[Guardian Treatment Reminder] ${remindNotes || 'Guardian sent a reminder regarding pending treatment / consultation progress.'}`,
-      }).catch(() => null);
+        messageType: 'REMINDER',
+        notes: remindNotes,
+      });
 
       setRemindSuccess('Treatment reminder sent to Attending Doctor & Hospital Care Team successfully!');
       setRemindDoctorModalOpen(false);
       setRemindNotes('');
     } catch (err) {
-      console.error(err);
+      setRemindError(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to send doctor reminder.');
     } finally {
       setIsLoading(false);
     }
@@ -205,6 +207,15 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLinkModalOpen(true)}
+            className="font-bold text-xs bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 gap-1.5 shadow-2xs w-full sm:w-auto justify-center py-2.5"
+          >
+            <PlusCircle size={15} /> Link Patient UHID (Request Approval)
+          </Button>
+
           {linkedPatients.length > 0 && (
             <select
               value={selectedPatientId}
@@ -223,6 +234,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             variant="outline"
             size="sm"
             onClick={() => setRemindDoctorModalOpen(true)}
+            disabled={!selectedPatientId || isDischarged}
             className="font-bold text-xs bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 gap-1.5 shadow-2xs w-full sm:w-auto justify-center py-2.5"
           >
             <Bell size={15} /> Remind Doctor
@@ -232,6 +244,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
             variant="outline"
             size="sm"
             onClick={() => setSendDataModalOpen(true)}
+            disabled={!selectedPatientId || isDischarged}
             className="font-bold text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 gap-1.5 shadow-2xs w-full sm:w-auto justify-center py-2.5"
           >
             <FileText size={15} /> Send Patient History
@@ -297,12 +310,26 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
         </div>
       )}
 
+      {sendDataError && (
+        <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold flex items-center justify-between">
+          <span>{sendDataError}</span>
+          <button onClick={() => setSendDataError(null)} className="text-rose-700 hover:underline">Dismiss</button>
+        </div>
+      )}
+
       {remindSuccess && (
         <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center justify-between">
           <span>{remindSuccess}</span>
           <button onClick={() => setRemindSuccess(null)} className="text-amber-700 hover:underline">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {remindError && (
+        <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold flex items-center justify-between">
+          <span>{remindError}</span>
+          <button onClick={() => setRemindError(null)} className="text-rose-700 hover:underline">Dismiss</button>
         </div>
       )}
 
@@ -531,7 +558,7 @@ export const GuardianDashboard = ({ activeTab = 'dashboard' }) => {
                 <PlusCircle size={20} className="text-purple-600" />
                 Link Patient to Guardian Account
               </h3>
-              <button onClick={() => setLinkModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+              <button aria-label="Close link patient dialog" onClick={() => setLinkModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X size={18} />
               </button>
             </div>

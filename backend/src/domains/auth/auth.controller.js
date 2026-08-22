@@ -96,17 +96,6 @@ export const createStaffUser = async (req, res, next) => {
   }
 };
 
-export const getStaffPassword = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { adminPassword } = req.body;
-    const result = await AuthService.getStaffPassword(id, adminPassword, req.user);
-    return sendSuccess(res, 200, 'Staff password retrieved successfully', result);
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const updateStaffPassword = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -136,21 +125,29 @@ export const getMe = async (req, res, next) => {
   }
 };
 
+export const enableClinicOwnerWorkMode = async (req, res, next) => {
+  try {
+    const profile = await AuthService.enableClinicOwnerWorkMode(req.user.id, req.user);
+    return sendSuccess(res, 200, 'Clinic owner Work Mode enabled', profile);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateDoctorAvailability = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { isAvailable, cabinNo } = req.body;
     const result = await AuthService.toggleDoctorAvailability(id, isAvailable, cabinNo, req.user);
     
-    // Broadcast real-time availability change — scoped to hospital only, not global
+    // Availability is operational data: Reception/OPD needs doctor capacity,
+    // while Hospital Admin receives only the governance presence view.
     const { socketManager } = await import('../../events/socketManager.js');
-    if (result.branchId) {
-      socketManager.emitToBranch(result.branchId, 'doctor:availability_changed', result);
-    }
-    if (result.hospitalId) {
-      socketManager.emitToHospital(String(result.hospitalId), 'doctor:availability_changed', result);
-      socketManager.emitToHospital(String(result.hospitalId), 'staff:availability_changed', result);
-    }
+    ['RECEPTIONIST', 'OPD_STAFF'].forEach((role) => {
+      if (result.branchId) socketManager.emitToBranchRole(result.branchId, role, 'doctor:availability_changed', result);
+      else socketManager.emitToHospitalRole(result.hospitalId, role, 'doctor:availability_changed', result);
+    });
+    socketManager.emitToHospitalRole(result.hospitalId, 'HOSPITAL_ADMIN', 'staff:availability_changed', result);
 
     if (result.isAvailable) {
       const [{ WorkflowService }, { NotificationService }] = await Promise.all([
@@ -159,6 +156,7 @@ export const updateDoctorAvailability = async (req, res, next) => {
       ]);
       const queued = await WorkflowService.getPendingWork({ ...result, id: result.id });
       if (queued.total > 0) {
+        const firstTask = queued.tasks[0];
         await NotificationService.createNotification({
           hospitalId: result.hospitalId,
           branchId: result.branchId,
@@ -166,11 +164,14 @@ export const updateDoctorAvailability = async (req, res, next) => {
           title: 'Queued work is ready',
           message: `${queued.total} pending work item${queued.total === 1 ? '' : 's'} are waiting for you now that you are available.`,
           notificationType: 'WORKFLOW',
-          targetModule: result.role.toLowerCase(),
-          targetRoute: queued.tasks[0]?.targetRoute || '',
-          relatedTaskId: queued.tasks[0]?.id || '',
+          sourceModule: 'workflow',
+          targetModule: firstTask.targetModule || result.role.toLowerCase(),
+          targetRoute: firstTask.targetRoute || '',
+          entityType: firstTask.type || 'WorkflowTask',
+          entityId: firstTask.resourceId,
+          actionType: 'RESUME_QUEUED_WORK',
+          relatedTaskId: firstTask.resourceId,
         });
-        socketManager.emitToUser(String(result.id), 'workflow:notification', { type: 'QUEUED_WORK_READY', count: queued.total });
       }
     }
 

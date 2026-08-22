@@ -21,6 +21,30 @@ test.describe('Clinical Workflows Suite', () => {
       await page.goto('/doctor/diagnostics');
       await expect(page).toHaveURL('/doctor/diagnostics');
     });
+
+    test('guardian message notification opens the exact doctor response record', async ({ page }) => {
+      await page.route('**/api/v1/requests?**', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [{
+            _id: 'guardian-doctor-request-1',
+            requestType: 'DOCTOR',
+            requestCategory: 'DOCTOR',
+            requestedBy: 'GUARDIAN',
+            status: 'SUBMITTED',
+            notes: '[Guardian Treatment Reminder] Please review the latest report.',
+            patientId: { _id: 'test-patient-id', firstName: 'John', lastName: 'Doe', uhid: 'HOSP-00042' },
+            createdAt: new Date().toISOString(),
+          }] }),
+        });
+      });
+      await page.goto('/doctor/dashboard?tab=DEPT_RESPONSES&requestId=guardian-doctor-request-1');
+      const exactRecord = page.locator('#doctor-patient-request-guardian-doctor-request-1');
+      await expect(exactRecord).toBeVisible();
+      await expect(exactRecord).toContainText('Guardian Treatment Reminder');
+      await expect(exactRecord).toHaveClass(/ring-2/);
+    });
   });
 
   test.describe('Nursing Console', () => {

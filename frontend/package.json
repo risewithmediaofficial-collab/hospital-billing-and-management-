@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "start": "vite",
+    "test": "node --test",
+    "test:contracts": "node --test",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:all": "playwright test",
     "build": "vite build",
     "preview": "vite preview"
   },

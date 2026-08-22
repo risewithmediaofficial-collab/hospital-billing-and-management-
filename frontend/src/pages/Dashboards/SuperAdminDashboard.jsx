@@ -69,19 +69,23 @@ export const SuperAdminDashboard = () => {
 
   const handleDirectCreate = async (e) => {
     e.preventDefault();
+    if (!directForm.adminPassword || directForm.adminPassword.length < 8) {
+      setActionMessage('Hospital administrator password must be at least 8 characters long.');
+      return;
+    }
     setIsLoading(true);
     setActionMessage(null);
     try {
       const res = await axiosClient.post('/saas/register-hospital', {
         ...directForm,
-        adminPassword: directForm.adminPassword || 'HospitalAdmin123!',
+        adminPassword: directForm.adminPassword,
       });
       const hospitalId = res.data.hospital._id;
       const approveRes = await axiosClient.patch(`/saas/hospitals/${hospitalId}/approve`);
       setProvisionedCreds({
         hospitalName: directForm.hospitalName,
         adminEmail: approveRes.data.adminUser?.email || directForm.contactEmail,
-        adminPassword: directForm.adminPassword || 'HospitalAdmin123!',
+        adminPassword: directForm.adminPassword,
         loginUrl: `${window.location.origin}/login`,
       });
       fetchHospitals();
@@ -291,7 +295,7 @@ export const SuperAdminDashboard = () => {
                   <Input label="Subdomain / Code" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="e.g. citygeneral" required />
                   <Input label="Hospital Authorized Officer Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="e.g. Dr. Robert Vance" required />
                   <Input label="Hospital Admin Email (Handover Login ID)" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="e.g. admin@citygeneral.com" required />
-                  <Input label="Hospital Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="Default: HospitalAdmin123!" />
+                  <Input label="Hospital Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="Minimum 8 characters" required />
 
                   <div className="flex gap-2 pt-2">
                     <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsDirectCreateOpen(false)}>Cancel</Button>

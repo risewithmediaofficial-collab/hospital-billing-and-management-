@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const doctorUpdateSchema = new mongoose.Schema(
@@ -42,4 +43,4 @@ const doctorUpdateSchema = new mongoose.Schema(
 
 doctorUpdateSchema.plugin(encryptedFieldsPlugin, { fields: ['content'] });
 
-export const DoctorUpdate = mongoose.model('DoctorUpdate', doctorUpdateSchema);
+export const DoctorUpdate = tenantAwareModel(mongoose.model('DoctorUpdate', doctorUpdateSchema));

@@ -26,7 +26,7 @@ class SocketManager {
       transports: ['websocket', 'polling'],
     });
 
-    this.io.use((socket, next) => {
+    this.io.use(async (socket, next) => {
       const rawToken = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!rawToken) {
         return next(new Error('Authentication token required for WebSocket handshake'));
@@ -36,7 +36,22 @@ class SocketManager {
         : rawToken;
       try {
         const decoded = jwt.verify(token, env.JWT_SECRET);
-        socket.user = decoded;
+        const userId = decoded.id || decoded._id;
+        const currentUser = await User.findOne({
+          _id: userId,
+          isActive: { $ne: false },
+          status: { $nin: ['INACTIVE', 'SUSPENDED'] },
+        }).select('_id name role additionalRoles hospitalId branchId');
+        if (!currentUser) return next(new Error('WebSocket account is inactive or no longer exists'));
+        socket.user = {
+          ...decoded,
+          id: String(currentUser._id),
+          name: currentUser.name,
+          role: currentUser.role,
+          additionalRoles: currentUser.additionalRoles || [],
+          hospitalId: currentUser.hospitalId || null,
+          branchId: currentUser.branchId || null,
+        };
         next();
       } catch (err) {
         console.warn('[Socket.IO Auth Warning] Token verification failed:', err.message);
@@ -51,6 +66,7 @@ class SocketManager {
       const rawHospId = socket.user.hospitalId?._id || socket.user.hospitalId;
       const rawBranchId = socket.user.branchId?._id || socket.user.branchId;
       const rawUserId = socket.user.id || socket.user._id;
+      const isPortalIdentity = ['PATIENT', 'GUARDIAN'].includes(socket.user.role);
 
       if (rawUserId) {
         const uIdStr = String(rawUserId);
@@ -61,11 +77,11 @@ class SocketManager {
         }
       }
 
-      if (rawHospId) {
+      if (rawHospId && !isPortalIdentity) {
         socket.join(`hospital_${rawHospId}`);
         socket.join(`hospital:${rawHospId}`);
       }
-      if (rawBranchId) {
+      if (rawBranchId && !isPortalIdentity) {
         socket.join(`branch_${rawBranchId}`);
       }
       if (rawUserId) {
@@ -77,38 +93,23 @@ class SocketManager {
         const currentUser = await User.findById(rawUserId).select('role additionalRoles hospitalId branchId');
         if (currentUser?.role) roles.add(currentUser.role);
         for (const role of currentUser?.additionalRoles || []) roles.add(role);
-        if (currentUser?.hospitalId) {
+        if (currentUser?.hospitalId && !isPortalIdentity) {
           socket.join(`hospital_${currentUser.hospitalId}`);
           socket.join(`hospital:${currentUser.hospitalId}`);
         }
-        if (currentUser?.branchId) socket.join(`branch_${currentUser.branchId}`);
+        if (currentUser?.branchId && !isPortalIdentity) socket.join(`branch_${currentUser.branchId}`);
       } catch (error) {
         console.error(`[Socket.IO] Could not refresh roles for ${rawUserId}:`, error.message);
       }
 
-      // Hospital Administrators and Super Admins oversee all workstation desks
-      if (roles.has('HOSPITAL_ADMIN') || roles.has('SUPER_ADMIN')) {
-        [
-          'DOCTOR',
-          'NURSE',
-          'NURSE_INCHARGE',
-          'PHARMACIST',
-          'PHARMACY_STAFF',
-          'LAB_TECH',
-          'LAB_TECHNICIAN',
-          'LABORATORY_STAFF',
-          'RADIOLOGIST',
-          'RADIOLOGY_STAFF',
-          'CASHIER',
-          'BILLING_STAFF',
-          'RECEPTIONIST',
-          'OPD_STAFF',
-        ].forEach((r) => roles.add(r));
-      }
-
-      roles.forEach((role) => socket.join(`role_${role}`));
+      roles.forEach((role) => {
+        socket.join(`role_${role}`);
+        if (rawHospId && !isPortalIdentity) socket.join(`hospital_${rawHospId}_role_${role}`);
+        if (rawBranchId && !isPortalIdentity) socket.join(`branch_${rawBranchId}_role_${role}`);
+      });
 
       socket.on('join_ward', (wardId) => {
+        if (isPortalIdentity) return;
         socket.join(`ward_${wardId}`);
         console.log(`[Socket.IO] ${socket.user.name} joined ward_${wardId}`);
       });
@@ -181,6 +182,18 @@ class SocketManager {
     }
   }
 
+  emitToHospitalRole(hospitalId, role, event, data) {
+    if (this.io && hospitalId && role) {
+      this.io.to(`hospital_${hospitalId}_role_${role}`).emit(event, data);
+    }
+  }
+
+  emitToBranchRole(branchId, role, event, data) {
+    if (this.io && branchId && role) {
+      this.io.to(`branch_${branchId}_role_${role}`).emit(event, data);
+    }
+  }
+
   emitToUser(userId, event, data) {
     if (this.io && userId) {
       this.io.to(`user_${userId}`).emit(event, data);
@@ -205,22 +218,28 @@ class SocketManager {
     }
   }
 
-  emitEmergency(event, data) {
+  emitEmergency(event, data, scope = {}) {
     if (this.io) {
-      // Single broadcast to ALL connected clients — avoid emitting code_blue_triggered twice
-      this.io.emit('emergency:alert', data);
-      this.io.emit('emergency:code_blue_triggered', data);
-      // Only emit the named event if it's different from the events already emitted above
-      if (event !== 'emergency:alert' && event !== 'emergency:code_blue_triggered') {
-        this.io.emit(event, data);
-      }
+      const branchId = scope.branchId || data?.branchId;
+      const hospitalId = scope.hospitalId || data?.hospitalId;
+      if (!branchId && !hospitalId) return;
+      const responderRoles = ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'EMERGENCY_STAFF'];
+      responderRoles.forEach((role) => {
+        const room = branchId
+          ? `branch_${branchId}_role_${role}`
+          : `hospital_${hospitalId}_role_${role}`;
+        const target = this.io.to(room);
+        target.emit('emergency:alert', data);
+        target.emit('emergency:code_blue_triggered', data);
+        if (event !== 'emergency:alert' && event !== 'emergency:code_blue_triggered') {
+          target.emit(event, data);
+        }
+      });
     }
   }
 
   broadcastCodeBlue(data) {
-    if (this.io) {
-      this.io.emit('emergency:code_blue_triggered', data);
-    }
+    this.emitEmergency('emergency:code_blue_triggered', data, data || {});
   }
 }
 

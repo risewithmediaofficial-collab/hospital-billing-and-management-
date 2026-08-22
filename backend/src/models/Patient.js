@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { PATIENT_CATEGORIES } from '../config/constants.js';
 import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
@@ -56,4 +57,4 @@ patientSchema.plugin(encryptedFieldsPlugin, {
   fields: ['chiefComplaints', 'nationalId', 'address', 'emergencyContact.name', 'emergencyContact.phone'],
 });
 
-export const Patient = mongoose.model('Patient', patientSchema);
+export const Patient = tenantAwareModel(mongoose.model('Patient', patientSchema));

@@ -9,14 +9,14 @@ test.describe('Login & Core Application Load', () => {
     // Verify page title / heading
     await expect(page).toHaveTitle(/HPMBS|Hospital/i);
     await expect(page.getByRole('heading', { name: /HPMBS Enterprise/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Sign in to your workstation/i })).toBeVisible();
+    await expect(page.getByText(/Enter your official hospital credentials/i)).toBeVisible();
 
     // Fill credentials
-    await page.locator('input[placeholder*="email"]').fill('admin@citygeneral.com');
-    await page.locator('input[type="password"]').fill('1234');
+    await page.getByLabel(/Account Email \/ Phone \/ Login ID/i).fill('admin@citygeneral.com');
+    await page.getByLabel('Password').fill('Password123!');
 
     // Verify Submit Button exists and is enabled
-    const submitBtn = page.getByRole('button', { name: /Sign In to Workstation/i });
+    const submitBtn = page.getByRole('button', { name: /Sign In as Staff \/ Admin/i });
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toBeEnabled();
   });

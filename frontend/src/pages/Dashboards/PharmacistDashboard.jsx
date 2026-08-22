@@ -55,6 +55,7 @@ export const PharmacistDashboard = () => {
   const [substitutions, setSubstitutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   // Modals
   const [showAddMedModal, setShowAddMedModal] = useState(false);
@@ -96,14 +97,15 @@ export const PharmacistDashboard = () => {
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
+    setLoadError('');
     try {
       const [medsRes, rxsRes, batchesRes, adjRes, subsRes, alertRes] = await Promise.all([
-        axiosClient.get('/pharmacy/medicines').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/prescriptions').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/batches').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/stock/adjustments').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/substitutions').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/alerts').catch(() => ({ data: { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] } })),
+        axiosClient.get('/pharmacy/medicines'),
+        axiosClient.get('/pharmacy/prescriptions'),
+        axiosClient.get('/pharmacy/batches'),
+        axiosClient.get('/pharmacy/stock/adjustments'),
+        axiosClient.get('/pharmacy/substitutions'),
+        axiosClient.get('/pharmacy/alerts'),
       ]);
       setMedicines(medsRes.data || []);
       setPrescriptions(rxsRes.data || []);
@@ -113,6 +115,7 @@ export const PharmacistDashboard = () => {
       setAlerts(alertRes.data || { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
     } catch (err) {
       console.error('Failed to load pharmacy data:', err);
+      setLoadError(err.error?.message || err.message || 'Pharmacy data could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -160,26 +163,6 @@ export const PharmacistDashboard = () => {
   const handleOpenBillingModal = (rx) => {
     setBillingPrescription(rx);
     setIsBillingModalOpen(true);
-  };
-
-  const handleModalSendToDoctor = async ({ items, totalMedicineCharge, pharmacyNotes }) => {
-    if (!billingPrescription) return;
-    setIsBillingSubmitting(true);
-    try {
-      await axiosClient.patch(`/pharmacy/prescriptions/${billingPrescription._id}/send-billing-to-doctor`, {
-        items,
-        totalMedicineCharge,
-        pharmacyNotes,
-      });
-      setIsBillingModalOpen(false);
-      setBillingPrescription(null);
-      await Promise.all([fetchData(), refreshPendingWork()]);
-    } catch (err) {
-      console.error('Failed to send billing to doctor:', err);
-      alert(err.response?.data?.message || 'Failed to send billing to doctor');
-    } finally {
-      setIsBillingSubmitting(false);
-    }
   };
 
   const handleModalDispense = async ({ items, totalMedicineCharge, pharmacyNotes }) => {
@@ -306,6 +289,13 @@ export const PharmacistDashboard = () => {
 
   return (
     <div className="space-y-5 animate-fade-in">
+
+      {loadError && (
+        <div role="alert" className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-800 text-sm font-semibold flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <Button size="sm" variant="outline" onClick={fetchData}>Retry</Button>
+        </div>
+      )}
 
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -880,7 +870,6 @@ export const PharmacistDashboard = () => {
           setBillingPrescription(null);
         }}
         prescription={billingPrescription}
-        onSendToDoctor={handleModalSendToDoctor}
         onDispense={handleModalDispense}
         onExternalPurchase={handleModalExternalPurchase}
         onRequestSubstitution={(rx, medName) => {

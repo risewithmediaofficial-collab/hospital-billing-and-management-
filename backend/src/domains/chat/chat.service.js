@@ -239,7 +239,10 @@ export class ChatService {
 
     let recipientUser = null;
     if (recipientId) {
-      recipientUser = await User.findById(recipientId).select('name role hospitalId branchId').lean();
+      recipientUser = await User.findOne({ _id: recipientId, hospitalId }).select('name role hospitalId branchId').lean();
+      if (!recipientUser) {
+        throw new ApiError(404, 'Message recipient was not found in this hospital.', null, 'RECIPIENT_NOT_FOUND');
+      }
     }
 
     const expiresAt = new Date(Date.now() + MESSAGE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);

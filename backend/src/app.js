@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { tenantModelContextMiddleware } from './config/tenantModelContext.js';
 
 import authRoutes from './domains/auth/auth.routes.js';
 import setupRoutes from './domains/setup/setup.routes.js';
@@ -32,6 +33,7 @@ import { SaasService } from './domains/saas/saas.service.js';
 
 const app = express();
 
+app.use(tenantModelContextMiddleware);
 app.use(helmet());
 app.use(
   cors({
@@ -91,7 +93,7 @@ app.use('/api/v1/hospital-admin', hospitalAdminRoutes);
 app.use('/api/v1/chat', chatRoutes);
 
 // Automated Trial & Subscription Expiry Background Evaluator (Runs every 10 minutes)
-setInterval(() => {
+const subscriptionEvaluatorInterval = setInterval(() => {
   SaasService.evaluateHospitalTrials().catch((err) =>
     console.error('Error running trial evaluator task:', err)
   );
@@ -99,12 +101,14 @@ setInterval(() => {
     console.error('Error running subscription expiry task:', err)
   );
 }, 10 * 60 * 1000);
+subscriptionEvaluatorInterval.unref?.();
 
 // Run initial check on server boot after 10s delay
-setTimeout(() => {
+const initialSubscriptionEvaluation = setTimeout(() => {
   SaasService.evaluateHospitalTrials().catch(() => {});
   SaasService.evaluateSubscriptionExpiry().catch(() => {});
 }, 10000);
+initialSubscriptionEvaluation.unref?.();
 
 // Global Error Handler
 app.use(errorHandler);

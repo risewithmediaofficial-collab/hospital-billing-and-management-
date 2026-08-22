@@ -27,8 +27,8 @@ export const ResetPasswordPage = () => {
       setErrorMessage('Passwords do not match.');
       return;
     }
-    if (newPassword.length < 4) {
-      setErrorMessage('Password must be at least 4 characters long.');
+    if (newPassword.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       return;
     }
 

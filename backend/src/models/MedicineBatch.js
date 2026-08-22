@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const medicineBatchSchema = new mongoose.Schema(
   {
@@ -25,4 +26,4 @@ const medicineBatchSchema = new mongoose.Schema(
 
 medicineBatchSchema.index({ hospitalId: 1, medicineId: 1, location: 1, expiryDate: 1 });
 
-export const MedicineBatch = mongoose.model('MedicineBatch', medicineBatchSchema);
+export const MedicineBatch = tenantAwareModel(mongoose.model('MedicineBatch', medicineBatchSchema));

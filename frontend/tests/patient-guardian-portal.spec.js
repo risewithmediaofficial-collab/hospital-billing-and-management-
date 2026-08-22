@@ -176,7 +176,7 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
       await page.goto('/guardian-portal/dashboard');
       await expect(page).toHaveURL('/guardian-portal/dashboard');
       await expect(
-        page.getByText('Guardian Care & Monitoring Console')
+        page.getByRole('heading', { name: 'Guardian Inpatient Care Portal', exact: true })
       ).toBeVisible();
     });
 
@@ -246,8 +246,36 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
       await expect(page.getByText('Patient Status').first()).toBeVisible();
     });
 
+    test('should send guardian history through the attending-doctor workflow', async ({ page }) => {
+      let requestBody = null;
+      await page.route('**/api/v1/guardian-portal/doctor-message', async (route) => {
+        requestBody = route.request().postDataJSON();
+        await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ success: true, data: { _id: 'doctor-request-1' } }) });
+      });
+      await page.goto('/guardian-portal/dashboard');
+      await page.getByRole('button', { name: /Send Patient History/i }).click();
+      await page.getByPlaceholder(/Diabetes Type 2/i).fill('Previous cardiac treatment');
+      await page.getByRole('button', { name: /Send Data to Doctor/i }).click();
+      await expect(page.getByText(/Medical History & Data sent to Doctor/i)).toBeVisible();
+      expect(requestBody?.messageType).toBe('HISTORY');
+      expect(requestBody?.patientId).toBe('test-patient-id');
+    });
+
+    test('should send a real attending-doctor reminder and show server failures', async ({ page }) => {
+      await page.route('**/api/v1/guardian-portal/doctor-message', async (route) => {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'Doctor routing unavailable' }) });
+      });
+      await page.goto('/guardian-portal/dashboard');
+      await page.getByRole('button', { name: /Remind Doctor/i }).click();
+      await page.getByRole('button', { name: /Send Urgent Reminder/i }).click();
+      await expect(page.getByRole('alert')).toContainText(/Doctor routing unavailable|Failed to send doctor reminder/i);
+      await expect(page.getByText(/successfully/i)).toHaveCount(0);
+    });
+
     // ── Link Patient UHID Modal ───────────────────────────────────────────────
     test('should open Link Patient UHID modal', async ({ page }) => {
+      await page.unroute('**/api/v1/**');
+      await mockAuthSession(page, 'GUARDIAN', { hasLinkedPatient: false });
       await page.goto('/guardian-portal/dashboard');
       const linkBtn = page
         .getByRole('button', { name: /Link Patient UHID/i })
@@ -260,12 +288,16 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
     });
 
     test('should show UHID input field in Link Patient modal', async ({ page }) => {
+      await page.unroute('**/api/v1/**');
+      await mockAuthSession(page, 'GUARDIAN', { hasLinkedPatient: false });
       await page.goto('/guardian-portal/dashboard');
       await page.getByRole('button', { name: /Link Patient UHID/i }).first().click();
       await expect(page.getByPlaceholder(/HOSP-00042/i)).toBeVisible();
     });
 
     test('should show relationship dropdown in Link Patient modal', async ({ page }) => {
+      await page.unroute('**/api/v1/**');
+      await mockAuthSession(page, 'GUARDIAN', { hasLinkedPatient: false });
       await page.goto('/guardian-portal/dashboard');
       await page.getByRole('button', { name: /Link Patient UHID/i }).first().click();
       await expect(page.getByText('Relationship to Patient')).toBeVisible();
@@ -274,6 +306,8 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
     });
 
     test('should close Link Patient modal on Cancel click', async ({ page }) => {
+      await page.unroute('**/api/v1/**');
+      await mockAuthSession(page, 'GUARDIAN', { hasLinkedPatient: false });
       await page.goto('/guardian-portal/dashboard');
       await page.getByRole('button', { name: /Link Patient UHID/i }).first().click();
       await expect(page.getByText('Link Patient to Guardian Account')).toBeVisible();
@@ -282,10 +316,12 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
     });
 
     test('should close Link Patient modal on ✕ button click', async ({ page }) => {
+      await page.unroute('**/api/v1/**');
+      await mockAuthSession(page, 'GUARDIAN', { hasLinkedPatient: false });
       await page.goto('/guardian-portal/dashboard');
       await page.getByRole('button', { name: /Link Patient UHID/i }).first().click();
       await expect(page.getByText('Link Patient to Guardian Account')).toBeVisible();
-      await page.getByRole('button', { name: '✕' }).first().click();
+      await page.getByRole('button', { name: 'Close link patient dialog' }).click();
       await expect(page.getByText('Link Patient to Guardian Account')).not.toBeVisible();
     });
 
@@ -293,7 +329,7 @@ test.describe('Patient & Guardian Portals Comprehensive Suite', () => {
     test('should show sub-tab navigation on guardian dashboard', async ({ page }) => {
       await page.goto('/guardian-portal/dashboard');
       await expect(
-        page.getByRole('button', { name: /Overview Dashboard/i }).first()
+        page.getByRole('button', { name: /Treatment History & Overview/i }).first()
       ).toBeVisible();
     });
 

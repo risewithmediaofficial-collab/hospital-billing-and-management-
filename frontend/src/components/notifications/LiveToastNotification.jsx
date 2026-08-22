@@ -43,7 +43,7 @@ export const LiveToastNotification = () => {
         title: 'New Nurse / Injection Task',
         message: `Task assigned for patient ${data?.patientName || 'Patient'} (UHID: ${data?.uhid || '—'})`,
         type: 'NURSE_TASKS',
-        linkedPath: '/nurse-incharge/dashboard?tab=TASKS',
+        linkedPath: data?.targetRoute || data?.linkedPath || `/nurse-incharge/dashboard?tab=TASKS${data?.taskId ? `&taskId=${encodeURIComponent(data.taskId)}` : ''}`,
       });
     };
 

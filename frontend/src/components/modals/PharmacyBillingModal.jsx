@@ -11,7 +11,6 @@ export const PharmacyBillingModal = ({
   isOpen,
   onClose,
   prescription,
-  onSendToDoctor,
   onDispense,
   onExternalPurchase,
   onRequestSubstitution,

@@ -4,18 +4,19 @@ import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAvailability } from '../../hooks/useAvailability';
-import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
+import { CLINIC_OWNER_WORK_ROLES, getDefaultWorkRoute, useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { LogOut, Bell, Building2, User, Menu, Wifi, WifiOff, Stethoscope, StickyNote, ChevronDown, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { NotificationDropdown } from './NotificationDropdown';
 import { UserProfilePopover } from './UserProfilePopover';
 import { useTeamChatStore } from '../../store/teamChatStore';
+import { axiosClient } from '../../api/axiosClient';
 
 export const Navbar = ({ onToggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, fetchProfile } = useAuthStore();
   const { currentMode, setMode, isDualModeEligible } = useWorkspaceModeStore();
   const isGuardianView = location.pathname.includes('/guardian') || user?.role === 'GUARDIAN';
   const { socket } = useSocket();
@@ -27,14 +28,41 @@ export const Navbar = ({ onToggleSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const canSetAvailability = user && !['PATIENT', 'GUARDIAN', 'SUPER_ADMIN', 'HOSPITAL_ADMIN'].includes(user.role);
 
-  const handleSwitchMode = (targetMode) => {
+  const handleSwitchMode = async (targetMode) => {
     setMode(targetMode);
     const domainFromPath = location.pathname.split('/')[1];
     const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
     const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
 
     if (targetMode === 'WORK') {
-      const target = domain ? `/${domain}/doctor/dashboard` : '/doctor/dashboard';
+      let workUser = user;
+      if (user?.role === 'HOSPITAL_ADMIN' && getDefaultWorkRoute(user) === null) {
+        const accepted = window.confirm('Enable Clinic Owner Work Mode for this account? This allows the same login to operate registration, clinical, ward, pharmacy, diagnostics, billing, emergency, inventory, and HR desks.');
+        if (!accepted) {
+          setMode('ADMIN');
+          return;
+        }
+        try {
+          try {
+            await axiosClient.post('/auth/me/enable-clinic-work-mode');
+          } catch (provisionError) {
+            // Backward-compatible activation for a backend process that has not
+            // yet reloaded the dedicated convenience endpoint.
+            const existingRoles = Array.isArray(user.additionalRoles) ? user.additionalRoles : [];
+            await axiosClient.patch(`/auth/staff/${user.id || user._id}`, {
+              additionalRoles: Array.from(new Set([...existingRoles, ...CLINIC_OWNER_WORK_ROLES])),
+            });
+          }
+          workUser = await fetchProfile();
+        } catch (error) {
+          setMode('ADMIN');
+          window.alert(error?.error?.message || error?.message || 'Unable to enable Clinic Owner Work Mode.');
+          return;
+        }
+      }
+      const workRoute = getDefaultWorkRoute(workUser);
+      if (!workRoute) return;
+      const target = domain ? `/${domain}${workRoute}` : workRoute;
       navigate(target);
     } else if (targetMode === 'ADMIN') {
       if (user?.role === 'SUPER_ADMIN') {

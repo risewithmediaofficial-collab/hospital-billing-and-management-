@@ -1,30 +1,45 @@
 import { Admission } from '../../models/Admission.js';
 import { Bed } from '../../models/Bed.js';
 import { Patient } from '../../models/Patient.js';
-import { Hospital } from '../../models/Hospital.js';
-import { Branch } from '../../models/Branch.js';
 import { User } from '../../models/User.js';
 import { CareTeamAssignment } from '../../models/CareTeamAssignment.js';
 import { GlobalPatient } from '../../models/GlobalPatient.js';
 import { socketManager } from '../../events/socketManager.js';
 import { BED_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
+import { requireBranchContext, requireHospitalContext } from '../../utils/tenantContext.js';
+import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
+import { NotificationService } from '../notifications/notification.service.js';
+
+const notifyAdmissionAssignee = async ({ admission, recipientUserId, recipientRole, actionType, title, message }) => {
+  if (!recipientUserId) return;
+  const doctorRoute = `/doctor/ipd-rounds?admissionId=${admission._id}&patientId=${admission.patientId}`;
+  const nursingRoute = `/nurse-incharge/dashboard?tab=INPATIENTS&admissionId=${admission._id}&patientId=${admission.patientId}`;
+  await NotificationService.createNotification({
+    hospitalId: admission.hospitalId,
+    branchId: admission.branchId,
+    recipientUserId,
+    recipientRole,
+    title,
+    message,
+    notificationType: 'WORKFLOW',
+    sourceModule: 'ipd',
+    targetModule: recipientRole === 'DOCTOR' ? 'doctor' : 'nursing',
+    entityType: 'Admission',
+    entityId: admission._id,
+    actionType,
+    targetRoute: recipientRole === 'DOCTOR' ? doctorRoute : nursingRoute,
+    relatedPatientId: admission.patientId,
+    relatedTaskId: String(admission._id),
+  });
+};
 
 export class AdmissionsService {
   static async requestAdmission(data, user) {
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
+    const hospitalId = requireHospitalContext(user);
+    const branchId = requireBranchContext(user);
 
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
-    if (!branchId) {
-      const defaultBranch = await Branch.findOne({ hospitalId });
-      branchId = defaultBranch?._id;
-    }
-
-    const patient = await Patient.findById(data.patientId);
+    const patient = await Patient.findOne({ _id: data.patientId, hospitalId });
     if (!patient) {
       throw new ApiError(404, 'Patient record not found', null, 'NOT_FOUND');
     }
@@ -58,7 +73,7 @@ export class AdmissionsService {
     if (data.guardianRelationship) patientUpdates['emergencyContact.relation'] = data.guardianRelationship;
 
     await Patient.updateOne(
-      { _id: patient._id },
+      { _id: patient._id, hospitalId },
       { $set: patientUpdates, $inc: { admissionCount: 1 } }
     );
 
@@ -79,26 +94,25 @@ export class AdmissionsService {
       wardType: admission.wardType,
     });
 
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED, {
+      hospitalId,
+      branchId,
+      admissionId: admission._id,
+      patientId: patient._id,
+      patientName: admission.patientName,
+      uhid: admission.uhid,
+      doctorName: admission.doctorName,
+      wardType: admission.wardType,
+      reason: admission.admissionReason,
+      priority: data.priority || 'NORMAL',
+    }, branchId);
+
     socketManager.emitToBranch(admission.branchId, 'workflow:pending_changed', { resourceId: admission._id, status: admission.status });
     return admission;
   }
 
   static async getAdmissions(user) {
-    let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
-    if (!rawHospitalId && user) {
-      const defaultHosp = await Hospital.findOne({});
-      rawHospitalId = defaultHosp?._id;
-    }
-
-    const filter = {};
-    if (rawHospitalId && user?.role !== 'SUPER_ADMIN') {
-      const hIdStr = String(rawHospitalId);
-      const conditions = [hIdStr];
-      if (mongoose.Types.ObjectId.isValid(hIdStr)) {
-        conditions.push(new mongoose.Types.ObjectId(hIdStr));
-      }
-      filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
-    }
+    const filter = { hospitalId: requireHospitalContext(user) };
 
     return await Admission.find(filter)
       .populate('patientId')
@@ -110,7 +124,8 @@ export class AdmissionsService {
   }
 
   static async allocateBed(admissionId, data, user) {
-    const admission = await Admission.findById(admissionId);
+    const hospitalId = requireHospitalContext(user);
+    const admission = await Admission.findOne({ _id: admissionId, hospitalId });
     if (!admission) {
       throw new ApiError(404, 'Admission requisition record not found', null, 'NOT_FOUND');
     }
@@ -161,7 +176,7 @@ export class AdmissionsService {
       admission.assignedAt = new Date();
       await admission.save();
       if (admission.bedId) {
-        await Bed.findByIdAndUpdate(admission.bedId, { assignedNurseId: assignedNurseId || null });
+        await Bed.updateOne({ _id: admission.bedId, hospitalId }, { assignedNurseId: assignedNurseId || null });
       }
       return Admission.findById(admission._id)
         .populate('patientId')
@@ -176,7 +191,7 @@ export class AdmissionsService {
 
     let bed = null;
     if (data.bedId) {
-      bed = await Bed.findById(data.bedId);
+      bed = await Bed.findOne({ _id: data.bedId, hospitalId });
     } else if (bedNumber) {
       bed = await Bed.findOne({
         branchId: admission.branchId,
@@ -268,6 +283,25 @@ export class AdmissionsService {
     admission.admittedAt = new Date();
     await admission.save();
 
+    await notifyAdmissionAssignee({
+      admission,
+      recipientUserId: assignedDoctor._id,
+      recipientRole: 'DOCTOR',
+      actionType: 'REVIEW_IPD_ADMISSION',
+      title: `Patient admitted: ${admission.patientName}`,
+      message: `${admission.patientName} (${admission.uhid}) was admitted to ${bed.wardName}, bed ${bed.bedNumber}.`,
+    });
+    if (assignedNurseId) {
+      await notifyAdmissionAssignee({
+        admission,
+        recipientUserId: assignedNurseId,
+        recipientRole: 'NURSE',
+        actionType: 'CARE_FOR_INPATIENT',
+        title: `New inpatient assignment: ${admission.patientName}`,
+        message: `${admission.patientName} (${admission.uhid}) is assigned to you in ${bed.wardName}, bed ${bed.bedNumber}.`,
+      });
+    }
+
     // Broadcast admission confirmation
     socketManager.emitToBranch(admission.branchId, 'admission:confirmed', {
       admissionId: admission._id,
@@ -292,10 +326,18 @@ export class AdmissionsService {
   }
 
   static async dischargePatient(admissionId, user) {
-    const admission = await Admission.findById(admissionId);
+    const hospitalId = requireHospitalContext(user);
+    const admission = await Admission.findOne({ _id: admissionId, hospitalId });
     if (!admission) {
       throw new ApiError(404, 'Admission record not found', null, 'NOT_FOUND');
     }
+
+    const dischargeRecipients = [
+      { id: admission.doctorId, role: 'DOCTOR' },
+      { id: admission.assignedNurseId, role: 'NURSE' },
+      { id: admission.dutyNurseId, role: 'NURSE' },
+      { id: admission.assignedCaretakerId, role: 'IPD_STAFF' },
+    ].filter((entry) => entry.id);
 
     admission.status = 'DISCHARGED';
     admission.dischargedAt = new Date();
@@ -304,12 +346,12 @@ export class AdmissionsService {
 
     // Update Patient.admissionStatus to DISCHARGED
     await Patient.updateOne(
-      { _id: admission.patientId },
+      { _id: admission.patientId, hospitalId },
       { $set: { admissionStatus: 'DISCHARGED', activeAdmissionId: null } }
     );
 
     // Update GlobalPatient membership active admission flag
-    const patient = await Patient.findById(admission.patientId).select('globalPatientId').lean();
+    const patient = await Patient.findOne({ _id: admission.patientId, hospitalId }).select('globalPatientId').lean();
     if (patient?.globalPatientId) {
       await GlobalPatient.updateOne(
         { _id: patient.globalPatientId, 'hospitalMemberships.activeAdmissionId': admission._id },
@@ -319,7 +361,7 @@ export class AdmissionsService {
 
     // Close all active care team assignments
     await CareTeamAssignment.updateMany(
-      { admissionId, removedAt: null },
+      { admissionId, hospitalId, removedAt: null },
       { $set: { removedAt: new Date(), removalReason: 'Patient discharged', removedByName: user?.name || 'System' } }
     );
 
@@ -327,7 +369,7 @@ export class AdmissionsService {
     try {
       const { GuardianLink } = await import('../../models/GuardianLink.js');
       await GuardianLink.updateMany(
-        { patientId: admission.patientId, liveAccessActive: true },
+        { patientId: admission.patientId, hospitalId, liveAccessActive: true },
         { $set: { liveAccessActive: false, liveAccessDisabledAt: new Date() } }
       );
     } catch (e) {
@@ -338,7 +380,7 @@ export class AdmissionsService {
     try {
       const { NurseTask } = await import('../../models/NurseTask.js');
       await NurseTask.updateMany(
-        { patientId: admission.patientId, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED'] } },
+        { patientId: admission.patientId, hospitalId, status: { $in: ['PENDING', 'ACCEPTED', 'SCHEDULED'] } },
         { $set: { status: 'CANCELLED' } }
       );
     } catch (e) {
@@ -348,7 +390,7 @@ export class AdmissionsService {
     // Bed sanitation safety: transition bed to CLEANING status (not directly to AVAILABLE)
     let dischargedBed = null;
     if (admission.bedId) {
-      dischargedBed = await Bed.findById(admission.bedId);
+      dischargedBed = await Bed.findOne({ _id: admission.bedId, hospitalId });
     } else if (admission.bedNumber) {
       dischargedBed = await Bed.findOne({ branchId: admission.branchId, bedNumber: admission.bedNumber });
     }
@@ -393,6 +435,17 @@ export class AdmissionsService {
       });
     }
 
+    for (const recipient of dischargeRecipients) {
+      await notifyAdmissionAssignee({
+        admission,
+        recipientUserId: recipient.id,
+        recipientRole: recipient.role,
+        actionType: 'VIEW_IPD_DISCHARGE',
+        title: `Patient discharged: ${admission.patientName}`,
+        message: `${admission.patientName} (${admission.uhid}) has been discharged. Bed ${admission.bedNumber} is awaiting cleaning.`,
+      });
+    }
+
     return admission;
   }
 
@@ -401,7 +454,8 @@ export class AdmissionsService {
    * Automatically closes any existing active assignment for the same role before adding the new one.
    */
   static async assignCareTeam(admissionId, assignments, user) {
-    const admission = await Admission.findById(admissionId);
+    const hospitalId = requireHospitalContext(user);
+    const admission = await Admission.findOne({ _id: admissionId, hospitalId });
     if (!admission) {
       throw new ApiError(404, 'Admission not found', null, 'NOT_FOUND');
     }
@@ -420,7 +474,7 @@ export class AdmissionsService {
 
       // Close existing active assignment for this role
       await CareTeamAssignment.updateMany(
-        { admissionId, role, removedAt: null },
+        { admissionId, hospitalId, role, removedAt: null },
         {
           $set: {
             removedAt: new Date(),
@@ -450,16 +504,25 @@ export class AdmissionsService {
 
       results.push(newAssignment);
 
+      await notifyAdmissionAssignee({
+        admission,
+        recipientUserId: staffUser._id,
+        recipientRole: staffUser.role,
+        actionType: 'VIEW_CARE_TEAM_ASSIGNMENT',
+        title: `IPD care-team assignment: ${admission.patientName}`,
+        message: `You were assigned as ${role.replaceAll('_', ' ').toLowerCase()} for ${admission.patientName} (${admission.uhid}).`,
+      });
+
       // Update Admission quick-reference fields
       if (role === 'PRIMARY_DOCTOR') {
-        await Admission.updateOne({ _id: admissionId }, { $set: { doctorId: staffUser._id, doctorName: staffUser.name } });
+        await Admission.updateOne({ _id: admissionId, hospitalId }, { $set: { doctorId: staffUser._id, doctorName: staffUser.name } });
       } else if (role === 'NURSE' || role === 'DUTY_NURSE') {
         const field = role === 'DUTY_NURSE' ? 'dutyNurseId' : 'assignedNurseId';
-        await Admission.updateOne({ _id: admissionId }, { $set: { [field]: staffUser._id } });
+        await Admission.updateOne({ _id: admissionId, hospitalId }, { $set: { [field]: staffUser._id } });
       } else if (role === 'CARETAKER') {
-        await Admission.updateOne({ _id: admissionId }, { $set: { assignedCaretakerId: staffUser._id } });
+        await Admission.updateOne({ _id: admissionId, hospitalId }, { $set: { assignedCaretakerId: staffUser._id } });
       } else if (role === 'CONSULTING_DOCTOR') {
-        await Admission.updateOne({ _id: admissionId }, { $addToSet: { consultingDoctorIds: staffUser._id } });
+        await Admission.updateOne({ _id: admissionId, hospitalId }, { $addToSet: { consultingDoctorIds: staffUser._id } });
       }
 
       // Notify the newly assigned staff member via socket
@@ -473,10 +536,10 @@ export class AdmissionsService {
     }
 
     // Mark care team as assigned if we have at least a doctor and nurse
-    const activeDoctorCount = await CareTeamAssignment.countDocuments({ admissionId, role: 'PRIMARY_DOCTOR', removedAt: null });
-    const activeNurseCount = await CareTeamAssignment.countDocuments({ admissionId, role: { $in: ['NURSE', 'DUTY_NURSE'] }, removedAt: null });
+    const activeDoctorCount = await CareTeamAssignment.countDocuments({ admissionId, hospitalId, role: 'PRIMARY_DOCTOR', removedAt: null });
+    const activeNurseCount = await CareTeamAssignment.countDocuments({ admissionId, hospitalId, role: { $in: ['NURSE', 'DUTY_NURSE'] }, removedAt: null });
     if (activeDoctorCount > 0 && activeNurseCount > 0) {
-      await Admission.updateOne({ _id: admissionId }, { $set: { careTeamAssigned: true } });
+      await Admission.updateOne({ _id: admissionId, hospitalId }, { $set: { careTeamAssigned: true } });
     }
 
     return results;
@@ -485,12 +548,15 @@ export class AdmissionsService {
   /**
    * Get full care team for an admission — current active + history.
    */
-  static async getCareTeam(admissionId) {
-    const active = await CareTeamAssignment.find({ admissionId, removedAt: null })
+  static async getCareTeam(admissionId, user) {
+    const hospitalId = requireHospitalContext(user);
+    const admissionExists = await Admission.exists({ _id: admissionId, hospitalId });
+    if (!admissionExists) throw new ApiError(404, 'Admission not found', null, 'NOT_FOUND');
+    const active = await CareTeamAssignment.find({ admissionId, hospitalId, removedAt: null })
       .populate('userId', 'name role specialization phone avatarUrl')
       .sort({ assignedAt: -1 });
 
-    const history = await CareTeamAssignment.find({ admissionId, removedAt: { $ne: null } })
+    const history = await CareTeamAssignment.find({ admissionId, hospitalId, removedAt: { $ne: null } })
       .populate('userId', 'name role specialization phone')
       .sort({ removedAt: -1 })
       .limit(50);

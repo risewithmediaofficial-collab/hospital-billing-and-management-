@@ -55,6 +55,8 @@ export const WORKFLOW_EVENTS = {
   // Nurse ↔ Doctor
   NURSE_REQUEST_RAISED:    'NURSE_REQUEST_RAISED',
   NURSE_REQUEST_COMPLETED: 'NURSE_REQUEST_COMPLETED',
+  PATIENT_CARE_REQUEST_RAISED: 'PATIENT_CARE_REQUEST_RAISED',
+  PATIENT_DOCTOR_REQUEST_RAISED: 'PATIENT_DOCTOR_REQUEST_RAISED',
 
   // Emergency (broadcast)
   EMERGENCY_RAISED:        'EMERGENCY_RAISED',
@@ -70,7 +72,7 @@ export const WORKFLOW_EVENTS = {
 
 // ─── Which roles get notified for each event ─────────────────────────────────
 const TARGET_ROLES = {
-  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: ['RECEPTIONIST', 'NURSE_INCHARGE', 'NURSE'],
+  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: ['NURSE_INCHARGE', 'IPD_STAFF'],
   [WORKFLOW_EVENTS.PATIENT_QUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.TOKEN_REQUEUED]:           ['DOCTOR'],
   [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]:  ['RECEPTIONIST'],
@@ -106,14 +108,53 @@ const TARGET_ROLES = {
   // Nurse requests — nurse-side only
   [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]:     ['NURSE', 'NURSE_INCHARGE'],
   [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]:  ['DOCTOR'],
+  [WORKFLOW_EVENTS.PATIENT_CARE_REQUEST_RAISED]: ['NURSE', 'NURSE_INCHARGE'],
+  [WORKFLOW_EVENTS.PATIENT_DOCTOR_REQUEST_RAISED]: ['DOCTOR'],
 
-  // Emergency is broadcast to ALL — handled separately
-  [WORKFLOW_EVENTS.EMERGENCY_RAISED]:         ['ALL'],
-  [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:       ['ALL'],
+  // Only staff who can respond to or clinically supervise an emergency.
+  [WORKFLOW_EVENTS.EMERGENCY_RAISED]:         ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'EMERGENCY_STAFF'],
+  [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:       ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'EMERGENCY_STAFF'],
 
   // Staff presence — socket-only (no DB notification), hospital admin only
   [WORKFLOW_EVENTS.STAFF_WENT_OFFLINE]:       ['HOSPITAL_ADMIN'],
   [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:        ['HOSPITAL_ADMIN'],
+};
+
+const withParams = (path, params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+  });
+  const encoded = query.toString();
+  return encoded ? `${path}${path.includes('?') ? '&' : '?'}${encoded}` : path;
+};
+
+// Every actionable workflow notification resolves to a persisted entity and a
+// concrete workspace. Notifications are reminders, never the workflow record.
+export const WORKFLOW_ACTIONS = {
+  [WORKFLOW_EVENTS.PATIENT_QUEUED]: { sourceModule: 'reception', targetModule: 'doctor', entityType: 'Appointment', idKey: 'appointmentId', actionType: 'ATTEND_PATIENT', route: (p) => withParams('/doctor/dashboard?tab=LIVE', { appointmentId: p.appointmentId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.TOKEN_REQUEUED]: { sourceModule: 'reception', targetModule: 'doctor', entityType: 'Appointment', idKey: 'appointmentId', actionType: 'ATTEND_PATIENT', route: (p) => withParams('/doctor/dashboard?tab=LIVE', { appointmentId: p.appointmentId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.DOCTOR_ACCEPTED_PATIENT]: { sourceModule: 'doctor', targetModule: 'reception', entityType: 'Appointment', idKey: 'appointmentId', actionType: 'TRACK_QUEUE', route: (p) => withParams('/reception/registered-patients?tab=QUEUED', { appointmentId: p.appointmentId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]: { sourceModule: 'doctor', targetModule: 'billing', entityType: 'Invoice', idKey: 'invoiceId', actionType: 'PROCESS_BILL', route: (p) => withParams('/billing/dashboard', { invoiceId: p.invoiceId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.LAB_ORDER_CREATED]: { sourceModule: 'doctor', targetModule: 'laboratory', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'PROCESS_LAB_ORDER', route: (p) => withParams('/laboratory/dashboard', { orderId: p.orderId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED]: { sourceModule: 'doctor', targetModule: 'radiology', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'PROCESS_RADIOLOGY_ORDER', route: (p) => withParams('/radiology/dashboard', { orderId: p.orderId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.LAB_SUBMITTED]: { sourceModule: 'laboratory', targetModule: 'doctor', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'REVIEW_REPORT', route: (p) => withParams('/doctor/dashboard?tab=DEPT_RESPONSES', { orderId: p.orderId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]: { sourceModule: 'radiology', targetModule: 'doctor', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'REVIEW_REPORT', route: (p) => withParams('/doctor/dashboard?tab=DEPT_RESPONSES', { orderId: p.orderId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]: { sourceModule: 'doctor', targetModule: 'laboratory', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'VIEW_REVIEW', route: (p) => withParams('/laboratory/dashboard', { orderId: p.orderId }) },
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]: { sourceModule: 'doctor', targetModule: 'radiology', entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'VIEW_REVIEW', route: (p) => withParams('/radiology/dashboard', { orderId: p.orderId }) },
+  [WORKFLOW_EVENTS.PRESCRIPTION_ISSUED]: { sourceModule: 'doctor', targetModule: 'pharmacy', entityType: 'Prescription', idKey: 'prescriptionId', actionType: 'DISPENSE_MEDICINE', route: (p) => withParams('/pharmacy/dashboard', { prescriptionId: p.prescriptionId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.PHARMACY_DISPENSED]: { sourceModule: 'pharmacy', targetModule: 'billing', entityType: 'Invoice', idKey: 'invoiceId', actionType: 'COLLECT_PAYMENT', route: (p) => withParams('/billing/dashboard?tab=CENTRAL_DESK', { invoiceId: p.invoiceId, prescriptionId: p.prescriptionId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.BILL_REQUESTED]: { sourceModule: 'clinical', targetModule: 'billing', entityType: 'Invoice', idKey: 'invoiceId', actionType: 'PROCESS_BILL', route: (p) => withParams('/billing/dashboard', { invoiceId: p.invoiceId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.PAYMENT_PENDING]: { sourceModule: 'clinical', targetModule: 'billing', entityType: 'Invoice', idKey: 'invoiceId', actionType: 'COLLECT_PAYMENT', route: (p) => withParams('/billing/dashboard', { invoiceId: p.invoiceId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.BILL_READY]: { sourceModule: 'billing', targetModule: 'reception', entityType: 'Invoice', idKey: 'invoiceId', actionType: 'VIEW_BILL_STATUS', route: (p) => withParams('/reception/registered-patients?tab=COMPLETED', { invoiceId: p.invoiceId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.PAYMENT_COLLECTED]: { sourceModule: 'billing', targetModule: 'reception', entityType: 'Receipt', idKey: 'receiptId', actionType: 'COMPLETE_VISIT', route: (p) => withParams('/reception/registered-patients?tab=COMPLETED', { receiptId: p.receiptId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.NURSE_REQUEST_RAISED]: { sourceModule: 'doctor', targetModule: 'nursing', entityType: 'NurseTask', idKey: 'taskId', actionType: 'PERFORM_NURSING_TASK', route: (p) => withParams('/nurse-incharge/dashboard?tab=TASKS', { taskId: p.taskId || p.relatedTaskId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]: { sourceModule: 'nursing', targetModule: 'doctor', entityType: 'NurseTask', idKey: 'taskId', actionType: 'REVIEW_NURSING_RESPONSE', route: (p) => withParams('/doctor/dashboard?tab=DEPT_RESPONSES', { taskId: p.taskId || p.relatedTaskId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.PATIENT_CARE_REQUEST_RAISED]: { sourceModule: 'patient-portal', targetModule: 'nursing', entityType: 'PatientRequest', idKey: 'requestId', actionType: 'RESPOND_TO_PATIENT_REQUEST', route: (p) => withParams('/nurse-incharge/dashboard?tab=REQUESTS', { requestId: p.requestId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.PATIENT_DOCTOR_REQUEST_RAISED]: { sourceModule: 'patient-portal', targetModule: 'doctor', entityType: 'PatientRequest', idKey: 'requestId', actionType: 'RESPOND_TO_PATIENT_REQUEST', route: (p) => withParams('/doctor/dashboard?tab=DEPT_RESPONSES', { requestId: p.requestId, patientId: p.patientId }) },
+  [WORKFLOW_EVENTS.EMERGENCY_RAISED]: { sourceModule: 'emergency', targetModule: 'emergency', entityType: 'Emergency', idKey: 'emergencyId', actionType: 'RESPOND_EMERGENCY', route: (p) => withParams('/emergency', { emergencyId: p.emergencyId }) },
+  [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]: { sourceModule: 'emergency', targetModule: 'emergency', entityType: 'Emergency', idKey: 'emergencyId', actionType: 'VIEW_RESOLUTION', route: (p) => withParams('/emergency', { emergencyId: p.emergencyId }) },
+  [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]: { sourceModule: 'doctor', targetModule: 'nursing', entityType: 'Admission', idKey: 'admissionId', actionType: 'ALLOCATE_BED', route: (p) => withParams('/nurse-incharge/dashboard?tab=REQUISITIONS', { admissionId: p.admissionId, patientId: p.patientId }) },
 };
 
 // ─── Clean formatting helper to avoid "undefined" strings in notification UI ──
@@ -182,6 +223,12 @@ const MESSAGE_TEMPLATES = {
   [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]:
     (p) => ({ title: 'Nurse Request Completed', message: `Nurse has completed the ${p.requestType || 'treatment'} request for ${safePat(p.patientName, p.uhid)}.`, type: 'DEPT_RESPONSE' }),
 
+  [WORKFLOW_EVENTS.PATIENT_CARE_REQUEST_RAISED]:
+    (p) => ({ title: 'Patient Care Request', message: `${safePat(p.patientName, p.uhid)} requested ${String(p.requestType || 'bedside assistance').replaceAll('_', ' ').toLowerCase()} at ${p.bedNumber || 'their assigned bed'}.`, type: p.requestCategory === 'EMERGENCY' ? 'EMERGENCY' : 'NEW_DATA' }),
+
+  [WORKFLOW_EVENTS.PATIENT_DOCTOR_REQUEST_RAISED]:
+    (p) => ({ title: p.guardianMessageType === 'HISTORY' ? 'Guardian Shared Patient History' : 'Patient/Guardian Doctor Request', message: `${safePat(p.patientName, p.uhid)} has sent a message requiring the attending doctor's review.`, type: 'NEW_DATA' }),
+
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
     (p) => ({ title: 'EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Report immediately!`, type: 'EMERGENCY' }),
 
@@ -216,7 +263,11 @@ export class WorkflowEventService {
    * @param {string} branchId - Optional: scope to a specific branch room
    */
   static async emit(event, payload, branchId = null) {
-    const roles = TARGET_ROLES[event] || [];
+    const roles = Array.isArray(payload.targetRoles) && payload.targetRoles.length > 0
+      ? Array.from(new Set(payload.targetRoles.map((role) => String(role).toUpperCase())))
+      : (TARGET_ROLES[event] || []);
+    const explicitRecipientIds = Array.from(new Set((payload.recipientUserIds || []).filter(Boolean).map(String)));
+    const action = WORKFLOW_ACTIONS[event] || {};
     const templateFn = MESSAGE_TEMPLATES[event];
     const notifData = templateFn ? templateFn(payload) : { title: event, message: '', type: 'SYSTEM_ALERT' };
     const { title, message, type } = notifData;
@@ -228,6 +279,17 @@ export class WorkflowEventService {
       effectiveHospitalId = branch?.hospitalId || null;
     }
 
+    if (!effectiveHospitalId) {
+      throw new Error(`Refusing unscoped workflow event ${event}`);
+    }
+
+    const targetRoute = payload.linkedPath || action.route?.(payload) || '';
+    const entityId = action.idKey
+      ? (payload[action.idKey] || '')
+      : (payload.entityId || payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '');
+    if (action.entityType && !entityId) {
+      throw new Error(`Refusing actionable workflow event ${event} without ${action.idKey || 'entityId'}`);
+    }
     const envelope = {
       event,
       title,
@@ -236,12 +298,18 @@ export class WorkflowEventService {
       payload,
       timestamp: new Date().toISOString(),
       isRead: false,
-      linkedPath: payload.linkedPath || null,
+      linkedPath: targetRoute || null,
+      targetRoute,
+      sourceModule: action.sourceModule || payload.sourceModule || '',
+      targetModule: action.targetModule || payload.targetModule || '',
+      entityType: action.entityType || payload.entityType || '',
+      entityId,
+      actionType: action.actionType || payload.actionType || '',
     };
 
     // ── Socket.IO Emission ────────────────────────────────────────────────────
     if (roles.includes('ALL')) {
-      socketManager.emitEmergency(event, envelope);
+      socketManager.emitEmergency(event, envelope, { hospitalId: effectiveHospitalId, branchId: effectiveBranchId });
       if (branchId) socketManager.emitToBranch(branchId, 'workflow:pending_changed', { event });
     } else {
       const isDoctorDirected = roles.length === 1 && roles[0] === 'DOCTOR' && payload.doctorId;
@@ -249,12 +317,20 @@ export class WorkflowEventService {
 
       for (const role of roles) {
         const targetedEnvelope = { ...envelope, targetRole: role };
+        if (explicitRecipientIds.length > 0) {
+          if (role !== roles[0]) continue;
+          for (const targetUserId of explicitRecipientIds) {
+            socketManager.emitToUser(targetUserId, `workflow:${eventStr}`, targetedEnvelope);
+            socketManager.emitToUser(targetUserId, 'workflow:notification', targetedEnvelope);
+            socketManager.emitToUser(targetUserId, 'workflow:pending_changed', { event });
+          }
+          continue;
+        }
         const targetUserId = role === 'DOCTOR' ? payload.doctorId : null;
         if (targetUserId) {
           socketManager.emitToUser(String(targetUserId), `workflow:${eventStr}`, targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'workflow:notification', targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'opd_queue:updated', targetedEnvelope);
-          socketManager.emitToUser(String(targetUserId), 'notification:created', targetedEnvelope);
         } else {
           const availableUsers = await User.find({
             ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
@@ -267,12 +343,7 @@ export class WorkflowEventService {
             socketManager.emitToUser(String(availableUser._id), `workflow:${eventStr}`, targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:notification', targetedEnvelope);
             socketManager.emitToUser(String(availableUser._id), 'workflow:pending_changed', { event });
-            socketManager.emitToUser(String(availableUser._id), 'notification:created', targetedEnvelope);
           }
-          socketManager.emitToRole(role, `workflow:${eventStr}`, targetedEnvelope);
-          socketManager.emitToRole(role, 'workflow:notification', targetedEnvelope);
-          socketManager.emitToRole(role, 'workflow:pending_changed', { event });
-          socketManager.emitToRole(role, 'notification:created', targetedEnvelope);
         }
       }
 
@@ -280,7 +351,6 @@ export class WorkflowEventService {
       const ADMIN_RELEVANT_EVENTS = new Set([
         WORKFLOW_EVENTS.EMERGENCY_RAISED,
         WORKFLOW_EVENTS.EMERGENCY_RESOLVED,
-        WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED,
         WORKFLOW_EVENTS.STAFF_WENT_OFFLINE,
         WORKFLOW_EVENTS.STAFF_CAME_ONLINE,
       ]);
@@ -329,8 +399,13 @@ export class WorkflowEventService {
           title,
           message,
           type: DB_NOTIFICATION_TYPES[type] || 'SYSTEM_ALERT',
-          link: payload.linkedPath || '',
-          targetModule: payload.targetModule || '',
+          link: targetRoute,
+          targetRoute,
+          sourceModule: action.sourceModule || payload.sourceModule || '',
+          targetModule: action.targetModule || payload.targetModule || '',
+          entityType: action.entityType || payload.entityType || '',
+          entityId,
+          actionType: action.actionType || payload.actionType || '',
           relatedPatientId: payload.patientId || null,
           relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
           metadata: { event, patientName: payload.patientName, uhid: payload.uhid },
@@ -338,7 +413,9 @@ export class WorkflowEventService {
       } else {
         // Collect all target recipient user IDs across all roles in this event
         let uniqueIds = [];
-        if (roles.length === 1 && roles[0] === 'DOCTOR' && payload.doctorId) {
+        if (explicitRecipientIds.length > 0) {
+          uniqueIds = explicitRecipientIds;
+        } else if (roles.length === 1 && roles[0] === 'DOCTOR' && payload.doctorId) {
           uniqueIds = [String(payload.doctorId)];
         } else {
           const { User } = await import('../models/User.js');
@@ -372,9 +449,13 @@ export class WorkflowEventService {
             message,
             notificationType: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
             type: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
-            link: payload.linkedPath || '',
-            targetRoute: payload.linkedPath || '',
-            targetModule: payload.targetModule || '',
+            link: targetRoute,
+            targetRoute,
+            sourceModule: action.sourceModule || payload.sourceModule || '',
+            targetModule: action.targetModule || payload.targetModule || '',
+            entityType: action.entityType || payload.entityType || '',
+            entityId,
+            actionType: action.actionType || payload.actionType || '',
             relatedPatientId: payload.patientId || null,
             relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
             isRead: false,
@@ -390,9 +471,12 @@ export class WorkflowEventService {
             },
           };
 
-          await Notification.insertMany(
+          const insertedNotifications = await Notification.insertMany(
             uniqueIds.map((userId) => ({ ...baseNotif, recipientUserId: userId }))
           );
+          insertedNotifications.forEach((notification) => {
+            socketManager.emitToUser(String(notification.recipientUserId), 'notification:created', notification);
+          });
         }
 
         if (payload.senderUserId && unavailableRoles.length > 0) {
@@ -416,8 +500,8 @@ export class WorkflowEventService {
         }
       }
     } catch (dbErr) {
-      // DB persistence failure must never block real-time socket emission
       console.error('[WorkflowEventService] Failed to persist notification to DB:', dbErr.message);
+      throw dbErr;
     }
   }
 

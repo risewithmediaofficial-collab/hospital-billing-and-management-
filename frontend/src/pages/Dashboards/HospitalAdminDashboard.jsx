@@ -8,9 +8,9 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
-import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
+import { getOperationalRoles, useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../utils/constants';
-import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog } from 'lucide-react';
+import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog, Download } from 'lucide-react';
 import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
 import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
 import { AdminExtraPage } from './AdminExtraPage';
@@ -41,18 +41,6 @@ const DEFAULT_ROLE_PERMISSIONS = {
     dashboard: ['view', 'manage'],
     departments: ['view', 'manage'],
     staffManagement: ['view', 'create', 'edit', 'delete', 'managePermissions'],
-    patients: ['view', 'create', 'edit', 'delete'],
-    patientRegistration: ['view', 'create', 'edit'],
-    doctorConsultation: ['view', 'startConsultation', 'diagnose', 'prescribe', 'requestLab', 'requestRadiology', 'addTreatment', 'finalize', 'viewCompletedVisits'],
-    appointments: ['view', 'create', 'edit', 'cancel', 'book', 'doctorAvailability'],
-    tokens: ['view', 'create', 'edit', 'cancel', 'assign', 'moveQueue', 'print', 'markCompleted'],
-    nursing: ['view', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency'],
-    ipd: ['view', 'manage'],
-    laboratory: ['view', 'accept', 'edit', 'upload', 'print', 'requestTest'],
-    radiology: ['view', 'accept', 'edit', 'upload', 'print', 'requestTest'],
-    pharmacy: ['view', 'create', 'edit', 'dispense', 'print'],
-    billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'deleteInvoice'],
-    emergency: ['view', 'create', 'respond', 'resolve'],
     reports: ['view', 'generate', 'export'],
     notifications: ['view'],
     auditLogs: ['view'],
@@ -194,17 +182,12 @@ const HospitalAdminDashboardInner = () => {
   const location = useLocation();
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
 
   const [activeFormTab, setActiveFormTab] = useState('DETAILS'); // 'DETAILS' | 'PERMISSIONS'
 
-  useScrollLock(isStaffModalOpen || isViewModalOpen || isChangeModalOpen);
-
-  const [viewAdminPassword, setViewAdminPassword] = useState('');
-  const [revealedPassword, setRevealedPassword] = useState(null);
-  const [showRevealedPassword, setShowRevealedPassword] = useState(false);
+  useScrollLock(isStaffModalOpen || isChangeModalOpen);
   const [showCreatePassword, setShowCreatePassword] = useState(true);
 
   const [changeForm, setChangeForm] = useState({
@@ -247,6 +230,7 @@ const HospitalAdminDashboardInner = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
 
   const formatTenantPath = (path) => {
@@ -328,6 +312,32 @@ const HospitalAdminDashboardInner = () => {
       setStaffList(hospitalStaffOnly);
     } catch (err) {
       console.error('Failed to load hospital staff:', err);
+    }
+  };
+
+  const handleExportHospitalData = async () => {
+    const hospitalId = user?.hospitalId?._id || user?.hospitalId || hospitalData?._id;
+    if (!hospitalId || isExporting) return;
+    setIsExporting(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const archive = await axiosClient.get(`/saas/hospitals/${hospitalId}/export`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(archive);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${hospitalData?.domain || 'hospital'}-data-export-${new Date().toISOString().slice(0, 10)}.ndjson`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setSuccessMsg('Hospital data export downloaded successfully.');
+    } catch (err) {
+      setErrorMsg(err?.error?.message || 'Unable to export hospital data. Please retry.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -511,32 +521,6 @@ const HospitalAdminDashboardInner = () => {
     }
   };
 
-  const handleOpenViewModal = (staff) => {
-    setSelectedStaff(staff);
-    setViewAdminPassword('');
-    setRevealedPassword(null);
-    setShowRevealedPassword(false);
-    setErrorMsg(null);
-    setIsViewModalOpen(true);
-  };
-
-  const handleFetchPassword = async (e) => {
-    e.preventDefault();
-    if (!selectedStaff) return;
-    setIsLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await axiosClient.post(`/auth/staff/${selectedStaff._id}/view-password`, {
-        adminPassword: viewAdminPassword,
-      });
-      setRevealedPassword(res.data.assignedPassword);
-    } catch (err) {
-      setErrorMsg(err.error?.message || err.message || 'Invalid Admin Password verification');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleOpenChangeModal = (staff) => {
     setSelectedStaff(staff);
     setChangeForm({ newPassword: '', adminPassword: '' });
@@ -583,14 +567,20 @@ const HospitalAdminDashboardInner = () => {
             Configure Multi-Role Assignments, Department Allocations & Fine-Grained Module Action Privileges
           </p>
         </div>
-        <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="w-full sm:w-auto text-xs shrink-0 whitespace-normal text-center sm:text-left py-2.5 sm:py-2 font-bold">
-          <UserPlus size={16} className="shrink-0" />
-          <span className="sm:hidden">Create Staff Account</span>
-          <span className="hidden sm:inline">Create Staff Account</span>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="secondary" size="sm" onClick={handleExportHospitalData} disabled={isExporting} className="w-full sm:w-auto text-xs font-bold">
+            <Download size={16} className="shrink-0" />
+            {isExporting ? 'Preparing Export…' : 'Export Hospital Data'}
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleOpenCreateModal} className="w-full sm:w-auto text-xs shrink-0 whitespace-normal text-center sm:text-left py-2.5 sm:py-2 font-bold">
+            <UserPlus size={16} className="shrink-0" />
+            <span>Create Staff Account</span>
+          </Button>
+        </div>
       </div>
 
       {/* Solo Doctor / Clinic Owner Quick Launch Work Mode Banner */}
+      {getOperationalRoles(user).includes('DOCTOR') && (
       <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-700/50">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 shrink-0 border border-white/10">
@@ -622,6 +612,7 @@ const HospitalAdminDashboardInner = () => {
           </button>
         </div>
       </div>
+      )}
 
       {/* SaaS Subscription & 7-Day Trial Dashboard Widget */}
       {hospitalData && (
@@ -634,11 +625,26 @@ const HospitalAdminDashboardInner = () => {
 
       {/* Subscription Lockout & Plan Renewal Modal */}
       <SubscriptionRenewalModal
-        isOpen={isRenewalModalOpen || hospitalData?.trialStatus === 'TRIAL_EXPIRED' || hospitalData?.status === 'EXPIRED'}
+        isOpen={isRenewalModalOpen}
         onClose={() => setIsRenewalModalOpen(false)}
         hospital={hospitalData}
         isLocked={hospitalData?.trialStatus === 'TRIAL_EXPIRED' || hospitalData?.status === 'EXPIRED'}
       />
+
+      {(hospitalData?.trialStatus === 'TRIAL_EXPIRED' || hospitalData?.status === 'EXPIRED') && (
+        <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-extrabold">Subscription expired — read-only access</p>
+            <p className="text-xs mt-1">Your records remain available and can be exported. Renew the plan to resume operational changes.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={handleExportHospitalData} disabled={isExporting}>
+              <Download size={15} /> Export Data
+            </Button>
+            <Button size="sm" onClick={() => setIsRenewalModalOpen(true)}>View Renewal Plans</Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Hospital Roster" value={`${staffList.length} Staff`} subtitle="Flexible Access Accounts" icon={Users} color="sky" />
@@ -650,6 +656,11 @@ const HospitalAdminDashboardInner = () => {
       {successMsg && (
         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold flex items-center gap-2">
           <CheckCircle size={16} className="text-emerald-600" /> {successMsg}
+        </div>
+      )}
+      {errorMsg && !isStaffModalOpen && !isChangeModalOpen && (
+        <div role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+          <AlertCircle size={16} /> {errorMsg}
         </div>
       )}
 
@@ -731,15 +742,6 @@ const HospitalAdminDashboardInner = () => {
                             onClick={() => handleOpenEditModal(st)}
                           >
                             <Edit size={13} /> Edit Access
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="font-semibold gap-1 text-[11px] px-2.5 py-1 text-slate-700 bg-white border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-lg"
-                            onClick={() => handleOpenViewModal(st)}
-                            title="View Stored Password Hint"
-                          >
-                            <Eye size={13} /> Password
                           </Button>
                           <Button
                             size="sm"
@@ -1106,8 +1108,8 @@ const HospitalAdminDashboardInner = () => {
         </div>
       )}
 
-      {/* MODAL 2: View Current Password */}
-      {isViewModalOpen && selectedStaff && (
+      {/* Legacy password-reveal dialog is intentionally disabled: passwords are reset, never retrieved. */}
+      {false && selectedStaff && (
         <div className="modal-overlay animate-fade-in">
           <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">

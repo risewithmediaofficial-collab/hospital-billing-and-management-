@@ -205,28 +205,25 @@ export class PatientPortalService {
   static async resolvePatientForUser(user) {
     if (!user) return null;
     const { Patient } = await import('../../models/Patient.js');
+    const hospitalId = user.hospitalId?._id || user.hospitalId;
+    if (!hospitalId) return null;
     let patient = null;
     if (user.patientId) {
-      patient = await Patient.findById(user.patientId).populate('hospitalId').populate('branchId');
+      patient = await Patient.findOne({ _id: user.patientId, hospitalId }).populate('hospitalId').populate('branchId');
     }
-    if (user.uhid) {
-      patient = await Patient.findOne({ uhid: user.uhid }).populate('hospitalId').populate('branchId');
+    if (!patient && user.uhid) {
+      patient = await Patient.findOne({ uhid: user.uhid, hospitalId }).populate('hospitalId').populate('branchId');
     }
     if (!patient && user.phone) {
       const cleanPhone = user.phone.replace(/\D/g, '');
       patient = await Patient.findOne({
+        hospitalId,
         $or: [
           { phone: user.phone },
           { phone: { $regex: cleanPhone, $options: 'i' } },
           ...(cleanPhone.length >= 7 ? [{ phone: { $regex: cleanPhone.slice(-7), $options: 'i' } }] : [])
         ]
       }).populate('hospitalId').populate('branchId');
-    }
-    if (!patient && user.hospitalId) {
-      patient = await Patient.findOne({ hospitalId: user.hospitalId }).populate('hospitalId').populate('branchId');
-    }
-    if (!patient) {
-      patient = await Patient.findOne({}).populate('hospitalId').populate('branchId');
     }
     return patient;
   }

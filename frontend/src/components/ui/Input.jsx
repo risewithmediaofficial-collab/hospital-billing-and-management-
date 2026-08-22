@@ -3,11 +3,14 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export const Input = React.forwardRef(
-  ({ label, error, helperText, icon: Icon, rightElement, className = '', ...props }, ref) => {
+  ({ label, error, helperText, icon: Icon, rightElement, className = '', id, ...props }, ref) => {
+    const generatedId = React.useId();
+    const inputId = id || `input-${generatedId.replace(/:/g, '')}`;
+    const messageId = `${inputId}-${error ? 'error' : 'help'}`;
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+          <label htmlFor={inputId} className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
             {label}
           </label>
         )}
@@ -18,8 +21,11 @@ export const Input = React.forwardRef(
             </div>
           )}
           <input
+            id={inputId}
             ref={ref}
             autoComplete="off"
+            aria-invalid={Boolean(error)}
+            aria-describedby={(error || helperText) ? messageId : undefined}
             className={twMerge(
               clsx(
                 'w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900',
@@ -42,10 +48,10 @@ export const Input = React.forwardRef(
           )}
         </div>
         {error && (
-          <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>
+          <p id={messageId} role="alert" className="mt-1 text-xs text-red-600 font-medium">{error}</p>
         )}
         {helperText && !error && (
-          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
+          <p id={messageId} className="mt-1 text-xs text-slate-500">{helperText}</p>
         )}
       </div>
     );

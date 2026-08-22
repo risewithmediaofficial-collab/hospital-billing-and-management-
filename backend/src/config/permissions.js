@@ -1,5 +1,17 @@
 export const ROLE_PERMISSION_DEFAULTS = {
-  HOSPITAL_ADMIN: { '*': ['*'] },
+  HOSPITAL_ADMIN: {
+    dashboard: ['view', 'manage'],
+    departments: ['view', 'manage'],
+    staffManagement: ['view', 'create', 'edit', 'delete', 'managePermissions'],
+    reports: ['view', 'generate', 'export'],
+    notifications: ['view'],
+    auditLogs: ['view'],
+    hospitalSettings: ['view', 'edit'],
+    plan: ['view'],
+    settings: ['view', 'edit'],
+    usage: ['view'],
+    admin: ['view', 'manage'],
+  },
   SUPER_ADMIN: { '*': ['*'] },
   DOCTOR: {
     dashboard: ['view'],
@@ -14,6 +26,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     treatment: ['view', 'create', 'edit'],
     laboratory: ['view', 'requestTest', 'create', 'edit', '*'],
     radiology: ['view', 'requestTest', 'create', 'edit', '*'],
+    ipd: ['view', 'create', 'edit'],
     billing: ['view', 'create', 'edit', 'printReceipt'],
     notifications: ['view'],
   },
@@ -145,6 +158,26 @@ export const ROLE_PERMISSION_DEFAULTS = {
   GUARDIAN: { dashboard: ['view'], guardianPortal: ['view', 'create', 'edit'] },
 };
 
+const OPERATIONAL_MODULE_ROLES = {
+  patients: ['RECEPTIONIST', 'OPD_STAFF', 'DOCTOR', 'NURSE', 'NURSE_INCHARGE'],
+  appointments: ['RECEPTIONIST', 'OPD_STAFF', 'DOCTOR'],
+  doctor: ['DOCTOR'],
+  beds: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
+  requests: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
+  billing: ['CASHIER', 'BILLING_STAFF'],
+  diagnostics: ['DOCTOR', 'LAB_TECH', 'LABORATORY_STAFF', 'RADIOLOGIST', 'RADIOLOGY_STAFF'],
+  ipd: ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
+  emergency: ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'RECEPTIONIST', 'OPD_STAFF', 'EMERGENCY_STAFF'],
+  pharmacy: ['PHARMACIST', 'PHARMACY_STAFF'],
+};
+
+export const hasOperationalRoleForModule = (user, module) => {
+  const assignedRoles = user?.role === 'HOSPITAL_ADMIN'
+    ? (Array.isArray(user.additionalRoles) ? user.additionalRoles : [])
+    : [user?.role, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])];
+  return (OPERATIONAL_MODULE_ROLES[module] || []).some((role) => assignedRoles.includes(role));
+};
+
 const normalizeActions = (actionsInput) => {
   if (!actionsInput) return [];
   if (Array.isArray(actionsInput)) {
@@ -220,7 +253,7 @@ export const permissionsFor = (user, hospitalModules = null) => {
     }
   }
 
-  if (roles.includes('HOSPITAL_ADMIN') || roles.includes('SUPER_ADMIN')) {
+  if (roles.includes('SUPER_ADMIN')) {
     finalPermissions['*'] = ['*'];
   }
 
@@ -228,13 +261,13 @@ export const permissionsFor = (user, hospitalModules = null) => {
 };
 
 export const hasPermission = (user, module, action = 'view', hospitalModules = null) => {
-  if (user?.role === 'SUPER_ADMIN' || user?.role === 'HOSPITAL_ADMIN') return true;
+  if (user?.role === 'SUPER_ADMIN') return true;
 
   const role = user?.role;
   const userRoles = [role, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
 
   // Role domain overrides — domain staff always have full access to their primary and cross-department workflow modules
-  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology', 'billing'].includes(module) && userRoles.includes('DOCTOR')) return true;
+  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology', 'billing', 'ipd'].includes(module) && userRoles.includes('DOCTOR')) return true;
   if (['nursing', 'ipd', 'beds', 'requests', 'pharmacy', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['NURSE', 'NURSE_INCHARGE'].includes(r))) return true;
   if (['pharmacy', 'inventory', 'billing', 'emergency'].includes(module) && userRoles.some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) return true;
   if (['laboratory', 'diagnostics', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;

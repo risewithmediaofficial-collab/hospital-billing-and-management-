@@ -230,7 +230,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 3. Doctor Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.DOCTOR]} />}>
         <Route path="/doctor/dashboard" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/queue" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
@@ -239,7 +239,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 4. Nurse Sub-Routes (Consolidated Nursing Module) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF]} />}>
         <Route path="/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nursing/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
@@ -252,7 +252,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 6. Receptionist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF]} />}>
         <Route path="/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
@@ -261,7 +261,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 7. Pharmacist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF]} />}>
         <Route path="/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
@@ -270,7 +270,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 8. Lab Tech Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF]} />}>
         <Route path="/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/laboratory/samples" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/laboratory/results" element={<MainLayout><LabTechDashboard /></MainLayout>} />
@@ -278,14 +278,14 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 9. Radiologist Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF]} />}>
         <Route path="/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/radiology/dicom" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/radiology/reports" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
       </Route>
 
       {/* 10. Cashier Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF]} />}>
         <Route path="/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
@@ -293,7 +293,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 11. Inventory Manager Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.INVENTORY_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.INVENTORY_MANAGER]} />}>
         <Route path="/inventory/dashboard" element={<MainLayout><InventoryDashboard /></MainLayout>} />
         <Route path="/inventory/indents" element={<MainLayout><InventoryDashboard /></MainLayout>} />
         <Route path="/inventory/purchase-orders" element={<MainLayout><InventoryDashboard /></MainLayout>} />
@@ -301,7 +301,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 12. HR Manager Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.HR_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.HR_MANAGER]} />}>
         <Route path="/hr/dashboard" element={<MainLayout><HRDashboard /></MainLayout>} />
         <Route path="/hr/roster" element={<MainLayout><HRDashboard /></MainLayout>} />
         <Route path="/hr/attendance" element={<MainLayout><HRDashboard /></MainLayout>} />
@@ -309,7 +309,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 13. Patient Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PATIENT, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PATIENT]} />}>
         <Route path="/patient-portal/dashboard" element={<MainLayout><PatientDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/patient-portal/profile" element={<MainLayout><PatientDashboard activeTab="profile" /></MainLayout>} />
         <Route path="/patient-portal/tokens" element={<MainLayout><PatientDashboard activeTab="tokens" /></MainLayout>} />
@@ -330,7 +330,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 14. Guardian Sub-Routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.GUARDIAN, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.GUARDIAN]} />}>
         <Route path="/guardian-portal/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/guardian-portal/overview" element={<MainLayout><GuardianDashboard activeTab="overview" /></MainLayout>} />
         <Route path="/guardian-portal/treatment" element={<MainLayout><GuardianDashboard activeTab="treatment" /></MainLayout>} />
@@ -397,7 +397,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Doctor tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.DOCTOR]} />}>
         <Route path="/:hospitalDomain/doctor/dashboard" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/queue" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/doctor/ipd-rounds" element={<MainLayout noPadding><DoctorDashboard /></MainLayout>} />
@@ -406,7 +406,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Nurse & Nurse-Incharge tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF]} />}>
         <Route path="/:hospitalDomain/nurse/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nursing/dashboard" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
@@ -420,7 +420,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Reception tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF]} />}>
         <Route path="/:hospitalDomain/reception/dashboard" element={<MainLayout><ReceptionDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/registered-patients" element={<MainLayout><RegisteredPatientsView /></MainLayout>} />
         <Route path="/:hospitalDomain/reception/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
@@ -429,7 +429,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Pharmacy tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF]} />}>
         <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
@@ -438,7 +438,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Laboratory tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.LAB_TECH, ROLES.LABORATORY_STAFF]} />}>
         <Route path="/:hospitalDomain/laboratory/dashboard" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/laboratory/samples" element={<MainLayout><LabTechDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/laboratory/results" element={<MainLayout><LabTechDashboard /></MainLayout>} />
@@ -446,14 +446,14 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Radiology tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF, ROLES.DOCTOR, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RADIOLOGIST, ROLES.RADIOLOGY_STAFF]} />}>
         <Route path="/:hospitalDomain/radiology/dashboard" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/radiology/dicom" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/radiology/reports" element={<MainLayout><RadiologistDashboard /></MainLayout>} />
       </Route>
 
       {/* Billing / Cashier tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.CASHIER, ROLES.BILLING_STAFF]} />}>
         <Route path="/:hospitalDomain/billing/dashboard" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/billing/receipts" element={<MainLayout><CashierDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/billing/create-invoice" element={<MainLayout><CashierDashboard /></MainLayout>} />
@@ -461,7 +461,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Inventory Manager tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.INVENTORY_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.INVENTORY_MANAGER]} />}>
         <Route path="/:hospitalDomain/inventory/dashboard" element={<MainLayout><InventoryDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/inventory/indents" element={<MainLayout><InventoryDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/inventory/purchase-orders" element={<MainLayout><InventoryDashboard /></MainLayout>} />
@@ -469,7 +469,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* HR Manager tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.HR_MANAGER, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.HR_MANAGER]} />}>
         <Route path="/:hospitalDomain/hr/dashboard" element={<MainLayout><HRDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/hr/roster" element={<MainLayout><HRDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/hr/attendance" element={<MainLayout><HRDashboard /></MainLayout>} />
@@ -477,7 +477,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Patient tenant portal */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PATIENT, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PATIENT]} />}>
         <Route path="/:hospitalDomain/patient/dashboard" element={<MainLayout><PatientDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/:hospitalDomain/patient-portal/dashboard" element={<MainLayout><PatientDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/:hospitalDomain/patient-portal/profile" element={<MainLayout><PatientDashboard activeTab="profile" /></MainLayout>} />
@@ -496,7 +496,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Guardian tenant portal */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.GUARDIAN, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.GUARDIAN]} />}>
         <Route path="/:hospitalDomain/guardian/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/:hospitalDomain/guardian-portal/dashboard" element={<MainLayout><GuardianDashboard activeTab="dashboard" /></MainLayout>} />
         <Route path="/:hospitalDomain/guardian-portal/overview" element={<MainLayout><GuardianDashboard activeTab="overview" /></MainLayout>} />
@@ -523,9 +523,13 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/workflow/data-tracking" element={<MainLayout><WorkflowTrackerPage /></MainLayout>} />
       </Route>
 
-      {/* Global & Tenant Emergency Routes */}
-      <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
-      <Route path="/:hospitalDomain/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
+      {/* Emergency consoles require an authenticated hospital staff role. */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.RECEPTIONIST, ROLES.OPD_STAFF]} />}>
+        <Route path="/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
+      </Route>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.DOCTOR, ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF, ROLES.RECEPTIONIST, ROLES.OPD_STAFF]} />}>
+        <Route path="/:hospitalDomain/emergency" element={<MainLayout><EmergencyConsoleView /></MainLayout>} />
+      </Route>
 
       {/* Redirect Root to Login */}
       <Route path="/" element={<Navigate to="/login" replace />} />

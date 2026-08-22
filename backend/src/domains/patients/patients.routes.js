@@ -7,14 +7,15 @@ import {
   getPatientByUhid
 } from './patients.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
+import { requireAssignedRole } from '../../middleware/permissions.js';
 
 const router = Router();
 
 router.use(verifyJwt);
 
-router.post('/check-duplicate', checkDuplicatePatient);
+router.post('/check-duplicate', requireAssignedRole('RECEPTIONIST', 'OPD_STAFF'), checkDuplicatePatient);
 router.get('/global/search', searchGlobalPatient);
-router.post('/', registerPatient);
+router.post('/', requireAssignedRole('RECEPTIONIST', 'OPD_STAFF'), registerPatient);
 router.get('/', getPatients);
 router.get('/:uhid', getPatientByUhid);
 

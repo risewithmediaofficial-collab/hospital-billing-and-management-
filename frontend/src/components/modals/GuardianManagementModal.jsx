@@ -26,9 +26,9 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
   const handleStatusUpdate = async (linkId, action) => {
     setIsLoading(true);
     try {
-      await axiosClient.patch(`/guardian-portal/links/${linkId}/status`, { action });
-      setFeedback(`Successfully ${action.toLowerCase()}ed guardian authorization.`);
-      fetchLinks();
+      await axiosClient.patch(`/guardian-portal/links/${linkId}/status`, { status: action });
+      setFeedback(`Guardian authorization updated to ${action.toLowerCase()}.`);
+      await fetchLinks();
     } catch (err) {
       setFeedback('Failed to update guardian access status.');
     } finally {
@@ -91,7 +91,7 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
                       variant="primary"
                       className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       isLoading={isLoading}
-                      onClick={() => handleUpdateStatus(link._id, 'APPROVED')}
+                      onClick={() => handleStatusUpdate(link._id, 'APPROVED')}
                     >
                       <CheckCircle size={14} /> Approve Access
                     </Button>
@@ -103,7 +103,7 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
                       variant="outline"
                       className="font-bold text-xs text-amber-700 border-amber-200 hover:bg-amber-50"
                       isLoading={isLoading}
-                      onClick={() => handleUpdateStatus(link._id, 'SUSPENDED')}
+                      onClick={() => handleStatusUpdate(link._id, 'SUSPENDED')}
                     >
                       Suspend Access
                     </Button>
@@ -115,7 +115,7 @@ export const GuardianManagementModal = ({ isOpen, onClose }) => {
                       variant="danger"
                       className="font-bold text-xs"
                       isLoading={isLoading}
-                      onClick={() => handleUpdateStatus(link._id, 'REJECTED')}
+                      onClick={() => handleStatusUpdate(link._id, 'REJECTED')}
                     >
                       <XCircle size={14} /> Reject / Revoke
                     </Button>

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 /**
  * CareTeamAssignment — Full history of every staff member assigned to an admission.
@@ -54,4 +55,4 @@ careTeamAssignmentSchema.index({ admissionId: 1, removedAt: 1 });
 careTeamAssignmentSchema.index({ admissionId: 1, role: 1, removedAt: 1 });
 careTeamAssignmentSchema.index({ userId: 1, removedAt: 1 });
 
-export const CareTeamAssignment = mongoose.model('CareTeamAssignment', careTeamAssignmentSchema);
+export const CareTeamAssignment = tenantAwareModel(mongoose.model('CareTeamAssignment', careTeamAssignmentSchema));

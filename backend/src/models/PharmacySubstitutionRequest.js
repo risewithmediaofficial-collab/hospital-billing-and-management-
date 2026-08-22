@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const pharmacySubstitutionRequestSchema = new mongoose.Schema(
   {
@@ -29,7 +30,7 @@ const pharmacySubstitutionRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const PharmacySubstitutionRequest = mongoose.model(
+export const PharmacySubstitutionRequest = tenantAwareModel(mongoose.model(
   'PharmacySubstitutionRequest',
   pharmacySubstitutionRequestSchema
-);
+));

@@ -1,0 +1,43 @@
+// Explicit model registry for tenant migration/provisioning. Keeping this list
+// deliberate prevents a collection from being omitted merely because a route
+// module was not imported in the current process.
+import './Admission.js';
+import './Appointment.js';
+import './AuditLog.js';
+import './Bed.js';
+import './BedReservation.js';
+import './BedStatusHistory.js';
+import './BedTransfer.js';
+import './Branch.js';
+import './BranchRequest.js';
+import './CareTeamAssignment.js';
+import './ChatMessage.js';
+import './Consultation.js';
+import './Department.js';
+import './DiagnosticOrder.js';
+import './DoctorUpdate.js';
+import './Emergency.js';
+import './GlobalPatient.js';
+import './GuardianLink.js';
+import './Hospital.js';
+import './HospitalBlock.js';
+import './HospitalFloor.js';
+import './HospitalRoom.js';
+import './HospitalWard.js';
+import './Invoice.js';
+import './MedicalRecordShare.js';
+import './Medicine.js';
+import './MedicineBatch.js';
+import './Notification.js';
+import './NurseTask.js';
+import './Patient.js';
+import './PatientRequest.js';
+import './PharmacyStockAdjustment.js';
+import './PharmacySubstitutionRequest.js';
+import './Prescription.js';
+import './PrintTemplate.js';
+import './Receipt.js';
+import './RefreshToken.js';
+import './Role.js';
+import './SubscriptionPlan.js';
+import './User.js';

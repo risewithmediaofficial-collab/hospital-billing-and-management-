@@ -7,8 +7,45 @@ import { Branch } from '../../models/Branch.js';
 import { Patient } from '../../models/Patient.js';
 import { ApiError } from '../../utils/apiError.js';
 import { permissionsFor } from '../../config/permissions.js';
+import { requireHospitalContext } from '../../utils/tenantContext.js';
+import { getTenantConnection } from '../../config/tenantDatabase.js';
+import { setTenantModelConnection } from '../../config/tenantModelContext.js';
+import { tenantRuntimeReadiness } from '../../config/tenantAwareModel.js';
+import { EmailDeliveryService } from '../../services/emailDelivery.service.js';
+
+const activateAuthTenant = (hospital) => {
+  if (hospital?.storageMode !== 'DEDICATED') return;
+  const readiness = tenantRuntimeReadiness();
+  if (
+    hospital.databaseMigrationStatus !== 'COPY_PREPARED' ||
+    !hospital.databaseProvisionedAt ||
+    !readiness.ready
+  ) {
+    throw new ApiError(503, 'This hospital workspace is not ready for dedicated database login.', null, 'TENANT_DATABASE_NOT_READY');
+  }
+  setTenantModelConnection({ connection: getTenantConnection(hospital), hospitalId: hospital._id });
+};
+
+const normalizedPhone = (value) => String(value || '').replace(/\D/g, '').slice(-10);
+const phonesMatch = (left, right) => {
+  const a = normalizedPhone(left);
+  const b = normalizedPhone(right);
+  return a.length >= 7 && b.length >= 7 && a === b;
+};
 
 export class AuthService {
+  static CLINIC_OWNER_WORK_ROLES = [
+    'DOCTOR', 'RECEPTIONIST', 'CASHIER', 'NURSE_INCHARGE', 'IPD_STAFF',
+    'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'EMERGENCY_STAFF',
+    'INVENTORY_MANAGER', 'HR_MANAGER',
+  ];
+
+  static staffManagementFilter(staffId, requestingUser) {
+    if (requestingUser?.role === 'SUPER_ADMIN') return { _id: staffId };
+    const hospitalId = requestingUser?.hospitalId?._id || requestingUser?.hospitalId;
+    if (!hospitalId) throw new ApiError(403, 'Hospital context is required for staff management.', null, 'HOSPITAL_CONTEXT_REQUIRED');
+    return { _id: staffId, hospitalId };
+  }
   static async assertStaffCreationAllowed(data, requestingUser) {
     if (!requestingUser?.hospitalId) {
       throw new ApiError(403, 'A hospital context is required to create staff.', null, 'HOSPITAL_CONTEXT_REQUIRED');
@@ -146,6 +183,7 @@ export class AuthService {
       if (!targetHospital) {
         throw new ApiError(404, `Hospital '${cleanDomain}' not found.`, null, 'HOSPITAL_NOT_FOUND');
       }
+      activateAuthTenant(targetHospital);
     }
 
     let candidates = await User.find({
@@ -247,7 +285,9 @@ export class AuthService {
     if (hospitalDomain && String(hospitalDomain).trim()) {
       const cleanDomain = String(hospitalDomain).toLowerCase().trim();
       const hosp = await Hospital.findOne({ $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }], isDeleted: { $ne: true } });
-      if (hosp) targetHospitalId = hosp._id;
+      if (!hosp) throw new ApiError(404, `Hospital '${cleanDomain}' not found.`, null, 'HOSPITAL_NOT_FOUND');
+      targetHospitalId = hosp._id;
+      activateAuthTenant(hosp);
     }
 
     const phoneQueries = [
@@ -265,10 +305,6 @@ export class AuthService {
 
     let patients = await Patient.find(patientQuery).populate('hospitalId').populate('branchId');
 
-    if ((!patients || patients.length === 0) && targetHospitalId) {
-      patients = await Patient.find({ $or: phoneQueries }).populate('hospitalId').populate('branchId');
-    }
-
     if (!patients || patients.length === 0) {
       throw new ApiError(401, 'No patient registered with this mobile number.', null, 'INVALID_CREDENTIALS');
     }
@@ -280,27 +316,19 @@ export class AuthService {
     const inputDobStr = inputDobDate.toISOString().split('T')[0];
 
     let matchedPatient = patients.find((p) => {
-      if (!p.dob) return true;
+      if (!p.dob) return false;
       const pDobDate = new Date(p.dob);
-      if (isNaN(pDobDate.getTime())) return true;
+      if (isNaN(pDobDate.getTime())) return false;
       const pDobStr = pDobDate.toISOString().split('T')[0];
       return pDobStr === inputDobStr;
     });
 
-    if (!matchedPatient && patients.length > 0) {
-      matchedPatient = patients[0];
-    }
-
     if (!matchedPatient) {
-      const anyPatient = await Patient.findOne({}).populate('hospitalId').populate('branchId');
-      if (anyPatient) {
-        matchedPatient = anyPatient;
-      } else {
-        throw new ApiError(401, 'Date of Birth (DOB) does not match patient records.', null, 'INVALID_CREDENTIALS');
-      }
+      throw new ApiError(401, 'Date of Birth (DOB) does not match patient records.', null, 'INVALID_CREDENTIALS');
     }
 
     let user = await User.findOne({
+      hospitalId: matchedPatient.hospitalId?._id || matchedPatient.hospitalId,
       $or: [
         { uhid: matchedPatient.uhid, role: 'PATIENT' },
         ...(matchedPatient.email ? [{ email: matchedPatient.email }] : []),
@@ -320,14 +348,16 @@ export class AuthService {
           phone: matchedPatient.phone || cleanMobile,
           uhid: matchedPatient.uhid,
           passwordHash: dummyPass,
-          assignedPasswordHint: 'Mobile & DOB Authentication',
           role: 'PATIENT',
           status: 'ACTIVE',
           isActive: true,
         });
       } catch (err) {
         if (err.code === 11000 || err.message?.includes('already exists') || err.message?.includes('duplicate key')) {
-          user = await User.findOne({ email: matchedPatient.email }).populate('hospitalId').populate('branchId');
+          user = await User.findOne({
+            email: matchedPatient.email,
+            hospitalId: matchedPatient.hospitalId?._id || matchedPatient.hospitalId,
+          }).populate('hospitalId').populate('branchId');
         } else {
           throw err;
         }
@@ -352,28 +382,35 @@ export class AuthService {
     const cleanPatientMobile = String(patientMobile).trim();
     const cleanUHID = String(patientNumber).trim().toUpperCase();
 
-    let patient = await Patient.findOne({
-      uhid: cleanUHID
-    }).populate('hospitalId').populate('branchId');
-
-    if (!patient) {
-      patient = await Patient.findOne({}).populate('hospitalId').populate('branchId');
+    let targetHospital = null;
+    if (hospitalDomain && String(hospitalDomain).trim()) {
+      const cleanDomain = String(hospitalDomain).toLowerCase().trim();
+      targetHospital = await Hospital.findOne({
+        $or: [{ domain: cleanDomain }, { subdomain: cleanDomain }],
+        isDeleted: { $ne: true },
+      });
+      if (!targetHospital) throw new ApiError(404, `Hospital '${cleanDomain}' not found.`, null, 'HOSPITAL_NOT_FOUND');
+      activateAuthTenant(targetHospital);
     }
+
+    const patient = await Patient.findOne({
+      uhid: cleanUHID,
+      ...(targetHospital ? { hospitalId: targetHospital._id } : {}),
+    }).populate('hospitalId').populate('branchId');
 
     if (!patient) {
       throw new ApiError(401, `No patient found with Patient Number (UHID) '${cleanUHID}'.`, null, 'INVALID_CREDENTIALS');
     }
 
-    const patientPhoneDigits = (patient.phone || '').replace(/\D/g, '');
-    const guardianPhoneDigits = (patient.emergencyContact?.phone || '').replace(/\D/g, '');
-    const inputPatientDigits = cleanPatientMobile.replace(/\D/g, '');
-    const inputGuardianDigits = cleanGuardian.replace(/\D/g, '');
-
-    const patientMatched = patientPhoneDigits.includes(inputPatientDigits) || inputPatientDigits.includes(patientPhoneDigits) || patient.phone === cleanPatientMobile;
-    const guardianMatched = guardianPhoneDigits.includes(inputGuardianDigits) || inputGuardianDigits.includes(guardianPhoneDigits) || patientMatched || cleanGuardian === cleanPatientMobile;
+    const inputGuardianDigits = normalizedPhone(cleanGuardian);
+    const patientMatched = phonesMatch(patient.phone, cleanPatientMobile);
+    const guardianMatched = phonesMatch(patient.emergencyContact?.phone, cleanGuardian);
 
     if (!patientMatched) {
       throw new ApiError(401, 'Patient Mobile Number does not match the record for this UHID.', null, 'INVALID_CREDENTIALS');
+    }
+    if (!guardianMatched) {
+      throw new ApiError(401, 'Guardian Mobile Number does not match the registered emergency contact.', null, 'INVALID_CREDENTIALS');
     }
 
     // Look up existing Guardian user by phone, role, and hospital
@@ -386,7 +423,10 @@ export class AuthService {
     if (!user) {
       // Also try looking up by email in case created before with different logic
       const guardianEmail = `${inputGuardianDigits || 'guardian'}_${cleanUHID}@guardian.local`.toLowerCase();
-      user = await User.findOne({ email: guardianEmail }).populate('hospitalId').populate('branchId');
+      user = await User.findOne({
+        email: guardianEmail,
+        hospitalId: patient.hospitalId?._id || patient.hospitalId,
+      }).populate('hospitalId').populate('branchId');
     }
 
     if (!user) {
@@ -400,7 +440,6 @@ export class AuthService {
           email: guardianEmail,
           phone: cleanGuardian,
           passwordHash: dummyPass,
-          assignedPasswordHint: 'Guardian Auth',
           role: 'GUARDIAN',
           status: 'ACTIVE',
           isActive: true,
@@ -408,9 +447,16 @@ export class AuthService {
       } catch (createErr) {
         // Handle race condition or duplicate â€” retry lookup
         if (createErr.code === 11000) {
-          user = await User.findOne({ email: guardianEmail }).populate('hospitalId').populate('branchId');
+          user = await User.findOne({
+            email: guardianEmail,
+            hospitalId: patient.hospitalId?._id || patient.hospitalId,
+          }).populate('hospitalId').populate('branchId');
           if (!user) {
-            user = await User.findOne({ phone: cleanGuardian, role: 'GUARDIAN' }).populate('hospitalId').populate('branchId');
+            user = await User.findOne({
+              phone: cleanGuardian,
+              role: 'GUARDIAN',
+              hospitalId: patient.hospitalId?._id || patient.hospitalId,
+            }).populate('hospitalId').populate('branchId');
           }
         } else {
           throw createErr;
@@ -424,14 +470,18 @@ export class AuthService {
     // Auto-create & auto-approve GuardianLink immediately upon successful login with Guardian Mobile + Patient Mobile + UHID
     try {
       const { GuardianLink } = await import('../../models/GuardianLink.js');
-      let linkDoc = await GuardianLink.findOne({ guardianUserId: user._id, patientId: patient._id });
+      let linkDoc = await GuardianLink.findOne({
+        hospitalId: patient.hospitalId?._id || patient.hospitalId,
+        guardianUserId: user._id,
+        patientId: patient._id,
+      });
       if (!linkDoc) {
         await GuardianLink.create({
           hospitalId: patient.hospitalId?._id || patient.hospitalId,
           branchId: patient.branchId?._id || patient.branchId,
           patientId: patient._id,
           guardianUserId: user._id,
-          relationship: 'GUARDIAN',
+          relationship: 'OTHER',
           accessStatus: 'APPROVED',
           approvedAt: new Date(),
         });
@@ -462,18 +512,13 @@ export class AuthService {
     const cleanPhone = data.phone ? String(data.phone).trim() : '';
     const cleanEmpId = data.employeeId ? String(data.employeeId).trim() : '';
 
-    let hospitalId = requestingUser?.hospitalId || data.hospitalId;
+    let hospitalId = requireHospitalContext(requestingUser);
     if (typeof hospitalId === 'object' && hospitalId?._id) {
       hospitalId = hospitalId._id;
     }
     let branchId = requestingUser?.branchId || data.branchId;
     if (typeof branchId === 'object' && branchId?._id) {
       branchId = branchId._id;
-    }
-
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
     }
 
     // Uniqueness is strictly scoped per hospital (tenant isolation)
@@ -501,11 +546,6 @@ export class AuthService {
     branchId = requestingUser?.branchId || data.branchId || branchId;
     if (typeof branchId === 'object' && branchId?._id) {
       branchId = branchId._id;
-    }
-
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
     }
 
     if (!branchId && hospitalId) {
@@ -538,7 +578,6 @@ export class AuthService {
       email: data.email.toLowerCase().trim(),
       phone: cleanPhone,
       passwordHash,
-      assignedPasswordHint: data.password,
       role: data.role || 'DOCTOR',
       additionalRoles: Array.isArray(data.additionalRoles) ? data.additionalRoles : [],
       departmentId: data.departmentId || undefined,
@@ -557,154 +596,42 @@ export class AuthService {
     return newUser;
   }
 
-  static async getStaffPassword(staffId, adminPassword, adminUser) {
-    const adminId = adminUser?.id || adminUser?._id;
-    let adminDoc = null;
-
-    // Try by ID first (most reliable â€” from JWT)
-    if (adminId) {
-      try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
-    }
-    // Fallback: by email
-    if (!adminDoc && adminUser?.email) {
-      adminDoc = await User.findOne({ email: adminUser.email.toLowerCase().trim() });
-    }
-    // Fallback: by hospitalId + admin role
-    if (!adminDoc && adminUser?.hospitalId) {
-      const hId = typeof adminUser.hospitalId === 'object' ? adminUser.hospitalId._id : adminUser.hospitalId;
-      adminDoc = await User.findOne({ hospitalId: hId, role: { $in: ['HOSPITAL_ADMIN', 'SUPER_ADMIN'] } });
-    }
-
-    if (!adminDoc) {
-      throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
-    }
-
-    // Always allow the well-known fallback passwords for demo environments
-    let isMatch = await adminDoc.comparePassword(adminPassword);
-    if (!isMatch) {
-      // Check against the stored plain-text hint (useful when password was just changed)
-      isMatch = adminDoc.assignedPasswordHint === adminPassword;
-    }
-    if (!isMatch && (adminPassword === 'HospitalAdmin123!' || adminPassword === 'SuperAdmin123!' || adminPassword === '0000')) {
-      isMatch = true;
-    }
-
-    if (!isMatch) {
-      throw new ApiError(401, 'Invalid Admin verification password. Please enter your logged-in Admin password.', null, 'INVALID_ADMIN_PASSWORD');
-    }
-
-    const staffDoc = await User.findById(staffId);
-    if (!staffDoc) {
-      throw new ApiError(404, 'Staff user account not found', null, 'NOT_FOUND');
-    }
-
-    return {
-      id: staffDoc._id,
-      name: staffDoc.name,
-      email: staffDoc.email,
-      assignedPassword: staffDoc.assignedPasswordHint || 'Password not recorded',
-    };
-  }
-  static async getStaffPassword(staffId, adminPassword, adminUser) {
-    const adminId = adminUser?.id || adminUser?._id;
-    let adminDoc = null;
-
-    // Try by ID first (most reliable â€” from JWT)
-    if (adminId) {
-      try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
-    }
-    // Fallback: by email
-    if (!adminDoc && adminUser?.email) {
-      adminDoc = await User.findOne({ email: adminUser.email.toLowerCase().trim() });
-    }
-    // Fallback: by hospitalId + admin role
-    if (!adminDoc && adminUser?.hospitalId) {
-      const hId = typeof adminUser.hospitalId === 'object' ? adminUser.hospitalId._id : adminUser.hospitalId;
-      adminDoc = await User.findOne({ hospitalId: hId, role: { $in: ['HOSPITAL_ADMIN', 'SUPER_ADMIN'] } });
-    }
-
-    if (!adminDoc) {
-      throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
-    }
-
-    // Always allow the well-known fallback passwords for demo environments
-    let isMatch = await adminDoc.comparePassword(adminPassword);
-    if (!isMatch) {
-      // Check against the stored plain-text hint (useful when password was just changed)
-      isMatch = adminDoc.assignedPasswordHint === adminPassword;
-    }
-    if (!isMatch && (adminPassword === 'HospitalAdmin123!' || adminPassword === 'SuperAdmin123!' || adminPassword === '0000')) {
-      isMatch = true;
-    }
-
-    if (!isMatch) {
-      throw new ApiError(401, 'Invalid Admin verification password. Please enter your logged-in Admin password.', null, 'INVALID_ADMIN_PASSWORD');
-    }
-
-    const staffDoc = await User.findById(staffId);
-    if (!staffDoc) {
-      throw new ApiError(404, 'Staff user account not found', null, 'NOT_FOUND');
-    }
-
-    return {
-      id: staffDoc._id,
-      name: staffDoc.name,
-      email: staffDoc.email,
-      assignedPasswordHint: staffDoc.assignedPasswordHint || '0000',
-    };
-  }
-
   static async updateStaffPassword(staffId, { newPassword, adminPassword }, adminUser) {
     const adminId = adminUser?.id || adminUser?._id;
-    let adminDoc = null;
-
-    if (adminId) {
-      try { adminDoc = await User.findById(adminId); } catch (e) { /* ignore */ }
+    if (!newPassword || String(newPassword).length < 8) {
+      throw new ApiError(400, 'New password must be at least 8 characters long.', null, 'WEAK_PASSWORD');
     }
-    if (!adminDoc && adminUser?.email) {
-      adminDoc = await User.findOne({ email: adminUser.email.toLowerCase().trim() });
-    }
-    if (!adminDoc && adminUser?.hospitalId) {
-      const hId = typeof adminUser.hospitalId === 'object' ? adminUser.hospitalId._id : adminUser.hospitalId;
-      adminDoc = await User.findOne({ hospitalId: hId, role: { $in: ['HOSPITAL_ADMIN', 'SUPER_ADMIN'] } });
-    }
-
-    if (!adminDoc) {
-      throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
+    if (adminUser?.role !== 'SUPER_ADMIN') {
+      const adminDoc = adminId ? await User.findOne(this.staffManagementFilter(adminId, adminUser)) : null;
+      if (!adminDoc) {
+        throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
+      }
+      if (!adminPassword || !(await adminDoc.comparePassword(adminPassword))) {
+        throw new ApiError(401, 'Invalid Admin verification password. Please enter your logged-in Admin password.', null, 'INVALID_ADMIN_PASSWORD');
+      }
     }
 
-    let isMatch = await adminDoc.comparePassword(adminPassword);
-    if (!isMatch) {
-      isMatch = adminDoc.assignedPasswordHint === adminPassword;
-    }
-    if (!isMatch && (adminPassword === 'HospitalAdmin123!' || adminPassword === 'SuperAdmin123!' || adminPassword === '0000')) {
-      isMatch = true;
-    }
-
-    if (!isMatch) {
-      throw new ApiError(401, 'Invalid Admin verification password. Please enter your logged-in Admin password.', null, 'INVALID_ADMIN_PASSWORD');
-    }
-
-    const staffDoc = await User.findById(staffId);
+    const staffDoc = await User.findOne(this.staffManagementFilter(staffId, adminUser));
     if (!staffDoc) {
       throw new ApiError(404, 'Staff user account not found', null, 'NOT_FOUND');
     }
 
     staffDoc.passwordHash = await bcrypt.hash(newPassword, 12);
-    staffDoc.assignedPasswordHint = newPassword;
+    staffDoc.assignedPasswordHint = '';
+    staffDoc.passwordResetToken = null;
+    staffDoc.passwordResetExpires = null;
     await staffDoc.save();
 
     return {
       id: staffDoc._id,
       name: staffDoc.name,
       email: staffDoc.email,
-      newPassword,
     };
   }
 
   static async toggleDoctorAvailability(staffId, isAvailable, cabinNo, requestingUser) {
     const targetId = (staffId === 'me' || !staffId) ? (requestingUser?.id || requestingUser?._id) : staffId;
-    const staffDoc = await User.findById(targetId);
+    const staffDoc = await User.findOne(this.staffManagementFilter(targetId, requestingUser));
     if (!staffDoc) {
       throw new ApiError(404, 'Doctor account not found', null, 'NOT_FOUND');
     }
@@ -757,7 +684,7 @@ export class AuthService {
         query.hospitalId = hId;
       }
     }
-    return await User.find(query).populate('hospitalId', 'name code domain').select('-passwordHash').sort({ createdAt: -1 });
+    return await User.find(query).populate('hospitalId', 'name code domain').select('-passwordHash -assignedPasswordHint -passwordResetToken -emailVerificationToken').sort({ createdAt: -1 });
   }
 
   static async getMe(userId) {
@@ -834,18 +761,40 @@ export class AuthService {
     };
   }
 
-  static async updateStaffUser(staffId, data, requestingUser) {
-    const reqHId = requestingUser.hospitalId?._id ? requestingUser.hospitalId._id : requestingUser.hospitalId;
-    let staff = null;
-    if (requestingUser.role === 'SUPER_ADMIN' || !reqHId) {
-      staff = await User.findById(staffId);
-    } else {
-      staff = await User.findOne({
-        _id: staffId,
-        $or: [{ hospitalId: reqHId }, { hospitalId: requestingUser.hospitalId }],
-      });
+  static async enableClinicOwnerWorkMode(userId, requestingUser) {
+    if (requestingUser?.role !== 'HOSPITAL_ADMIN' || String(requestingUser.id || '') !== String(userId || '')) {
+      throw new ApiError(403, 'Only a Hospital Administrator can enable Work Mode for their own account.', null, 'FORBIDDEN');
     }
-    if (!staff) staff = await User.findById(staffId);
+    const hospitalId = requireHospitalContext(requestingUser);
+    const admin = await User.findOne({ _id: userId, hospitalId, role: 'HOSPITAL_ADMIN', isActive: true });
+    if (!admin) throw new ApiError(404, 'Hospital Administrator account not found.', null, 'NOT_FOUND');
+
+    admin.additionalRoles = Array.from(new Set([
+      ...(Array.isArray(admin.additionalRoles) ? admin.additionalRoles : []),
+      ...this.CLINIC_OWNER_WORK_ROLES,
+    ]));
+    admin.permissionUpdatedAt = new Date();
+    admin.permissionUpdatedBy = admin._id;
+    await admin.save();
+
+    const { AuditLog } = await import('../../models/AuditLog.js');
+    await AuditLog.create({
+      hospitalId,
+      branchId: admin.branchId,
+      userId: admin._id,
+      userName: admin.name,
+      userRole: admin.role,
+      action: 'CLINIC_OWNER_WORK_MODE_ENABLED',
+      module: 'STAFF_MANAGEMENT',
+      resourceId: String(admin._id),
+      details: `Clinic owner Work Mode enabled with roles: ${admin.additionalRoles.join(', ')}`,
+    });
+
+    return this.getMe(admin._id);
+  }
+
+  static async updateStaffUser(staffId, data, requestingUser) {
+    const staff = await User.findOne(this.staffManagementFilter(staffId, requestingUser));
     if (!staff) throw new ApiError(404, 'Staff user account record not found.', null, 'NOT_FOUND');
 
     const previousState = {
@@ -918,7 +867,7 @@ export class AuthService {
     if (data.revokedPermissions !== undefined) staff.revokedPermissions = data.revokedPermissions;
     if (data.password && data.password.trim()) {
       staff.passwordHash = await bcrypt.hash(data.password.trim(), 12);
-      staff.assignedPasswordHint = data.password.trim();
+      staff.assignedPasswordHint = '';
     }
 
     staff.permissionUpdatedAt = new Date();
@@ -948,17 +897,7 @@ export class AuthService {
   }
 
   static async updateStaffPermissions(staffId, data, requestingUser) {
-    const reqHId = requestingUser.hospitalId?._id ? requestingUser.hospitalId._id : requestingUser.hospitalId;
-    let staff = null;
-    if (requestingUser.role === 'SUPER_ADMIN' || !reqHId) {
-      staff = await User.findById(staffId);
-    } else {
-      staff = await User.findOne({
-        _id: staffId,
-        $or: [{ hospitalId: reqHId }, { hospitalId: requestingUser.hospitalId }],
-      });
-    }
-    if (!staff) staff = await User.findById(staffId);
+    const staff = await User.findOne(this.staffManagementFilter(staffId, requestingUser));
     if (!staff) throw new ApiError(404, 'Staff user account record not found.', null, 'NOT_FOUND');
     if (!data.permissions || Object.keys(data.permissions).length === 0) {
       throw new ApiError(400, 'Select at least one permission before saving.', null, 'VALIDATION_ERROR');
@@ -1019,6 +958,7 @@ export class AuthService {
 
   static async resendVerification(email) {
     if (!email) throw new ApiError(400, 'Email address is required.', null, 'VALIDATION_ERROR');
+    EmailDeliveryService.assertConfigured();
     const user = await User.findOne({ email: String(email).toLowerCase().trim() });
     if (!user) {
       return { message: 'If an unverified account exists with that email, a new verification link has been sent.' };
@@ -1030,11 +970,26 @@ export class AuthService {
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
-    return { message: 'Verification email sent successfully.', verificationToken: token };
+    try {
+      await EmailDeliveryService.sendEmailVerification({ to: user.email, name: user.name, token });
+    } catch (error) {
+      user.emailVerificationToken = null;
+      user.emailVerificationExpires = null;
+      await user.save();
+      throw error;
+    }
+
+    return {
+      message: 'If an unverified account exists with that email, a new verification link has been requested.',
+      ...(process.env.NODE_ENV !== 'production' && process.env.EXPOSE_DEV_AUTH_TOKENS === 'true'
+        ? { verificationToken: token }
+        : {}),
+    };
   }
 
   static async forgotPassword(email) {
     if (!email) throw new ApiError(400, 'Email address is required.', null, 'VALIDATION_ERROR');
+    EmailDeliveryService.assertConfigured();
     const cleanEmail = String(email).toLowerCase().trim();
     const user = await User.findOne({ email: cleanEmail });
 
@@ -1047,6 +1002,15 @@ export class AuthService {
     user.passwordResetToken = token;
     user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
+
+    try {
+      await EmailDeliveryService.sendPasswordReset({ to: user.email, name: user.name, token });
+    } catch (error) {
+      user.passwordResetToken = null;
+      user.passwordResetExpires = null;
+      await user.save();
+      throw error;
+    }
 
     const { NotificationService } = await import('../notifications/notification.service.js');
     await NotificationService.createNotification({
@@ -1068,12 +1032,17 @@ export class AuthService {
       details: `Password reset token generated for ${user.email}`,
     });
 
-    return { message: 'Password reset link sent successfully.', resetToken: token };
+    return {
+      message: 'If an account exists with that email address, a password reset link has been requested.',
+      ...(process.env.NODE_ENV !== 'production' && process.env.EXPOSE_DEV_AUTH_TOKENS === 'true'
+        ? { resetToken: token }
+        : {}),
+    };
   }
 
   static async resetPassword(token, newPassword) {
-    if (!token || !newPassword || newPassword.trim().length < 4) {
-      throw new ApiError(400, 'Token and a valid new password (at least 4 characters) are required.', null, 'VALIDATION_ERROR');
+    if (!token || !newPassword || newPassword.trim().length < 8) {
+      throw new ApiError(400, 'Token and a valid new password (at least 8 characters) are required.', null, 'VALIDATION_ERROR');
     }
 
     const user = await User.findOne({
@@ -1086,7 +1055,7 @@ export class AuthService {
     }
 
     user.passwordHash = await bcrypt.hash(newPassword.trim(), 12);
-    user.assignedPasswordHint = newPassword.trim();
+    user.assignedPasswordHint = '';
     user.passwordResetToken = null;
     user.passwordResetExpires = null;
     user.failedLoginAttempts = 0;

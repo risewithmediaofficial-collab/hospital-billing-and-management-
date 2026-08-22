@@ -73,6 +73,7 @@ export const BedMatrixPage = () => {
 
   // Data States
   const [beds, setBeds] = useState([]);
+  const [loadError, setLoadError] = useState('');
   const [summary, setSummary] = useState({
     total: 0,
     available: 0,
@@ -163,17 +164,18 @@ export const BedMatrixPage = () => {
 
   const fetchAllData = async () => {
     setIsLoading(true);
+    setLoadError('');
     try {
       const [bedRes, sumRes, hierRes, blockRes, floorRes, wardRes, roomRes, transRes, repRes] = await Promise.all([
-        axiosClient.get('/beds').catch(() => []),
-        axiosClient.get('/beds/dashboard-summary').catch(() => ({ data: {} })),
-        axiosClient.get('/beds/hierarchy').catch(() => ({ data: null })),
-        axiosClient.get('/beds/blocks').catch(() => []),
-        axiosClient.get('/beds/floors').catch(() => []),
-        axiosClient.get('/beds/wards').catch(() => []),
-        axiosClient.get('/beds/rooms').catch(() => []),
-        axiosClient.get('/beds/transfers/history').catch(() => []),
-        axiosClient.get('/beds/occupancy-reports').catch(() => ({ data: null })),
+        axiosClient.get('/beds'),
+        axiosClient.get('/beds/dashboard-summary'),
+        axiosClient.get('/beds/hierarchy'),
+        axiosClient.get('/beds/blocks'),
+        axiosClient.get('/beds/floors'),
+        axiosClient.get('/beds/wards'),
+        axiosClient.get('/beds/rooms'),
+        axiosClient.get('/beds/transfers/history'),
+        axiosClient.get('/beds/occupancy-reports'),
       ]);
 
       const bedList = Array.isArray(bedRes) ? bedRes : (bedRes.data || []);
@@ -188,6 +190,7 @@ export const BedMatrixPage = () => {
       setOccupancyReports(repRes.data || repRes || null);
     } catch (err) {
       console.error('Failed to load Bed Matrix data:', err);
+      setLoadError(err.error?.message || err.message || 'Bed Matrix data could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -290,6 +293,12 @@ export const BedMatrixPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
+      {loadError && (
+        <div role="alert" className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-800 text-sm font-semibold flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <Button size="sm" variant="outline" onClick={fetchAllData}>Retry</Button>
+        </div>
+      )}
       {/* 1. Header & Quick Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-3.5">

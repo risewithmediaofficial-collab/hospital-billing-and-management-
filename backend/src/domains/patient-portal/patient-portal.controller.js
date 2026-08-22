@@ -60,7 +60,7 @@ export class PatientPortalController {
       const { PatientRequest } = await import('../../models/PatientRequest.js');
       const patient = await PatientPortalService.resolvePatientForUser(req.user);
       const requests = patient?._id
-        ? await PatientRequest.find({ patientId: patient._id })
+        ? await PatientRequest.find({ hospitalId: req.user.hospitalId, patientId: patient._id })
             .populate('assignedNurseId', 'name role phone')
             .populate('assignedCaretakerId', 'name role phone')
             .populate('acceptedBy', 'name role')

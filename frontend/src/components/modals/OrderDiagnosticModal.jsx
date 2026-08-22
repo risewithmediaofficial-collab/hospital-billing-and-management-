@@ -4,7 +4,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { X, TestTube, CheckCircle, Stethoscope, AlertCircle } from 'lucide-react';
 import { useScrollLock } from '../../hooks/useScrollLock';
 
-export const OrderDiagnosticModal = ({ isOpen, onClose, patient, tokenNumber = 42, onSuccess }) => {
+export const OrderDiagnosticModal = ({ isOpen, onClose, patient, appointmentId, tokenNumber = 42, onSuccess }) => {
   useScrollLock(isOpen);
   const [conditionCategory, setConditionCategory] = useState('BONES');
   const [selectedTests, setSelectedTests] = useState([
@@ -42,11 +42,19 @@ export const OrderDiagnosticModal = ({ isOpen, onClose, patient, tokenNumber = 4
     setIsLoading(true);
     setError(null);
     try {
-      await axiosClient.post('/diagnostics', { patientId: patient._id, tokenNumber: tokenNumber || 42, orders: selectedTests });
+      if (!appointmentId) throw new Error('An active appointment is required before ordering diagnostics.');
+      await Promise.all(selectedTests.map((order) => axiosClient.post('/diagnostics/request', {
+        patientId: patient._id,
+        appointmentId,
+        tokenNumber: tokenNumber || 42,
+        testCategory: order.testCategory,
+        testName: order.testName,
+        price: order.price,
+      })));
       setIsOrdered(true);
       if (onSuccess) onSuccess(selectedTests);
     } catch (err) {
-      setIsOrdered(true); // Graceful fallback
+      setError(err?.error?.message || err?.message || 'Unable to submit diagnostic orders. Please retry.');
     } finally {
       setIsLoading(false);
     }

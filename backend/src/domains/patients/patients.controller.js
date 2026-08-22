@@ -1,5 +1,6 @@
 import { PatientsService } from './patients.service.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
+import { requireHospitalContext } from '../../utils/tenantContext.js';
 
 export const registerPatient = async (req, res, next) => {
   try {
@@ -24,12 +25,7 @@ export const registerPatient = async (req, res, next) => {
 
 export const checkDuplicatePatient = async (req, res, next) => {
   try {
-    let hospitalId = req.user?.hospitalId;
-    if (!hospitalId) {
-      const { Hospital } = await import('../../models/Hospital.js');
-      const h = await Hospital.findOne({});
-      hospitalId = h?._id;
-    }
+    const hospitalId = requireHospitalContext(req.user);
     const duplicates = await PatientsService.checkDuplicate(req.body, hospitalId);
     return sendSuccess(res, 200, 'Duplicate check completed', {
       hasDuplicates: duplicates.length > 0,

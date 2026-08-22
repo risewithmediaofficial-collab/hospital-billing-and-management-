@@ -1,5 +1,4 @@
 import { Emergency } from '../../models/Emergency.js';
-import { Hospital } from '../../models/Hospital.js';
 import { Branch } from '../../models/Branch.js';
 import { Patient } from '../../models/Patient.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
@@ -10,10 +9,7 @@ export class EmergencyService {
     let hospitalId = user?.hospitalId;
     let branchId = user?.branchId;
 
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
+    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
     if (!branchId) {
       const defaultBranch = await Branch.findOne({ hospitalId });
       branchId = defaultBranch?._id;
@@ -23,7 +19,7 @@ export class EmergencyService {
     let uhid = data.uhid || 'N/A';
 
     if (data.patientId) {
-      const patient = await Patient.findById(data.patientId);
+      const patient = await Patient.findOne({ _id: data.patientId, hospitalId });
       if (patient) {
         patientName = `${patient.firstName} ${patient.lastName}`;
         uhid = patient.uhid;
@@ -55,7 +51,7 @@ export class EmergencyService {
     });
 
     // Broadcast workflow emergency event to ALL connected roles across hospital
-    WorkflowEventService.emitSync(WORKFLOW_EVENTS.EMERGENCY_RAISED, {
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RAISED, {
       emergencyId: newEmergency._id,
       emergencyType: newEmergency.emergencyType,
       severity: newEmergency.severity,
@@ -66,6 +62,8 @@ export class EmergencyService {
       raisedByDept: newEmergency.raisedByDept,
       description: newEmergency.description,
       createdAt: newEmergency.createdAt,
+      hospitalId: newEmergency.hospitalId,
+      branchId: newEmergency.branchId,
     }, branchId);
 
     return newEmergency;
@@ -78,7 +76,8 @@ export class EmergencyService {
       throw new ApiError(400, `Invalid emergency ID format: '${id}'. The ID must be a valid MongoDB ObjectId. Please reload the emergency console to fetch live data.`, null, 'INVALID_ID');
     }
 
-    const emergency = await Emergency.findById(id);
+    if (!user?.hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
+    const emergency = await Emergency.findOne({ _id: id, hospitalId: user.hospitalId });
     if (!emergency) {
       throw new ApiError(404, 'Emergency record not found. It may have already been resolved.', null, 'NOT_FOUND');
     }
@@ -103,7 +102,9 @@ export class EmergencyService {
     await emergency.save();
 
     // Broadcast resolution event to ALL connected roles
-    WorkflowEventService.emitSync(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, {
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, {
+      hospitalId: emergency.hospitalId,
+      branchId: emergency.branchId,
       emergencyId: emergency._id,
       emergencyType: emergency.emergencyType,
       location: emergency.location,
@@ -112,23 +113,12 @@ export class EmergencyService {
       resolvedAt: emergency.resolvedAt,
     }, emergency.branchId);
 
-    try {
-      const { socketManager } = await import('../../events/socketManager.js');
-      socketManager.emitEmergency('emergency:resolved', {
-        emergencyId: emergency._id,
-        status: 'RESOLVED',
-      });
-    } catch (e) {}
-
     return emergency;
   }
 
   static async getActiveEmergencies(user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
+    const hospitalId = user?.hospitalId;
+    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
 
     const filter = { status: 'ACTIVE' };
     if (hospitalId) filter.hospitalId = hospitalId;
@@ -137,11 +127,8 @@ export class EmergencyService {
   }
 
   static async getEmergencyHistory(user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
+    const hospitalId = user?.hospitalId;
+    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
 
     const filter = {};
     if (hospitalId) filter.hospitalId = hospitalId;

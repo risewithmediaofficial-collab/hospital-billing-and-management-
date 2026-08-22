@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { encryptedFieldsPlugin } from '../plugins/encryptedFieldsPlugin.js';
 
 const ALL_REQUEST_TYPES = [
@@ -59,4 +60,4 @@ const patientRequestSchema = new mongoose.Schema(
 
 patientRequestSchema.plugin(encryptedFieldsPlugin, { fields: ['notes', 'rejectedReason'] });
 
-export const PatientRequest = mongoose.model('PatientRequest', patientRequestSchema);
+export const PatientRequest = tenantAwareModel(mongoose.model('PatientRequest', patientRequestSchema));

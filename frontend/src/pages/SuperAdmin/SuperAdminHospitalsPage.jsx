@@ -228,17 +228,21 @@ export const SuperAdminHospitalsPage = () => {
       setActionMessage('Admin Password and Confirm Admin Password do not match.');
       return;
     }
+    if (pass.length < 8) {
+      setActionMessage('Administrator password must be at least 8 characters long.');
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await axiosClient.post('/saas/register-hospital', {
         ...directForm,
-        adminPassword: directForm.adminPassword || 'HospitalAdmin123!',
+        adminPassword: directForm.adminPassword,
       });
       const approveRes = await axiosClient.patch(`/saas/hospitals/${res.data.hospital._id}/approve`);
       setProvisionedCreds({
         hospitalName: directForm.hospitalName,
         adminEmail: approveRes.data.adminUser?.email || directForm.contactEmail,
-        adminPassword: directForm.adminPassword || 'HospitalAdmin123!',
+        adminPassword: directForm.adminPassword,
         loginUrl: `${window.location.origin}/login`,
       });
       fetchHospitals();
@@ -692,22 +696,8 @@ export const SuperAdminHospitalsPage = () => {
 
                 <div className="border-t border-slate-200 pt-3 space-y-3">
                   <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Security & Password Management</h4>
-                  <div className="relative">
-                    <Input
-                      label="Current Password Hint"
-                      type={showCurrentPassword ? 'text' : 'password'}
-                      value={editingHospital.initialAdminPassword || 'HospitalAdmin123!'}
-                      disabled
-                      className="pr-10 bg-slate-50 border-slate-200 select-all font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                      title={showCurrentPassword ? "Hide password" : "Show password"}
-                    >
-                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                    Current passwords are never retrievable. Enter a new password below only when an authorized reset is required.
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

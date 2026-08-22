@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const prescriptionSchema = new mongoose.Schema(
   {
@@ -33,7 +34,7 @@ const prescriptionSchema = new mongoose.Schema(
         batchNumberUsed: { type: String, default: '' },
         itemStatus: {
           type: String,
-          enum: ['PENDING', 'DISPENSED', 'PARTIALLY_DISPENSED', 'UNAVAILABLE', 'PURCHASED_EXTERNALLY', 'SUBSTITUTED', 'ADMINISTERED_BY_DOCTOR'],
+          enum: ['PENDING', 'DISPENSED', 'PARTIALLY_DISPENSED', 'UNAVAILABLE', 'PURCHASED_EXTERNALLY', 'SUBSTITUTED', 'ADMINISTERED_BY_DOCTOR', 'ADMINISTERED_BY_NURSE'],
           default: 'PENDING',
         },
       },
@@ -65,4 +66,4 @@ const prescriptionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Prescription = mongoose.model('Prescription', prescriptionSchema);
+export const Prescription = tenantAwareModel(mongoose.model('Prescription', prescriptionSchema));

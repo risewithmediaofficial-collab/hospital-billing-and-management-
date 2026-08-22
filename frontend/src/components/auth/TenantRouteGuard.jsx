@@ -62,10 +62,9 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
           notFoundDomainCache.add(domainKey);
           setDomainNotFound(true);
         } else {
-          // Any other error (502, network error, timeout) — assume domain is valid
-          // and allow navigation through. Backend may be temporarily down.
-          verifiedDomainCache.add(domainKey);
-          setDomainVerified(true);
+          // Tenant identity must fail closed. A temporary backend failure must
+          // never turn an unverified URL into an authorized hospital context.
+          setDomainNotFound(true);
         }
         setVerifyingDomain(false);
       });
@@ -95,11 +94,6 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
-  // Super Admin global access allowed
-  if (user.role === "SUPER_ADMIN") {
-    return children ? children : <Outlet />;
-  }
-
   // Cross-tenant protection: Check user's hospitalDomain against route hospitalDomain
   const userDomain = user.hospitalDomain || user.hospital?.domain || user.hospital?.subdomain || "";
   const normalizedRouteDomain = hospitalDomain ? hospitalDomain.toLowerCase().trim() : "";
@@ -114,6 +108,16 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
 
   // Role validation — check primary role AND any additional roles
   const userAllRoles = [user.role, ...(Array.isArray(user.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
+  const operationalPrefixes = ['/doctor/', '/nurse/', '/nursing/', '/nurse-incharge/', '/reception/', '/pharmacy/', '/laboratory/', '/radiology/', '/billing/', '/inventory/', '/hr/'];
+  const isOperationalRoute = operationalPrefixes.some((prefix) => location.pathname.includes(prefix));
+  const operationalAllowedRoles = allowedRoles.filter((role) => !['HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(role));
+  const additionalRoles = Array.isArray(user.additionalRoles) ? user.additionalRoles : [];
+  if (isOperationalRoute && user.role === 'HOSPITAL_ADMIN' && !operationalAllowedRoles.some((role) => additionalRoles.includes(role))) {
+    return <Navigate to="/403" replace />;
+  }
+  if (isOperationalRoute && user.role === 'SUPER_ADMIN') {
+    return <Navigate to="/403" replace />;
+  }
   if (allowedRoles.length > 0 && !allowedRoles.some((r) => userAllRoles.includes(r))) {
     return <Navigate to="/403" replace />;
   }

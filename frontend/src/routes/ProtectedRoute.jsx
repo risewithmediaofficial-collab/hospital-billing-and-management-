@@ -66,10 +66,17 @@ export const ProtectedRoute = ({ allowedRoles = [] }) => {
     user?.role,
     ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : []),
   ].filter(Boolean);
+  const additionalRoles = Array.isArray(user?.additionalRoles) ? user.additionalRoles : [];
+  const operationalAllowedRoles = allowedRoles.filter((role) => !['HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(role));
+  if (currentModule && user?.role === 'SUPER_ADMIN') {
+    return <Navigate to="/403" replace />;
+  }
+  if (currentModule && user?.role === 'HOSPITAL_ADMIN' && !operationalAllowedRoles.some((role) => additionalRoles.includes(role))) {
+    return <Navigate to="/403" replace />;
+  }
 
   const hasRoleMatch = allowedRoles.length === 0 ||
-    allowedRoles.some((role) => userRoles.includes(role)) ||
-    userRoles.includes('SUPER_ADMIN');
+    allowedRoles.some((role) => userRoles.includes(role));
 
   const hasPerm = currentModule ? checkModulePermission(user?.permissions, currentModule) : false;
 

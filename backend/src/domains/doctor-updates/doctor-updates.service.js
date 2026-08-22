@@ -10,7 +10,7 @@ export class DoctorUpdatesService {
   static async createUpdate(data, doctorUser) {
     const { patientId, admissionId, title, content, updateType, visibility } = data;
 
-    const patient = await Patient.findById(patientId);
+    const patient = await Patient.findOne({ _id: patientId, hospitalId: doctorUser.hospitalId });
     if (!patient) {
       throw new ApiError(404, 'Patient not found', null, 'PATIENT_NOT_FOUND');
     }
@@ -45,8 +45,8 @@ export class DoctorUpdatesService {
   /**
    * Get doctor updates for a specific patient.
    */
-  static async getPatientUpdates(patientId, visibilityFilter = null) {
-    const query = { patientId };
+  static async getPatientUpdates(patientId, visibilityFilter = null, user = null) {
+    const query = { patientId, hospitalId: user?.hospitalId };
     if (visibilityFilter) {
       query.visibility = { $in: Array.isArray(visibilityFilter) ? visibilityFilter : [visibilityFilter] };
     }

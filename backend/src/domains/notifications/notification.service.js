@@ -3,6 +3,26 @@ import { Notification } from '../../models/Notification.js';
 import { User } from '../../models/User.js';
 import { socketManager } from '../../events/socketManager.js';
 
+const normalizeNotificationRoute = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return { path: '', tab: '' };
+  const relative = raw.replace(/^https?:\/\/[^/]+/i, '');
+  const withoutTenant = relative.replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|billing|pharmacy|laboratory|radiology|emergency|workflow))/, '');
+  const [pathPart, query = ''] = withoutTenant.split('?');
+  const path = (pathPart.replace(/\/+$/, '') || '/').toLowerCase();
+  const tab = String(new URLSearchParams(query).get('tab') || '').toUpperCase();
+  return { path, tab };
+};
+
+export const notificationBelongsToRoute = (notificationRoute, currentRoute) => {
+  const notification = normalizeNotificationRoute(notificationRoute);
+  const current = normalizeNotificationRoute(currentRoute);
+  if (!notification.path || notification.path !== current.path) return false;
+  // Opening a specific tab only reads notifications for that tab. Opening a
+  // base dashboard reads only base-dashboard notifications.
+  return notification.tab === current.tab;
+};
+
 const recipientQuery = async (context = {}) => {
   const userId = context?.userId || context?.id;
   const role = context?.role;
@@ -84,15 +104,19 @@ const recipientQuery = async (context = {}) => {
     };
   }
 
-  const orConditions = [
-    { recipientRole: { $in: [...userRoles, 'ALL'] } },
-  ];
+  const orConditions = [];
   if (userId) {
     orConditions.push({ recipientUserId: userId });
     if (mongoose.Types.ObjectId.isValid(String(userId))) {
       orConditions.push({ recipientUserId: new mongoose.Types.ObjectId(String(userId)) });
     }
   }
+  // Compatibility only for legacy non-materialized notifications. New role
+  // notifications are owned by a concrete recipientUserId.
+  orConditions.push({
+    recipientUserId: null,
+    recipientRole: { $in: [...userRoles, 'ALL'] },
+  });
 
   const clauses = [];
   if (orConditions.length > 0) {
@@ -256,11 +280,17 @@ export class NotificationService {
    * Create an in-app notification & log system event
    */
   static async createNotification(data) {
-    try {
-      const base = {
+    const recipientRoles = Array.from(new Set([
+      ...(Array.isArray(data.recipientRoles) ? data.recipientRoles : []),
+      ...(data.recipientRole ? [data.recipientRole] : []),
+    ].filter(Boolean).map((role) => String(role).toUpperCase())));
+    if (!data.hospitalId && !recipientRoles.includes('SUPER_ADMIN') && data.targetModule !== 'saas') {
+        throw new Error('Hospital context is required for tenant notifications');
+    }
+    const base = {
         hospitalId: data.hospitalId || null,
         branchId: data.branchId || null,
-        recipientRole: data.recipientRole || null,
+        recipientRole: recipientRoles.length === 1 ? recipientRoles[0] : null,
         recipientDepartment: data.recipientDepartment || '',
         notificationType: data.notificationType || data.type || 'SYSTEM_ALERT',
         type: data.type || 'SYSTEM_ALERT',
@@ -269,15 +299,26 @@ export class NotificationService {
         relatedPatientId: data.relatedPatientId || null,
         relatedTaskId: data.relatedTaskId || data.relatedRequestId || '',
         relatedRequestId: data.relatedRequestId || '',
+        sourceModule: data.sourceModule || data.metadata?.sourceModule || '',
+        entityType: data.entityType || data.metadata?.entityType || '',
+        entityId: String(data.entityId || data.relatedTaskId || data.relatedRequestId || data.metadata?.entityId || ''),
+        actionType: data.actionType || data.metadata?.actionType || '',
         targetModule: data.targetModule || '',
-        targetRoute: data.targetRoute || data.link || '',
-        link: data.link || data.targetRoute || '',
+        targetRoute: data.targetRoute || data.linkedPath || data.link || '',
+        link: data.link || data.linkedPath || data.targetRoute || '',
         isRead: false,
         status: data.status || 'ACTIVE',
         metadata: data.metadata || {},
       };
 
       if (data.recipientUserId) {
+        const recipient = await User.findOne({
+          _id: data.recipientUserId,
+          ...(data.hospitalId ? { hospitalId: data.hospitalId } : {}),
+          isActive: { $ne: false },
+          status: { $ne: 'INACTIVE' },
+        }).select('_id').lean();
+        if (!recipient) throw new Error('Notification recipient is not active in the target hospital');
         const notif = await Notification.create({ ...base, recipientUserId: data.recipientUserId });
         socketManager.emitToUser(String(data.recipientUserId), 'notification:created', notif);
         return notif;
@@ -286,20 +327,20 @@ export class NotificationService {
       // Role/department alerts are materialized per current recipient so read and
       // clear state belongs to one user and can never hide another user's bell.
       const userQuery = { status: { $ne: 'INACTIVE' }, isActive: { $ne: false } };
-      if (data.hospitalId) userQuery.hospitalId = data.hospitalId;
-      if (data.branchId) userQuery.$or = [{ branchId: data.branchId }, { branchId: null }];
+      const isPlatformRecipient = recipientRoles.includes('SUPER_ADMIN');
+      if (data.hospitalId && !isPlatformRecipient) userQuery.hospitalId = data.hospitalId;
+      if (data.branchId && !isPlatformRecipient) userQuery.$or = [{ branchId: data.branchId }, { branchId: null }];
       if (data.recipientDepartment) {
         userQuery.$and = [{ $or: [
           { departmentId: data.recipientDepartment },
           { additionalDepartments: data.recipientDepartment },
         ] }];
-      } else if (data.recipientRole && data.recipientRole !== 'ALL') {
+      } else if (recipientRoles.length > 0 && !recipientRoles.includes('ALL')) {
         userQuery.$and = [{ $or: [
-          { role: data.recipientRole },
-          { additionalRoles: data.recipientRole },
-          { role: 'HOSPITAL_ADMIN' },
+          { role: { $in: recipientRoles } },
+          { additionalRoles: { $in: recipientRoles } },
         ] }];
-      } else if (data.recipientRole === 'ALL') {
+      } else if (recipientRoles.includes('ALL')) {
         // Exclude SUPER_ADMIN from hospital tenant broadcasts
         if (data.hospitalId) {
           userQuery.role = { $ne: 'SUPER_ADMIN' };
@@ -326,11 +367,7 @@ export class NotificationService {
         socketManager.emitToUser(String(recipient._id), 'notification:created', { ...base, recipientUserId: recipient._id });
       });
 
-      return notifications[0] || null;
-    } catch (err) {
-      console.error('Failed to create notification:', err);
-      return null;
-    }
+    return notifications[0] || null;
   }
 
   /**
@@ -359,26 +396,15 @@ export class NotificationService {
 
   /**
    * Mark a single notification as read.
-   * Tries with recipientUserId first; falls back to _id-only to handle
-   * ObjectId vs string mismatches or null recipientUserId edge cases.
+   * Ownership is mandatory. A user must never mutate another user's alert.
    */
   static async markAsRead(notificationId, context) {
-    const userId = context.id || context.userId;
-    let notification = await Notification.findOneAndUpdate(
-      { _id: notificationId, recipientUserId: userId },
+    const ownership = await recipientQuery(context);
+    const notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, ...ownership },
       { isRead: true, readAt: new Date() },
       { new: true }
     );
-    if (!notification) {
-      notification = await Notification.findOneAndUpdate(
-        { _id: notificationId },
-        { isRead: true, readAt: new Date() },
-        { new: true }
-      );
-    }
-    if (!notification) {
-      return { _id: notificationId, isRead: true };
-    }
     return notification;
   }
 
@@ -388,20 +414,16 @@ export class NotificationService {
   static async markRouteAsRead(routePath, context) {
     if (!routePath) return { success: false };
     const query = await recipientQuery(context);
-    const clean = String(routePath).split('?')[0].replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|billing|pharmacy|laboratory|radiology|emergency))/, '');
-    await Notification.updateMany(
-      {
-        ...query,
-        $or: [
-          { targetRoute: { $regex: new RegExp(clean, 'i') } },
-          { link: { $regex: new RegExp(clean, 'i') } },
-          { targetModule: { $regex: new RegExp(clean.replace('/', ''), 'i') } },
-        ],
-        isRead: false,
-      },
-      { isRead: true, readAt: new Date() }
-    );
-    return { success: true };
+    const unread = await Notification.find({ ...query, isRead: false })
+      .select('_id targetRoute link')
+      .lean();
+    const ids = unread
+      .filter((item) => notificationBelongsToRoute(item.targetRoute || item.link, routePath))
+      .map((item) => item._id);
+    if (ids.length) {
+      await Notification.updateMany({ _id: { $in: ids }, ...query }, { isRead: true, readAt: new Date() });
+    }
+    return { success: true, modifiedCount: ids.length };
   }
 
   /**
@@ -415,26 +437,15 @@ export class NotificationService {
 
   /**
    * Clear (dismiss) a single notification by ID.
-   * Tries with recipientUserId match first, then falls back to _id-only
-   * to handle ObjectId/string mismatches and prevent spurious 404s.
+   * Ownership is mandatory. A user must never dismiss another user's alert.
    */
   static async clear(notificationId, context) {
-    const userId = context.id || context.userId;
-    let notification = await Notification.findOneAndUpdate(
-      { _id: notificationId, recipientUserId: userId },
+    const ownership = await recipientQuery(context);
+    const notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, ...ownership },
       { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
       { new: true }
     );
-    if (!notification) {
-      notification = await Notification.findOneAndUpdate(
-        { _id: notificationId },
-        { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
-        { new: true }
-      );
-    }
-    if (!notification) {
-      return { _id: notificationId, isCleared: true };
-    }
     return notification;
   }
 

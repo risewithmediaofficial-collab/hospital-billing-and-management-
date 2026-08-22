@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const printTemplateSchema = new mongoose.Schema(
   {
@@ -14,4 +15,4 @@ const printTemplateSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const PrintTemplate = mongoose.model('PrintTemplate', printTemplateSchema);
+export const PrintTemplate = tenantAwareModel(mongoose.model('PrintTemplate', printTemplateSchema));

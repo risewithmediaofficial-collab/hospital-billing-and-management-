@@ -5,13 +5,18 @@ import { sendError } from '../utils/apiResponse.js';
 import { Branch } from '../models/Branch.js';
 import { Hospital } from '../models/Hospital.js';
 import { User } from '../models/User.js';
-import { hasPermission } from '../config/permissions.js';
+import { hasOperationalRoleForModule, hasPermission } from '../config/permissions.js';
+import { getTenantConnection } from '../config/tenantDatabase.js';
+import { setTenantModelConnection } from '../config/tenantModelContext.js';
+import { tenantRuntimeReadiness } from '../config/tenantAwareModel.js';
+import { acquireTenantWriteLease } from '../config/tenantOperationLease.js';
 
 const moduleForRequest = (url) => {
   const routes = [
     ['/patients', 'patients'],
     ['/appointments', 'appointments'],
     ['/emr', 'doctor'],
+    ['/doctor-updates', 'doctor'],
     ['/beds', 'beds'],
     ['/requests', 'requests'],
     ['/billing', 'billing'],
@@ -63,6 +68,35 @@ const extractId = (val) => {
     return val._id ? String(val._id) : (val.id ? String(val.id) : String(val));
   }
   return String(val);
+};
+
+export const activateVerifiedTenantConnection = async (user) => {
+  const hospitalId = extractId(user?.hospitalId);
+  if (!hospitalId || user?.role === 'SUPER_ADMIN' && !user?._hospitalContextApplied) return null;
+
+  const hospital = await Hospital.findById(hospitalId)
+    .select('_id storageMode databaseKey databaseMigrationStatus databaseProvisionedAt')
+    .lean();
+  if (!hospital) {
+    throw new Error('Authenticated hospital tenant no longer exists.');
+  }
+  if (hospital.storageMode !== 'DEDICATED') return null;
+  if (hospital.databaseMigrationStatus !== 'COPY_PREPARED' || !hospital.databaseProvisionedAt) {
+    const error = new Error('Dedicated tenant database has not passed copy verification.');
+    error.code = 'TENANT_DATABASE_NOT_READY';
+    throw error;
+  }
+  const runtimeReadiness = tenantRuntimeReadiness();
+  if (!runtimeReadiness.ready) {
+    const error = new Error(`Dedicated tenant runtime is not ready for: ${runtimeReadiness.missingModels.join(', ')}.`);
+    error.code = 'TENANT_RUNTIME_NOT_READY';
+    throw error;
+  }
+
+  const connection = getTenantConnection(hospital);
+  setTenantModelConnection({ connection, hospitalId: hospital._id });
+  user._tenantDatabase = hospital.databaseKey;
+  return connection;
 };
 
 export const verifyJwt = async (req, res, next) => {
@@ -119,9 +153,52 @@ export const verifyJwt = async (req, res, next) => {
       }
     }
 
+    // Expired subscriptions retain readable data but cannot create or mutate
+    // operational records. Notification acknowledgement and authentication
+    // remain available so the retained account is still usable for review.
+    if (req.user.role !== 'SUPER_ADMIN' && req.user.hospitalId) {
+      const hospitalAccess = await Hospital.findById(req.user.hospitalId)
+        .select('status trialStatus isTrial trialEndDate subscriptionEndDate')
+        .lean();
+      if (!hospitalAccess) {
+        return sendError(res, 403, 'Your hospital tenant is no longer available.', null, 'HOSPITAL_UNAVAILABLE');
+      }
+      const now = Date.now();
+      const isExpired = hospitalAccess.status === 'EXPIRED'
+        || hospitalAccess.trialStatus === 'TRIAL_EXPIRED'
+        || (hospitalAccess.isTrial && hospitalAccess.trialEndDate && new Date(hospitalAccess.trialEndDate).getTime() <= now)
+        || (!hospitalAccess.isTrial && hospitalAccess.subscriptionEndDate && new Date(hospitalAccess.subscriptionEndDate).getTime() <= now);
+      const isWrite = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+      const retainedAccountAction = req.originalUrl.startsWith('/api/v1/notifications')
+        || req.originalUrl.startsWith('/api/v1/auth');
+      if (isExpired && isWrite && !retainedAccountAction) {
+        return sendError(
+          res,
+          402,
+          'The hospital plan has expired. Data remains available in read-only mode; renew the subscription to resume operational changes.',
+          null,
+          'SUBSCRIPTION_READ_ONLY',
+        );
+      }
+      req.user.subscriptionReadOnly = isExpired;
+    }
+
     const module = moduleForRequest(req.originalUrl);
-    const isPortalRole = decoded.role === 'PATIENT' || decoded.role === 'GUARDIAN';
-    if (module && decoded.role !== 'SUPER_ADMIN' && !isPortalRole && currentUser) {
+    if (
+      module &&
+      req.method !== 'GET' &&
+      ['HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(req.user.role) &&
+      !hasOperationalRoleForModule(req.user, module)
+    ) {
+      return sendError(
+        res,
+        403,
+        'Governance access is read-only for operational workflows. A hospital administrator needs the corresponding staff role; SuperAdmin must not perform tenant clinical work.',
+        null,
+        'OPERATIONAL_ROLE_REQUIRED',
+      );
+    }
+    if (module && decoded.role !== 'SUPER_ADMIN' && currentUser) {
       const action = req.method === 'GET' ? 'view' : req.method === 'POST' ? 'create' : req.method === 'DELETE' ? 'delete' : 'edit';
       if (!hasPermission(currentUser, module, action)) {
         return sendError(res, 403, 'You do not have permission to perform this action.', null, 'FORBIDDEN');
@@ -129,8 +206,25 @@ export const verifyJwt = async (req, res, next) => {
     }
 
     await applyContextIfNeeded(req);
+    const isTenantWrite = !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+      req.user.role !== 'SUPER_ADMIN' &&
+      req.user.hospitalId &&
+      !req.originalUrl.startsWith('/api/v1/saas');
+    if (isTenantWrite) {
+      const releaseLease = await acquireTenantWriteLease({
+        hospitalId: req.user.hospitalId,
+        method: req.method,
+        path: req.originalUrl,
+      });
+      res.once('finish', releaseLease);
+      res.once('close', releaseLease);
+    }
+    await activateVerifiedTenantConnection(req.user);
     next();
   } catch (error) {
+    if (['TENANT_DATABASE_NOT_READY', 'TENANT_RUNTIME_NOT_READY', 'TENANT_WRITE_MAINTENANCE'].includes(error.code)) {
+      return sendError(res, 503, error.message, null, error.code);
+    }
     if (error.name === 'TokenExpiredError') {
       return sendError(res, 401, 'Token expired', null, 'TOKEN_EXPIRED');
     }

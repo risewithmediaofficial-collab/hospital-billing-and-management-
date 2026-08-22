@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
-import { requireModulePermission } from '../../middleware/permissions.js';
+import { requireAssignedRole, requireModulePermission } from '../../middleware/permissions.js';
 import {
   getMedicines,
   createMedicine,
@@ -18,7 +18,6 @@ import {
   acknowledgeSubstitution,
   getPendingSubstitutions,
   getSubstitutions,
-  sendBillingToDoctor,
   getNurseTasks,
   getAvailableNurses,
   updateNurseTaskStatus,
@@ -30,35 +29,34 @@ router.use(verifyJwt);
 
 // Inventory & Batches
 router.get('/medicines', getMedicines);
-router.post('/medicines', requireModulePermission('pharmacy', 'edit'), createMedicine);
-router.put('/medicines/:id', requireModulePermission('pharmacy', 'edit'), updateMedicine);
+router.post('/medicines', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), createMedicine);
+router.put('/medicines/:id', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), updateMedicine);
 router.get('/batches', getBatches);
-router.post('/batches', requireModulePermission('pharmacy', 'edit'), addBatch);
-router.post('/stock/adjust', requireModulePermission('pharmacy', 'edit'), adjustStock);
-router.post('/stock/transfer', requireModulePermission('pharmacy', 'edit'), transferStock);
+router.post('/batches', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), addBatch);
+router.post('/stock/adjust', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), adjustStock);
+router.post('/stock/transfer', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), transferStock);
 router.get('/alerts', getDashboardAlerts);
 router.get('/stock-movements', getStockAdjustments);
 router.get('/stock/adjustments', getStockAdjustments);
 
 // E-Prescriptions & Dispensing
 router.get('/prescriptions', getPrescriptions);
-router.patch('/prescriptions/:id/dispense', requireModulePermission('pharmacy', 'dispense'), dispensePrescription);
-router.patch('/prescriptions/:id/send-billing-to-doctor', sendBillingToDoctor);
+router.patch('/prescriptions/:id/dispense', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF'), requireModulePermission('pharmacy', 'dispense'), dispensePrescription);
 
 // Substitutions
-router.post('/substitutions/request', requestSubstitution);
+router.post('/substitutions/request', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF'), requestSubstitution);
 router.get('/substitutions', getSubstitutions);
 router.get('/substitutions/pending', getPendingSubstitutions);
-router.patch('/substitutions/:id/respond', respondSubstitution);
-router.patch('/substitutions/:id/acknowledge', acknowledgeSubstitution);
+router.patch('/substitutions/:id/respond', requireAssignedRole('DOCTOR'), respondSubstitution);
+router.patch('/substitutions/:id/acknowledge', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF'), acknowledgeSubstitution);
 
 // Nurse Administration Tasks
 router.get('/nurse-tasks', getNurseTasks);
-router.post('/nurse-tasks', createNurseTask);
-router.post('/request-injection', createNurseTask);
+router.post('/nurse-tasks', requireAssignedRole('DOCTOR'), createNurseTask);
+router.post('/request-injection', requireAssignedRole('DOCTOR'), createNurseTask);
 router.get('/available-nurses', getAvailableNurses);
-router.patch('/nurse-tasks/:id/status', updateNurseTaskStatus);
-router.patch('/nurse-tasks/:id/doctor-review', async (req, res, next) => {
+router.patch('/nurse-tasks/:id/status', requireAssignedRole('NURSE', 'NURSE_INCHARGE'), updateNurseTaskStatus);
+router.patch('/nurse-tasks/:id/doctor-review', requireAssignedRole('DOCTOR'), async (req, res, next) => {
   try {
     const { NurseTask } = await import('../../models/NurseTask.js');
     const task = await NurseTask.findOneAndUpdate(
@@ -73,7 +71,7 @@ router.patch('/nurse-tasks/:id/doctor-review', async (req, res, next) => {
 });
 
 // Prescription-time availability check for doctors
-router.post('/prescriptions/check-availability', async (req, res, next) => {
+router.post('/prescriptions/check-availability', requireAssignedRole('DOCTOR'), async (req, res, next) => {
   try {
     const { Medicine } = await import('../../models/Medicine.js');
     const { MedicineBatch } = await import('../../models/MedicineBatch.js');

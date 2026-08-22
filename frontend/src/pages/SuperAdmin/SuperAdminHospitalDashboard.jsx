@@ -3,9 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Stethoscope, ConciergeBell, Activity, TestTube, Scan, Pill, CreditCard,
   UserCircle, BedDouble, Users, Calendar, IndianRupee, ShieldAlert, ClipboardList,
-  Eye, EyeOff, Search, Key, Edit, CheckCircle2, Lock, X, ArrowDown,
+  Search, Key, Edit, CheckCircle2, Lock, X, ArrowDown,
   RefreshCw, AlertTriangle, Zap, TrendingUp, Globe, BadgeCheck, Clock,
   Building2, PauseCircle, PlayCircle, Trash2, MapPin, Phone, Mail, ExternalLink,
+  Database,
 } from 'lucide-react';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
@@ -367,7 +368,6 @@ export const SuperAdminHospitalDashboard = () => {
   const [activeTab, setActiveTab] = useState('staff');
   const [roleFilter, setRoleFilter] = useState('ALL'); // FIX: was 'DOCTOR', now 'ALL'
   const [searchTerm, setSearchTerm] = useState('');
-  const [showPasswords, setShowPasswords] = useState({});
 
   // Password Change Modal State
   const [selectedStaffForPassword, setSelectedStaffForPassword] = useState(null);
@@ -378,6 +378,9 @@ export const SuperAdminHospitalDashboard = () => {
 
   // Renewal Modal
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [databaseAction, setDatabaseAction] = useState('');
+  const [databaseMessage, setDatabaseMessage] = useState('');
+  const [databaseError, setDatabaseError] = useState('');
 
   const detailsTableRef = useRef(null);
 
@@ -404,10 +407,6 @@ export const SuperAdminHospitalDashboard = () => {
 
   const { hospital, stats, staffList = [], patientList = [], branches = [] } = detail;
 
-  const toggleShowPassword = (id) => {
-    setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const handleCardClick = (card) => {
     if (card.viewTab) {
       setActiveTab(card.viewTab);
@@ -428,8 +427,8 @@ export const SuperAdminHospitalDashboard = () => {
   };
 
   const handleSavePassword = async () => {
-    if (!newPasswordInput || newPasswordInput.trim().length < 4) {
-      setPasswordUpdateError('Password must be at least 4 characters long');
+    if (!newPasswordInput || newPasswordInput.trim().length < 8) {
+      setPasswordUpdateError('Password must be at least 8 characters long');
       return;
     }
 
@@ -446,7 +445,7 @@ export const SuperAdminHospitalDashboard = () => {
         if (!prev) return prev;
         const updatedStaffList = (prev.staffList || []).map((s) => {
           if (s._id === selectedStaffForPassword._id) {
-            return { ...s, credentialHint: newPasswordInput.trim(), assignedPasswordHint: newPasswordInput.trim() };
+            return s;
           }
           return s;
         });
@@ -462,6 +461,32 @@ export const SuperAdminHospitalDashboard = () => {
       setPasswordUpdateError(err.response?.data?.message || 'Failed to update password');
     } finally {
       setIsUpdatingPassword(false);
+    }
+  };
+
+  const runDatabaseAction = async (action) => {
+    const isActivation = action === 'activate';
+    const confirmed = window.confirm(
+      isActivation
+        ? 'Activate this hospital dedicated database now? New hospital writes will be paused briefly while the final changes are copied and verified.'
+        : 'Prepare a dedicated database copy for this hospital? This is non-destructive and the hospital will continue using shared storage until activation.',
+    );
+    if (!confirmed) return;
+
+    setDatabaseAction(action);
+    setDatabaseMessage('');
+    setDatabaseError('');
+    try {
+      const response = await axiosClient.post(`/saas/hospitals/${hospitalId}/database/${action}`);
+      setDatabaseMessage(
+        response?.message || response?.data?.message ||
+          (isActivation ? 'Dedicated database activated successfully.' : 'Dedicated database copy prepared and verified.'),
+      );
+      await fetchData();
+    } catch (err) {
+      setDatabaseError(err.response?.data?.message || `Unable to ${action} the dedicated database.`);
+    } finally {
+      setDatabaseAction('');
     }
   };
 
@@ -561,6 +586,65 @@ export const SuperAdminHospitalDashboard = () => {
           hospital={hospital}
           onRenewClick={() => setShowRenewModal(true)}
         />
+
+        <Card data-testid="tenant-database-card">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-cyan-50 text-cyan-700 border border-cyan-100">
+                <Database size={20} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">Hospital Data Storage</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${hospital.storageMode === 'DEDICATED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : hospital.storageMode === 'DEDICATED_PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                    {hospital.storageMode || 'SHARED'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-slate-600 border border-slate-200">
+                    {hospital.databaseMigrationStatus || 'NOT_STARTED'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {hospital.storageMode === 'DEDICATED'
+                    ? `Physically isolated database active${hospital.databaseKey ? ` (${hospital.databaseKey})` : ''}.`
+                    : 'Shared storage is logically isolated by hospital ID. Prepare and verify a physical database before activation.'}
+                </p>
+                {hospital.databaseMigrationReport?.sourceDocuments !== undefined && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Last verified copy: <strong>{hospital.databaseMigrationReport.sourceDocuments}</strong> source documents
+                    {hospital.databaseProvisionedAt ? ` · ${formatDateTime(hospital.databaseProvisionedAt)}` : ''}
+                  </p>
+                )}
+                {hospital.databaseMigrationError && <p className="text-xs text-red-600 mt-1">{hospital.databaseMigrationError}</p>}
+                {databaseMessage && <p className="text-xs text-emerald-700 font-semibold mt-2">{databaseMessage}</p>}
+                {databaseError && <p className="text-xs text-red-600 font-semibold mt-2">{databaseError}</p>}
+              </div>
+            </div>
+            {hospital.storageMode !== 'DEDICATED' && (
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <Button
+                  data-testid="prepare-tenant-database"
+                  variant="outline"
+                  size="sm"
+                  disabled={Boolean(databaseAction)}
+                  onClick={() => runDatabaseAction('prepare')}
+                >
+                  <RefreshCw size={13} className={databaseAction === 'prepare' ? 'animate-spin' : ''} />
+                  {hospital.databaseMigrationStatus === 'COPY_PREPARED' ? 'Re-prepare Copy' : 'Prepare Copy'}
+                </Button>
+                <Button
+                  data-testid="activate-tenant-database"
+                  size="sm"
+                  disabled={Boolean(databaseAction) || hospital.storageMode !== 'DEDICATED_PENDING' || hospital.databaseMigrationStatus !== 'COPY_PREPARED'}
+                  onClick={() => runDatabaseAction('activate')}
+                  className="bg-cyan-700 hover:bg-cyan-800 text-white"
+                >
+                  <PlayCircle size={13} />
+                  {databaseAction === 'activate' ? 'Activating...' : 'Activate Dedicated DB'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Overview Info Cards */}
         <Card>
@@ -682,7 +766,7 @@ export const SuperAdminHospitalDashboard = () => {
                         <th className="p-3">{roleFilter === 'DOCTOR' ? 'DOCTOR NAME' : 'STAFF NAME'}</th>
                         <th className="p-3">ROLE / SPECIALIZATION</th>
                         <th className="p-3">LOGIN EMAIL</th>
-                        <th className="p-3">ASSIGNED PASSWORD / CREDENTIAL</th>
+                        <th className="p-3">PASSWORD MANAGEMENT</th>
                         <th className="p-3">OPD CABIN / WARD</th>
                         <th className="p-3">DUTY STATUS</th>
                         <th className="p-3 text-right">SUPER ADMIN ACTION</th>
@@ -690,9 +774,6 @@ export const SuperAdminHospitalDashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredStaff.map((staff) => {
-                        const isShown = showPasswords[staff._id];
-                        const pwdHint = staff.credentialHint || staff.assignedPasswordHint || `${staff.role.charAt(0) + staff.role.slice(1).toLowerCase()}123!`;
-
                         return (
                           <tr key={staff._id} className="hover:bg-slate-50">
                             <td className="p-3">
@@ -710,16 +791,8 @@ export const SuperAdminHospitalDashboard = () => {
                               <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-max">
                                 <Key size={13} className="text-amber-500 shrink-0" />
                                 <span className="font-mono font-bold text-slate-900 selection:bg-amber-100">
-                                  {isShown ? pwdHint : '••••••••••••'}
+                                  Secure hash only — use Change Password to reset
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleShowPassword(staff._id)}
-                                  className="text-slate-400 hover:text-slate-700 ml-1 transition-colors"
-                                  title={isShown ? "Hide Password" : "Show Password"}
-                                >
-                                  {isShown ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
                               </div>
                             </td>
                             <td className="p-3 font-mono font-bold text-indigo-700">

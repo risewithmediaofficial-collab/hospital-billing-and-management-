@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -19,6 +20,11 @@ const notificationSchema = new mongoose.Schema(
     relatedTaskId: { type: String, default: '', index: true },
     relatedRequestId: { type: String, default: '' },
 
+    sourceModule: { type: String, default: '', index: true },
+    entityType: { type: String, default: '', index: true },
+    entityId: { type: String, default: '', index: true },
+    actionType: { type: String, default: '', index: true },
+
     targetModule: { type: String, default: '' },
     targetRoute: { type: String, default: '' },
     link: { type: String, default: '' },
@@ -37,4 +43,4 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ hospitalId: 1, recipientRole: 1, isCleared: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, isCleared: 1, isRead: 1, createdAt: -1 });
 
-export const Notification = mongoose.model('Notification', notificationSchema);
+export const Notification = tenantAwareModel(mongoose.model('Notification', notificationSchema));

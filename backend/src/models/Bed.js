@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { BED_STATUS } from '../config/constants.js';
 
 const bedSchema = new mongoose.Schema(
@@ -90,4 +91,4 @@ bedSchema.index({ hospitalId: 1, roomId: 1, bedNumber: 1 });
 bedSchema.index({ branchId: 1, bedNumber: 1 });
 bedSchema.index({ hospitalId: 1, status: 1 });
 
-export const Bed = mongoose.model('Bed', bedSchema);
+export const Bed = tenantAwareModel(mongoose.model('Bed', bedSchema));

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const pharmacyStockAdjustmentSchema = new mongoose.Schema(
   {
@@ -25,4 +26,4 @@ const pharmacyStockAdjustmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const PharmacyStockAdjustment = mongoose.model('PharmacyStockAdjustment', pharmacyStockAdjustmentSchema);
+export const PharmacyStockAdjustment = tenantAwareModel(mongoose.model('PharmacyStockAdjustment', pharmacyStockAdjustmentSchema));

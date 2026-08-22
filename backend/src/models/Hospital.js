@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import { registerTenantReferenceModel } from '../config/tenantAwareModel.js';
+import { syncHospitalSnapshotToTenant } from '../config/hospitalSnapshotSync.js';
 
 export const RESERVED_DOMAINS = [
   'admin', 'api', 'login', 'super-admin', 'superadmin', 'system', 'settings', 'assets', 'static', 'dashboard', 'public'
@@ -31,6 +33,24 @@ const hospitalSchema = new mongoose.Schema(
       index: true,
     },
     subdomain: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    storageMode: {
+      type: String,
+      enum: ['SHARED', 'DEDICATED_PENDING', 'DEDICATED'],
+      default: 'SHARED',
+      index: true,
+    },
+    databaseKey: { type: String, unique: true, sparse: true, immutable: true, trim: true },
+    databaseProvisionedAt: { type: Date, default: null },
+    databaseMigrationError: { type: String, default: null },
+    databaseMigrationStatus: {
+      type: String,
+      enum: ['NOT_STARTED', 'COPYING', 'COPY_PREPARED', 'FAILED'],
+      default: 'NOT_STARTED',
+    },
+    databaseMigrationReport: { type: mongoose.Schema.Types.Mixed, default: null },
+    databaseWriteLocked: { type: Boolean, default: false, index: true },
+    databaseWriteLockReason: { type: String, default: '' },
+    databaseWriteLockedAt: { type: Date, default: null },
     status: {
       type: String,
       enum: ['PENDING_APPROVAL', 'APPROVED', 'SUSPENDED', 'REJECTED', 'EXPIRED', 'DELETED'],
@@ -55,7 +75,9 @@ const hospitalSchema = new mongoose.Schema(
       country: { type: String, default: 'India' },
       postalCode: { type: String, default: '' },
     },
-    initialAdminPassword: { type: String, default: 'HospitalAdmin123!' },
+    // Legacy migration-only field. New registrations create an inactive admin
+    // with a bcrypt hash and never persist a retrievable password.
+    initialAdminPassword: { type: String, default: null, select: false },
 
     // Trial & SaaS Subscription Management
     isTrial: { type: Boolean, default: true },
@@ -141,4 +163,14 @@ hospitalSchema.index({ subdomain: 1, isDeleted: 1 });
 hospitalSchema.index({ status: 1, isDeleted: 1 });
 hospitalSchema.index({ code: 1, isDeleted: 1 });
 
+hospitalSchema.pre('validate', function assignImmutableDatabaseKey(next) {
+  if (!this.databaseKey && this._id) this.databaseKey = `tenant_${this._id.toString().toLowerCase()}`;
+  next();
+});
+
+hospitalSchema.post('save', async function syncDedicatedSnapshot(document) {
+  await syncHospitalSnapshotToTenant(document);
+});
+
 export const Hospital = mongoose.model('Hospital', hospitalSchema);
+registerTenantReferenceModel(Hospital);

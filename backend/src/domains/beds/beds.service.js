@@ -9,29 +9,36 @@ import { BedReservation } from '../../models/BedReservation.js';
 import { BedStatusHistory } from '../../models/BedStatusHistory.js';
 import { Admission } from '../../models/Admission.js';
 import { Patient } from '../../models/Patient.js';
-import { Hospital } from '../../models/Hospital.js';
-import { Branch } from '../../models/Branch.js';
 import { BED_STATUS } from '../../config/constants.js';
 import { ApiError } from '../../utils/apiError.js';
 import { socketManager } from '../../events/socketManager.js';
+import { requireBranchContext, requireHospitalContext } from '../../utils/tenantContext.js';
 
 export class BedsService {
   /**
    * Helper to resolve hospitalId and branchId from user context
    */
   static async resolveHospitalContext(user) {
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
+    return {
+      hospitalId: requireHospitalContext(user),
+      branchId: requireBranchContext(user),
+    };
+  }
 
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
+  static async resolveHierarchyDocuments(hospitalId, data = {}) {
+    const [block, floor, ward, room] = await Promise.all([
+      data.blockId ? HospitalBlock.findOne({ _id: data.blockId, hospitalId }) : null,
+      data.floorId ? HospitalFloor.findOne({ _id: data.floorId, hospitalId }) : null,
+      data.wardId ? HospitalWard.findOne({ _id: data.wardId, hospitalId }) : null,
+      data.roomId ? HospitalRoom.findOne({ _id: data.roomId, hospitalId }) : null,
+    ]);
+    for (const [id, document, label] of [
+      [data.blockId, block, 'Block'], [data.floorId, floor, 'Floor'],
+      [data.wardId, ward, 'Ward'], [data.roomId, room, 'Room'],
+    ]) {
+      if (id && !document) throw new ApiError(404, `${label} was not found in this hospital.`, null, 'INVALID_HIERARCHY_REFERENCE');
     }
-    if (!branchId && hospitalId) {
-      const defaultBranch = await Branch.findOne({ hospitalId });
-      branchId = defaultBranch?._id;
-    }
-    return { hospitalId, branchId };
+    return { block, floor, ward, room };
   }
 
   /**
@@ -50,7 +57,7 @@ export class BedsService {
         res.status = 'EXPIRED';
         await res.save();
 
-        const bed = await Bed.findOne({ _id: res.bedId, status: BED_STATUS.RESERVED });
+        const bed = await Bed.findOne({ _id: res.bedId, hospitalId, status: BED_STATUS.RESERVED });
         if (bed) {
           bed.status = BED_STATUS.AVAILABLE;
           bed.reservationDetails = {
@@ -396,11 +403,11 @@ export class BedsService {
       throw new ApiError(400, `Cannot delete Block "${block.name}" because it contains ${occupiedCount} currently occupied bed(s). Transfer or discharge patients first.`, null, 'HAS_OCCUPIED_PATIENTS');
     }
 
-    await HospitalBlock.deleteOne({ _id: id });
-    await HospitalFloor.updateMany({ blockId: id }, { $set: { blockId: null } });
-    await HospitalWard.updateMany({ blockId: id }, { $set: { blockId: null, blockName: '' } });
-    await HospitalRoom.updateMany({ blockId: id }, { $set: { blockId: null } });
-    await Bed.updateMany({ blockId: id }, { $set: { blockId: null, blockName: '' } });
+    await HospitalBlock.deleteOne({ _id: id, hospitalId });
+    await HospitalFloor.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null } });
+    await HospitalWard.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null, blockName: '' } });
+    await HospitalRoom.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null } });
+    await Bed.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null, blockName: '' } });
 
     return { message: `Block "${block.name}" deleted successfully.` };
   }
@@ -416,6 +423,7 @@ export class BedsService {
     if (!data.name || !data.name.trim()) {
       throw new ApiError(400, 'Floor Name is required.', null, 'VALIDATION_ERROR');
     }
+    await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId });
 
     const floor = await HospitalFloor.create({
       hospitalId,
@@ -435,6 +443,7 @@ export class BedsService {
     const { hospitalId } = await this.resolveHospitalContext(user);
     const floor = await HospitalFloor.findOne({ _id: id, hospitalId });
     if (!floor) throw new ApiError(404, 'Floor not found.', null, 'NOT_FOUND');
+    await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId });
 
     if (data.name) floor.name = data.name.trim();
     if (data.blockId !== undefined) floor.blockId = data.blockId || null;
@@ -456,10 +465,10 @@ export class BedsService {
       throw new ApiError(400, `Cannot delete Floor "${floor.name}" because it contains ${occupiedCount} active occupied bed(s).`, null, 'HAS_OCCUPIED_PATIENTS');
     }
 
-    await HospitalFloor.deleteOne({ _id: id });
-    await HospitalWard.updateMany({ floorId: id }, { $set: { floorId: null } });
-    await HospitalRoom.updateMany({ floorId: id }, { $set: { floorId: null } });
-    await Bed.updateMany({ floorId: id }, { $set: { floorId: null, floorName: '' } });
+    await HospitalFloor.deleteOne({ _id: id, hospitalId });
+    await HospitalWard.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null } });
+    await HospitalRoom.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null } });
+    await Bed.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null, floorName: '' } });
 
     return { message: `Floor "${floor.name}" deleted successfully.` };
   }
@@ -478,6 +487,7 @@ export class BedsService {
     if (!data.name || !data.name.trim()) {
       throw new ApiError(400, 'Ward Name is required.', null, 'VALIDATION_ERROR');
     }
+    await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId, floorId: data.floorId });
 
     const existing = await HospitalWard.findOne({ hospitalId, name: data.name.trim() });
     if (existing) {
@@ -510,6 +520,7 @@ export class BedsService {
     const { hospitalId } = await this.resolveHospitalContext(user);
     const ward = await HospitalWard.findOne({ _id: id, hospitalId });
     if (!ward) throw new ApiError(404, 'Ward not found.', null, 'NOT_FOUND');
+    await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId, floorId: data.floorId });
 
     if (data.name && data.name.trim() !== ward.name) {
       const dup = await HospitalWard.findOne({ hospitalId, name: data.name.trim(), _id: { $ne: id } });
@@ -532,7 +543,7 @@ export class BedsService {
 
     // Propagate updated ward name and tariff to existing beds linked to this ward
     await Bed.updateMany(
-      { wardId: id },
+      { hospitalId, wardId: id },
       { $set: { wardName: ward.name, wardType: ward.wardType, dailyWardCharge: ward.defaultDailyCharge } }
     );
 
@@ -551,9 +562,9 @@ export class BedsService {
       throw new ApiError(400, `Cannot delete Ward "${ward.name}" because it contains ${occupiedCount} active admitted patient(s).`, null, 'HAS_OCCUPIED_PATIENTS');
     }
 
-    await HospitalWard.deleteOne({ _id: id });
-    await HospitalRoom.updateMany({ wardId: id }, { $set: { wardId: null } });
-    await Bed.updateMany({ wardId: id }, { $set: { wardId: null } });
+    await HospitalWard.deleteOne({ _id: id, hospitalId });
+    await HospitalRoom.updateMany({ hospitalId, wardId: id }, { $set: { wardId: null } });
+    await Bed.updateMany({ hospitalId, wardId: id }, { $set: { wardId: null } });
 
     return { message: `Ward "${ward.name}" deleted successfully.` };
   }
@@ -573,6 +584,7 @@ export class BedsService {
     if (!data.roomNumber || !data.roomNumber.trim()) {
       throw new ApiError(400, 'Room Number is required.', null, 'VALIDATION_ERROR');
     }
+    const hierarchy = await this.resolveHierarchyDocuments(hospitalId, data);
 
     const roomNumber = data.roomNumber.trim();
     const existing = await HospitalRoom.findOne({
@@ -606,12 +618,9 @@ export class BedsService {
     // Auto-generate beds if requested
     if (data.autoGenerateBeds && capacity > 0) {
       const bedSuffixes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-      let wardDoc = null;
-      if (data.wardId) wardDoc = await HospitalWard.findById(data.wardId);
-      let floorDoc = null;
-      if (data.floorId) floorDoc = await HospitalFloor.findById(data.floorId);
-      let blockDoc = null;
-      if (data.blockId) blockDoc = await HospitalBlock.findById(data.blockId);
+      const wardDoc = hierarchy.ward;
+      const floorDoc = hierarchy.floor;
+      const blockDoc = hierarchy.block;
 
       const bedsToCreate = [];
       for (let i = 0; i < capacity; i++) {
@@ -658,6 +667,7 @@ export class BedsService {
     const { hospitalId } = await this.resolveHospitalContext(user);
     const room = await HospitalRoom.findOne({ _id: id, hospitalId });
     if (!room) throw new ApiError(404, 'Room not found.', null, 'NOT_FOUND');
+    await this.resolveHierarchyDocuments(hospitalId, data);
 
     if (data.roomNumber && data.roomNumber.trim() !== room.roomNumber) {
       const dup = await HospitalRoom.findOne({
@@ -684,7 +694,7 @@ export class BedsService {
 
     // Propagate room updates to beds in this room
     await Bed.updateMany(
-      { roomId: id },
+      { hospitalId, roomId: id },
       { $set: { roomNumber: room.roomNumber, dailyRoomCharge: room.dailyRoomCharge } }
     );
 
@@ -704,7 +714,7 @@ export class BedsService {
       throw new ApiError(400, `Cannot delete Room "${room.roomNumber}" because it contains ${occupiedCount} active occupied bed(s).`, null, 'HAS_OCCUPIED_PATIENTS');
     }
 
-    await HospitalRoom.deleteOne({ _id: id });
+    await HospitalRoom.deleteOne({ _id: id, hospitalId });
     await Bed.deleteMany({ hospitalId, roomId: id, status: { $ne: BED_STATUS.OCCUPIED } });
 
     return { message: `Room "${room.roomNumber}" and its unoccupied beds deleted.` };
@@ -716,6 +726,7 @@ export class BedsService {
     if (!data.bedNumber || !data.bedNumber.trim()) {
       throw new ApiError(400, 'Bed Number is required.', null, 'VALIDATION_ERROR');
     }
+    const hierarchy = await this.resolveHierarchyDocuments(hospitalId, data);
 
     const bedNumber = data.bedNumber.trim().toUpperCase();
 
@@ -735,22 +746,10 @@ export class BedsService {
     let wardName = data.wardName || 'General Ward';
     let roomNumber = data.roomNumber || '';
 
-    if (data.blockId) {
-      const b = await HospitalBlock.findById(data.blockId);
-      if (b) blockName = b.name;
-    }
-    if (data.floorId) {
-      const f = await HospitalFloor.findById(data.floorId);
-      if (f) floorName = f.name;
-    }
-    if (data.wardId) {
-      const w = await HospitalWard.findById(data.wardId);
-      if (w) wardName = w.name;
-    }
-    if (data.roomId) {
-      const r = await HospitalRoom.findById(data.roomId);
-      if (r) roomNumber = r.roomNumber;
-    }
+    if (hierarchy.block) blockName = hierarchy.block.name;
+    if (hierarchy.floor) floorName = hierarchy.floor.name;
+    if (hierarchy.ward) wardName = hierarchy.ward.name;
+    if (hierarchy.room) roomNumber = hierarchy.room.roomNumber;
 
     const dailyBedCharge = Number(data.dailyBedCharge) || 0;
     const dailyRoomCharge = Number(data.dailyRoomCharge) || 0;
@@ -803,6 +802,7 @@ export class BedsService {
     const { hospitalId } = await this.resolveHospitalContext(user);
     const bed = await Bed.findOne({ _id: id, hospitalId });
     if (!bed) throw new ApiError(404, 'Bed record not found.', null, 'NOT_FOUND');
+    await this.resolveHierarchyDocuments(hospitalId, data);
 
     if (data.bedNumber && data.bedNumber.trim().toUpperCase() !== bed.bedNumber) {
       const newNo = data.bedNumber.trim().toUpperCase();
@@ -850,7 +850,7 @@ export class BedsService {
       throw new ApiError(400, `Cannot delete Bed "${bed.bedNumber}" because it is currently occupied by a patient. Discharge or transfer patient first.`, null, 'BED_OCCUPIED');
     }
 
-    await Bed.deleteOne({ _id: id });
+    await Bed.deleteOne({ _id: id, hospitalId });
     return { message: `Bed "${bed.bedNumber}" deleted successfully.` };
   }
 
@@ -888,12 +888,7 @@ export class BedsService {
       throw new ApiError(400, 'Maximum 50 rooms can be generated in a single batch.', null, 'LIMIT_EXCEEDED');
     }
 
-    let blockDoc = null;
-    if (blockId) blockDoc = await HospitalBlock.findById(blockId);
-    let floorDoc = null;
-    if (floorId) floorDoc = await HospitalFloor.findById(floorId);
-    let wardDoc = null;
-    if (wardId) wardDoc = await HospitalWard.findById(wardId);
+    const { block: blockDoc, floor: floorDoc, ward: wardDoc } = await this.resolveHierarchyDocuments(hospitalId, { blockId, floorId, wardId });
 
     const bedCount = Math.max(1, parseInt(bedsPerRoom, 10) || 1);
     const alphaSuffixes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
@@ -986,6 +981,8 @@ export class BedsService {
     bed.status = status;
 
     if (patientId) {
+      const patient = await Patient.findOne({ _id: patientId, hospitalId });
+      if (!patient) throw new ApiError(404, 'Patient was not found in this hospital.', null, 'PATIENT_NOT_FOUND');
       bed.currentPatientId = patientId;
     } else if (status === BED_STATUS.AVAILABLE) {
       bed.currentPatientId = null;
@@ -1037,11 +1034,10 @@ export class BedsService {
     let patientName = data.patientName || '';
     let uhid = data.uhid || '';
     if (data.patientId) {
-      const pat = await Patient.findById(data.patientId);
-      if (pat) {
-        patientName = `${pat.firstName} ${pat.lastName}`;
-        uhid = pat.uhid;
-      }
+      const pat = await Patient.findOne({ _id: data.patientId, hospitalId });
+      if (!pat) throw new ApiError(404, 'Patient was not found in this hospital.', null, 'PATIENT_NOT_FOUND');
+      patientName = `${pat.firstName} ${pat.lastName}`;
+      uhid = pat.uhid;
     }
 
     const reservation = await BedReservation.create({
@@ -1104,7 +1100,7 @@ export class BedsService {
     if (!bed) throw new ApiError(404, 'Bed record not found', null, 'NOT_FOUND');
 
     await BedReservation.updateMany(
-      { bedId: bed._id, status: 'ACTIVE' },
+      { hospitalId, bedId: bed._id, status: 'ACTIVE' },
       { $set: { status: 'CANCELLED', cancelledBy: user?.id || user?._id } }
     );
 
@@ -1292,7 +1288,7 @@ export class BedsService {
     // Resolve source bed
     let sourceBed = null;
     if (admission.bedId) {
-      sourceBed = await Bed.findById(admission.bedId);
+      sourceBed = await Bed.findOne({ _id: admission.bedId, hospitalId });
     } else if (admission.bedNumber) {
       sourceBed = await Bed.findOne({ hospitalId, bedNumber: admission.bedNumber });
     }

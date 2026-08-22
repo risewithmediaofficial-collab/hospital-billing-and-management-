@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const departmentSchema = new mongoose.Schema(
   {
@@ -15,4 +16,4 @@ const departmentSchema = new mongoose.Schema(
 
 departmentSchema.index({ branchId: 1, code: 1 }, { unique: true });
 
-export const Department = mongoose.model('Department', departmentSchema);
+export const Department = tenantAwareModel(mongoose.model('Department', departmentSchema));

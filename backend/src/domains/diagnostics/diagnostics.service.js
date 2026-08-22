@@ -1,29 +1,19 @@
 import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
 import { Patient } from '../../models/Patient.js';
 import { User } from '../../models/User.js';
-import { Hospital } from '../../models/Hospital.js';
-import { Branch } from '../../models/Branch.js';
 import { AuditLog } from '../../models/AuditLog.js';
 import { socketManager } from '../../events/socketManager.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
 import { ApiError } from '../../utils/apiError.js';
 import { Appointment } from '../../models/Appointment.js';
+import { requireBranchContext, requireHospitalContext } from '../../utils/tenantContext.js';
 
 export class DiagnosticsService {
   static async requestInvestigation(data, user) {
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
+    const hospitalId = requireHospitalContext(user);
+    const branchId = requireBranchContext(user);
 
-    if (!hospitalId) {
-      const defaultHosp = await Hospital.findOne({});
-      hospitalId = defaultHosp?._id;
-    }
-    if (!branchId) {
-      const defaultBranch = await Branch.findOne({ hospitalId });
-      branchId = defaultBranch?._id;
-    }
-
-    const patient = await Patient.findById(data.patientId);
+    const patient = await Patient.findOne({ _id: data.patientId, hospitalId });
     if (!patient) {
       throw new ApiError(404, 'Patient record not found', null, 'NOT_FOUND');
     }
@@ -45,7 +35,7 @@ export class DiagnosticsService {
       throw new ApiError(400, 'An active appointment is required before sending a department request', null, 'APPOINTMENT_REQUIRED');
     }
 
-    const appointment = await Appointment.findById(data.appointmentId);
+    const appointment = await Appointment.findOne({ _id: data.appointmentId, hospitalId });
     if (!appointment) {
       throw new ApiError(404, 'The active appointment could not be found', null, 'APPOINTMENT_NOT_FOUND');
     }
@@ -106,16 +96,17 @@ export class DiagnosticsService {
         userName: user.name || 'Doctor',
         userRole: user.role || 'DOCTOR',
         action: 'INVESTIGATION_REQUESTED',
+        module: 'DIAGNOSTICS',
         entityType: 'DiagnosticOrder',
         entityId: newOrder._id,
-        details: { testCategory, testName, patientUhid: patient.uhid, priority },
+        resourceId: String(newOrder._id),
+        details: JSON.stringify({ testCategory, testName, patientUhid: patient.uhid, priority }),
       });
     } catch (e) {
       console.error('Audit log write skipped:', e.message);
     }
 
-    // Broadcast Socket.IO event to Department and Doctor
-    socketManager.emitToBranch(branchId, 'investigation:new_request', {
+    const newRequestPayload = {
       orderId: newOrder._id,
       senderUserId: user.id || user._id,
       patientName: `${patient.firstName} ${patient.lastName}`,
@@ -128,9 +119,15 @@ export class DiagnosticsService {
       priority,
       status: 'REQUESTED',
       createdAt: newOrder.createdAt,
-    });
+    };
 
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(testCategory);
+    const departmentRoles = isRadio
+      ? ['RADIOLOGIST', 'RADIOLOGY_STAFF']
+      : ['LAB_TECH', 'LABORATORY_STAFF'];
+    departmentRoles.forEach((role) => {
+      socketManager.emitToBranchRole(branchId, role, 'investigation:new_request', newRequestPayload);
+    });
     const evtName = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ORDER_CREATED : WORKFLOW_EVENTS.LAB_ORDER_CREATED;
 
     // Check if any available staff exist in the target department
@@ -142,7 +139,7 @@ export class DiagnosticsService {
       await newOrder.save();
     }
 
-    WorkflowEventService.emitSync(evtName, {
+    await WorkflowEventService.emit(evtName, {
       orderId: newOrder._id,
       hospitalId,
       patientId: patient._id,
@@ -163,7 +160,8 @@ export class DiagnosticsService {
   }
 
   static async updateStatus(orderId, status, notes, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -199,9 +197,11 @@ export class DiagnosticsService {
         userName: user?.name || 'Technician',
         userRole: user?.role || 'LAB_TECH',
         action: 'INVESTIGATION_STATUS_UPDATED',
+        module: 'DIAGNOSTICS',
         entityType: 'DiagnosticOrder',
         entityId: order._id,
-        details: { status, notes, testName: order.testName },
+        resourceId: String(order._id),
+        details: JSON.stringify({ status, notes, testName: order.testName }),
       });
     } catch (e) {
       console.error('Audit log write skipped:', e.message);
@@ -219,19 +219,19 @@ export class DiagnosticsService {
       timestamp: new Date(),
     };
 
-    if (order.branchId) {
-      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', payload);
-    }
-    // emitToHospital instead of global io.emit
-    if (order.hospitalId) {
-      socketManager.emitToHospital(String(order.hospitalId), 'investigation:status_updated', payload);
-    }
-
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
+    const departmentRoles = isRadio
+      ? ['RADIOLOGIST', 'RADIOLOGY_STAFF']
+      : ['LAB_TECH', 'LABORATORY_STAFF'];
+    departmentRoles.forEach((role) => {
+      if (order.branchId) socketManager.emitToBranchRole(order.branchId, role, 'investigation:status_updated', payload);
+      else socketManager.emitToHospitalRole(order.hospitalId, role, 'investigation:status_updated', payload);
+    });
+    if (order.doctorId) socketManager.emitToUser(String(order.doctorId), 'investigation:status_updated', payload);
     // LAB_ACCEPTED / RADIOLOGY_ACCEPTED: internal status, no DB notification (handled by SKIP_DB_EVENTS in workflowEventService)
     if (status === 'ACCEPTED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_ACCEPTED : WORKFLOW_EVENTS.LAB_ACCEPTED;
-      WorkflowEventService.emitSync(evt, {
+      await WorkflowEventService.emit(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
         patientId: order.patientId,
@@ -244,7 +244,7 @@ export class DiagnosticsService {
       }, order.branchId);
     } else if (status === 'COMPLETED' || status === 'REPORT_UPLOADED') {
       const evt = isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED;
-      WorkflowEventService.emitSync(evt, {
+      await WorkflowEventService.emit(evt, {
         orderId: order._id,
         doctorId: order.doctorId,
         patientId: order.patientId,
@@ -262,7 +262,8 @@ export class DiagnosticsService {
   }
 
   static async uploadReport(orderId, data, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -332,19 +333,15 @@ export class DiagnosticsService {
       socketManager.emitToUser(String(order.doctorId), 'diagnostics:report_ready', reportPayload);
       socketManager.emitToUser(String(order.doctorId), 'investigation:status_updated', reportPayload);
     }
-    if (order.branchId) {
-      socketManager.emitToBranch(order.branchId, 'investigation:status_updated', reportPayload);
-    }
-
     // A report upload is itself the completed department handoff. Do not make
     // the doctor's notification depend on a second status request succeeding.
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
-    WorkflowEventService.emitSync(
+    await WorkflowEventService.emit(
       isRadio ? WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED : WORKFLOW_EVENTS.LAB_SUBMITTED,
       {
         ...reportPayload,
         doctorId: order.doctorId,
-        linkedPath: '/doctor/dashboard?tab=DEPT_RESPONSES',
+        linkedPath: `/doctor/dashboard?tab=DEPT_RESPONSES&orderId=${order._id}&patientId=${order.patientId}`,
       },
       order.branchId,
     );
@@ -361,20 +358,7 @@ export class DiagnosticsService {
         filter.hospitalId = user.hospitalId;
       }
     } else {
-      let rawHospitalId = user?.hospitalId?._id || user?.hospitalId;
-      if (!rawHospitalId && user) {
-        const defaultHosp = await Hospital.findOne({});
-        rawHospitalId = defaultHosp?._id;
-      }
-      if (rawHospitalId) {
-        const hIdStr = String(rawHospitalId);
-        const conditions = [hIdStr];
-        const mongoose = (await import('mongoose')).default;
-        if (mongoose.Types.ObjectId.isValid(hIdStr)) {
-          conditions.push(new mongoose.Types.ObjectId(hIdStr));
-        }
-        filter.$or = [{ hospitalId: { $in: conditions } }, { hospitalId: null }];
-      }
+      filter.hospitalId = requireHospitalContext(user);
     }
 
     if (query.testCategory) {
@@ -401,7 +385,8 @@ export class DiagnosticsService {
   }
 
   static async updateDepartmentCharge(orderId, data, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -419,8 +404,40 @@ export class DiagnosticsService {
     const additionalSum = (order.additionalCharges || []).reduce((sum, item) => sum + (item.amount || 0), 0);
     order.totalDepartmentCharge = order.price + additionalSum;
     order.chargeStatus = 'SUBMITTED';
+    const resolvedBillingQuery = order.billingQuery && !order.billingQuery.resolved;
+    if (resolvedBillingQuery) {
+      order.billingQuery.resolved = true;
+      order.timeline.push({
+        status: order.status,
+        timestamp: new Date(),
+        updatedBy: user?.name || 'Department Specialist',
+        notes: 'Billing query resolved and corrected charge resubmitted.',
+      });
+    }
 
     await order.save();
+
+    if (resolvedBillingQuery) {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      const invoiceId = order.billingQuery.invoiceId;
+      await NotificationService.createNotification({
+        hospitalId: order.hospitalId,
+        branchId: order.branchId,
+        recipientRoles: ['CASHIER', 'BILLING_STAFF'],
+        targetModule: 'billing',
+        type: 'DEPARTMENT_RESPONSE',
+        notificationType: 'DEPARTMENT_RESPONSE',
+        title: `Corrected diagnostic charge: ${order.patientName}`,
+        message: `${order.testName} charge was corrected and resubmitted by ${user?.name || 'the department'}.`,
+        targetRoute: `/billing/dashboard?invoiceId=${invoiceId}&tab=UNPAID`,
+        relatedPatientId: order.patientId,
+        sourceModule: order.billingQuery.targetDepartment?.toLowerCase() || 'diagnostics',
+        entityType: 'INVOICE',
+        entityId: invoiceId,
+        actionType: 'REVIEW_DEPARTMENT_RESPONSE',
+        metadata: { invoiceId, orderId: order._id, patientId: order.patientId },
+      });
+    }
 
     socketManager.emitToBranch(order.branchId, 'investigation:status_updated', {
       orderId: order._id,
@@ -434,7 +451,8 @@ export class DiagnosticsService {
   }
 
   static async cancelInvestigation(orderId, cancellationReason, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -467,7 +485,8 @@ export class DiagnosticsService {
   }
 
   static async requestCorrection(orderId, correctionNote, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -500,7 +519,8 @@ export class DiagnosticsService {
   }
 
   static async approveCharge(orderId, user) {
-    const order = await DiagnosticOrder.findById(orderId);
+    const hospitalId = requireHospitalContext(user);
+    const order = await DiagnosticOrder.findOne({ _id: orderId, hospitalId });
     if (!order) {
       throw new ApiError(404, 'Investigation order not found', null, 'NOT_FOUND');
     }
@@ -531,7 +551,7 @@ export class DiagnosticsService {
     });
 
     const isRadio = ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(order.testCategory);
-    WorkflowEventService.emitSync(
+    await WorkflowEventService.emit(
       isRadio ? WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY : WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB,
       {
         orderId: order._id,

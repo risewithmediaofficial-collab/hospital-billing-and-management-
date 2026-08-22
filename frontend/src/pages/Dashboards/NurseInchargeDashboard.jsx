@@ -31,7 +31,10 @@ export const NurseInchargeDashboard = () => {
   const [beds, setBeds] = useState([]);
   const [patientRequests, setPatientRequests] = useState([]);
   const [nurseTasks, setNurseTasks] = useState([]);
+  const requestedTaskId = new URLSearchParams(location.search).get('taskId');
+  const requestedRequestId = new URLSearchParams(location.search).get('requestId');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   const [selectedAdmissionForModal, setSelectedAdmissionForModal] = useState(null);
@@ -54,6 +57,21 @@ export const NurseInchargeDashboard = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!requestedTaskId || activeTab !== 'TASKS' || nurseTasks.length === 0) return;
+    const requestedTask = nurseTasks.find((task) => String(task._id) === String(requestedTaskId));
+    if (!requestedTask) return;
+    setTaskFilter(requestedTask.status === 'ADMINISTERED' ? 'COMPLETED' : 'PENDING');
+    setTimeout(() => document.getElementById(`nurse-task-${requestedTaskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }, [requestedTaskId, activeTab, nurseTasks]);
+
+  useEffect(() => {
+    if (!requestedRequestId || activeTab !== 'REQUESTS' || patientRequests.length === 0) return;
+    const requestedItem = patientRequests.find((item) => String(item._id) === String(requestedRequestId));
+    if (!requestedItem) return;
+    setTimeout(() => document.getElementById(`patient-request-${requestedRequestId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }, [requestedRequestId, activeTab, patientRequests]);
 
   useEffect(() => {
     if (!socket) return;
@@ -84,12 +102,13 @@ export const NurseInchargeDashboard = () => {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setLoadError('');
     try {
       const [admRes, bedsRes, reqRes, tasksRes] = await Promise.all([
-        axiosClient.get('/admissions').catch(() => ({ data: [] })),
-        axiosClient.get('/beds').catch(() => ({ data: [] })),
-        axiosClient.get('/requests').catch(() => ({ data: [] })),
-        axiosClient.get('/pharmacy/nurse-tasks').catch(() => ({ data: [] })),
+        axiosClient.get('/admissions'),
+        axiosClient.get('/beds'),
+        axiosClient.get('/requests'),
+        axiosClient.get('/pharmacy/nurse-tasks'),
       ]);
       const rawAdm = Array.isArray(admRes) ? admRes : (admRes?.data?.data || admRes?.data || []);
       const rawBeds = Array.isArray(bedsRes) ? bedsRes : (bedsRes?.data?.data || bedsRes?.data || []);
@@ -103,6 +122,7 @@ export const NurseInchargeDashboard = () => {
       fetchPendingWork();
     } catch (err) {
       console.error('Failed to fetch nurse dashboard data:', err);
+      setLoadError(err.error?.message || err.message || 'Nursing and IPD data could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -151,6 +171,12 @@ export const NurseInchargeDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {loadError && (
+        <div role="alert" className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-800 text-sm font-semibold flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <Button size="sm" variant="outline" onClick={fetchData}>Retry</Button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -490,7 +516,11 @@ export const NurseInchargeDashboard = () => {
           <div className="space-y-3 text-xs">
             {patientRequests.length > 0 ? (
               patientRequests.map((req) => (
-                <div key={req._id} className="p-4 rounded-xl border border-slate-200 bg-purple-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div
+                  id={`patient-request-${req._id}`}
+                  key={req._id}
+                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedRequestId) ? 'border-purple-500 bg-purple-100 ring-2 ring-purple-200' : 'border-slate-200 bg-purple-50/30'}`}
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-slate-900 text-sm">{req.requestType || 'Care Request'}</span>
@@ -603,8 +633,12 @@ export const NurseInchargeDashboard = () => {
               return displayedTasks.map((t) => (
                 <div
                   key={t._id}
+                  id={`nurse-task-${t._id}`}
+                  data-testid={`nurse-task-${t._id}`}
                   className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
-                    t.status === 'ADMINISTERED'
+                    String(t._id) === String(requestedTaskId)
+                      ? 'bg-amber-100 border-amber-400 ring-2 ring-amber-400'
+                      : t.status === 'ADMINISTERED'
                       ? 'bg-slate-50/50 border-slate-200'
                       : 'bg-rose-50/25 border-rose-200 shadow-2xs'
                   }`}

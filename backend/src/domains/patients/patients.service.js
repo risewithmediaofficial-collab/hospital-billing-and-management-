@@ -1,8 +1,8 @@
 import { Patient } from '../../models/Patient.js';
 import { Hospital } from '../../models/Hospital.js';
-import { Branch } from '../../models/Branch.js';
 import { GlobalPatient } from '../../models/GlobalPatient.js';
 import { ApiError } from '../../utils/apiError.js';
+import { requireBranchContext, requireHospitalContext } from '../../utils/tenantContext.js';
 
 const pad = (n, len = 5) => String(n).padStart(len, '0');
 
@@ -113,23 +113,8 @@ export class PatientsService {
   }
 
   static async registerPatient(data, user) {
-    // Auto-resolve hospitalId and branchId if missing from user context
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
-
-    if (!hospitalId) {
-      const defaultHospital = await Hospital.findOne({});
-      hospitalId = defaultHospital?._id;
-    }
-
-    if (!branchId) {
-      const defaultBranch = await Branch.findOne({ hospitalId });
-      branchId = defaultBranch?._id;
-    }
-
-    if (!hospitalId || !branchId) {
-      throw new ApiError(400, 'Hospital tenant or Branch context is not initialized. Please run system setup.', null, 'TENANT_NOT_INITIALIZED');
-    }
+    const hospitalId = requireHospitalContext(user);
+    const branchId = requireBranchContext(user);
 
     const patientPhone = String(data.phone || '').trim();
     const guardianPhone = String(data.guardianPhone || '').trim();
@@ -367,7 +352,6 @@ export class PatientsService {
             loginIds: [patientPhone],
             uhid,
             passwordHash,
-            assignedPasswordHint: userPassword,
             role: 'PATIENT',
             status: 'ACTIVE',
             isActive: true,
@@ -408,7 +392,6 @@ export class PatientsService {
               phone: cleanGPhone,
               loginIds: [patientPhone],
               passwordHash: gPasswordHash,
-              assignedPasswordHint: gPassword,
               role: 'GUARDIAN',
               status: 'ACTIVE',
               isActive: true,
@@ -515,13 +498,8 @@ export class PatientsService {
   }
 
   static async getPatientByUhid(uhid, user) {
-    let hospitalId = user?.hospitalId;
-    if (!hospitalId) {
-      const defaultHospital = await Hospital.findOne({});
-      hospitalId = defaultHospital?._id;
-    }
-
-    const filter = hospitalId ? { hospitalId, uhid: uhid.toUpperCase() } : { uhid: uhid.toUpperCase() };
+    const hospitalId = requireHospitalContext(user);
+    const filter = { hospitalId, uhid: uhid.toUpperCase() };
     const patient = await Patient.findOne(filter);
     if (!patient) {
       throw new ApiError(404, `Patient with UHID ${uhid} not found`, null, 'NOT_FOUND');

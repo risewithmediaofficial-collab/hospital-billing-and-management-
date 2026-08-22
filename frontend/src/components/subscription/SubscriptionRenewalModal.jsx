@@ -52,14 +52,14 @@ export const SubscriptionRenewalModal = ({ isOpen, onClose, hospital, isLocked =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
       <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-4xl w-full p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto my-auto relative">
-        {!isLocked && (
-          <button
-            onClick={onClose}
-            className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100"
-          >
-            <X size={20} />
-          </button>
-        )}
+        <button
+          type="button"
+          aria-label="Close renewal plans"
+          onClick={onClose}
+          className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100"
+        >
+          <X size={20} />
+        </button>
 
         {/* Lockout Header if trial expired */}
         {isLocked ? (
@@ -173,19 +173,19 @@ export const SubscriptionRenewalModal = ({ isOpen, onClose, hospital, isLocked =
 
         {/* Action Button Footer */}
         <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+          <Button variant="outline" size="sm" onClick={onClose} className="font-bold text-xs">
+            Close
+          </Button>
           {!isLocked && (
-            <Button variant="outline" size="sm" onClick={onClose} className="font-bold text-xs">
-              Cancel
+            <Button
+              size="sm"
+              disabled={isLoading}
+              onClick={handleSubscribe}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-2"
+            >
+              <Zap size={16} /> {isLoading ? 'Activating Subscription...' : `Activate ${selectedPlanCode} Plan (${billingCycle})`}
             </Button>
           )}
-          <Button
-            size="sm"
-            disabled={isLoading}
-            onClick={handleSubscribe}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-2"
-          >
-            <Zap size={16} /> {isLoading ? 'Activating Subscription...' : `Activate ${selectedPlanCode} Plan (${billingCycle})`}
-          </Button>
         </div>
       </div>
     </div>

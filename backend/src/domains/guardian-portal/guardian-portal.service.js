@@ -3,45 +3,47 @@ import { Patient } from '../../models/Patient.js';
 import { PatientPortalService } from '../patient-portal/patient-portal.service.js';
 import { DoctorUpdate } from '../../models/DoctorUpdate.js';
 import { ApiError } from '../../utils/apiError.js';
+import { RequestsService } from '../requests/requests.service.js';
+import { Admission } from '../../models/Admission.js';
+
+const GUARDIAN_RELATIONSHIPS = new Set([
+  'FATHER', 'MOTHER', 'SPOUSE', 'SIBLING', 'CHILD', 'LEGAL_GUARDIAN', 'CARETAKER', 'OTHER',
+]);
+
+const normalizeRelationship = (value) => {
+  const normalized = String(value || 'OTHER').trim().toUpperCase().replace(/[ -]+/g, '_');
+  if (!GUARDIAN_RELATIONSHIPS.has(normalized)) {
+    throw new ApiError(400, 'Invalid guardian relationship.', null, 'INVALID_RELATIONSHIP');
+  }
+  return normalized;
+};
 
 export class GuardianPortalService {
   /**
    * Get all approved patients linked to the guardian user.
    */
-  /**
-   * Get all approved patients linked to the guardian user.
-   */
   static async getLinkedPatients(user) {
-    // 1. Auto-approve any existing pending links for this user
-    await GuardianLink.updateMany(
-      { guardianUserId: user.id, accessStatus: 'PENDING' },
-      { $set: { accessStatus: 'APPROVED', approvedAt: new Date() } }
-    );
-
-    // 2. Auto-discover patient matches if guardian phone or UHID match
+    // Auto-discovery is allowed only when this authenticated guardian's phone
+    // is registered as the patient's emergency contact in the same hospital.
     try {
       const { User } = await import('../../models/User.js');
-      const guardianUserDoc = await User.findById(user.id);
+      const guardianUserDoc = await User.findOne({ _id: user.id, hospitalId: user.hospitalId });
       if (guardianUserDoc) {
         const phones = [guardianUserDoc.phone, ...(guardianUserDoc.loginIds || [])].filter(Boolean);
-        const uhid = guardianUserDoc.uhid;
-        
         const matchedPatients = await Patient.find({
-          $or: [
-            ...(phones.length ? [{ 'emergencyContact.phone': { $in: phones } }, { phone: { $in: phones } }] : []),
-            ...(uhid ? [{ uhid }] : [])
-          ]
+          hospitalId: user.hospitalId,
+          ...(phones.length ? { 'emergencyContact.phone': { $in: phones } } : { _id: null }),
         });
 
         for (const p of matchedPatients) {
-          const exist = await GuardianLink.findOne({ guardianUserId: user.id, patientId: p._id });
+          const exist = await GuardianLink.findOne({ hospitalId: user.hospitalId, guardianUserId: user.id, patientId: p._id });
           if (!exist) {
             await GuardianLink.create({
               hospitalId: p.hospitalId,
               branchId: p.branchId,
               patientId: p._id,
               guardianUserId: user.id,
-              relationship: 'GUARDIAN',
+              relationship: 'OTHER',
               accessStatus: 'APPROVED',
               approvedAt: new Date(),
             });
@@ -53,6 +55,7 @@ export class GuardianPortalService {
     }
 
     const links = await GuardianLink.find({
+      hospitalId: user.hospitalId,
       guardianUserId: user.id,
       accessStatus: 'APPROVED',
     }).populate('patientId');
@@ -69,22 +72,18 @@ export class GuardianPortalService {
    * Get Guardian dashboard summary for a specific patient.
    */
   static async getDashboard(user, targetPatientId = null) {
-    // Auto-approve any pending links
-    await GuardianLink.updateMany(
-      { guardianUserId: user.id, accessStatus: 'PENDING' },
-      { $set: { accessStatus: 'APPROVED', approvedAt: new Date() } }
-    );
-
     // 1. Find guardian link
     let link = null;
     if (targetPatientId) {
       link = await GuardianLink.findOne({
+        hospitalId: user.hospitalId,
         guardianUserId: user.id,
         patientId: targetPatientId,
         accessStatus: 'APPROVED',
       }).populate('patientId');
     } else {
       link = await GuardianLink.findOne({
+        hospitalId: user.hospitalId,
         guardianUserId: user.id,
         accessStatus: 'APPROVED',
       }).populate('patientId');
@@ -94,7 +93,7 @@ export class GuardianPortalService {
       // Auto-fetch any linked patient for this guardian
       const links = await this.getLinkedPatients(user);
       if (links.length > 0 && links[0].patient) {
-        link = await GuardianLink.findById(links[0].linkId).populate('patientId');
+        link = await GuardianLink.findOne({ _id: links[0].linkId, hospitalId: user.hospitalId }).populate('patientId');
       }
     }
 
@@ -123,6 +122,7 @@ export class GuardianPortalService {
     // 3. Fetch Doctor Updates published for Guardian
     const doctorUpdates = permissions.doctorUpdates
       ? await DoctorUpdate.find({
+          hospitalId: user.hospitalId,
           patientId: patient._id,
           visibility: { $in: ['GUARDIAN_ONLY', 'BOTH'] },
         })
@@ -139,24 +139,24 @@ export class GuardianPortalService {
     };
   }
 
-  /**
-   * Request linking a patient to a guardian account (Auto-Approved immediately).
-   */
+  /** Request a patient link. Manual UHID requests always remain pending. */
   static async requestLink(user, data) {
     const { patientUhid, relationship, notes } = data;
     const cleanUhid = String(patientUhid || '').trim().toUpperCase();
     
-    // Find patient by UHID across hospital or global
-    let patient = await Patient.findOne({ uhid: cleanUhid });
+    const patient = await Patient.findOne({ hospitalId: user.hospitalId, uhid: cleanUhid });
     if (!patient) {
       throw new ApiError(404, `No patient found with UHID: ${cleanUhid}`, null, 'PATIENT_NOT_FOUND');
     }
 
-    let link = await GuardianLink.findOne({ guardianUserId: user.id, patientId: patient._id });
+    let link = await GuardianLink.findOne({ hospitalId: user.hospitalId, guardianUserId: user.id, patientId: patient._id });
     if (link) {
-      link.accessStatus = 'APPROVED';
-      link.approvedAt = new Date();
-      link.relationship = relationship || link.relationship || 'GUARDIAN';
+      if (link.accessStatus === 'APPROVED') return link;
+      link.relationship = normalizeRelationship(relationship || link.relationship);
+      link.notes = notes || link.notes || 'Guardian access requested; awaiting hospital approval';
+      link.accessStatus = 'PENDING';
+      link.approvedBy = null;
+      link.approvedAt = null;
       await link.save();
     } else {
       link = await GuardianLink.create({
@@ -164,14 +164,67 @@ export class GuardianPortalService {
         branchId: user.branchId || patient.branchId,
         patientId: patient._id,
         guardianUserId: user.id,
-        relationship: relationship || 'GUARDIAN',
-        accessStatus: 'APPROVED',
-        approvedAt: new Date(),
-        notes: notes || 'Auto-approved on request',
+        relationship: normalizeRelationship(relationship),
+        accessStatus: 'PENDING',
+        approvedAt: null,
+        notes: notes || 'Guardian access requested; awaiting hospital approval',
       });
     }
 
     return link;
+  }
+
+  static async submitDoctorMessage(user, data) {
+    const patientId = String(data.patientId || '').trim();
+    const messageType = String(data.messageType || '').trim().toUpperCase();
+    if (!patientId || !['HISTORY', 'REMINDER'].includes(messageType)) {
+      throw new ApiError(400, 'Patient and message type are required.', null, 'INVALID_GUARDIAN_MESSAGE');
+    }
+
+    const link = await GuardianLink.findOne({
+      hospitalId: user.hospitalId,
+      guardianUserId: user.id,
+      patientId,
+      accessStatus: 'APPROVED',
+      liveAccessActive: { $ne: false },
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+    });
+    if (!link) {
+      throw new ApiError(403, 'An active approved guardian link is required.', null, 'GUARDIAN_ACCESS_REQUIRED');
+    }
+    if (link.permissions?.patientRequests === false) {
+      throw new ApiError(403, 'Patient request permission is disabled for this guardian link.', null, 'GUARDIAN_PERMISSION_DENIED');
+    }
+
+    const activeAdmission = await Admission.findOne({
+      ...(link.admissionId ? { _id: link.admissionId } : {}),
+      hospitalId: link.hospitalId,
+      branchId: link.branchId || user.branchId,
+      patientId,
+      status: 'ADMITTED',
+      doctorId: { $ne: null },
+    }).select('_id doctorId');
+    if (!activeAdmission?.doctorId) {
+      throw new ApiError(409, 'No attending doctor is assigned to an active admission.', null, 'ATTENDING_DOCTOR_REQUIRED');
+    }
+
+    const clip = (value, max = 1000) => String(value || '').trim().slice(0, max);
+    const notes = messageType === 'HISTORY'
+      ? `[Guardian Medical History] History: ${clip(data.historyNotes) || 'N/A'} | Previous medications: ${clip(data.previousMedications) || 'N/A'} | Allergies: ${clip(data.allergies, 500) || 'None reported'} | Urgent notes: ${clip(data.urgentNotes) || 'None'}`
+      : `[Guardian Treatment Reminder] ${clip(data.notes) || 'Please review the patient treatment progress.'}`;
+
+    return RequestsService.createRequest({
+      patientId,
+      requestType: 'DOCTOR',
+      priority: messageType === 'REMINDER' ? 'HIGH' : 'MEDIUM',
+      notes,
+      guardianMessageType: messageType,
+    }, {
+      ...user,
+      role: 'GUARDIAN',
+      hospitalId: link.hospitalId,
+      branchId: link.branchId || user.branchId,
+    });
   }
 
   /**
@@ -188,15 +241,23 @@ export class GuardianPortalService {
    * Admin / Staff: Update status & permissions of a guardian link.
    */
   static async updateLinkStatus(user, linkId, status, permissions = null) {
-    const link = await GuardianLink.findById(linkId);
+    const normalizedStatus = String(status || '').toUpperCase();
+    if (!['APPROVED', 'REJECTED', 'SUSPENDED', 'REVOKED'].includes(normalizedStatus)) {
+      throw new ApiError(400, 'Invalid guardian access status.', null, 'INVALID_STATUS');
+    }
+    const link = await GuardianLink.findOne({ _id: linkId, hospitalId: user.hospitalId });
     if (!link) {
       throw new ApiError(404, 'Guardian link not found', null, 'NOT_FOUND');
     }
 
-    link.accessStatus = status;
-    if (status === 'APPROVED') {
+    link.accessStatus = normalizedStatus;
+    if (normalizedStatus === 'APPROVED') {
       link.approvedBy = user.id;
       link.approvedAt = new Date();
+      link.liveAccessActive = true;
+    } else {
+      link.liveAccessActive = false;
+      link.liveAccessDisabledAt = new Date();
     }
     if (permissions) {
       link.permissions = { ...link.permissions, ...permissions };

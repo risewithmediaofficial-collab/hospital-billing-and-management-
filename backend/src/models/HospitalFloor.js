@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 
 const hospitalFloorSchema = new mongoose.Schema(
   {
@@ -17,4 +18,4 @@ const hospitalFloorSchema = new mongoose.Schema(
 hospitalFloorSchema.index({ hospitalId: 1, blockId: 1, name: 1 }, { unique: true });
 hospitalFloorSchema.index({ hospitalId: 1, status: 1 });
 
-export const HospitalFloor = mongoose.model('HospitalFloor', hospitalFloorSchema);
+export const HospitalFloor = tenantAwareModel(mongoose.model('HospitalFloor', hospitalFloorSchema));

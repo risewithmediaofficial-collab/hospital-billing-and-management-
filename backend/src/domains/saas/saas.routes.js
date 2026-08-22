@@ -34,6 +34,9 @@ import {
   assignBranchPlan,
   getBranchDetail,
   getAllBranches,
+  prepareDedicatedDatabase,
+  activateDedicatedDatabase,
+  exportHospitalData,
 } from './saas.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
 import { requireRole } from '../../middleware/permissions.js';
@@ -65,9 +68,12 @@ router.get('/platform/metrics', ...superAdminOnly, getPlatformMetrics);
 router.get('/hospitals/stats', ...superAdminOnly, getHospitalsWithStats);
 router.get('/hospitals/overview', ...superAdminOnly, getHospitalAdminOverview);
 router.get('/hospitals/pending', ...superAdminOnly, getPendingApprovals);
-router.get('/hospitals/:id/detail', ...superAdminOnly, getHospitalDetail);
+router.get('/hospitals/:id/detail', verifyJwt, getHospitalDetail);
 router.patch('/hospitals/:id/configuration', ...superAdminOnly, updateHospitalConfiguration);
 router.patch('/hospitals/:id/domain', ...superAdminOnly, updateHospitalDomain);
+router.post('/hospitals/:id/database/prepare', ...superAdminOnly, prepareDedicatedDatabase);
+router.post('/hospitals/:id/database/activate', ...superAdminOnly, activateDedicatedDatabase);
+router.get('/hospitals/:id/export', verifyJwt, exportHospitalData);
 router.post('/hospitals/:id/extend-trial', ...superAdminOnly, extendHospitalTrial);
 router.post('/hospitals/:id/assign-plan', ...superAdminOnly, assignPlanToHospital);
 router.get('/search', ...superAdminOnly, globalSearch);

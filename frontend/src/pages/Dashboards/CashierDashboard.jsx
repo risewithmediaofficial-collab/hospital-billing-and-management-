@@ -49,6 +49,7 @@ export const CashierDashboard = () => {
   const location = useLocation();
 
   const tabParam = searchParams.get('tab');
+  const requestedInvoiceId = searchParams.get('invoiceId');
   const isReceiptsRoute = location.pathname.includes('/billing/receipts') || tabParam === 'RECEIPTS';
 
   const [activeTab, setActiveTab] = useState(isReceiptsRoute ? 'RECEIPTS' : 'UNPAID');
@@ -87,6 +88,8 @@ export const CashierDashboard = () => {
       const invoices = res.data || [];
       setUnpaidInvoices(invoices);
       setSelectedInvoice((prev) => {
+        const requested = invoices.find((invoice) => invoice._id === requestedInvoiceId);
+        if (requested) return requested;
         if (prev) {
           const fresh = invoices.find((i) => i._id === prev._id);
           if (fresh) return fresh;
@@ -98,7 +101,7 @@ export const CashierDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [requestedInvoiceId]);
 
   const fetchAllReceipts = useCallback(async () => {
     try {

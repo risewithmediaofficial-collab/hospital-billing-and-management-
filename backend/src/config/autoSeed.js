@@ -5,12 +5,9 @@ import { Role } from "../models/Role.js";
 import { User } from "../models/User.js";
 import { ROLES } from "./constants.js";
 
-import { ensureTestHospitalCredentials } from "../../scripts/seed-production-test-hospital.js";
-
 export async function autoEnsureSystemCredentials() {
   try {
-    const defaultPassword = "0000";
-    const defaultHash = await bcrypt.hash(defaultPassword, 12);
+    const bootstrapPassword = String(process.env.SUPER_ADMIN_BOOTSTRAP_PASSWORD || '');
 
     // 1. Ensure System Roles exist
     const rolesToCreate = Object.values(ROLES).map((roleCode) => {
@@ -74,28 +71,38 @@ export async function autoEnsureSystemCredentials() {
 
     let superAdminUser = await User.findOne({ email: "superadmin@gmail.com" });
     if (!superAdminUser) {
-      await User.create({
-        hospitalId: platformHospital._id,
-        branchId: mainBranch._id,
-        name: "Platform Master Owner",
-        email: "superadmin@gmail.com",
-        passwordHash: defaultHash,
-        assignedPasswordHint: defaultPassword,
-        role: ROLES.SUPER_ADMIN,
-        phone: "+1 (800) 555-SAAS",
-        status: "ACTIVE",
-        isActive: true,
-      });
-      console.log("[AutoSeed] ? Ensured SuperAdmin (superadmin@gmail.com / 0000)");
+      if (bootstrapPassword.length < 12) {
+        console.warn('[AutoSeed] SuperAdmin was not created. Set SUPER_ADMIN_BOOTSTRAP_PASSWORD (minimum 12 characters) for the initial bootstrap.');
+      } else {
+        await User.create({
+          hospitalId: platformHospital._id,
+          branchId: mainBranch._id,
+          name: "Platform Master Owner",
+          email: "superadmin@gmail.com",
+          passwordHash: await bcrypt.hash(bootstrapPassword, 12),
+          role: ROLES.SUPER_ADMIN,
+          phone: "+1 (800) 555-SAAS",
+          status: "ACTIVE",
+          isActive: true,
+        });
+        console.log('[AutoSeed] SuperAdmin bootstrap account created. Rotate its password after first login.');
+      }
     } else if (!/^\$2[abxy]\$\d+\$/.test(superAdminUser.passwordHash)) {
-      superAdminUser.passwordHash = defaultHash;
-      superAdminUser.assignedPasswordHint = defaultPassword;
-      await superAdminUser.save();
-      console.log("[AutoSeed] ? Updated SuperAdmin password hash");
+      if (bootstrapPassword.length < 12) {
+        console.error('[AutoSeed] Existing SuperAdmin has an invalid password hash. Set SUPER_ADMIN_BOOTSTRAP_PASSWORD to repair it securely.');
+      } else {
+        superAdminUser.passwordHash = await bcrypt.hash(bootstrapPassword, 12);
+        superAdminUser.assignedPasswordHint = undefined;
+        await superAdminUser.save();
+        console.log('[AutoSeed] Repaired SuperAdmin password hash from the configured bootstrap secret.');
+      }
     }
 
-    await ensureTestHospitalCredentials().catch((e) => console.error("[AutoSeed Warning] Test hospital seed failed:", e.message));
-    console.log("[AutoSeed] System roles, SuperAdmin, & Test Hospital check completed successfully");
+    if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_DATA_SEED === 'true') {
+      const { ensureTestHospitalCredentials } = await import('../../scripts/seed-production-test-hospital.js');
+      await ensureTestHospitalCredentials().catch((e) => console.error('[AutoSeed Warning] Test hospital seed failed:', e.message));
+    }
+    console.log('[AutoSeed] System role and platform bootstrap checks completed successfully');
   } catch (err) {
     console.error("[AutoSeed Warning] Failed system credentials check:", err.message);
   }

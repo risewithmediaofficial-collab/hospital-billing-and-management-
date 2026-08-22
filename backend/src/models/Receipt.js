@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantAwareModel } from '../config/tenantAwareModel.js';
 import { PAYMENT_MODES } from '../config/constants.js';
 
 const receiptSchema = new mongoose.Schema(
@@ -37,4 +38,4 @@ receiptSchema.index({ hospitalId: 1, isDeleted: 1, createdAt: -1 });
 receiptSchema.index({ hospitalId: 1, invoiceId: 1 });
 receiptSchema.index({ hospitalId: 1, patientId: 1, createdAt: -1 });
 
-export const Receipt = mongoose.model('Receipt', receiptSchema);
+export const Receipt = tenantAwareModel(mongoose.model('Receipt', receiptSchema));

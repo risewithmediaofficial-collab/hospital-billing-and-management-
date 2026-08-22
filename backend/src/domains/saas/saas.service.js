@@ -188,6 +188,9 @@ export class SaasService {
     if (!data.contactEmail || !data.hospitalName) {
       throw new ApiError(400, 'Hospital name and contact email are required', null, 'VALIDATION_ERROR');
     }
+    if (!data.adminPassword || String(data.adminPassword).length < 8) {
+      throw new ApiError(400, 'Hospital administrator password must be at least 8 characters long.', null, 'WEAK_PASSWORD');
+    }
 
     const cleanEmail = data.contactEmail.toLowerCase().trim();
     const existingEmail = await Hospital.findOne({ contactEmail: cleanEmail, isDeleted: { $ne: true } });
@@ -251,12 +254,24 @@ export class SaasService {
         country: data.country || 'India',
         postalCode: data.postalCode || data.pincode || '600001',
       },
-      initialAdminPassword: data.adminPassword || 'HospitalAdmin123!',
       isTrial: true,
       trialStartDate,
       trialEndDate,
       trialStatus: 'TRIAL_ACTIVE',
       isActive: true,
+    });
+
+    // Create the pending administrator immediately so only a bcrypt hash is
+    // retained while the hospital awaits approval. Approval activates it.
+    await User.create({
+      hospitalId: hospital._id,
+      name: data.contactName || data.hospitalName || 'Hospital Administrator',
+      email: cleanEmail,
+      phone: data.contactPhone || '',
+      passwordHash: await bcrypt.hash(String(data.adminPassword), 12),
+      role: ROLES.HOSPITAL_ADMIN,
+      status: 'INACTIVE',
+      isActive: false,
     });
 
     // Create Notification for Super Admin
@@ -290,9 +305,10 @@ export class SaasService {
         event: 'HOSPITAL_REGISTERED',
         timestamp: new Date().toISOString(),
       });
-      if (socketManager.io) {
-        socketManager.io.emit('saas:pending_changed', { hospitalId: hospital._id, action: 'NEW_REGISTRATION' });
-      }
+      socketManager.emitToRole('SUPER_ADMIN', 'saas:pending_changed', {
+        hospitalId: hospital._id,
+        action: 'NEW_REGISTRATION',
+      });
     } catch (e) {
       console.error('Socket emission failed on hospital registration:', e.message);
     }
@@ -307,7 +323,6 @@ export class SaasService {
 
     return {
       hospital,
-      adminInitialPassword: hospital.initialAdminPassword,
       trialEndDate,
     };
   }
@@ -402,7 +417,14 @@ export class SaasService {
     };
   }
 
-  static async getHospitalDetail(hospitalId) {
+  static async getHospitalDetail(hospitalId, user) {
+    const requesterHospitalId = user?.hospitalId?._id || user?.hospitalId;
+    if (user?.role !== ROLES.SUPER_ADMIN && (
+      user?.role !== ROLES.HOSPITAL_ADMIN
+      || String(requesterHospitalId || '') !== String(hospitalId)
+    )) {
+      throw new ApiError(403, 'You may view only the hospital tenant you administer.');
+    }
     const hospital = await Hospital.findById(hospitalId);
     if (!hospital || isPlatformHospital(hospital)) {
       throw new ApiError(404, 'Hospital not found', null, 'NOT_FOUND');
@@ -411,7 +433,7 @@ export class SaasService {
     const admin = await User.findOne({
       hospitalId: hospital._id,
       role: ROLES.HOSPITAL_ADMIN,
-    }).select('-passwordHash');
+    }).select('-passwordHash -assignedPasswordHint -passwordResetToken -emailVerificationToken');
 
     const staffCounts = await buildStaffCounts(hospital._id);
     const patientCounts = await buildPatientCounts(hospital._id);
@@ -428,7 +450,7 @@ export class SaasService {
 
     // Fetch all staff members created for this hospital
     const rawStaff = await User.find({ ...hospitalFilter, ...staffRoleFilter })
-      .select('-passwordHash')
+      .select('-passwordHash -assignedPasswordHint -passwordResetToken -emailVerificationToken')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -456,11 +478,8 @@ export class SaasService {
           .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
       }
 
-      const credentialHint = s.assignedPasswordHint || hospital.initialAdminPassword || `${s.role.charAt(0) + s.role.slice(1).toLowerCase()}123!`;
-
       return {
         ...s,
-        credentialHint,
         patientsHandled,
         revenueGenerated,
       };
@@ -741,7 +760,7 @@ export class SaasService {
   }
 
   static async approveHospital(hospitalId, user) {
-    const hospital = await Hospital.findById(hospitalId);
+    const hospital = await Hospital.findById(hospitalId).select('+initialAdminPassword');
     if (!hospital) {
       throw new ApiError(404, 'Hospital tenant record not found', null, 'NOT_FOUND');
     }
@@ -766,34 +785,36 @@ export class SaasService {
       });
     }
 
-    // Create or update initial Hospital Admin user account with the requested password
-    const adminPassword = hospital.initialAdminPassword || 'HospitalAdmin123!';
-    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    // Activate the pre-created administrator. Legacy pending records may still
+    // carry a one-time initial password; it is hashed and erased on approval.
     const cleanEmail = hospital.contactEmail.toLowerCase().trim();
 
-    let adminUser = await User.findOne({ email: cleanEmail });
+    let adminUser = await User.findOne({ hospitalId: hospital._id, email: cleanEmail });
     if (adminUser) {
       adminUser.hospitalId = hospital._id;
       adminUser.branchId = branch._id;
-      adminUser.passwordHash = passwordHash;
-      adminUser.assignedPasswordHint = adminPassword;
       adminUser.role = ROLES.HOSPITAL_ADMIN;
       adminUser.status = 'ACTIVE';
       adminUser.isActive = true;
       await adminUser.save();
     } else {
+      const legacyInitialPassword = hospital.initialAdminPassword;
+      if (!legacyInitialPassword) {
+        throw new ApiError(409, 'Administrator credentials are not initialized. Set a new administrator password before approval.', null, 'ADMIN_SETUP_REQUIRED');
+      }
       adminUser = await User.create({
         hospitalId: hospital._id,
         branchId: branch._id,
         name: hospital.contactName || 'Hospital Admin',
         email: cleanEmail,
-        passwordHash,
-        assignedPasswordHint: adminPassword,
+        passwordHash: await bcrypt.hash(legacyInitialPassword, 12),
         role: ROLES.HOSPITAL_ADMIN,
         phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
       });
     }
+    hospital.initialAdminPassword = undefined;
+    await hospital.save();
 
     return {
       hospital,
@@ -801,7 +822,6 @@ export class SaasService {
         name: adminUser.name,
         email: adminUser.email,
         role: adminUser.role,
-        tempPassword: adminPassword,
       },
     };
   }
@@ -1030,8 +1050,9 @@ export class SaasService {
       if (remainingDays <= 0 && hosp.status !== 'EXPIRED') {
         hosp.status = 'EXPIRED';
         hosp.trialStatus = 'TRIAL_EXPIRED';
-        const retentionDeadline = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-        hosp.dataRetentionDeadline = retentionDeadline;
+        // Expiry is read-only, never an automatic clinical-data deletion timer.
+        hosp.dataRetentionDeadline = null;
+        hosp.dataRetentionNotified = false;
         warnings['0_days'] = true;
         hosp.subscriptionWarningsSent = warnings;
         await hosp.save();
@@ -1040,7 +1061,7 @@ export class SaasService {
           recipientRole: 'HOSPITAL_ADMIN',
           hospitalId: hosp._id,
           title: 'Subscription Expired',
-          message: `Your ${hosp.plan} plan has expired. Your data will be retained for 90 days until ${retentionDeadline.toLocaleDateString()}. Please renew your subscription to restore access.`,
+          message: `Your ${hosp.plan} plan has expired. Your hospital data remains available in read-only mode. Please renew to restore operational changes.`,
           type: 'TRIAL_EXPIRED',
         });
 
@@ -1048,7 +1069,7 @@ export class SaasService {
           recipientRole: 'SUPER_ADMIN',
           hospitalId: hosp._id,
           title: `Subscription Expired: ${hosp.name}`,
-          message: `${hosp.plan} plan for ${hosp.name} (${hosp.contactEmail}) expired today. Data retention period: 90 days until ${retentionDeadline.toLocaleDateString()}.`,
+          message: `${hosp.plan} plan for ${hosp.name} (${hosp.contactEmail}) expired today. The tenant is now read-only; no automatic data deletion is scheduled.`,
           type: 'TRIAL_EXPIRED',
           link: `/admin/hospital/${hosp._id}/dashboard`,
         });
@@ -1102,15 +1123,16 @@ export class SaasService {
     }
 
     // Check 90-day data retention deadlines — notify super admin before purge
+    // Clear historical deadlines from the retired automatic-retention policy.
     const expiringRetention = await Hospital.find({
-      isDeleted: false,
-      dataRetentionDeadline: { $ne: null, $lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
-      dataRetentionNotified: { $ne: true },
+      dataRetentionDeadline: { $ne: null },
     });
     for (const hosp of expiringRetention) {
-      const daysLeft = Math.ceil((new Date(hosp.dataRetentionDeadline) - now) / (1000 * 60 * 60 * 24));
+      const daysLeft = 0;
+      hosp.dataRetentionDeadline = null;
       hosp.dataRetentionNotified = true;
       await hosp.save();
+      /* Historical cleanup only. Automatic deletion notifications are disabled.
       await NotificationService.createNotification({
         recipientRole: 'SUPER_ADMIN',
         hospitalId: hosp._id,
@@ -1118,7 +1140,7 @@ export class SaasService {
         message: `${hosp.name}'s 90-day data retention period ends on ${new Date(hosp.dataRetentionDeadline).toLocaleDateString()}. All hospital data will be permanently deleted unless they renew.`,
         type: 'TRIAL_EXPIRED',
         link: `/admin/hospital/${hosp._id}/dashboard`,
-      });
+      }); */
     }
   }
 
@@ -1247,11 +1269,8 @@ export class SaasService {
     const hospitalStrId = String(hospital._id);
 
     let adminUser = await User.findOne({
-      $or: [
-        { hospitalId: { $in: [hospitalObjId, hospitalStrId, hospitalId] }, role: { $in: [ROLES.HOSPITAL_ADMIN, 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'] } },
-        ...(cleanEmail ? [{ email: cleanEmail }] : []),
-        ...(hospital.contactEmail ? [{ email: hospital.contactEmail.toLowerCase() }] : []),
-      ]
+      hospitalId: { $in: [hospitalObjId, hospitalStrId, hospitalId] },
+      role: { $in: [ROLES.HOSPITAL_ADMIN, 'HOSPITAL_ADMIN', 'ADMIN'] },
     });
 
     if (cleanEmail) {
@@ -1262,16 +1281,20 @@ export class SaasService {
     }
 
     const cleanPassword = password ? String(password).trim() : '';
+    if (cleanPassword && cleanPassword.length < 8) {
+      throw new ApiError(400, 'Administrator password must be at least 8 characters long.', null, 'WEAK_PASSWORD');
+    }
 
     if (!adminUser) {
-      const pass = cleanPassword || hospital.initialAdminPassword || 'HospitalAdmin123!';
-      const passwordHash = await bcrypt.hash(pass, 12);
+      if (!cleanPassword) {
+        throw new ApiError(400, 'A password is required when creating the hospital administrator.', null, 'PASSWORD_REQUIRED');
+      }
+      const passwordHash = await bcrypt.hash(cleanPassword, 12);
       adminUser = await User.create({
         hospitalId: hospital._id,
         name: name || hospital.contactName || 'Hospital Admin',
         email: cleanEmail || hospital.contactEmail,
         passwordHash,
-        assignedPasswordHint: pass,
         role: ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN',
         phone: cleanPhone || hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
@@ -1284,7 +1307,7 @@ export class SaasService {
       if (!adminUser.role) adminUser.role = ROLES.HOSPITAL_ADMIN || 'HOSPITAL_ADMIN';
       if (cleanPassword) {
         adminUser.passwordHash = cleanPassword;
-        adminUser.assignedPasswordHint = cleanPassword;
+        adminUser.assignedPasswordHint = '';
       }
       await adminUser.save();
     }
@@ -1294,7 +1317,6 @@ export class SaasService {
     if (cleanPhone) hospital.contactPhone = cleanPhone;
     if (!hospital.contactPhone) hospital.contactPhone = adminUser.phone || '+1 (555) 000-0000';
     if (!hospital.licenseNumber) hospital.licenseNumber = 'LIC-' + (hospital.code || 'DEFAULT');
-    if (cleanPassword) hospital.initialAdminPassword = cleanPassword;
 
     if (street !== undefined || city !== undefined || state !== undefined || postalCode !== undefined) {
       hospital.address = {
@@ -1315,7 +1337,7 @@ export class SaasService {
         email: adminUser.email,
         phone: adminUser.phone,
         role: adminUser.role,
-        assignedPasswordHint: adminUser.assignedPasswordHint
+        passwordReset: Boolean(cleanPassword),
       }
     };
   }
@@ -1457,9 +1479,9 @@ export class SaasService {
 
     // Real-time socket emission to Super Admin
     if (socketManager.io) {
-      socketManager.io.to('super-admins').emit('branch_request:created', branchReq);
-      socketManager.io.emit('superadmin:pending_count_changed', { type: 'branch' });
-      socketManager.io.emit('notification:created', {
+      socketManager.emitToRole('SUPER_ADMIN', 'branch_request:created', branchReq);
+      socketManager.emitToRole('SUPER_ADMIN', 'superadmin:pending_count_changed', { type: 'branch' });
+      socketManager.emitToRole('SUPER_ADMIN', 'notification:created', {
         title: 'New Branch Expansion Request',
         message: `${hospital.name} requested approval for a new branch: "${branchName}" (${city}).`,
         targetRoute: '/admin/pending-approvals',
@@ -1623,9 +1645,8 @@ export class SaasService {
     branch.status = cleanStatus;
     await branch.save();
 
-    if (socketManager.io) {
-      socketManager.io.emit('branch:updated', branch);
-    }
+    socketManager.emitToHospital(String(branch.hospitalId), 'branch:updated', branch);
+    socketManager.emitToRole('SUPER_ADMIN', 'branch:updated', branch);
 
     return branch;
   }
@@ -1652,9 +1673,9 @@ export class SaasService {
     await Branch.findByIdAndDelete(branchId);
     await BranchRequest.deleteMany({ createdBranchId: branchId });
 
-    if (socketManager.io) {
-      socketManager.io.emit('branch:deleted', { branchId });
-    }
+    const branchEvent = { branchId, hospitalId: branch.hospitalId };
+    socketManager.emitToHospital(String(branch.hospitalId), 'branch:deleted', branchEvent);
+    socketManager.emitToRole('SUPER_ADMIN', 'branch:deleted', branchEvent);
 
     return { message: `Branch "${branch.name}" has been deleted.` };
   }
@@ -1721,9 +1742,8 @@ export class SaasService {
       details: `Plan '${planCode}' (${billingCycle}) assigned to sub-branch '${branch.name}' (${branch.branchCode}). Valid until ${endDate.toLocaleDateString()}`,
     });
 
-    if (socketManager.io) {
-      socketManager.io.emit('branch:updated', branch);
-    }
+    socketManager.emitToHospital(String(branch.hospitalId), 'branch:updated', branch);
+    socketManager.emitToRole('SUPER_ADMIN', 'branch:updated', branch);
 
     return branch;
   }
@@ -1759,7 +1779,7 @@ export class SaasService {
       ],
     };
 
-    const rawStaff = await User.find(branchStaffFilter).select('-passwordHash').sort({ createdAt: -1 }).lean();
+    const rawStaff = await User.find(branchStaffFilter).select('-passwordHash -assignedPasswordHint -passwordResetToken -emailVerificationToken').sort({ createdAt: -1 }).lean();
 
     // Invoices for this branch
     const branchInvFilter = {
@@ -1794,11 +1814,8 @@ export class SaasService {
           .reduce((sum, inv) => sum + (inv.paidAmount || inv.grandTotal || 0), 0);
       }
 
-      const credentialHint = s.assignedPasswordHint || hospital.initialAdminPassword || `${s.role.charAt(0) + s.role.slice(1).toLowerCase()}123!`;
-
       return {
         ...s,
-        credentialHint,
         patientsHandled,
         revenueGenerated,
       };

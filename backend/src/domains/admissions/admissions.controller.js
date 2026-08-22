@@ -53,7 +53,7 @@ export const assignCareTeam = async (req, res, next) => {
 export const getCareTeam = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const careTeam = await AdmissionsService.getCareTeam(id);
+    const careTeam = await AdmissionsService.getCareTeam(id, req.user);
     return sendSuccess(res, 200, 'Care team retrieved', careTeam);
   } catch (error) {
     next(error);
@@ -63,8 +63,9 @@ export const getCareTeam = async (req, res, next) => {
 export const getAdmissionHistory = async (req, res, next) => {
   try {
     const { Admission } = await import('../../models/Admission.js');
+    const { requireHospitalContext } = await import('../../utils/tenantContext.js');
     const { uhid } = req.params;
-    const admissions = await Admission.find({ uhid: uhid.toUpperCase() })
+    const admissions = await Admission.find({ hospitalId: requireHospitalContext(req.user), uhid: uhid.toUpperCase() })
       .sort({ admissionNumber: 1 })
       .populate('doctorId', 'name specialization')
       .populate('assignedNurseId', 'name role')

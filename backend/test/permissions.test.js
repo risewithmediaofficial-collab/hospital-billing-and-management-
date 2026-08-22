@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { hasPermission, permissionsFor } from '../src/config/permissions.js';
+import { hasOperationalRoleForModule, hasPermission, permissionsFor } from '../src/config/permissions.js';
 
 test('additional roles contribute all of their module permissions', () => {
   const user = { role: 'RECEPTIONIST', additionalRoles: ['DOCTOR'] };
@@ -47,4 +47,27 @@ test('unrelated permissions do not authorize clinical writes', () => {
 
   assert.equal(hasPermission(user, 'diagnostics', 'create'), false);
   assert.equal(hasPermission(user, 'doctor', 'create'), false);
+});
+
+test('hospital admin governance does not imply operational staff assignment', () => {
+  const admin = { role: 'HOSPITAL_ADMIN', additionalRoles: [] };
+
+  assert.equal(hasOperationalRoleForModule(admin, 'doctor'), false);
+  assert.equal(hasOperationalRoleForModule(admin, 'billing'), false);
+  assert.equal(hasOperationalRoleForModule(admin, 'pharmacy'), false);
+});
+
+test('hospital admin can work only in modules covered by explicit additional roles', () => {
+  const clinicOwnerDoctor = { role: 'HOSPITAL_ADMIN', additionalRoles: ['DOCTOR'] };
+
+  assert.equal(hasOperationalRoleForModule(clinicOwnerDoctor, 'doctor'), true);
+  assert.equal(hasOperationalRoleForModule(clinicOwnerDoctor, 'diagnostics'), true);
+  assert.equal(hasOperationalRoleForModule(clinicOwnerDoctor, 'billing'), false);
+});
+
+test('super admin remains platform governance and never becomes an operational role', () => {
+  const platformOwner = { role: 'SUPER_ADMIN', additionalRoles: [] };
+  assert.equal(hasOperationalRoleForModule(platformOwner, 'doctor'), false);
+  assert.equal(hasOperationalRoleForModule(platformOwner, 'billing'), false);
+  assert.equal(hasOperationalRoleForModule(platformOwner, 'beds'), false);
 });
