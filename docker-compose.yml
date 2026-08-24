@@ -37,17 +37,10 @@ services:
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-hpmbs}_backend
     restart: always
+    env_file:
+      - .env
     environment:
       PORT: 5000
-      NODE_ENV: ${NODE_ENV:-production}
-      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/hpmbs_db}
-      JWT_SECRET: ${JWT_SECRET:-hpmbs_super_secure_jwt_secret_key_2026_x89}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-hpmbs_super_secure_refresh_secret_key_2026_x89}
-      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-30d}
-      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=}
-      SEARCH_HASH_KEY: ${SEARCH_HASH_KEY:-hpmbs_search_hash_secret_key_2026_production_safe_key_32b}
-      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
     expose:
       - "5000"
     depends_on:
