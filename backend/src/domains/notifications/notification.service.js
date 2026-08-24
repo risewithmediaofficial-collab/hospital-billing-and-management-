@@ -43,53 +43,18 @@ const recipientQuery = async (context = {}) => {
   const tenantBranchId = branchId || user?.branchId;
 
   if (activeRole === 'SUPER_ADMIN') {
-    const validSuperAdminTypes = [
-      'TRIAL_EXPIRED',
-      'TRIAL_EXPIRING',
-      'PLAN_EXPIRATION',
-      'PLATFORM_REVENUE',
-      'SECURITY_LOGIN',
-      'NEW_HOSPITAL_SIGNUP',
-      'SAAS_ALERT',
-      'SUBSCRIPTION_EXPIRED',
-      'SUBSCRIPTION_WARNING',
-      'PAYMENT_RECEIVED',
-      'HOSPITAL_REGISTRATION',
-      'HOSPITAL_APPROVED',
-      'HOSPITAL_SUSPENDED',
-      'HOSPITAL_CREATED',
-      'SYSTEM_ALERT',
-    ];
-
-    const clinicalExclusions = [
-      'WORKFLOW',
-      'WORKFLOW_ALERT',
-      'NEW_DATA',
-      'DEPT_RESPONSE',
-      'DEPARTMENT_RESPONSE',
-      'NURSE_RESPONSE',
-      'BILLING_UPDATE',
-      'PRESCRIPTION_ISSUED',
-      'PATIENT_QUEUED',
-      'DIAGNOSTIC_ORDER',
-      'NURSE_TASK_CREATED',
-      'NURSE_TASK_COMPLETED',
-      'REPORT_READY',
-      'CONSULTATION_COMPLETE',
-    ];
-
     return {
       $and: [
         {
           $or: [
             { recipientRole: 'SUPER_ADMIN' },
             { targetModule: { $in: ['super-admin', 'SUPER_ADMIN', 'saas', 'SAAS'] } },
-            { type: { $in: validSuperAdminTypes } },
+            { type: { $in: ['TRIAL_EXPIRED', 'TRIAL_EXPIRING', 'PLAN_EXPIRATION', 'PLATFORM_REVENUE', 'SECURITY_LOGIN', 'NEW_HOSPITAL_SIGNUP', 'SAAS_ALERT', 'SUBSCRIPTION_EXPIRED', 'SUBSCRIPTION_WARNING', 'PAYMENT_RECEIVED', 'HOSPITAL_REGISTRATION', 'HOSPITAL_APPROVED', 'HOSPITAL_SUSPENDED', 'HOSPITAL_CREATED', 'SYSTEM_ALERT'] } },
             { notificationType: { $in: ['PLATFORM_REVENUE', 'SECURITY_LOGIN', 'NEW_HOSPITAL_SIGNUP', 'SAAS_ALERT', 'SUBSCRIPTION_EXPIRED', 'PAYMENT_RECEIVED', 'HOSPITAL_REGISTRATION'] } },
           ],
         },
         {
-          notificationType: { $nin: clinicalExclusions },
+          notificationType: { $nin: ['WORKFLOW', 'WORKFLOW_ALERT', 'NEW_DATA', 'DEPT_RESPONSE', 'DEPARTMENT_RESPONSE', 'NURSE_RESPONSE', 'BILLING_UPDATE', 'PRESCRIPTION_ISSUED', 'PATIENT_QUEUED', 'DIAGNOSTIC_ORDER', 'NURSE_TASK_CREATED', 'NURSE_TASK_COMPLETED', 'REPORT_READY', 'CONSULTATION_COMPLETE'] },
         },
         {
           type: { $nin: ['NURSE_TASKS', 'LAB_ORDER_CREATED', 'PATIENT_QUEUED', 'DOCTOR_PATIENT', 'NURSE_RESPONSE', 'DEPARTMENT_RESPONSE', 'BILLING_WORK', 'LAB_WORK', 'RADIOLOGY_WORK'] },
@@ -123,8 +88,20 @@ const recipientQuery = async (context = {}) => {
     clauses.push({ $or: orConditions });
   }
 
-  // 1. Doctor role notification isolation: doctors should only receive clinical responses, reports, and returned queries
-  if (activeRole === 'DOCTOR' || userRoles.includes('DOCTOR')) {
+  // 1. Non-doctor isolation: Users without DOCTOR role must NEVER receive doctor OPD consultation queue tasks
+  if (!userRoles.includes('DOCTOR')) {
+    clauses.push({
+      $and: [
+        { type: { $nin: ['PATIENT_QUEUED', 'TOKEN_REQUEUED', 'DOCTOR_ACCEPTED_PATIENT'] } },
+        { notificationType: { $nin: ['PATIENT_QUEUED', 'TOKEN_REQUEUED', 'DOCTOR_ACCEPTED_PATIENT'] } },
+        { title: { $not: /(patient in queue|patient re-queued)/i } },
+        { targetRoute: { $not: /\/doctor\/dashboard\?tab=live/i } },
+      ],
+    });
+  }
+
+  // 2. Doctor role notification isolation: pure doctors should only receive clinical responses, reports, and returned queries
+  if (userRoles.includes('DOCTOR') && !userRoles.includes('HOSPITAL_ADMIN') && !userRoles.includes('CASHIER') && !userRoles.includes('PHARMACIST')) {
     const doctorExclusions = [
       'New Bill Pending',
       'Pharmacy Dispensed & Billed',
@@ -176,83 +153,7 @@ const recipientQuery = async (context = {}) => {
     });
   }
 
-  // 2. Pharmacist role notification isolation
-  if ((activeRole === 'PHARMACIST' || activeRole === 'PHARMACY_STAFF') && !userRoles.includes('DOCTOR') && !userRoles.includes('CASHIER')) {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'LAB_TECH', 'RADIOLOGIST', 'NURSE', 'NURSE_INCHARGE'] } },
-        { targetRoute: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge)/i } },
-        { link: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge)/i } },
-        { targetModule: { $nin: ['laboratory', 'radiology', 'doctor', 'nursing'] } },
-        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Doctor Reviewed|Injection|Nurse Task|Treatment Request)/i } },
-      ],
-    });
-  }
 
-  // 3. Cashier / Billing role notification isolation
-  if ((activeRole === 'CASHIER' || activeRole === 'BILLING_STAFF') && !userRoles.includes('DOCTOR')) {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'NURSE', 'NURSE_INCHARGE'] } },
-        { targetRoute: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge|pharmacy\/dashboard)/i } },
-        { link: { $not: /\/(laboratory|radiology|doctor|nursing|nurse-incharge|pharmacy\/dashboard)/i } },
-        { targetModule: { $nin: ['laboratory', 'radiology', 'doctor', 'nursing'] } },
-        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Doctor Reviewed|Treatment Request|New Treatment)/i } },
-      ],
-    });
-  }
-
-  // 4. Lab Tech role notification isolation
-  if (activeRole === 'LAB_TECH' || activeRole === 'LABORATORY_STAFF') {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'RADIOLOGIST', 'NURSE', 'RECEPTIONIST'] } },
-        { targetRoute: { $not: /\/(radiology|pharmacy|billing|cashier|nursing|reception)/i } },
-        { link: { $not: /\/(radiology|pharmacy|billing|cashier|nursing|reception)/i } },
-        { targetModule: { $nin: ['radiology', 'pharmacy', 'billing', 'cashier', 'nursing', 'reception'] } },
-        { title: { $not: /(Radiology|Scan|Prescription|Medicine Dispensed|Pharmacy Dispensed|Invoice|Payment|Bill|Injection)/i } },
-      ],
-    });
-  }
-
-  // 5. Radiologist role notification isolation
-  if (activeRole === 'RADIOLOGIST' || activeRole === 'RADIOLOGY_STAFF') {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'LAB_TECH', 'NURSE', 'RECEPTIONIST'] } },
-        { targetRoute: { $not: /\/(laboratory|pharmacy|billing|cashier|nursing|reception)/i } },
-        { link: { $not: /\/(laboratory|pharmacy|billing|cashier|nursing|reception)/i } },
-        { targetModule: { $nin: ['laboratory', 'pharmacy', 'billing', 'cashier', 'nursing', 'reception'] } },
-        { title: { $not: /(Lab Request|Blood|Urine|Prescription|Medicine Dispensed|Pharmacy Dispensed|Invoice|Payment|Bill|Injection)/i } },
-      ],
-    });
-  }
-
-  // 6. Nurse role notification isolation
-  if ((activeRole === 'NURSE' || activeRole === 'NURSE_INCHARGE') && !userRoles.includes('DOCTOR')) {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'CASHIER', 'BILLING_STAFF', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST'] } },
-        { targetRoute: { $not: /\/(pharmacy|billing|cashier)/i } },
-        { link: { $not: /\/(pharmacy|billing|cashier)/i } },
-        { targetModule: { $nin: ['pharmacy', 'billing', 'cashier'] } },
-        { title: { $not: /(Pharmacy Dispensed|Medicines Dispensed|Invoice Generated|Payment Collected|Bill Ready)/i } },
-      ],
-    });
-  }
-
-  // 7. Receptionist role notification isolation
-  if ((activeRole === 'RECEPTIONIST' || activeRole === 'OPD_STAFF') && !userRoles.includes('DOCTOR') && !userRoles.includes('HOSPITAL_ADMIN')) {
-    clauses.push({
-      $and: [
-        { recipientRole: { $nin: ['DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST'] } },
-        { targetRoute: { $not: /\/(laboratory|radiology|pharmacy|nurse-incharge)/i } },
-        { link: { $not: /\/(laboratory|radiology|pharmacy|nurse-incharge)/i } },
-        { targetModule: { $nin: ['laboratory', 'radiology', 'pharmacy'] } },
-        { title: { $not: /(New Lab Request|Radiology Request|Scan Ready|Medicines Dispensed|Pharmacy Dispensed|Injection Administered)/i } },
-      ],
-    });
-  }
 
   if (tenantId) {
     const hIdStr = typeof tenantId === 'object' ? String(tenantId._id || tenantId) : String(tenantId);
@@ -294,6 +195,7 @@ export class NotificationService {
         recipientDepartment: data.recipientDepartment || '',
         notificationType: data.notificationType || data.type || 'SYSTEM_ALERT',
         type: data.type || 'SYSTEM_ALERT',
+        priority: data.priority || 'NORMAL',
         title: data.title,
         message: data.message,
         relatedPatientId: data.relatedPatientId || null,
@@ -307,6 +209,7 @@ export class NotificationService {
         targetRoute: data.targetRoute || data.linkedPath || data.link || '',
         link: data.link || data.linkedPath || data.targetRoute || '',
         isRead: false,
+        isCompleted: false,
         status: data.status || 'ACTIVE',
         metadata: data.metadata || {},
       };
@@ -371,27 +274,42 @@ export class NotificationService {
   }
 
   /**
-   * Get unread notification counts for Super Admin or Hospital Admin badges
+   * Get unread notification counts for badges
    */
   static async getUnreadCount(context) {
     const query = await recipientQuery(context);
-    return Notification.countDocuments({ ...query, isRead: false, isCleared: { $ne: true } });
+    return Notification.countDocuments({ ...query, isRead: false, isCleared: { $ne: true }, isCompleted: { $ne: true } });
   }
 
   /**
    * Fetch paginated notifications for current user/role
+   * Supports view = 'active' (default) or 'history' or 'all'
    */
-  static async getNotifications({ limit = 20, ...context }) {
-    const query = { ...(await recipientQuery(context)), isCleared: { $ne: true } };
+  static async getNotifications({ limit = 30, page = 1, view = 'active', ...context }) {
+    const baseQuery = await recipientQuery(context);
+    let viewFilter = {};
 
-    const notifications = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    if (view === 'active') {
+      viewFilter = { isCleared: { $ne: true }, isCompleted: { $ne: true } };
+    } else if (view === 'history') {
+      viewFilter = { $or: [{ isCompleted: true }, { isCleared: true }] };
+    }
 
-    const unreadCount = await Notification.countDocuments({ ...query, isRead: false });
+    const query = { ...baseQuery, ...viewFilter };
+    const skip = Math.max(0, (page - 1) * limit);
 
-    return { notifications, unreadCount };
+    const [notifications, unreadCount, activeCount, historyCount] = await Promise.all([
+      Notification.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Notification.countDocuments({ ...baseQuery, isRead: false, isCleared: { $ne: true }, isCompleted: { $ne: true } }),
+      Notification.countDocuments({ ...baseQuery, isCleared: { $ne: true }, isCompleted: { $ne: true } }),
+      Notification.countDocuments({ ...baseQuery, $or: [{ isCompleted: true }, { isCleared: true }] }),
+    ]);
+
+    return { notifications, unreadCount, activeCount, historyCount, page, limit };
   }
 
   /**
@@ -405,7 +323,70 @@ export class NotificationService {
       { isRead: true, readAt: new Date() },
       { new: true }
     );
+    if (notification && notification.recipientUserId) {
+      socketManager.emitToUser(String(notification.recipientUserId), 'notification:read', { notificationId: notification._id });
+    }
     return notification;
+  }
+
+  /**
+   * Mark a single notification as completed.
+   */
+  static async markAsCompleted(notificationId, context) {
+    const ownership = await recipientQuery(context);
+    const notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, ...ownership },
+      {
+        isCompleted: true,
+        completedAt: new Date(),
+        status: 'COMPLETED',
+        isRead: true,
+        readAt: new Date(),
+      },
+      { new: true }
+    );
+    if (notification && notification.recipientUserId) {
+      socketManager.emitToUser(String(notification.recipientUserId), 'notification:completed', { notificationId: notification._id });
+    }
+    return notification;
+  }
+
+  /**
+   * Auto-complete all active notifications matching an entity when its workflow step finishes.
+   */
+  static async completeEntityTasks({ hospitalId, entityType, entityId, actionType }) {
+    if (!hospitalId || !entityType || !entityId) return { modifiedCount: 0 };
+    const query = {
+      hospitalId,
+      entityType,
+      entityId: String(entityId),
+      isCompleted: { $ne: true },
+    };
+    if (actionType) {
+      query.actionType = actionType;
+    }
+    const matching = await Notification.find(query).select('_id recipientUserId').lean();
+    if (matching.length === 0) return { modifiedCount: 0 };
+
+    const ids = matching.map((n) => n._id);
+    await Notification.updateMany(
+      { _id: { $in: ids } },
+      {
+        isCompleted: true,
+        completedAt: new Date(),
+        status: 'COMPLETED',
+        isRead: true,
+        readAt: new Date(),
+      }
+    );
+
+    matching.forEach((notif) => {
+      if (notif.recipientUserId) {
+        socketManager.emitToUser(String(notif.recipientUserId), 'notification:completed', { notificationId: notif._id });
+      }
+    });
+
+    return { modifiedCount: matching.length };
   }
 
   /**
@@ -415,13 +396,18 @@ export class NotificationService {
     if (!routePath) return { success: false };
     const query = await recipientQuery(context);
     const unread = await Notification.find({ ...query, isRead: false })
-      .select('_id targetRoute link')
+      .select('_id targetRoute link recipientUserId')
       .lean();
     const ids = unread
       .filter((item) => notificationBelongsToRoute(item.targetRoute || item.link, routePath))
       .map((item) => item._id);
     if (ids.length) {
       await Notification.updateMany({ _id: { $in: ids }, ...query }, { isRead: true, readAt: new Date() });
+      unread.forEach((n) => {
+        if (n.recipientUserId) {
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:read', { notificationId: n._id });
+        }
+      });
     }
     return { success: true, modifiedCount: ids.length };
   }
@@ -432,6 +418,10 @@ export class NotificationService {
   static async markAllAsRead(context) {
     const query = { ...(await recipientQuery(context)), isRead: false, isCleared: { $ne: true } };
     await Notification.updateMany(query, { isRead: true, readAt: new Date() });
+    const userId = context?.userId || context?.id;
+    if (userId) {
+      socketManager.emitToUser(String(userId), 'notification:all_read', {});
+    }
     return { success: true };
   }
 
@@ -446,14 +436,22 @@ export class NotificationService {
       { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() },
       { new: true }
     );
+    if (notification && notification.recipientUserId) {
+      socketManager.emitToUser(String(notification.recipientUserId), 'notification:cleared', { notificationId: notification._id });
+    }
     return notification;
   }
 
   static async clearAll(context) {
+    const query = await recipientQuery(context);
     await Notification.updateMany(
-      { ...(await recipientQuery(context)), isCleared: { $ne: true } },
+      { ...query, isCleared: { $ne: true } },
       { isCleared: true, clearedAt: new Date(), isRead: true, readAt: new Date() }
     );
+    const userId = context?.userId || context?.id;
+    if (userId) {
+      socketManager.emitToUser(String(userId), 'notification:all_cleared', {});
+    }
     return { success: true };
   }
 }

@@ -134,9 +134,10 @@ export const ReceptionWorkspaceView = () => {
       const sRes = await axiosClient.get('/auth/staff');
       const docList = (sRes.data || []).filter(
         (s) =>
-          s.role === 'DOCTOR' ||
-          s.role === 'HOSPITAL_ADMIN' ||
-          (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
+          (s.role === 'DOCTOR' ||
+            (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))) &&
+          s.isActive !== false &&
+          s.status !== 'INACTIVE'
       );
       setDoctors(docList);
     } catch (err) {
@@ -172,19 +173,12 @@ export const ReceptionWorkspaceView = () => {
       fetchRegisteredPatients();
     };
 
-    const handleDoctorAvailabilityChange = (data) => {
-      setDoctors((prevDocs) =>
-        prevDocs.map((doc) =>
-          String(doc._id) === String(data.id || data._id)
-            ? {
-              ...doc,
-              isAvailable: data.isAvailable !== undefined ? data.isAvailable : doc.isAvailable,
-              cabinNo: data.cabinNo || doc.cabinNo,
-              availabilityUpdatedAt: data.availabilityUpdatedAt || doc.availabilityUpdatedAt,
-            }
-            : doc
-        )
-      );
+    const handleDoctorAvailabilityChange = () => {
+      fetchDoctors();
+    };
+
+    const handleStaffUpdate = () => {
+      fetchDoctors();
     };
 
     socket.on('patient:registered', handlePatientUpdate);
@@ -196,6 +190,9 @@ export const ReceptionWorkspaceView = () => {
     socket.on('billing:invoice_created', handleQueueUpdate);
     socket.on('billing:payment_collected', handleQueueUpdate);
     socket.on('doctor:availability_changed', handleDoctorAvailabilityChange);
+    socket.on('staff:availability_changed', handleDoctorAvailabilityChange);
+    socket.on('staff:updated', handleStaffUpdate);
+    socket.on('user:status_changed', handleStaffUpdate);
     socket.on('workflow:notification', handleQueueUpdate);
 
     return () => {
@@ -208,9 +205,12 @@ export const ReceptionWorkspaceView = () => {
       socket.off('billing:invoice_created', handleQueueUpdate);
       socket.off('billing:payment_collected', handleQueueUpdate);
       socket.off('doctor:availability_changed', handleDoctorAvailabilityChange);
+      socket.off('staff:availability_changed', handleDoctorAvailabilityChange);
+      socket.off('staff:updated', handleStaffUpdate);
+      socket.off('user:status_changed', handleStaffUpdate);
       socket.off('workflow:notification', handleQueueUpdate);
     };
-  }, [socket, fetchQueuedPatients, fetchCompletedPatients, fetchRegisteredPatients]);
+  }, [socket, fetchQueuedPatients, fetchCompletedPatients, fetchRegisteredPatients, fetchDoctors]);
 
   const handleIssueTokenForPatient = (pat) => {
     setSelectedPatient(pat);
@@ -782,14 +782,13 @@ export const ReceptionWorkspaceView = () => {
                     <div className="flex items-center justify-between">
                       <p className="font-bold text-slate-900 text-sm">
                         {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}
-                        {doc.role === 'HOSPITAL_ADMIN' && <span className="ml-1 text-[10px] font-bold text-indigo-600">[Admin]</span>}
                       </p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${isAvail
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                          : 'bg-red-100 text-red-700 border-red-300'
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1.5 ${isAvail
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-2xs'
+                          : 'bg-rose-50 text-rose-700 border-rose-300'
                         }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${isAvail ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                        {isAvail ? 'AVAILABLE' : 'OFF DUTY'}
+                        <span className={`h-1.5 w-1.5 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                        {isAvail ? 'ONLINE • AVAILABLE' : 'OFFLINE • OFF DUTY'}
                       </span>
                     </div>
 

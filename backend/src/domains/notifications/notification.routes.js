@@ -5,11 +5,20 @@ import { NotificationService } from './notification.service.js';
 const router = Router();
 router.use(verifyJwt);
 
-// Get notifications & unread badge count
+// Get notifications & unread badge count (supports view=active|history|all, page, limit)
 router.get('/', async (req, res, next) => {
   try {
     const { id: userId, role, hospitalId, branchId } = req.user;
-    const result = await NotificationService.getNotifications({ userId, role, hospitalId, branchId });
+    const { view = 'active', page = 1, limit = 30 } = req.query;
+    const result = await NotificationService.getNotifications({
+      userId,
+      role,
+      hospitalId,
+      branchId,
+      view: String(view).toLowerCase(),
+      page: Math.max(1, parseInt(page, 10) || 1),
+      limit: Math.min(100, Math.max(1, parseInt(limit, 10) || 30)),
+    });
     res.json(result);
   } catch (err) {
     next(err);
@@ -31,6 +40,17 @@ router.get('/unread-count', async (req, res, next) => {
 router.patch('/:id/read', async (req, res, next) => {
   try {
     const notification = await NotificationService.markAsRead(req.params.id, req.user);
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
+    res.json(notification);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Mark single notification task as completed
+router.patch('/:id/complete', async (req, res, next) => {
+  try {
+    const notification = await NotificationService.markAsCompleted(req.params.id, req.user);
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
     res.json(notification);
   } catch (err) {

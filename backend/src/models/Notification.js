@@ -34,13 +34,18 @@ const notificationSchema = new mongoose.Schema(
     isCleared: { type: Boolean, default: false, index: true },
     clearedAt: { type: Date, default: null },
 
+    isCompleted: { type: Boolean, default: false, index: true },
+    completedAt: { type: Date, default: null },
+
+    priority: { type: String, default: 'NORMAL', enum: ['LOW', 'NORMAL', 'HIGH', 'URGENT', 'EMERGENCY'] },
     status: { type: String, default: 'ACTIVE' },
     metadata: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   },
   { timestamps: true }
 );
 
-notificationSchema.index({ hospitalId: 1, recipientRole: 1, isCleared: 1, isRead: 1, createdAt: -1 });
-notificationSchema.index({ recipientUserId: 1, isCleared: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ hospitalId: 1, recipientRole: 1, isCompleted: 1, isCleared: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ recipientUserId: 1, isCompleted: 1, isCleared: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ hospitalId: 1, entityType: 1, entityId: 1, isCompleted: 1 });
 
 export const Notification = tenantAwareModel(mongoose.model('Notification', notificationSchema));

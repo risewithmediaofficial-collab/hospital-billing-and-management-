@@ -36,9 +36,11 @@ export const EmergencyBanner = () => {
     try {
       const res = await axiosClient.post('/emergency/raise', {
         ...formData,
-        raisedByDept: user?.role || 'GUARDIAN_PORTAL',
+        raisedByDept: user?.role || 'DOCTOR',
       });
-      addEmergency(res.data);
+      if (res?.data) {
+        addEmergency(res.data);
+      }
       setIsRaiseModalOpen(false);
       setFormData({
         emergencyType: 'CODE_BLUE',

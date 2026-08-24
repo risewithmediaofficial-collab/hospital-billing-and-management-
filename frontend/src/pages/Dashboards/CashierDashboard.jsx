@@ -61,6 +61,7 @@ export const CashierDashboard = () => {
       setActiveTab('UNPAID');
     }
   }, [isReceiptsRoute, tabParam, location.search, location.pathname]);
+
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [unpaidInvoices, setUnpaidInvoices] = useState([]);
   const [allReceipts, setAllReceipts] = useState([]);
@@ -108,32 +109,61 @@ export const CashierDashboard = () => {
       const res = await axiosClient.get('/billing/receipts');
       const receipts = res.data || [];
       setAllReceipts(receipts);
-      const todayStr = new Date().toDateString();
-      const todayReceipts = receipts.filter((r) => new Date(r.createdAt).toDateString() === todayStr);
-      setReceiptsCount(todayReceipts.length);
-      setTodayCollected(todayReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0));
+      setReceiptsCount(receipts.length);
+
+      const today = new Date().toISOString().split('T')[0];
+      const total = receipts.reduce((sum, r) => {
+        const rDate = (r.createdAt || r.paidAt || '').split('T')[0];
+        return rDate === today ? sum + Number(r.amountPaid || 0) : sum;
+      }, 0);
+      setTodayCollected(total);
+
+      const storageKey = `last_viewed_receipts_${user?.hospitalId || 'default'}_${user?.id || user?._id || 'user'}`;
+      if (isReceiptsRoute || activeTab === 'RECEIPTS') {
+        localStorage.setItem(storageKey, new Date().toISOString());
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+      } else {
+        const lastViewedTs = localStorage.getItem(storageKey);
+        if (!lastViewedTs) {
+          localStorage.setItem(storageKey, new Date().toISOString());
+          useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+          useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+        } else {
+          const unviewed = receipts.filter((r) => new Date(r.createdAt || r.paidAt) > new Date(lastViewedTs)).length;
+          useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', unviewed);
+          useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', unviewed);
+        }
+      }
     } catch (err) {
-      console.error('Failed to load receipts history:', err);
+      console.error('Failed to load receipts:', err);
     }
-  }, []);
+  }, [user?.hospitalId, user?.id, user?._id, isReceiptsRoute, activeTab]);
 
   const fetchDeletedReceipts = useCallback(async () => {
     try {
       const res = await axiosClient.get('/billing/deleted-receipts');
       setDeletedReceipts(res.data || []);
     } catch (err) {
-      console.error('Failed to load deleted receipts history:', err);
+      console.error('Failed to load deleted receipts:', err);
     }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'RECEIPTS' || isReceiptsRoute) {
+      const storageKey = `last_viewed_receipts_${user?.hospitalId || 'default'}_${user?.id || user?._id || 'user'}`;
+      localStorage.setItem(storageKey, new Date().toISOString());
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+    }
+  }, [activeTab, isReceiptsRoute, user?.hospitalId, user?.id, user?._id]);
 
   useEffect(() => {
     fetchUnpaidInvoices();
     fetchAllReceipts();
     fetchDeletedReceipts();
-    useDepartmentNotificationStore.getState().fetchPendingWork?.();
   }, [fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
-  // Real-time: refresh whenever doctor finalizes a new consultation, payment occurs, or bill is deleted
   useEffect(() => {
     if (!socket) return;
     const handler = () => {

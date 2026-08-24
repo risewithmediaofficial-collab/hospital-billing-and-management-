@@ -15,6 +15,7 @@
  *   />
  */
 import React from 'react';
+import { useAuthStore } from '../../store/authStore';
 import { Lock, Power, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 
 export const AvailabilityBanner = ({
@@ -24,6 +25,14 @@ export const AvailabilityBanner = ({
   onToggle,
   pendingCount = 0,
 }) => {
+  const { user } = useAuthStore();
+
+  // If user is Hospital Admin or Super Admin, hide duplicate on-screen banner
+  // (Admin already has the top navbar controller)
+  if (user?.role === 'HOSPITAL_ADMIN' || user?.role === 'SUPER_ADMIN') {
+    return null;
+  }
+
   if (isAvailable) {
     // Subtle online indicator with high-contrast, properly styled button
     return (

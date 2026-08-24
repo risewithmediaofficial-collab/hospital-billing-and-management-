@@ -29,7 +29,20 @@ const userSchema = new mongoose.Schema(
     shiftPattern: { type: String, default: 'ROTATIONAL' },
     avatarUrl: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
-    isAvailable: { type: Boolean, default: true },       // Doctor on-duty / availability toggle
+    isAvailable: { type: Boolean, default: true },       // Staff on-duty / availability toggle
+    adminDepartmentAvailability: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        DOCTOR: true,
+        RECEPTIONIST: true,
+        CASHIER: true,
+        PHARMACIST: true,
+        LAB_TECH: true,
+        RADIOLOGIST: true,
+        NURSE: true,
+        EMERGENCY_STAFF: true,
+      }),
+    },
     availabilityUpdatedAt: { type: Date, default: null }, // When availability was last changed
     cabinNo: { type: String, default: 'Cabin 101' },     // Doctor's assigned OPD cabin/room number
     employeeId: { type: String, default: '' },
@@ -98,43 +111,10 @@ userSchema.methods.generateAccessToken = function () {
 
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
-    {
-      id: this._id,
-    },
-    env.REFRESH_TOKEN_SECRET,
-    { expiresIn: env.REFRESH_TOKEN_EXPIRES_IN }
+    { id: this._id },
+    env.REFRESH_TOKEN_SECRET || env.JWT_REFRESH_SECRET || env.JWT_SECRET || 'dev_secret',
+    { expiresIn: env.REFRESH_TOKEN_EXPIRES_IN || env.JWT_REFRESH_EXPIRES_IN || '90d' }
   );
 };
 
-userSchema.set('toJSON', {
-  transform: function (doc, ret) {
-    delete ret.passwordHash;
-    delete ret.assignedPasswordHint;
-    delete ret.passwordResetToken;
-    delete ret.passwordResetExpires;
-    delete ret.emailVerificationToken;
-    delete ret.emailVerificationExpires;
-    delete ret.__v;
-    return ret;
-  },
-});
-
-userSchema.set('toObject', {
-  transform: function (doc, ret) {
-    delete ret.passwordHash;
-    delete ret.assignedPasswordHint;
-    delete ret.passwordResetToken;
-    delete ret.passwordResetExpires;
-    delete ret.emailVerificationToken;
-    delete ret.emailVerificationExpires;
-    delete ret.__v;
-    return ret;
-  },
-});
-
-userSchema.index({ hospitalId: 1, role: 1, isActive: 1 });
-userSchema.index({ hospitalId: 1, status: 1 });
-userSchema.index({ hospitalId: 1, email: 1 });
-
-export const PlatformUser = mongoose.model('User', userSchema);
-export const User = tenantAwareModel(PlatformUser);
+export const User = tenantAwareModel(mongoose.model('User', userSchema));

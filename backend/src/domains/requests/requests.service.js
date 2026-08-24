@@ -210,19 +210,21 @@ export class RequestsService {
 
     const roles = new Set([user.role, ...(user.additionalRoles || [])]);
     const userId = user.id || user._id;
-    if (roles.has('DOCTOR')) {
+    if (categoryFilter === 'DOCTOR' || (roles.has('DOCTOR') && !roles.has('HOSPITAL_ADMIN') && !roles.has('SUPER_ADMIN'))) {
       filter.requestCategory = 'DOCTOR';
-      filter.$or = [{ assignedDoctorId: userId }, { assignedDoctorId: null }];
-    } else if (roles.has('NURSE_INCHARGE')) {
-      filter.requestCategory = { $in: ['NURSE', 'CARETAKER', 'EMERGENCY'] };
+      if (!roles.has('HOSPITAL_ADMIN') && !roles.has('SUPER_ADMIN')) {
+        filter.$or = [{ assignedDoctorId: userId }, { assignedDoctorId: null }, { assignedDoctorId: { $exists: false } }];
+      }
+    } else if (roles.has('NURSE_INCHARGE') || roles.has('HOSPITAL_ADMIN') || roles.has('SUPER_ADMIN')) {
+      if (!categoryFilter) filter.requestCategory = { $in: ['NURSE', 'CARETAKER', 'EMERGENCY', 'DOCTOR'] };
     } else if (roles.has('NURSE')) {
-      filter.requestCategory = { $in: ['NURSE', 'EMERGENCY'] };
-      filter.$or = [{ assignedNurseId: userId }, { assignedNurseId: null }];
+      if (!categoryFilter) filter.requestCategory = { $in: ['NURSE', 'EMERGENCY'] };
+      filter.$or = [{ assignedNurseId: userId }, { assignedNurseId: null }, { assignedNurseId: { $exists: false } }];
     } else if (roles.has('SUPPORT_STAFF') || roles.has('IPD_STAFF')) {
-      filter.requestCategory = 'CARETAKER';
-      filter.$or = [{ assignedCaretakerId: userId }, { assignedCaretakerId: null }];
+      if (!categoryFilter) filter.requestCategory = 'CARETAKER';
+      filter.$or = [{ assignedCaretakerId: userId }, { assignedCaretakerId: null }, { assignedCaretakerId: { $exists: false } }];
     } else if (roles.has('EMERGENCY_STAFF')) {
-      filter.requestCategory = 'EMERGENCY';
+      if (!categoryFilter) filter.requestCategory = 'EMERGENCY';
     }
 
     return await PatientRequest.find(filter)

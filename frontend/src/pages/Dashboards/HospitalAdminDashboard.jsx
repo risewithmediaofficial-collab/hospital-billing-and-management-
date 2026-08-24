@@ -10,7 +10,12 @@ import { useSocket } from '../../providers/SocketProvider';
 import { useAuthStore } from '../../store/authStore';
 import { getOperationalRoles, useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { ROLES, ROLE_NAMES, DEPARTMENTS, MODULE_ACTION_MATRIX } from '../../utils/constants';
-import { Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle, Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog, Download } from 'lucide-react';
+import { useAvailability } from '../../hooks/useAvailability';
+import {
+  Users, UserPlus, ShieldCheck, Stethoscope, Receipt, TestTube, CheckCircle, AlertCircle,
+  Key, Eye, EyeOff, X, Edit, Copy, RotateCcw, CheckSquare, Square, SlidersHorizontal, UserCog,
+  Download, Power, Shield, Pill, Activity, BedDouble, ShieldAlert, UserCheck
+} from 'lucide-react';
 import { SubscriptionDashboardWidget } from '../../components/subscription/SubscriptionDashboardWidget';
 import { SubscriptionRenewalModal } from '../../components/subscription/SubscriptionRenewalModal';
 import { AdminExtraPage } from './AdminExtraPage';
@@ -197,6 +202,8 @@ const HospitalAdminDashboardInner = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showAdminPasswordChange, setShowAdminPasswordChange] = useState(false);
 
+  
+
   const initialStaffForm = {
     id: null,
     name: '',
@@ -224,17 +231,23 @@ const HospitalAdminDashboardInner = () => {
   const { user } = useAuthStore();
   const { setMode } = useWorkspaceModeStore();
   const { socket } = useSocket();
+  const {
+    isAvailable,
+    departmentAvailability,
+    isToggling,
+    handleToggle,
+    handleDepartmentToggle,
+    handleSetAllDepartments,
+  } = useAvailability();
   const [staffList, setStaffList] = useState([]);
   const [hospitalData, setHospitalData] = useState(null);
   const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
 
-
   const formatTenantPath = (path) => {
-    if (!path) return path;
     if (user?.role === 'SUPER_ADMIN') return path;
     const domainFromPath = location.pathname.split('/')[1];
     const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
@@ -652,6 +665,124 @@ const HospitalAdminDashboardInner = () => {
         <StatCard title="Nursing Practitioners" value={`${nursingCount} Nurses`} subtitle="Bed Matrix & Vitals Access" icon={CheckCircle} color="indigo" />
         <StatCard title="Front Desk & Billing" value={`${cashiersCount} Staff`} subtitle="Tokens, Reception & Receipts" icon={Receipt} color="purple" />
       </div>
+
+      {/* Admin Backup Work Mode & Department Availability Card */}
+      <Card className="border-2 border-indigo-200/80 bg-gradient-to-br from-white via-indigo-50/20 to-slate-50 shadow-md">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100/80 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-xs">
+              <Shield size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-black text-slate-900">Admin Availability &amp; Work Mode</h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-wide uppercase border ${
+                  isAvailable ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-200 text-slate-700 border-slate-300'
+                }`}>
+                  {isAvailable ? `● AVAILABLE (${Object.values(departmentAvailability || {}).filter(Boolean).length}/8 Desks Active)` : '○ UNAVAILABLE'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Configure your backup availability for each department. When regular staff are absent, you can step in for specific desks without having to manage all departments at once.
+              </p>
+            </div>
+          </div>
+
+          {/* Master Toggle + Quick Actions */}
+          <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-end lg:self-center">
+            <button
+              type="button"
+              onClick={() => handleSetAllDepartments(true)}
+              disabled={isToggling}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+            >
+              Enable All
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetAllDepartments(false)}
+              disabled={isToggling}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
+            >
+              Pause All
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggle()}
+              disabled={isToggling}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-black text-xs text-white shadow-sm transition-all cursor-pointer ${
+                isAvailable ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <Power size={15} />
+              {isAvailable ? 'Available (Active)' : 'Unavailable (Offline)'}
+            </button>
+          </div>
+        </div>
+
+        {/* Department Desks Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+          {[
+            { key: 'DOCTOR', name: 'Doctor / OPD Desk', desc: 'OPD Queue, Clinical Consultations & Prescriptions', icon: Stethoscope, color: 'text-cyan-600 bg-cyan-50 border-cyan-200' },
+            { key: 'RECEPTIONIST', name: 'Reception Desk', desc: 'Patient Registration, Appointments & Tokens', icon: UserCheck, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+            { key: 'CASHIER', name: 'Billing & Cashier', desc: 'Invoices, Settlement & Receipts Collection', icon: Receipt, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+            { key: 'PHARMACIST', name: 'Pharmacy Desk', desc: 'Prescription Dispensing & Medicine Inventory', icon: Pill, color: 'text-purple-600 bg-purple-50 border-purple-200' },
+            { key: 'LAB_TECH', name: 'Laboratory Desk', desc: 'Blood & Pathology Tests & Report Entry', icon: TestTube, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+            { key: 'RADIOLOGIST', name: 'Radiology Desk', desc: 'X-Ray, CT, Ultrasound & Imaging Scans', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-200' },
+            { key: 'NURSE', name: 'Nursing & IPD Ward', desc: 'Inpatient Beds, Nurse Tasks & Injections', icon: BedDouble, color: 'text-rose-600 bg-rose-50 border-rose-200' },
+            { key: 'EMERGENCY_STAFF', name: 'Emergency Desk', desc: 'Code Blue, Rapid Triage & Critical Alerts', icon: ShieldAlert, color: 'text-red-600 bg-red-50 border-red-200' },
+          ].map((dept) => {
+            const Icon = dept.icon;
+            const isDeptActive = Boolean(departmentAvailability?.[dept.key]) && isAvailable;
+
+            return (
+              <div
+                key={dept.key}
+                onClick={() => handleDepartmentToggle(dept.key)}
+                className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-3 select-none ${
+                  isDeptActive
+                    ? 'bg-white border-indigo-300 shadow-xs ring-1 ring-indigo-200/50 hover:bg-indigo-50/30'
+                    : 'bg-slate-50/70 border-slate-200 text-slate-400 hover:bg-slate-100/70'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`p-2 rounded-lg border flex-shrink-0 ${isDeptActive ? dept.color : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className={`text-xs font-bold truncate ${isDeptActive ? 'text-slate-900' : 'text-slate-500'}`}>
+                        {dept.name}
+                      </h4>
+                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border ${
+                        isDeptActive ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-200 text-slate-600 border-slate-300'
+                      }`}>
+                        {isDeptActive ? 'ACTIVE BACKUP' : 'PAUSED'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                      isDeptActive ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        isDeptActive ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  {dept.desc}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {successMsg && (
         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold flex items-center gap-2">

@@ -137,12 +137,14 @@ export const enableClinicOwnerWorkMode = async (req, res, next) => {
 export const updateDoctorAvailability = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { isAvailable, cabinNo } = req.body;
-    const result = await AuthService.toggleDoctorAvailability(id, isAvailable, cabinNo, req.user);
+    const { isAvailable, cabinNo, adminDepartmentAvailability } = req.body;
+    const result = await AuthService.toggleDoctorAvailability(id, isAvailable, cabinNo, req.user, adminDepartmentAvailability);
     
     // Availability is operational data: Reception/OPD needs doctor capacity,
     // while Hospital Admin receives only the governance presence view.
     const { socketManager } = await import('../../events/socketManager.js');
+    socketManager.emitToHospital(result.hospitalId, 'doctor:availability_changed', result);
+    socketManager.emitToHospital(result.hospitalId, 'staff:availability_changed', result);
     ['RECEPTIONIST', 'OPD_STAFF'].forEach((role) => {
       if (result.branchId) socketManager.emitToBranchRole(result.branchId, role, 'doctor:availability_changed', result);
       else socketManager.emitToHospitalRole(result.hospitalId, role, 'doctor:availability_changed', result);
@@ -184,6 +186,11 @@ export const updateDoctorAvailability = async (req, res, next) => {
 export const updateStaffPermissions = async (req, res, next) => {
   try {
     const staff = await AuthService.updateStaffPermissions(req.params.id, req.body, req.user);
+    try {
+      const { socketManager } = await import('../../events/socketManager.js');
+      socketManager.emitToHospital(staff.hospitalId, 'staff:updated', staff);
+      socketManager.emitToHospital(staff.hospitalId, 'doctor:availability_changed', staff);
+    } catch (e) {}
     return sendSuccess(res, 200, 'Staff permissions updated successfully.', staff);
   } catch (error) { next(error); }
 };
@@ -191,6 +198,11 @@ export const updateStaffPermissions = async (req, res, next) => {
 export const updateStaffUser = async (req, res, next) => {
   try {
     const staff = await AuthService.updateStaffUser(req.params.id, req.body, req.user);
+    try {
+      const { socketManager } = await import('../../events/socketManager.js');
+      socketManager.emitToHospital(staff.hospitalId, 'staff:updated', staff);
+      socketManager.emitToHospital(staff.hospitalId, 'doctor:availability_changed', staff);
+    } catch (e) {}
     return sendSuccess(res, 200, 'Staff user updated successfully.', staff);
   } catch (error) { next(error); }
 };
@@ -226,4 +238,3 @@ export const resetPassword = async (req, res, next) => {
     return sendSuccess(res, 200, result.message, result);
   } catch (error) { next(error); }
 };
-

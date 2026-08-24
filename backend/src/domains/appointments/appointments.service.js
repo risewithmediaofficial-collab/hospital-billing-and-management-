@@ -15,16 +15,34 @@ export class AppointmentsService {
 
     // Bulletproof Doctor Resolution & Availability Check
     let doctor = null;
-    if (user?.role === 'DOCTOR') {
-      doctor = await User.findOne({ _id: user.id || user._id, hospitalId, branchId });
+    if (user?.role === 'DOCTOR' || (Array.isArray(user?.additionalRoles) && user?.additionalRoles.includes('DOCTOR'))) {
+      doctor = await User.findOne({ _id: user.id || user._id, hospitalId, $or: [{ branchId }, { branchId: null }] });
     }
     if (!doctor && data.doctorId) {
       doctor = await User.findOne({ _id: data.doctorId, hospitalId, $or: [{ branchId }, { branchId: null }] });
-      if (doctor && doctor.isAvailable === false) {
-        throw new ApiError(400, 'This doctor is currently unavailable. Please select another available doctor.', null, 'DOCTOR_UNAVAILABLE');
+      if (doctor) {
+        const isDoc = doctor.role === 'DOCTOR' || (Array.isArray(doctor.additionalRoles) && doctor.additionalRoles.includes('DOCTOR'));
+        if (!isDoc) {
+          throw new ApiError(400, 'The selected staff member does not have doctor privileges.', null, 'INVALID_DOCTOR');
+        }
+        if (doctor.isActive === false || doctor.status === 'INACTIVE') {
+          throw new ApiError(400, 'This doctor account is currently inactive.', null, 'DOCTOR_INACTIVE');
+        }
+        if (doctor.isAvailable === false) {
+          throw new ApiError(400, 'This doctor is currently offline/unavailable. Please select an available doctor.', null, 'DOCTOR_UNAVAILABLE');
+        }
       }
     }
-    if (!doctor) doctor = await User.findOne({ hospitalId, $or: [{ branchId }, { branchId: null }], role: 'DOCTOR', isAvailable: { $ne: false }, isActive: { $ne: false } });
+    if (!doctor) {
+      doctor = await User.findOne({
+        hospitalId,
+        $or: [{ branchId }, { branchId: null }],
+        $or: [{ role: 'DOCTOR' }, { additionalRoles: 'DOCTOR' }],
+        isAvailable: { $ne: false },
+        isActive: { $ne: false },
+        status: { $ne: 'INACTIVE' },
+      });
+    }
 
     if (!doctor) {
       throw new ApiError(400, 'No active/available doctor exists in system to assign token. Please select an available doctor.', null, 'NO_DOCTOR_AVAILABLE');
@@ -32,12 +50,12 @@ export class AppointmentsService {
 
     // Find Patient or create walk-in patient
     let patient = null;
+
     if (data.patientId) {
       patient = await Patient.findOne({ _id: data.patientId, hospitalId });
     } else if (data.uhid) {
       patient = await Patient.findOne({ hospitalId, uhid: data.uhid.toUpperCase() });
     }
-
     if (!patient) {
       const count = await Patient.countDocuments({ hospitalId });
       const seq = String(count + 1).padStart(5, '0');
@@ -158,11 +176,13 @@ export class AppointmentsService {
     appointment.status = status;
     await appointment.save();
 
-    socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
-      appointmentId,
-      status,
-      tokenNumber: appointment.tokenNumber,
-    });
+    if (appointment.branchId) {
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:status_changed', {
+        appointmentId,
+        status,
+        tokenNumber: appointment.tokenNumber,
+      });
+    }
 
     const pName = appointment.patientId ? `${appointment.patientId.firstName || ''} ${appointment.patientId.lastName || ''}`.trim() : 'Patient';
     const uhid = appointment.patientId?.uhid || 'N/A';

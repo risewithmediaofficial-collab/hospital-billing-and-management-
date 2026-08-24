@@ -16,7 +16,7 @@ const requireExactRole = (...allowedRoles) => (req, res, next) => {
 };
 
 router.post('/', requireExactRole('PATIENT'), createRequest);
-router.get('/', requireExactRole('DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'SUPPORT_STAFF', 'EMERGENCY_STAFF'), getActiveRequests);
-router.patch('/:id/status', requireExactRole('DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'SUPPORT_STAFF', 'EMERGENCY_STAFF'), updateRequestStatus);
+router.get('/', requireExactRole('DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'SUPPORT_STAFF', 'EMERGENCY_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'CASHIER', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'INVENTORY_MANAGER', 'HR_MANAGER'), getActiveRequests);
+router.patch('/:id/status', requireExactRole('DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'SUPPORT_STAFF', 'EMERGENCY_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'CASHIER', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'INVENTORY_MANAGER', 'HR_MANAGER'), updateRequestStatus);
 
 export default router;

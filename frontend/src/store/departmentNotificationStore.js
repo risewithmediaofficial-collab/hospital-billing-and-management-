@@ -188,25 +188,13 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     const override = get().navCountOverrides[navPath];
     if (override !== undefined) return override;
 
-    // 1. Check matching pending tasks from /workflow/pending
+    // 1. Check matching pending tasks from /workflow/pending (active queue tasks)
     const matchingPendingCount = get().notifications.filter((item) => pathMatches(item.linkedPath, navPath, item)).length;
+    if (matchingPendingCount > 0) return matchingPendingCount;
 
-    // 2. Check unread notifications from useNotificationStore (bell notifications)
-    let bellUnreadCount = 0;
-    try {
-      const bellNotifs = useNotificationStore.getState().notifications || [];
-      bellUnreadCount = bellNotifs.filter((n) => {
-        if (n.isRead || n.isCleared) return false;
-        return pathMatches(n.linkedPath || n.targetRoute || n.link, navPath, n);
-      }).length;
-    } catch {
-      // ignore
-    }
-
-    const totalMatching = Math.max(matchingPendingCount, bellUnreadCount);
-    if (totalMatching > 0) return totalMatching;
-
+    // 2. Direct path mapping from workflow pending snapshot
     if (get().byPath[navPath] !== undefined) return get().byPath[navPath];
+
     return 0;
   },
 }));

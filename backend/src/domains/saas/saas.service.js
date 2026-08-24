@@ -270,6 +270,11 @@ export class SaasService {
       phone: data.contactPhone || '',
       passwordHash: await bcrypt.hash(String(data.adminPassword), 12),
       role: ROLES.HOSPITAL_ADMIN,
+      additionalRoles: [
+        'RECEPTIONIST', 'CASHIER', 'NURSE_INCHARGE', 'IPD_STAFF',
+        'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'EMERGENCY_STAFF',
+        'INVENTORY_MANAGER', 'HR_MANAGER',
+      ],
       status: 'INACTIVE',
       isActive: false,
     });
@@ -809,13 +814,17 @@ export class SaasService {
         email: cleanEmail,
         passwordHash: await bcrypt.hash(legacyInitialPassword, 12),
         role: ROLES.HOSPITAL_ADMIN,
+        additionalRoles: [
+          'RECEPTIONIST', 'CASHIER', 'NURSE_INCHARGE', 'IPD_STAFF',
+          'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'EMERGENCY_STAFF',
+          'INVENTORY_MANAGER', 'HR_MANAGER',
+        ],
         phone: hospital.contactPhone || '+1 (555) 000-0000',
         status: 'ACTIVE',
       });
     }
     hospital.initialAdminPassword = undefined;
     await hospital.save();
-
     return {
       hospital,
       adminUser: {

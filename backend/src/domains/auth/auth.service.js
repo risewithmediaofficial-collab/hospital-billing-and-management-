@@ -35,7 +35,7 @@ const phonesMatch = (left, right) => {
 
 export class AuthService {
   static CLINIC_OWNER_WORK_ROLES = [
-    'DOCTOR', 'RECEPTIONIST', 'CASHIER', 'NURSE_INCHARGE', 'IPD_STAFF',
+    'RECEPTIONIST', 'CASHIER', 'NURSE_INCHARGE', 'IPD_STAFF',
     'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'EMERGENCY_STAFF',
     'INVENTORY_MANAGER', 'HR_MANAGER',
   ];
@@ -622,6 +622,7 @@ export class AuthService {
     staffDoc.passwordResetExpires = null;
     await staffDoc.save();
 
+
     return {
       id: staffDoc._id,
       name: staffDoc.name,
@@ -629,11 +630,11 @@ export class AuthService {
     };
   }
 
-  static async toggleDoctorAvailability(staffId, isAvailable, cabinNo, requestingUser) {
+  static async toggleDoctorAvailability(staffId, isAvailable, cabinNo, requestingUser, adminDepartmentAvailability = null) {
     const targetId = (staffId === 'me' || !staffId) ? (requestingUser?.id || requestingUser?._id) : staffId;
     const staffDoc = await User.findOne(this.staffManagementFilter(targetId, requestingUser));
     if (!staffDoc) {
-      throw new ApiError(404, 'Doctor account not found', null, 'NOT_FOUND');
+      throw new ApiError(404, 'Staff account not found', null, 'NOT_FOUND');
     }
 
     const requesterId = requestingUser?.id || requestingUser?._id;
@@ -646,9 +647,40 @@ export class AuthService {
     if (isAvailable !== undefined && isAvailable !== null) {
       staffDoc.isAvailable = Boolean(isAvailable);
     }
+    if (adminDepartmentAvailability && typeof adminDepartmentAvailability === 'object') {
+      staffDoc.adminDepartmentAvailability = {
+        ...(staffDoc.adminDepartmentAvailability || {}),
+        ...adminDepartmentAvailability,
+      };
+    }
     if (cabinNo && typeof cabinNo === 'string' && cabinNo.trim()) {
       staffDoc.cabinNo = cabinNo.trim();
     }
+
+    if (staffDoc.role === 'HOSPITAL_ADMIN') {
+      const deptAvail = staffDoc.adminDepartmentAvailability || {
+        DOCTOR: true, RECEPTIONIST: true, CASHIER: true, PHARMACIST: true,
+        LAB_TECH: true, RADIOLOGIST: true, NURSE: true, EMERGENCY_STAFF: true,
+      };
+      const roleMap = {
+        DOCTOR: ['DOCTOR'],
+        RECEPTIONIST: ['RECEPTIONIST'],
+        CASHIER: ['CASHIER'],
+        PHARMACIST: ['PHARMACIST'],
+        LAB_TECH: ['LAB_TECH'],
+        RADIOLOGIST: ['RADIOLOGIST'],
+        NURSE: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
+        EMERGENCY_STAFF: ['EMERGENCY_STAFF'],
+      };
+      const enabledRoles = [];
+      for (const [dept, isEnabled] of Object.entries(deptAvail)) {
+        if (isEnabled && roleMap[dept]) {
+          enabledRoles.push(...roleMap[dept]);
+        }
+      }
+      staffDoc.additionalRoles = staffDoc.isAvailable ? Array.from(new Set(enabledRoles)) : [];
+    }
+
     staffDoc.availabilityUpdatedAt = new Date();
     await staffDoc.save();
 
@@ -659,6 +691,8 @@ export class AuthService {
       role: staffDoc.role,
       specialization: staffDoc.specialization,
       isAvailable: staffDoc.isAvailable,
+      adminDepartmentAvailability: staffDoc.adminDepartmentAvailability,
+      additionalRoles: staffDoc.additionalRoles || [],
       cabinNo: staffDoc.cabinNo,
       availabilityUpdatedAt: staffDoc.availabilityUpdatedAt,
       branchId: staffDoc.branchId,
@@ -755,6 +789,16 @@ export class AuthService {
       assignedUnit: user.assignedUnit,
       shiftDetails: user.shiftDetails,
       isAvailable: user.isAvailable,
+      adminDepartmentAvailability: user.adminDepartmentAvailability || {
+        DOCTOR: true,
+        RECEPTIONIST: true,
+        CASHIER: true,
+        PHARMACIST: true,
+        LAB_TECH: true,
+        RADIOLOGIST: true,
+        NURSE: true,
+        EMERGENCY_STAFF: true,
+      },
       cabinNo: user.cabinNo || 'Cabin 101',
       availabilityUpdatedAt: user.availabilityUpdatedAt,
       avatarUrl: user.avatarUrl,

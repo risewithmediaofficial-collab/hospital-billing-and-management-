@@ -97,7 +97,6 @@ const MainLayout = ({ children, hideSidebar = false, noPadding = false }) => {
     if (mainRef.current) {
       mainRef.current.scrollTop = 0;
     }
-    useNotificationStore.getState().markRouteAsRead?.(location.pathname + location.search);
   }, [location.pathname, location.search]);
 
   const menuItems = user?.role ? ROLE_NAVIGATION[user.role] || [] : [];
@@ -538,4 +537,3 @@ export const AppRoutes = () => {
   </React.Suspense>
   );
 };
-

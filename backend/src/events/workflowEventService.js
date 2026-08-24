@@ -235,6 +235,12 @@ const MESSAGE_TEMPLATES = {
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
     (p) => ({ title: 'Emergency Resolved', message: `Emergency at ${p.location || 'Facility'} has been resolved by ${p.resolvedBy || 'Medical Team'}.`, type: 'SYSTEM_ALERT' }),
 
+  [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
+    (p) => ({ title: 'EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Report immediately!`, type: 'EMERGENCY' }),
+
+  [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
+    (p) => ({ title: 'Emergency Resolved', message: `Emergency at ${p.location || 'Facility'} has been resolved by ${p.resolvedBy || 'Medical Team'}.`, type: 'SYSTEM_ALERT' }),
+
   [WORKFLOW_EVENTS.IPD_ADMISSION_RECOMMENDED]:
     (p) => ({ title: 'IPD Admission Recommended', message: `${safeDoc(p.doctorName)} recommended IPD Inpatient Admission for ${safePat(p.patientName, p.uhid)} to ${p.wardType || 'General Ward'}. Priority: ${p.priority || 'Normal'}. Reason: ${p.reason || 'Clinical Observation'}`, type: 'WORKFLOW' }),
 
@@ -243,6 +249,18 @@ const MESSAGE_TEMPLATES = {
 
   [WORKFLOW_EVENTS.STAFF_CAME_ONLINE]:
     (p) => ({ title: 'Staff Back Online', message: `${p.staffName || 'Staff Member'} (${p.role || 'Staff'}) is now online and available for assignments.`, type: 'SYSTEM_ALERT' }),
+};
+
+// ─── Automatic upstream task completion mapping ──────────────────────────────
+export const EVENT_COMPLETIONS = {
+  [WORKFLOW_EVENTS.CONSULTATION_COMPLETE]: { entityType: 'Appointment', idKey: 'appointmentId' },
+  [WORKFLOW_EVENTS.LAB_SUBMITTED]: { entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'PROCESS_LAB_ORDER' },
+  [WORKFLOW_EVENTS.RADIOLOGY_SUBMITTED]: { entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'PROCESS_RADIOLOGY_ORDER' },
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_LAB]: { entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'REVIEW_REPORT' },
+  [WORKFLOW_EVENTS.DOCTOR_REVIEWED_RADIOLOGY]: { entityType: 'DiagnosticOrder', idKey: 'orderId', actionType: 'REVIEW_REPORT' },
+  [WORKFLOW_EVENTS.PHARMACY_DISPENSED]: { entityType: 'Prescription', idKey: 'prescriptionId', actionType: 'DISPENSE_MEDICINE' },
+  [WORKFLOW_EVENTS.NURSE_REQUEST_COMPLETED]: { entityType: 'NurseTask', idKey: 'taskId', actionType: 'PERFORM_NURSING_TASK' },
+  [WORKFLOW_EVENTS.PAYMENT_COLLECTED]: { entityType: 'Invoice', idKey: 'invoiceId' },
 };
 
 // ─── Notification type → DB type mapping ─────────────────────────────────────
@@ -290,14 +308,17 @@ export class WorkflowEventService {
     if (action.entityType && !entityId) {
       throw new Error(`Refusing actionable workflow event ${event} without ${action.idKey || 'entityId'}`);
     }
+    const priority = type === 'EMERGENCY' ? 'EMERGENCY' : (payload.priority || 'NORMAL');
     const envelope = {
       event,
       title,
       message,
       type,
+      priority,
       payload,
       timestamp: new Date().toISOString(),
       isRead: false,
+      isCompleted: false,
       linkedPath: targetRoute || null,
       targetRoute,
       sourceModule: action.sourceModule || payload.sourceModule || '',
@@ -306,6 +327,25 @@ export class WorkflowEventService {
       entityId,
       actionType: action.actionType || payload.actionType || '',
     };
+
+    // ── Auto-complete upstream tasks for this entity if applicable ──────────
+    try {
+      const completionConfig = EVENT_COMPLETIONS[event];
+      if (completionConfig) {
+        const { NotificationService } = await import('../domains/notifications/notification.service.js');
+        const targetCompletionId = payload[completionConfig.idKey] || payload.entityId || entityId;
+        if (targetCompletionId) {
+          await NotificationService.completeEntityTasks({
+            hospitalId: effectiveHospitalId,
+            entityType: completionConfig.entityType,
+            entityId: String(targetCompletionId),
+            actionType: completionConfig.actionType,
+          });
+        }
+      }
+    } catch (completionErr) {
+      console.warn('[WorkflowEventService] Auto-completion warning:', completionErr.message);
+    }
 
     // ── Socket.IO Emission ────────────────────────────────────────────────────
     if (roles.includes('ALL')) {
@@ -331,6 +371,7 @@ export class WorkflowEventService {
           socketManager.emitToUser(String(targetUserId), `workflow:${eventStr}`, targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'workflow:notification', targetedEnvelope);
           socketManager.emitToUser(String(targetUserId), 'opd_queue:updated', targetedEnvelope);
+          socketManager.emitToUser(String(targetUserId), 'workflow:pending_changed', { event });
         } else {
           const availableUsers = await User.find({
             ...(effectiveHospitalId ? { hospitalId: effectiveHospitalId } : {}),
@@ -398,7 +439,9 @@ export class WorkflowEventService {
           branchId: effectiveBranchId,
           title,
           message,
-          type: DB_NOTIFICATION_TYPES[type] || 'SYSTEM_ALERT',
+          priority,
+          type: type || 'SYSTEM_ALERT',
+          notificationType: type || 'SYSTEM_ALERT',
           link: targetRoute,
           targetRoute,
           sourceModule: action.sourceModule || payload.sourceModule || '',
@@ -447,8 +490,9 @@ export class WorkflowEventService {
             branchId: effectiveBranchId,
             title,
             message,
-            notificationType: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
-            type: DB_NOTIFICATION_TYPES[type] || 'WORKFLOW',
+            priority,
+            notificationType: type || 'WORKFLOW',
+            type: type || 'WORKFLOW',
             link: targetRoute,
             targetRoute,
             sourceModule: action.sourceModule || payload.sourceModule || '',
@@ -459,6 +503,7 @@ export class WorkflowEventService {
             relatedPatientId: payload.patientId || null,
             relatedTaskId: payload.relatedTaskId || payload.orderId || payload.appointmentId || payload.prescriptionId || payload.invoiceId || payload.requestId || '',
             isRead: false,
+            isCompleted: false,
             status: 'ACTIVE',
             metadata: {
               event,

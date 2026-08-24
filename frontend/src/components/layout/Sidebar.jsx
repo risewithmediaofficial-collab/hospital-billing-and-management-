@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
@@ -20,8 +20,6 @@ export const WORK_MODE_NAVIGATION = [
   { title: 'Dept Responses', path: '/doctor/dashboard?tab=DEPT_RESPONSES', icon: 'FileCheck2', module: 'doctorConsultation', category: 'Clinical Workstation', requiredRoles: ['DOCTOR'] },
 
   // Front Desk & Billing
-  { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
-  { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
   { title: 'Reception Desk', path: '/reception/registered-patients', icon: 'LayoutDashboard', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
   { title: 'Follow-Up Visits', path: '/reception/registered-patients?tab=FOLLOW_UPS', icon: 'Calendar', module: 'appointments', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF'] },
   { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients', category: 'Front Desk & Billing', requiredRoles: ['RECEPTIONIST', 'OPD_STAFF', 'DOCTOR'] },
@@ -53,9 +51,7 @@ export const WORK_MODE_NAVIGATION = [
 
 const ALL_MODULE_NAVIGATION = [
   { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker' },
-  { title: 'Patient Registration', path: '/reception/register-patient', icon: 'UserPlus', module: 'patientRegistration' },
   { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
-  { title: 'Tokens & Queue', path: '/reception/tokens', icon: 'Ticket', module: 'tokens' },
   { title: 'Reception Desk', path: '/reception/dashboard', icon: 'LayoutDashboard', module: 'appointments' },
   { title: 'Clinical EMR Desk', path: '/doctor/dashboard', icon: 'Stethoscope', module: 'doctorConsultation' },
   { title: 'IPD Requisitions', path: '/nurse-incharge/dashboard?tab=REQUISITIONS', icon: 'BedDouble', module: 'nursing' },
@@ -152,12 +148,6 @@ const checkItemPermission = (user, item) => {
   return false;
 };
 
-const formatTenantPath = (path) => {
-  if (!path) return '/';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return path;
-};
-
 export const Sidebar = ({ isOpen, onClose }) => {
   const user = useAuthStore((state) => state.user);
   const { socket } = useSocket();
@@ -173,6 +163,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const navRef = useRef(null);
+  const [unviewedReceiptsCount, setUnviewedReceiptsCount] = useState(0);
 
   useEffect(() => {
     fetchPendingWork();
@@ -237,7 +228,100 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('billing:payment_collected', handleRefresh);
       socket.off('emergency:alert', handleRefresh);
     };
-  }, [socket, user, fetchPendingWork]);
+  }, [socket, fetchPendingWork]);
+
+  const fetchReceiptsCount = useCallback(async () => {
+    if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
+    try {
+      const isCurrentlyViewingReceipts =
+        location.pathname.includes('/billing/receipts') ||
+        (location.pathname.includes('/billing/dashboard') && location.search.includes('tab=RECEIPTS'));
+
+      const storageKey = `last_viewed_receipts_${user.hospitalId || 'default'}_${user.id || user._id || 'user'}`;
+
+      if (isCurrentlyViewingReceipts) {
+        localStorage.setItem(storageKey, new Date().toISOString());
+        setUnviewedReceiptsCount(0);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+        return;
+      }
+
+      const res = await axiosClient.get('/billing/receipts');
+      const receipts = res.data || [];
+      const lastViewedTs = localStorage.getItem(storageKey);
+
+      if (!lastViewedTs) {
+        localStorage.setItem(storageKey, new Date().toISOString());
+        setUnviewedReceiptsCount(0);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+      } else {
+        const lastDate = new Date(lastViewedTs);
+        const unviewed = receipts.filter((r) => new Date(r.createdAt || r.paidAt) > lastDate).length;
+        setUnviewedReceiptsCount(unviewed);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', unviewed);
+        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', unviewed);
+      }
+    } catch (err) {}
+  }, [user?.role, user?.hospitalId, user?.id, user?._id, location.pathname, location.search]);
+
+  useEffect(() => {
+    fetchReceiptsCount();
+  }, [location.pathname, location.search, fetchReceiptsCount]);
+
+  useEffect(() => {
+    if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
+
+    fetchReceiptsCount();
+
+    const interval = setInterval(fetchReceiptsCount, 15000);
+
+    if (!socket) return () => clearInterval(interval);
+
+    socket.on('billing:payment_collected', fetchReceiptsCount);
+    socket.on('payment:collected', fetchReceiptsCount);
+    socket.on('receipt:created', fetchReceiptsCount);
+    socket.on('billing:receipt_created', fetchReceiptsCount);
+    socket.on('billing:receipt_deleted', fetchReceiptsCount);
+    socket.on('receipt:deleted', fetchReceiptsCount);
+    socket.on('billing:invoice_created', fetchReceiptsCount);
+    socket.on('billing:invoice_updated', fetchReceiptsCount);
+    socket.on('workflow:notification', fetchReceiptsCount);
+    socket.on('workflow:pending_changed', fetchReceiptsCount);
+
+    return () => {
+      clearInterval(interval);
+      socket.off('billing:payment_collected', fetchReceiptsCount);
+      socket.off('payment:collected', fetchReceiptsCount);
+      socket.off('receipt:created', fetchReceiptsCount);
+      socket.off('billing:receipt_created', fetchReceiptsCount);
+      socket.off('billing:receipt_deleted', fetchReceiptsCount);
+      socket.off('receipt:deleted', fetchReceiptsCount);
+      socket.off('billing:invoice_created', fetchReceiptsCount);
+      socket.off('billing:invoice_updated', fetchReceiptsCount);
+      socket.off('workflow:notification', fetchReceiptsCount);
+      socket.off('workflow:pending_changed', fetchReceiptsCount);
+    };
+  }, [user?.role, user?._id || user?.id, socket, fetchReceiptsCount]);
+
+  const formatTenantPath = (path) => {
+    if (!path) return path;
+    const targetPath = path;
+    if (user?.role === 'SUPER_ADMIN') return targetPath;
+    const domainFromPath = location.pathname.split('/')[1];
+    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
+    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
+
+    if (!domain) {
+      if (targetPath.startsWith('/admin')) {
+        return targetPath.replace(/^\/admin/, '/hospital-admin');
+      }
+      return targetPath;
+    }
+    if (targetPath.startsWith(`/${domain}`)) return targetPath;
+    return `/${domain}${targetPath}`;
+  };
 
   const handleSwitchMode = (targetMode) => {
     setMode(targetMode);
@@ -364,160 +448,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
       return true;
     });
   }
-
-  const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
-
-  useEffect(() => {
-    if (!user?.role) return;
-
-    // Initial fetch once per logged-in session / role
-    useDepartmentNotificationStore.getState().fetchPendingWork();
-    useEmergencyStore.getState().fetchActiveEmergencies();
-
-    // Relaxed background fallback (every 30s instead of rapid 10s)
-    const refreshTimer = setInterval(() => {
-      useDepartmentNotificationStore.getState().fetchPendingWork();
-    }, 30000);
-
-    return () => clearInterval(refreshTimer);
-  }, [user?.role, user?._id || user?.id]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const workflowPaths = {
-      PATIENT_QUEUED: '/doctor/dashboard?tab=LIVE',
-      TOKEN_REQUEUED: '/doctor/dashboard?tab=LIVE',
-      DOCTOR_ACCEPTED_PATIENT: '/reception/registered-patients?tab=QUEUED',
-      LAB_ORDER_CREATED: '/laboratory/dashboard',
-      RADIOLOGY_ORDER_CREATED: '/radiology/dashboard',
-      LAB_ACCEPTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
-      LAB_SUBMITTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
-      RADIOLOGY_ACCEPTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
-      RADIOLOGY_SUBMITTED: '/doctor/dashboard?tab=DEPT_RESPONSES',
-      DOCTOR_REVIEWED_LAB: '/laboratory/dashboard?tab=REPORTS',
-      DOCTOR_REVIEWED_RADIOLOGY: '/radiology/dashboard?tab=REPORTS',
-      PRESCRIPTION_ISSUED: '/pharmacy/dashboard',
-      PHARMACY_ACCEPTED: '/pharmacy/dashboard',
-      PHARMACY_DISPENSED: '/billing/dashboard?tab=CENTRAL_DESK',
-      BILL_REQUESTED: '/billing/dashboard',
-      BILL_READY: '/reception/registered-patients?tab=COMPLETED',
-      PAYMENT_COLLECTED: '/reception/registered-patients?tab=COMPLETED',
-      NURSE_REQUEST_RAISED: '/nursing/requests',
-      NURSE_REQUEST_COMPLETED: '/doctor/dashboard',
-      PATIENT_CARE_REQUEST_RAISED: '/nurse-incharge/dashboard?tab=REQUESTS',
-    };
-
-    const resolveWorkflowPath = (data) => {
-      return data.targetRoute || data.linkedPath || data.payload?.linkedPath || workflowPaths[data.event] || null;
-    };
-
-    const handleWorkflowEvent = (data) => {
-      const linkedPath = resolveWorkflowPath(data);
-      const resourceId = data.entityId || data.payload?.requestId || data.payload?.taskId || data.payload?.orderId || data.payload?.invoiceId || data.payload?.appointmentId || data.payload?.patientId || data.payload?.uhid || 'item';
-      const notificationId = data.id || `wf_${data.event}_${resourceId}`;
-      useDepartmentNotificationStore.getState().addNotification({
-        id: notificationId,
-        event: data.event,
-        title: data.title || 'Department Alert',
-        message: data.message || '',
-        patientName: data.payload?.patientName || 'Patient',
-        uhid: data.payload?.uhid || 'N/A',
-        orderId: data.payload?.orderId || null,
-        linkedPath,
-        timestamp: data.timestamp,
-        isPending: ['PATIENT_QUEUED', 'LAB_ORDER_CREATED', 'RADIOLOGY_ORDER_CREATED', 'PRESCRIPTION_ISSUED', 'CONSULTATION_COMPLETE', 'NURSE_REQUEST_RAISED', 'PATIENT_CARE_REQUEST_RAISED'].includes(data.event),
-      });
-    };
-
-    const handleDoctorQueueNotification = (data) => {
-      useDepartmentNotificationStore.getState().addNotification({
-        id: `doc_q_${Date.now()}_${Math.random()}`,
-        event: 'PATIENT_QUEUED',
-        title: 'New Patient Queued',
-        message: data.patientName ? `Patient ${data.patientName} queued for consultation` : 'New patient registered in OPD Queue',
-        patientName: data.patientName || 'OPD Patient',
-        linkedPath: '/doctor/dashboard',
-        timestamp: new Date(),
-      });
-    };
-
-    const handleEmergencyAlert = (data) => {
-      const resolvedId = data.emergencyId || data._id || data.id || `emg_${Date.now()}`;
-      useEmergencyStore.getState().addEmergency({
-        ...data,
-        _id: resolvedId,
-        id: resolvedId,
-        emergencyId: resolvedId,
-        event: 'EMERGENCY',
-        title: data.title || 'Emergency Alert',
-        message: data.message || 'Code Blue triggered',
-        patientName: data.patientName || data.payload?.patientName || 'Unknown Patient',
-        linkedPath: '/emergency',
-        timestamp: data.timestamp || new Date(),
-      });
-      useNotificationStore.getState().fetchNotifications();
-    };
-
-    const handlePendingChanged = () => {
-      useDepartmentNotificationStore.getState().fetchPendingWork();
-    };
-
-    socket.on('emergency:alert', handleEmergencyAlert);
-    socket.on('queue:patient_added', handleDoctorQueueNotification);
-    socket.on('token:generated', handleDoctorQueueNotification);
-    socket.on('appointment:created', handleDoctorQueueNotification);
-    socket.on('workflow:notification', handleWorkflowEvent);
-    socket.on('workflow:pending_changed', handlePendingChanged);
-    socket.on('patient_request:updated', () => useNotificationStore.getState().fetchNotifications());
-
-    return () => {
-      socket.off('emergency:alert', handleEmergencyAlert);
-      socket.off('queue:patient_added', handleDoctorQueueNotification);
-      socket.off('token:generated', handleDoctorQueueNotification);
-      socket.off('appointment:created', handleDoctorQueueNotification);
-      socket.off('workflow:notification', handleWorkflowEvent);
-      socket.off('workflow:pending_changed', handlePendingChanged);
-    };
-  }, [socket]);
-
-
-  useEffect(() => {
-    if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
-
-    const fetchReceiptsCount = async () => {
-      try {
-        const res = await axiosClient.get('/billing/receipts');
-        const receipts = res.data || [];
-        setTotalReceiptsCount(receipts.length);
-      } catch (err) {}
-    };
-
-    fetchReceiptsCount();
-
-    if (socket) {
-      socket.on('billing:invoice_created', fetchReceiptsCount);
-      return () => socket.off('billing:invoice_created', fetchReceiptsCount);
-    }
-  }, [user?.role, user?._id || user?.id, socket]);
-
-  const formatTenantPath = (path) => {
-    if (!path) return path;
-    const targetPath = path;
-    if (user?.role === 'SUPER_ADMIN') return targetPath;
-    const domainFromPath = location.pathname.split('/')[1];
-    const isKnownNonTenant = ['admin', 'hospital-admin', 'doctor', 'reception', 'billing', 'pharmacy', 'laboratory', 'radiology', 'nursing', '403', 'login', 'reset-password'].includes(domainFromPath);
-    const domain = user?.hospitalDomain || (!isKnownNonTenant && domainFromPath ? domainFromPath : null);
-
-    if (!domain) {
-      if (targetPath.startsWith('/admin')) {
-        return targetPath.replace(/^\/admin/, '/hospital-admin');
-      }
-      return targetPath;
-    }
-    if (targetPath.startsWith(`/${domain}`)) return targetPath;
-    return `/${domain}${targetPath}`;
-  };
 
   const isItemActive = (itemPath) => {
     const formatted = formatTenantPath(itemPath);
@@ -655,8 +585,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Quick Department Activity Alert Bar (Highlights exactly which department has incoming data) */}
+        {/* Quick Department Activity Alert Bar (Highlights exactly which department has incoming data in Work Mode) */}
         {(() => {
+          if (isDual && currentMode === 'ADMIN') return null;
           const activeDepts = [];
           const seenKeys = new Set();
 
@@ -869,15 +800,15 @@ export const Sidebar = ({ isOpen, onClose }) => {
                             </span>
                           )}
 
-                          {!isEmergencyItem && navUnreadCount > 0 && (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-xs ${active ? 'bg-white text-indigo-700' : 'bg-rose-600 text-white'}`}>
-                              {navUnreadCount}
+                          {isReceiptsHistory && unviewedReceiptsCount > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-xs ${active ? 'bg-white text-indigo-700' : 'bg-amber-500 text-white'}`}>
+                              {unviewedReceiptsCount}
                             </span>
                           )}
 
-                          {isReceiptsHistory && totalReceiptsCount > 0 && navUnreadCount === 0 && (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${active ? 'bg-white text-indigo-700' : 'bg-emerald-600 text-white'}`}>
-                              {totalReceiptsCount}
+                          {!isEmergencyItem && !isReceiptsHistory && navUnreadCount > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-xs ${active ? 'bg-white text-indigo-700' : 'bg-rose-600 text-white'}`}>
+                              {navUnreadCount}
                             </span>
                           )}
                         </Link>

@@ -15,6 +15,18 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
   useScrollLock(isOpen);
   const { socket } = useSocket();
 
+  const activePatient = (typeof patient === 'object' && patient !== null)
+    ? patient
+    : (typeof token?.patientId === 'object' && token?.patientId !== null)
+      ? token.patientId
+      : {
+          _id: patient || token?.patientId || `pat_${Date.now()}`,
+          firstName: token?.patientName?.split(' ')[0] || 'Patient',
+          lastName: token?.patientName?.split(' ').slice(1).join(' ') || '',
+          uhid: token?.uhid || 'UHID',
+          gender: 'GENERAL',
+        };
+
   const [chiefComplaints, setChiefComplaints] = useState('');
   const [historyOfPresentIllness, setHistoryOfPresentIllness] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -27,9 +39,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     priority: 'ROUTINE',
     admissionReason: '',
     estimatedStayDays: 3,
-    guardianName: patient?.emergencyContact?.name && patient?.emergencyContact?.name !== 'Self / N/A' ? patient.emergencyContact.name : '',
-    guardianPhone: patient?.emergencyContact?.phone && patient?.emergencyContact?.phone !== '+1 (555) 000-0000' ? patient.emergencyContact.phone : '',
-    guardianRelationship: patient?.emergencyContact?.relation || 'FAMILY',
+    guardianName: activePatient?.emergencyContact?.name && activePatient?.emergencyContact?.name !== 'Self / N/A' ? activePatient.emergencyContact.name : '',
+    guardianPhone: activePatient?.emergencyContact?.phone && activePatient?.emergencyContact?.phone !== '+1 (555) 000-0000' ? activePatient.emergencyContact.phone : '',
+    guardianRelationship: activePatient?.emergencyContact?.relation || 'FAMILY',
     guardianAddress: '',
   });
 
@@ -81,7 +93,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
   };
 
   const fetchDepartmentOrders = useCallback(async () => {
-    const patId = patient?._id || patient?.id;
+    const patId = activePatient?._id || activePatient?.id;
     if (!patId) return;
     setIsLoadingOrders(true);
     try {
@@ -92,10 +104,10 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     } finally {
       setIsLoadingOrders(false);
     }
-  }, [patient]);
+  }, [activePatient]);
 
   const fetchPharmacyBilled = useCallback(async () => {
-    const patId = patient?._id || patient?.id;
+    const patId = activePatient?._id || activePatient?.id;
     if (!patId) return;
     try {
       const res = await axiosClient.get(`/pharmacy/prescriptions?patientId=${patId}`);
@@ -107,7 +119,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     } catch (err) {
       console.error('Failed to load pharmacy billed prescriptions:', err);
     }
-  }, [patient]);
+  }, [activePatient]);
 
   useEffect(() => {
     if (isOpen && token) {
@@ -169,7 +181,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
   useEffect(() => {
     if (!socket || !isOpen) return;
     const handleUpdate = (data) => {
-      const patId = patient?._id || patient?.id;
+      const patId = activePatient?._id || activePatient?.id;
       if (data.patientId === patId || data.patientId?._id === patId) {
         fetchDepartmentOrders();
         fetchPharmacyBilled();
@@ -183,9 +195,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       socket.off('diagnostics:report_ready', handleUpdate);
       socket.off('pharmacy:billing_sent_to_doctor', handleUpdate);
     };
-  }, [socket, isOpen, patient, fetchDepartmentOrders, fetchPharmacyBilled]);
+  }, [socket, isOpen, activePatient, fetchDepartmentOrders, fetchPharmacyBilled]);
 
-  if (!isOpen || !token || !patient) return null;
+  if (!isOpen || !token) return null;
 
   const pendingOrders = departmentOrders.filter(
     (ord) => ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS'].includes(ord.status) && ord.chargeStatus !== 'CANCELLED'
@@ -311,7 +323,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     try {
       await axiosClient.post('/emr/consultations', {
         appointmentId: token._id,
-        patientId: patient._id || patient.id,
+        patientId: activePatient._id || activePatient.id,
         chiefComplaints: chiefComplaints.trim() || 'General Consultation',
         historyOfPresentIllness,
         prescriptions: validPrescriptions,
@@ -364,7 +376,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-slate-900 leading-tight truncate">Clinical Consultation & Charges Review</h3>
                 <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  <span className="text-indigo-700 font-bold">{patient.firstName} {patient.lastName}</span> &bull; Token #{token.tokenNumber}
+                  <span className="text-indigo-700 font-bold">{activePatient.firstName} {activePatient.lastName}</span> &bull; Token #{token.tokenNumber}
                 </p>
               </div>
             </div>
@@ -899,26 +911,25 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
             </Button>
             <Button
               type="button"
-              variant="outline"
-              className="w-full sm:w-1/3 font-bold border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-              onClick={() => {
-                setPharmacyMode('EXTERNAL_NO_INHOUSE_PHARMACY');
-                setShowConfirmModal(true);
-              }}
-            >
-              <Receipt size={16} className="mr-1" /> Direct to Bill (No Pharmacy)
-            </Button>
-            <Button
-              type="button"
-              variant="success"
-              className="w-full sm:w-5/12 font-bold gap-2"
+              className="w-full sm:w-1/3 font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs gap-1.5"
               onClick={() => {
                 setPharmacyMode('IN_HOUSE_PHARMACY');
                 setShowConfirmModal(true);
               }}
             >
+              <Pill size={16} /> Send to Pharmacy
+            </Button>
+            <Button
+              type="button"
+              variant="success"
+              className="w-full sm:w-5/12 font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              onClick={() => {
+                setPharmacyMode('EXTERNAL_NO_INHOUSE_PHARMACY');
+                setShowConfirmModal(true);
+              }}
+            >
               <CheckCircle2 size={17} />
-              Finalize & Send to Medical & Bill
+              Finalize and Bill
             </Button>
           </div>
         </div>
@@ -929,19 +940,24 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="max-w-md w-full bg-white rounded-2xl p-6 border text-center space-y-4 shadow-xl">
             <h3 className="text-xl font-black text-slate-900">
-              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY'
-                ? 'Send Consultation Directly to Central Billing?'
-                : 'Finalize Consultation & Dispatch to Medical & Billing?'}
+              {pharmacyMode === 'IN_HOUSE_PHARMACY'
+                ? 'Send Prescriptions to Pharmacy?'
+                : 'Finalize Consultation & Send to Bill?'}
             </h3>
             <p className="text-xs text-slate-600">
-              {pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY'
-                ? 'Doctor consultation and procedure charges will be sent directly to Cashier Desk. No in-house pharmacy prescription will be queued.'
-                : 'Take-home prescriptions will be dispatched to Pharmacy Desk and charges logged for Central Billing settlement.'}
+              {pharmacyMode === 'IN_HOUSE_PHARMACY'
+                ? 'Prescriptions will be dispatched to the In-House Pharmacy Desk for medicine fulfillment and billing.'
+                : 'Doctor consultation, procedure, and investigation charges will be sent directly to Cashier Desk for final billing settlement.'}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="w-1/2 font-bold" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
-              <Button type="button" variant="success" className="w-1/2 font-bold" isLoading={isLoading} onClick={handleFinalizeConfirmed}>
-                Confirm & Dispatch
+              <Button
+                type="button"
+                className={`w-1/2 font-bold text-white ${pharmacyMode === 'IN_HOUSE_PHARMACY' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                isLoading={isLoading}
+                onClick={handleFinalizeConfirmed}
+              >
+                {pharmacyMode === 'IN_HOUSE_PHARMACY' ? 'Confirm & Send to Pharmacy' : 'Confirm & Send to Bill'}
               </Button>
             </div>
           </div>

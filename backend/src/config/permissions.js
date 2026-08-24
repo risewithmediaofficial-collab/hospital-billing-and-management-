@@ -11,6 +11,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     settings: ['view', 'edit'],
     usage: ['view'],
     admin: ['view', 'manage'],
+    requests: ['view', 'create', 'edit', 'manage', '*'],
   },
   SUPER_ADMIN: { '*': ['*'] },
   DOCTOR: {
@@ -28,13 +29,14 @@ export const ROLE_PERMISSION_DEFAULTS = {
     radiology: ['view', 'requestTest', 'create', 'edit', '*'],
     ipd: ['view', 'create', 'edit'],
     billing: ['view', 'create', 'edit', 'printReceipt'],
+    requests: ['view', 'create', 'edit', 'handleRequests', '*'],
     notifications: ['view'],
   },
   NURSE: {
     dashboard: ['view'],
     nursing: ['view', 'create', 'edit', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency', '*'],
     patients: ['view', 'create', 'edit'],
-    requests: ['view', 'create', 'edit', 'handleRequests'],
+    requests: ['view', 'create', 'edit', 'handleRequests', '*'],
     emergency: ['view', 'create', 'respond'],
     notifications: ['view'],
   },
@@ -43,7 +45,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     nursing: ['view', 'create', 'edit', 'viewInstructions', 'viewTreatment', 'viewMedicineSchedule', 'updateVitals', 'addNotes', 'administerInjection', 'manageTasks', 'handleRequests', 'respondEmergency', 'manageWardAssignments', '*'],
     ipd: ['view', 'create', 'manage', 'edit'],
     beds: ['view', 'create', 'edit', 'manage'],
-    requests: ['view', 'create', 'edit'],
+    requests: ['view', 'create', 'edit', 'handleRequests', '*'],
     emergency: ['view', 'create', 'respond'],
     notifications: ['view'],
   },
@@ -54,18 +56,21 @@ export const ROLE_PERMISSION_DEFAULTS = {
     tokens: ['view', 'create', 'edit', 'cancel', 'assign', 'moveQueue', 'print', 'markCompleted'],
     appointments: ['view', 'create', 'edit', 'cancel', 'book', 'doctorAvailability'],
     reception: ['view'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
   CASHIER: {
     dashboard: ['view'],
     billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
   BILLING_STAFF: {
     dashboard: ['view'],
     billing: ['view', 'create', 'addCharges', 'editCharges', 'receivePayment', 'generateInvoice', 'printReceipt', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -73,6 +78,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     laboratory: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
     diagnostics: ['view', 'create', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -80,6 +86,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     laboratory: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
     diagnostics: ['view', 'create', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -87,6 +94,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     radiology: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
     diagnostics: ['view', 'create', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -94,6 +102,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     radiology: ['view', 'create', 'accept', 'edit', 'upload', 'print', '*'],
     diagnostics: ['view', 'create', 'edit', '*'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -101,6 +110,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     pharmacy: ['view', 'create', 'edit', 'dispense', 'adjust', 'transfer', 'print', 'delete', '*'],
     billing: ['view'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -108,6 +118,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     pharmacy: ['view', 'create', 'edit', 'dispense', 'adjust', 'transfer', 'print', 'delete', '*'],
     billing: ['view'],
+    requests: ['view', 'create', 'edit'],
     emergency: ['view', 'create'],
     notifications: ['view'],
   },
@@ -115,17 +126,20 @@ export const ROLE_PERMISSION_DEFAULTS = {
     dashboard: ['view'],
     opd: ['view', 'manage'],
     tokens: ['view', 'create', 'edit'],
+    requests: ['view', 'create', 'edit'],
     notifications: ['view'],
   },
   IPD_STAFF: {
     dashboard: ['view'],
     ipd: ['view', 'manage'],
     nursing: ['view', 'updateVitals'],
+    requests: ['view', 'create', 'edit'],
     notifications: ['view'],
   },
   EMERGENCY_STAFF: {
     dashboard: ['view'],
     emergency: ['view', 'create', 'respond', 'resolve'],
+    requests: ['view', 'create', 'edit', 'respond'],
     notifications: ['view'],
   },
   DEPARTMENT_MANAGER: {
@@ -133,16 +147,19 @@ export const ROLE_PERMISSION_DEFAULTS = {
     departments: ['view', 'manage', '*'],
     reports: ['view', 'generate', '*'],
     billing: ['view', 'create', 'edit'],
+    requests: ['view', 'create', 'edit', 'manage', '*'],
     audit: ['view', '*'],
     admin: ['view', '*'],
     notifications: ['view'],
   },
   SUPPORT_STAFF: {
     dashboard: ['view'],
+    requests: ['view', 'create', 'edit'],
     notifications: ['view'],
   },
   CUSTOM_ROLE: {
     dashboard: ['view'],
+    requests: ['view', 'create', 'edit'],
   },
   INVENTORY_MANAGER: {
     dashboard: ['view'],
@@ -155,7 +172,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     notifications: ['view'],
   },
   PATIENT: { dashboard: ['view'], patientPortal: ['view', 'create', 'edit'], requests: ['view', 'create', 'edit'] },
-  GUARDIAN: { dashboard: ['view'], guardianPortal: ['view', 'create', 'edit'] },
+  GUARDIAN: { dashboard: ['view'], guardianPortal: ['view', 'create', 'edit'], requests: ['view', 'create', 'edit'] },
 };
 
 const OPERATIONAL_MODULE_ROLES = {
@@ -163,7 +180,7 @@ const OPERATIONAL_MODULE_ROLES = {
   appointments: ['RECEPTIONIST', 'OPD_STAFF', 'DOCTOR'],
   doctor: ['DOCTOR'],
   beds: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
-  requests: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
+  requests: ['NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'DOCTOR', 'HOSPITAL_ADMIN', 'RECEPTIONIST', 'EMERGENCY_STAFF', 'SUPPORT_STAFF', 'OPD_STAFF', 'PATIENT', 'GUARDIAN', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'CASHIER'],
   billing: ['CASHIER', 'BILLING_STAFF'],
   diagnostics: ['DOCTOR', 'LAB_TECH', 'LABORATORY_STAFF', 'RADIOLOGIST', 'RADIOLOGY_STAFF'],
   ipd: ['DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'IPD_STAFF'],
@@ -212,7 +229,6 @@ export const permissionsFor = (user, hospitalModules = null) => {
   }
 
   const custom = user?.permissions || {};
-  const hasCustomPermissions = Object.keys(custom).length > 0;
   const customGranted = {};
   for (const [module, actions] of Object.entries(custom)) {
     customGranted[module] = new Set(normalizeActions(actions));
@@ -261,21 +277,24 @@ export const permissionsFor = (user, hospitalModules = null) => {
 };
 
 export const hasPermission = (user, module, action = 'view', hospitalModules = null) => {
-  if (user?.role === 'SUPER_ADMIN') return true;
+  if (user?.role === 'SUPER_ADMIN' || user?.role === 'HOSPITAL_ADMIN') return true;
 
   const role = user?.role;
   const userRoles = [role, ...(Array.isArray(user?.additionalRoles) ? user.additionalRoles : [])].filter(Boolean);
 
+  if (userRoles.includes('SUPER_ADMIN') || userRoles.includes('HOSPITAL_ADMIN')) return true;
+
   // Role domain overrides — domain staff always have full access to their primary and cross-department workflow modules
-  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology', 'billing', 'ipd'].includes(module) && userRoles.includes('DOCTOR')) return true;
-  if (['nursing', 'ipd', 'beds', 'requests', 'pharmacy', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['NURSE', 'NURSE_INCHARGE'].includes(r))) return true;
-  if (['pharmacy', 'inventory', 'billing', 'emergency'].includes(module) && userRoles.some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) return true;
-  if (['laboratory', 'diagnostics', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;
-  if (['radiology', 'diagnostics', 'emergency', 'billing'].includes(module) && userRoles.some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) return true;
-  if (['billing', 'cashier', 'reception', 'emergency'].includes(module) && userRoles.some((r) => ['CASHIER', 'BILLING_STAFF'].includes(r))) return true;
-  if (['reception', 'patientRegistration', 'tokens', 'appointments', 'patients', 'billing', 'emergency'].includes(module) && userRoles.some((r) => ['RECEPTIONIST', 'OPD_STAFF'].includes(r))) return true;
-  if (['departments', 'reports', 'billing', 'dashboard', 'admin', 'audit', 'plan', 'settings', 'usage'].includes(module) && userRoles.includes('DEPARTMENT_MANAGER')) return true;
+  if (['doctor', 'emr', 'doctorConsultation', 'appointments', 'diagnostics', 'pharmacy', 'laboratory', 'radiology', 'billing', 'ipd', 'requests', 'notifications', 'emergency'].includes(module) && userRoles.includes('DOCTOR')) return true;
+  if (['nursing', 'ipd', 'beds', 'requests', 'pharmacy', 'emergency', 'billing', 'notifications'].includes(module) && userRoles.some((r) => ['NURSE', 'NURSE_INCHARGE'].includes(r))) return true;
+  if (['pharmacy', 'inventory', 'billing', 'emergency', 'requests', 'notifications'].includes(module) && userRoles.some((r) => ['PHARMACIST', 'PHARMACY_STAFF'].includes(r))) return true;
+  if (['laboratory', 'diagnostics', 'emergency', 'billing', 'requests', 'notifications'].includes(module) && userRoles.some((r) => ['LAB_TECH', 'LABORATORY_STAFF'].includes(r))) return true;
+  if (['radiology', 'diagnostics', 'emergency', 'billing', 'requests', 'notifications'].includes(module) && userRoles.some((r) => ['RADIOLOGIST', 'RADIOLOGY_STAFF'].includes(r))) return true;
+  if (['billing', 'cashier', 'reception', 'emergency', 'requests', 'notifications'].includes(module) && userRoles.some((r) => ['CASHIER', 'BILLING_STAFF'].includes(r))) return true;
+  if (['reception', 'patientRegistration', 'tokens', 'appointments', 'patients', 'billing', 'emergency', 'requests', 'notifications'].includes(module) && userRoles.some((r) => ['RECEPTIONIST', 'OPD_STAFF'].includes(r))) return true;
+  if (['departments', 'reports', 'billing', 'dashboard', 'admin', 'audit', 'plan', 'settings', 'usage', 'requests', 'notifications'].includes(module) && userRoles.includes('DEPARTMENT_MANAGER')) return true;
   if (module === 'emergency' && userRoles.some((r) => ['EMERGENCY_STAFF', 'NURSE', 'NURSE_INCHARGE', 'DOCTOR'].includes(r))) return true;
+  if (module === 'requests' && userRoles.some((r) => ['PATIENT', 'GUARDIAN', 'DOCTOR', 'NURSE', 'NURSE_INCHARGE', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(r))) return true;
 
   const permissions = permissionsFor(user, hospitalModules);
   
@@ -293,6 +312,7 @@ export const hasPermission = (user, module, action = 'view', hospitalModules = n
     diagnostics: ['diagnostics', 'laboratory', 'radiology', 'doctorConsultation'],
     emergency: ['emergency', 'nursing', 'doctorConsultation'],
     billing: ['billing', 'reception', 'cashier'],
+    requests: ['requests'],
   }[module] || [module];
 
   for (const mod of aliases) {

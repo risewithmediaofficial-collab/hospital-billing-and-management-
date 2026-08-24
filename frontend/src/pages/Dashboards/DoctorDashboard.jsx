@@ -58,12 +58,17 @@ export const DoctorDashboard = () => {
   const [historyPatientId, setHistoryPatientId] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [liveQueue, setLiveQueue] = useState([]);
+
   const [completedQueue, setCompletedQueue] = useState([]);
   const [departmentHoldQueue, setDepartmentHoldQueue] = useState([]);
   const [departmentOrders, setDepartmentOrders] = useState([]);
   const [selectedToken, setSelectedToken] = useState(null);
   const [selectedDeptOrder, setSelectedDeptOrder] = useState(null);
   const [substitutionRequests, setSubstitutionRequests] = useState([]);
+  const searchParams = new URLSearchParams(location.search);
+  const requestedAppointmentId = searchParams.get('appointmentId');
+  const requestedPatientId = searchParams.get('patientId');
+  const requestedOrderId = searchParams.get('orderId');
   const requestedSubstitutionId = new URLSearchParams(location.search).get('substitutionId');
   const requestedNurseTaskId = new URLSearchParams(location.search).get('taskId');
   const requestedPatientRequestId = new URLSearchParams(location.search).get('requestId');
@@ -89,6 +94,7 @@ export const DoctorDashboard = () => {
   const [tempCabin, setTempCabin] = useState(user?.cabinNo || 'Cabin 101');
   const [statusMessage, setStatusMessage] = useState(null);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const [deptResponseSubTab, setDeptResponseSubTab] = useState('NURSE'); // 'NURSE' | 'DEPT_TRACKER'
 
   // Sync active tab with URL query parameter
   // No ?tab= param  → OVERVIEW (Clinical EMR Desk)
@@ -130,14 +136,14 @@ export const DoctorDashboard = () => {
     fetchDoctorRequests();
   }, []);
 
+  const handleQueueUpdate = () => {
+    fetchOpdQueue();
+    fetchReturnedBillingPrescriptions();
+  };
+
   // Listen to Socket.IO for real-time queue updates and department investigation report uploads
   useEffect(() => {
     if (!socket) return;
-
-    const handleQueueUpdate = () => {
-      fetchOpdQueue();
-      fetchReturnedBillingPrescriptions();
-    };
 
     const handleInvestigationUpdate = (data) => {
       fetchDepartmentOrders();
@@ -214,16 +220,15 @@ export const DoctorDashboard = () => {
     };
   }, [socket, selectedToken, user?.id, user?._id]);
 
-
-    useEffect(() => {
-      if (user?.isAvailable !== undefined) {
-        setIsAvailable(user.isAvailable);
-      }
-      if (user?.cabinNo) {
-        setCabinNo(user.cabinNo);
-        setTempCabin(user.cabinNo);
-      }
-    }, [user?.isAvailable, user?.cabinNo]);
+  useEffect(() => {
+    if (user?.isAvailable !== undefined) {
+      setIsAvailable(user.isAvailable);
+    }
+    if (user?.cabinNo) {
+      setCabinNo(user.cabinNo);
+      setTempCabin(user.cabinNo);
+    }
+  }, [user?.isAvailable, user?.cabinNo]);
 
     const fetchOpdQueue = async () => {
       try {
@@ -240,24 +245,109 @@ export const DoctorDashboard = () => {
         setCompletedQueue(done);
         setDepartmentHoldQueue(held);
 
+        // Check if there is a direct shortcut appointmentId or patientId requested from notification or URL
+        const params = new URLSearchParams(location.search);
+        const reqApptId = params.get('appointmentId');
+        const reqPatId = params.get('patientId');
+
+        if (reqApptId) {
+          const directMatch = allTokens.find((t) => String(t._id || t.id) === String(reqApptId));
+          if (directMatch) {
+            setSelectedToken(directMatch);
+            const pId = directMatch.patientId?._id || directMatch.patientId;
+            if (pId) {
+              fetchPatientInvestigations(pId);
+              fetchPatientNurseTasks(pId);
+            }
+            useDepartmentNotificationStore.getState().fetchPendingWork?.();
+            return;
+          }
+        }
+
+        if (reqPatId) {
+          const directMatch = allTokens.find((t) => String(t.patientId?._id || t.patientId) === String(reqPatId));
+          if (directMatch) {
+            setSelectedToken(directMatch);
+            const pId = directMatch.patientId?._id || directMatch.patientId;
+            if (pId) {
+              fetchPatientInvestigations(pId);
+              fetchPatientNurseTasks(pId);
+            }
+            useDepartmentNotificationStore.getState().fetchPendingWork?.();
+            return;
+          }
+        }
+
         if (waiting.length > 0) {
           setSelectedToken((prev) => {
-            if (prev && waiting.some((w) => w._id === prev._id)) {
-              return prev;
+            if (prev) {
+              const currentId = String(prev._id || prev.id);
+              const currentPatId = String(prev.patientId?._id || prev.patientId);
+              const matchInWaitingOrHeld = [...waiting, ...held].find(
+                (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
+              );
+              if (matchInWaitingOrHeld) return matchInWaitingOrHeld;
+
+              // If previous patient was completed/billed or is no longer waiting/held, select the next waiting token
+              const nextTok = waiting[0];
+              const pId = nextTok.patientId?._id || nextTok.patientId;
+              if (pId) {
+                fetchPatientInvestigations(pId);
+                fetchPatientNurseTasks(pId);
+              }
+              return nextTok;
             }
             const activeTok = waiting[0];
-            fetchPatientInvestigations(activeTok.patientId?._id || activeTok.patientId);
+            const pId = activeTok.patientId?._id || activeTok.patientId;
+            if (pId) {
+              fetchPatientInvestigations(pId);
+              fetchPatientNurseTasks(pId);
+            }
             return activeTok;
           });
         } else {
-          setSelectedToken(null);
-          setPatientInvestigations([]);
+          setSelectedToken((prev) => {
+            if (prev) {
+              const currentId = String(prev._id || prev.id);
+              const currentPatId = String(prev.patientId?._id || prev.patientId);
+              const matchInHeld = held.find(
+                (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
+              );
+              if (matchInHeld) return matchInHeld;
+            }
+            setPatientInvestigations([]);
+            setPatientNurseTasks([]);
+            return null;
+          });
         }
         useDepartmentNotificationStore.getState().fetchPendingWork?.();
       } catch (err) {
         console.error('Failed to load doctor OPD queue:', err);
       }
     };
+
+    // Handle direct shortcut navigation from notifications when user is already on the page
+    useEffect(() => {
+      const params = new URLSearchParams(location.search);
+      const reqApptId = params.get('appointmentId');
+      const reqPatId = params.get('patientId');
+      if (!reqApptId && !reqPatId) return;
+
+      const allTokens = [...liveQueue, ...departmentHoldQueue, ...completedQueue];
+      const match = allTokens.find((t) =>
+        (reqApptId && String(t._id || t.id) === String(reqApptId)) ||
+        (reqPatId && String(t.patientId?._id || t.patientId) === String(reqPatId))
+      );
+      if (match) {
+        setSelectedToken(match);
+        const pId = match.patientId?._id || match.patientId;
+        if (pId) {
+          fetchPatientInvestigations(pId);
+          fetchPatientNurseTasks(pId);
+        }
+      }
+    }, [location.search, liveQueue.length, departmentHoldQueue.length]);
+
     const fetchLiveQueue = fetchOpdQueue;
   // console.log("fetchlivequeue", fetchLiveQueue)
 
@@ -277,9 +367,15 @@ export const DoctorDashboard = () => {
         status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         doctorNotes: action === 'APPROVE' ? 'Approved by Doctor' : 'Rejected by Doctor',
       });
-      fetchSubstitutionRequests();
+      useNotificationStore.getState().resolveEntityNotification(id);
+      resolvePending(id);
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      await fetchSubstitutionRequests();
+      useNotificationStore.getState().fetchNotifications?.('active');
+      setStatusMessage({ type: 'success', text: `Substitution request ${action === 'APPROVE' ? 'approved' : 'rejected'}.` });
     } catch (err) {
       console.error('Failed to respond to substitution:', err);
+      setStatusMessage({ type: 'error', text: 'Failed to submit substitution response.' });
     }
   };
 
@@ -344,17 +440,25 @@ const targetDocId = user?.id || user?._id;
       const res = await axiosClient.get('/requests', { params: { category: 'DOCTOR' } });
       setDoctorRequests(Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
     } catch (err) {
-      console.error('Failed to load patient or guardian doctor requests:', err);
+      if (err?.statusCode !== 403 && err?.response?.status !== 403) {
+        console.error('Failed to load patient or guardian doctor requests:', err);
+      }
+      setDoctorRequests([]);
     }
   };
 
   const updateDoctorRequest = async (requestId, status) => {
     try {
       await axiosClient.patch(`/requests/${requestId}/status`, { status });
+      useNotificationStore.getState().resolveEntityNotification(requestId);
       resolvePending(requestId);
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
       await fetchDoctorRequests();
+      useNotificationStore.getState().fetchNotifications?.('active');
+      setStatusMessage({ type: 'success', text: `Doctor request marked as ${status.toLowerCase()}.` });
     } catch (err) {
       console.error('Failed to update doctor request:', err);
+      setStatusMessage({ type: 'error', text: 'Failed to update doctor request.' });
     }
   };
 
@@ -448,8 +552,11 @@ const targetDocId = user?.id || user?._id;
       await axiosClient.post(`/billing/invoices/${invoiceId}/doctor-review-response`, {
         responseNote: 'Clinical charges reviewed and confirmed by the attending doctor.',
       });
+      useNotificationStore.getState().resolveEntityNotification(String(invoiceId));
       resolvePending(String(invoiceId));
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
       await fetchReturnedBillingPrescriptions();
+      useNotificationStore.getState().fetchNotifications?.('active');
       setStatusMessage({ type: 'success', text: 'Billing query resolved and returned to Central Billing.' });
     } catch (err) {
       setStatusMessage({ type: 'error', text: err.response?.data?.message || 'Failed to resolve the billing query.' });
@@ -488,30 +595,28 @@ const targetDocId = user?.id || user?._id;
 
   const doctorUserId = String(user?.id || user?._id || '');
 
-  const departmentResponses = departmentOrders.filter((ord) => {
-    const isDocMatch = !doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId;
-    const isResolved = ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL' || ord.chargeStatus === 'CANCELLED';
-    return isDocMatch && !isResolved;
+  // Nurse Tasks (Active vs History)
+  const allMyNurseTasks = nurseTasks.filter((t) => {
+    return !doctorUserId || String(t.doctorId?._id || t.doctorId || '') === doctorUserId;
   });
 
-  const sentPatientInvestigations = patientInvestigations.filter((ord) => !['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status));
-
-  const filteredDeptOrders = departmentResponses.filter((ord) => {
-    const pName = (ord.patientName || '').toLowerCase();
-    const uhid = (ord.uhid || '').toLowerCase();
-    const tName = (ord.testName || '').toLowerCase();
-    const search = queueSearchTerm.toLowerCase();
-    return pName.includes(search) || uhid.includes(search) || tName.includes(search);
+  const activeNurseTasks = allMyNurseTasks.filter((t) => {
+    const isCompletedConsultation =
+      t.isResolved ||
+      t.appointmentId?.status === 'COMPLETED' ||
+      completedQueue.some((tok) => String(tok._id || tok.id) === String(t.appointmentId?._id || t.appointmentId));
+    return !isCompletedConsultation;
   });
 
-  const myNurseTasks = nurseTasks.filter((t) => {
-    const isDocMatch = !doctorUserId || String(t.doctorId?._id || t.doctorId || '') === doctorUserId;
-    // Disappear from active responses once reviewed or consultation is completed/billed
-    const isResolved = Boolean(t.doctorReviewedAt || t.isResolved || t.appointmentId?.status === 'COMPLETED');
-    return isDocMatch && !isResolved;
+  const historyNurseTasks = allMyNurseTasks.filter((t) => {
+    const isCompletedConsultation =
+      t.isResolved ||
+      t.appointmentId?.status === 'COMPLETED' ||
+      completedQueue.some((tok) => String(tok._id || tok.id) === String(t.appointmentId?._id || t.appointmentId));
+    return Boolean(isCompletedConsultation);
   });
 
-  const filteredNurseTasks = myNurseTasks.filter((t) => {
+  const filteredActiveNurseTasks = activeNurseTasks.filter((t) => {
     const pName = `${t.patientId?.firstName || ''} ${t.patientId?.lastName || ''}`.toLowerCase();
     const uhid = (t.patientId?.uhid || '').toLowerCase();
     const medName = (t.medicineName || '').toLowerCase();
@@ -519,8 +624,62 @@ const targetDocId = user?.id || user?._id;
     return pName.includes(search) || uhid.includes(search) || medName.includes(search);
   });
 
-  const filteredReturnedBilling = returnedBillingPrescriptions.filter((rx) => {
-    if (rx.billingQuery?.resolved) return false;
+  const filteredHistoryNurseTasks = historyNurseTasks.filter((t) => {
+    const pName = `${t.patientId?.firstName || ''} ${t.patientId?.lastName || ''}`.toLowerCase();
+    const uhid = (t.patientId?.uhid || '').toLowerCase();
+    const medName = (t.medicineName || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || medName.includes(search);
+  });
+
+  // Diagnostics & Imaging Orders (Active vs History)
+  const allMyDeptOrders = departmentOrders.filter((ord) => {
+    return !doctorUserId || String(ord.doctorId?._id || ord.doctorId || '') === doctorUserId;
+  });
+
+  const activeDeptOrders = allMyDeptOrders.filter((ord) => {
+    const isCompletedConsultation =
+      ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL' ||
+      ord.chargeStatus === 'CANCELLED' ||
+      ord.appointmentId?.status === 'COMPLETED' ||
+      completedQueue.some((tok) => String(tok._id || tok.id) === String(ord.appointmentId?._id || ord.appointmentId));
+    return !isCompletedConsultation;
+  });
+
+  const historyDeptOrders = allMyDeptOrders.filter((ord) => {
+    const isCompletedConsultation =
+      ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL' ||
+      ord.chargeStatus === 'CANCELLED' ||
+      ord.appointmentId?.status === 'COMPLETED' ||
+      completedQueue.some((tok) => String(tok._id || tok.id) === String(ord.appointmentId?._id || ord.appointmentId));
+    return Boolean(isCompletedConsultation);
+  });
+
+  const filteredActiveDeptOrders = activeDeptOrders.filter((ord) => {
+    const pName = (ord.patientName || '').toLowerCase();
+    const uhid = (ord.uhid || '').toLowerCase();
+    const tName = (ord.testName || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || tName.includes(search);
+  });
+
+  const filteredHistoryDeptOrders = historyDeptOrders.filter((ord) => {
+    const pName = (ord.patientName || '').toLowerCase();
+    const uhid = (ord.uhid || '').toLowerCase();
+    const tName = (ord.testName || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || tName.includes(search);
+  });
+
+  // Backward compatibility alias
+  const filteredDeptOrders = filteredActiveDeptOrders;
+  const filteredNurseTasks = filteredActiveNurseTasks;
+
+  // Billing Desk Queries (Active vs History)
+  const activeReturnedBilling = returnedBillingPrescriptions.filter((rx) => !rx.billingQuery?.resolved);
+  const historyReturnedBilling = returnedBillingPrescriptions.filter((rx) => rx.billingQuery?.resolved);
+
+  const filteredActiveReturnedBilling = activeReturnedBilling.filter((rx) => {
     const pName = (rx.patientName || `${rx.patientId?.firstName || ''} ${rx.patientId?.lastName || ''}`).toLowerCase();
     const uhid = (rx.uhid || rx.patientId?.uhid || '').toLowerCase();
     const queryText = (rx.billingQuery?.query || '').toLowerCase();
@@ -528,13 +687,38 @@ const targetDocId = user?.id || user?._id;
     return pName.includes(search) || uhid.includes(search) || queryText.includes(search);
   });
 
+  const filteredHistoryReturnedBilling = historyReturnedBilling.filter((rx) => {
+    const pName = (rx.patientName || `${rx.patientId?.firstName || ''} ${rx.patientId?.lastName || ''}`).toLowerCase();
+    const uhid = (rx.uhid || rx.patientId?.uhid || '').toLowerCase();
+    const queryText = (rx.billingQuery?.query || '').toLowerCase();
+    const search = queueSearchTerm.toLowerCase();
+    return pName.includes(search) || uhid.includes(search) || queryText.includes(search);
+  });
+
+  const filteredReturnedBilling = filteredActiveReturnedBilling;
+
+  // Pharmacy Substitutions
+  const activeSubstitutions = substitutionRequests.filter((r) => r.status === 'PENDING');
+  const historySubstitutions = substitutionRequests.filter((r) => r.status !== 'PENDING');
+
+  // Patient / Guardian Messages
+  const activeDoctorRequests = doctorRequests.filter((r) => r.status === 'PENDING');
+  const historyDoctorRequests = doctorRequests.filter((r) => r.status !== 'PENDING');
+
   const pendingReportsCount = (
-    departmentResponses.filter((ord) =>
-      ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'CANCELLED'
-    ).length +
-    myNurseTasks.filter((t) => t.status === 'ADMINISTERED' && !t.doctorReviewedAt).length +
-    substitutionRequests.length +
-    returnedBillingPrescriptions.filter((rx) => !rx.billingQuery?.resolved).length
+    activeDeptOrders.filter((ord) => ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'APPROVED').length +
+    activeNurseTasks.filter((t) => t.status === 'ADMINISTERED' && !t.doctorReviewedAt).length +
+    activeSubstitutions.length +
+    activeReturnedBilling.length +
+    activeDoctorRequests.length
+  );
+
+  const historyReportsCount = (
+    historyDeptOrders.length +
+    historyNurseTasks.length +
+    historyReturnedBilling.length +
+    historySubstitutions.length +
+    historyDoctorRequests.length
   );
 
   const departmentLabel = (category) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(category)
@@ -544,8 +728,8 @@ const targetDocId = user?.id || user?._id;
       : category?.replaceAll('_', ' ') || 'Department';
 
   const displayWorkflowStatus = (order) => {
-    if (order.reviewedAt || order.status === 'REVIEWED') return 'VIEWED BY DOCTOR';
-    if (['REPORT_UPLOADED', 'COMPLETED'].includes(order.status)) return 'COMPLETED';
+    if (order.reviewedAt || order.status === 'REVIEWED' || order.chargeStatus === 'APPROVED') return 'REVIEWED BY DOCTOR';
+    if (['REPORT_UPLOADED', 'COMPLETED'].includes(order.status)) return 'REPORT READY';
     if (order.status === 'IN_PROGRESS') return 'IN PROGRESS';
     if (order.status === 'ACCEPTED') return 'ACCEPTED';
     return 'PENDING';
@@ -555,19 +739,55 @@ const targetDocId = user?.id || user?._id;
     PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
     ACCEPTED: 'bg-blue-50 text-blue-700 border-blue-200',
     'IN PROGRESS': 'bg-violet-50 text-violet-700 border-violet-200',
+    'REPORT READY': 'bg-cyan-50 text-cyan-700 border-cyan-300 font-bold animate-pulse',
     COMPLETED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'VIEWED BY DOCTOR': 'bg-slate-100 text-slate-700 border-slate-300',
+    'REVIEWED BY DOCTOR': 'bg-emerald-100 text-emerald-800 border-emerald-300 font-black',
   }[status] || 'bg-slate-50 text-slate-700 border-slate-200');
 
-  const handleContinueConsultation = async (ord) => {
+  const handleReviewDiagnosticOrder = async (ord) => {
     markAsRead(ord._id);
     try {
       await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
+      useNotificationStore.getState().resolveEntityNotification(ord._id);
       resolvePending(ord._id);
-      fetchDepartmentOrders();
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      await fetchDepartmentOrders();
+      useNotificationStore.getState().fetchNotifications?.('active');
+      setStatusMessage({ type: 'success', text: `Diagnostic report for ${ord.patientName || 'Patient'} reviewed and accepted.` });
     } catch (e) {
       console.error('Failed to approve charge:', e);
+      setStatusMessage({ type: 'error', text: 'Failed to approve report charge.' });
     }
+  };
+
+  const handleReviewNurseTask = async (task) => {
+    try {
+      await axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`);
+      useNotificationStore.getState().resolveEntityNotification(task._id);
+      resolvePending(task._id);
+      useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      await fetchNurseTasks();
+      useNotificationStore.getState().fetchNotifications?.('active');
+      setStatusMessage({ type: 'success', text: `Nurse treatment for ${task.patientId?.firstName || 'Patient'} marked as reviewed.` });
+    } catch (e) {
+      console.error('Failed to review nurse task:', e);
+      setStatusMessage({ type: 'error', text: 'Failed to mark nurse task as reviewed.' });
+    }
+  };
+
+  const handleContinueConsultation = (ord) => {
+    if (!ord) return;
+    markAsRead(ord._id);
+
+    const patientObj = typeof ord.patientId === 'object' && ord.patientId !== null
+      ? ord.patientId
+      : {
+          _id: ord.patientId || `pat_${Date.now()}`,
+          firstName: (ord.patientName || 'Patient').split(' ')[0] || 'Patient',
+          lastName: (ord.patientName || '').split(' ').slice(1).join(' ') || '',
+          uhid: ord.uhid || 'UHID',
+          gender: 'GENERAL',
+        };
 
     let targetToken = departmentHoldQueue.find((t) => String(t._id) === String(ord.appointmentId?._id || ord.appointmentId))
       || liveQueue.find((t) => String(t._id) === String(ord.appointmentId?._id || ord.appointmentId))
@@ -576,16 +796,6 @@ const targetDocId = user?.id || user?._id;
       || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(ord.patientId?._id || ord.patientId));
 
     if (!targetToken) {
-      const patientObj = typeof ord.patientId === 'object' && ord.patientId !== null
-        ? ord.patientId
-        : {
-            _id: ord.patientId || `pat_${Date.now()}`,
-            firstName: (ord.patientName || 'Patient').split(' ')[0] || 'Patient',
-            lastName: (ord.patientName || '').split(' ').slice(1).join(' ') || '',
-            uhid: ord.uhid || 'UHID',
-            gender: 'GENERAL',
-          };
-
       targetToken = {
         _id: ord.appointmentId?._id || ord.appointmentId || `apt_${Date.now()}`,
         tokenNumber: ord.tokenNumber || 1,
@@ -593,21 +803,42 @@ const targetDocId = user?.id || user?._id;
         patientId: patientObj,
         chiefComplaints: `Follow-up on ${departmentLabel(ord.testCategory)}: ${ord.testName}`,
       };
+    } else if (typeof targetToken.patientId !== 'object' || targetToken.patientId === null) {
+      targetToken = {
+        ...targetToken,
+        patientId: patientObj,
+      };
     }
 
     setSelectedToken(targetToken);
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
+    fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
+    setActiveTab('OVERVIEW');
     setIsConsultationModalOpen(true);
+
+    axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`)
+      .then(() => {
+        useNotificationStore.getState().resolveEntityNotification(ord._id);
+        resolvePending(ord._id);
+        useDepartmentNotificationStore.getState().fetchPendingWork?.();
+        fetchDepartmentOrders();
+        useNotificationStore.getState().fetchNotifications?.('active');
+      })
+      .catch(() => {});
   };
 
-  const handleContinueConsultationForNurseTask = async (task) => {
-    try {
-      await axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`);
-      resolvePending(task._id);
-      fetchNurseTasks();
-    } catch (e) {
-      console.error('Failed to review nurse task:', e);
-    }
+  const handleContinueConsultationForNurseTask = (task) => {
+    if (!task) return;
+
+    const patientObj = typeof task.patientId === 'object' && task.patientId !== null
+      ? task.patientId
+      : {
+          _id: task.patientId || `pat_${Date.now()}`,
+          firstName: (task.patientName || 'Patient').split(' ')[0] || 'Patient',
+          lastName: (task.patientName || '').split(' ').slice(1).join(' ') || '',
+          uhid: task.uhid || 'UHID',
+          gender: 'GENERAL',
+        };
 
     let targetToken = departmentHoldQueue.find((t) => String(t._id) === String(task.appointmentId?._id || task.appointmentId))
       || liveQueue.find((t) => String(t._id) === String(task.appointmentId?._id || task.appointmentId))
@@ -616,30 +847,35 @@ const targetDocId = user?.id || user?._id;
       || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(task.patientId?._id || task.patientId));
 
     if (!targetToken) {
-      const patientObj = typeof task.patientId === 'object' && task.patientId !== null
-        ? task.patientId
-        : {
-            _id: task.patientId || `pat_${Date.now()}`,
-            firstName: (task.patientName || 'Patient').split(' ')[0] || 'Patient',
-            lastName: (task.patientName || '').split(' ').slice(1).join(' ') || '',
-            uhid: task.uhid || 'UHID',
-            gender: 'GENERAL',
-          };
-
       targetToken = {
         _id: task.appointmentId?._id || task.appointmentId || `apt_${Date.now()}`,
         tokenNumber: task.tokenNumber || 1,
         status: 'IN_CONSULTATION',
         patientId: patientObj,
-        chiefComplaints: `Follow-up on Nurse Treatment: ${task.medicineName} (${task.dose})`,
+        chiefComplaints: `Follow-up on Nurse Task: ${task.medicineName || 'Treatment'}`,
+      };
+    } else if (typeof targetToken.patientId !== 'object' || targetToken.patientId === null) {
+      targetToken = {
+        ...targetToken,
+        patientId: patientObj,
       };
     }
 
     setSelectedToken(targetToken);
-    const pid = targetToken.patientId?._id || targetToken.patientId || task.patientId;
-    fetchPatientInvestigations(pid);
-    fetchPatientNurseTasks(pid);
+    fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || task.patientId);
+    fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || task.patientId);
+    setActiveTab('OVERVIEW');
     setIsConsultationModalOpen(true);
+
+    axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`)
+      .then(() => {
+        useNotificationStore.getState().resolveEntityNotification(task._id);
+        resolvePending(task._id);
+        useDepartmentNotificationStore.getState().fetchPendingWork?.();
+        fetchNurseTasks();
+        useNotificationStore.getState().fetchNotifications?.('active');
+      })
+      .catch(() => {});
   };
 
   const handleDirectToBilling = async (tok) => {
@@ -669,7 +905,12 @@ const targetDocId = user?.id || user?._id;
       });
 
       alert(`✓ Consultation completed! Charges dispatched directly to Central Billing for ${patName}.`);
+      setSelectedToken(null);
+      setPatientInvestigations([]);
+      setPatientNurseTasks([]);
       fetchOpdQueue();
+      fetchDepartmentOrders();
+      fetchNurseTasks();
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
     } catch (err) {
       console.error('Failed to complete consultation directly to billing:', err);
@@ -681,6 +922,9 @@ const targetDocId = user?.id || user?._id;
     if (!window.confirm('Are you sure you want to cancel this token / appointment?')) return;
     try {
       await axiosClient.patch(`/appointments/tokens/${tokenId}/status`, { status: 'CANCELLED' });
+      setSelectedToken(null);
+      setPatientInvestigations([]);
+      setPatientNurseTasks([]);
       fetchOpdQueue();
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
     } catch (err) {
@@ -819,8 +1063,6 @@ const targetDocId = user?.id || user?._id;
         </form>
       </Modal>
 
-
-
       {/* ── OVERVIEW (Clinical EMR Desk) ── Header + Stat Cards + Live Queue Workspace */}
       {activeTab === 'OVERVIEW' && (
         <>
@@ -830,26 +1072,28 @@ const targetDocId = user?.id || user?._id;
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">Doctor Clinical EMR Workstation</h2>
 
-                {/* Status Badge */}
-                {isAvailable ? (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs shadow-xs">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
-                    </span>
-                    <span>AVAILABLE</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-xs">
-                    <span className="h-2.5 w-2.5 rounded-full bg-rose-600"></span>
-                    <span>UNAVAILABLE</span>
-                  </div>
+                {/* Status Badge (for regular doctors) */}
+                {user?.role !== 'HOSPITAL_ADMIN' && user?.role !== 'SUPER_ADMIN' && (
+                  isAvailable ? (
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs shadow-xs">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+                      </span>
+                      <span>AVAILABLE</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-xs">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-600"></span>
+                      <span>UNAVAILABLE</span>
+                    </div>
+                  )
                 )}
 
                 {/* OPD Cabin Badge */}
                 <button
                   onClick={() => { setTempCabin(cabinNo); setIsEditingCabin(true); }}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-700 font-extrabold text-xs transition-all shadow-xs group"
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-700 font-extrabold text-xs transition-all shadow-xs group cursor-pointer"
                   title="Click to edit your assigned OPD Cabin / Consultation Room"
                 >
                   <DoorClosed size={15} className="group-hover:scale-110 transition-transform text-indigo-600" />
@@ -883,16 +1127,18 @@ const targetDocId = user?.id || user?._id;
                 <History size={14} /> Lookup History (UHID)
               </Button>
 
-              <Button
-                size="sm"
-                variant={isAvailable ? 'danger' : 'success'}
-                className="font-bold gap-2 text-xs shadow-lg"
-                isLoading={isTogglingStatus}
-                onClick={handleToggleAvailability}
-              >
-                <Power size={14} />
-                {isAvailable ? 'Mark as Unavailable' : 'Mark as Available'}
-              </Button>
+              {user?.role !== 'HOSPITAL_ADMIN' && user?.role !== 'SUPER_ADMIN' && (
+                <Button
+                  size="sm"
+                  variant={isAvailable ? 'danger' : 'success'}
+                  className="font-bold gap-2 text-xs shadow-lg"
+                  isLoading={isTogglingStatus}
+                  onClick={handleToggleAvailability}
+                >
+                  <Power size={14} />
+                  {isAvailable ? 'Mark as Unavailable' : 'Mark as Available'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -909,8 +1155,8 @@ const targetDocId = user?.id || user?._id;
             </div>
           )}
 
-          {/* ── OFFLINE WARNING BANNER ── */}
-          {!isAvailable && (
+          {/* ── OFFLINE WARNING BANNER (for regular doctors only) ── */}
+          {!isAvailable && user?.role !== 'HOSPITAL_ADMIN' && user?.role !== 'SUPER_ADMIN' && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-rose-50 via-rose-50/90 to-amber-50/40 border-2 border-rose-200 shadow-sm animate-fade-in">
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-rose-100/90 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
@@ -1047,8 +1293,6 @@ const targetDocId = user?.id || user?._id;
               )}
             </div>
           </Card>
-
-          {/* Consultation Workspace for Selected Patient */}
           <Card className="lg:col-span-2 space-y-4 bg-white border border-slate-200 shadow-sm text-black">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h3 className="text-base font-extrabold text-black flex items-center gap-2">
@@ -1363,17 +1607,65 @@ const targetDocId = user?.id || user?._id;
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
         <div className="space-y-6">
-          <Card className="space-y-4 bg-white border border-purple-200 shadow-sm text-black">
-            <div className="border-b border-purple-100 pb-3">
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Bell size={18} className="text-purple-600" />
-                Patient &amp; Guardian Messages ({doctorRequests.length})
-              </h3>
-              <p className="text-xs text-slate-600 mt-0.5">Messages routed only to the attending doctor or the hospital doctor queue when no doctor is assigned.</p>
+          {/* Sub-view Navigation: Nurse Treatment vs Department Request Tracker */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setDeptResponseSubTab('NURSE')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  deptResponseSubTab === 'NURSE'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <Syringe size={15} />
+                Nurse Treatment &amp; Injection Administration Responses ({filteredActiveNurseTasks.length})
+                {activeNurseTasks.filter((t) => t.status === 'ADMINISTERED' && !t.doctorReviewedAt).length > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${deptResponseSubTab === 'NURSE' ? 'bg-white text-indigo-700' : 'bg-rose-500 text-white animate-pulse'}`}>
+                    {activeNurseTasks.filter((t) => t.status === 'ADMINISTERED' && !t.doctorReviewedAt).length} New
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeptResponseSubTab('DEPT_TRACKER')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  deptResponseSubTab === 'DEPT_TRACKER'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <FileCheck2 size={15} />
+                Department Request ({filteredActiveDeptOrders.length})
+                {activeDeptOrders.filter((ord) => ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'APPROVED').length > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${deptResponseSubTab === 'DEPT_TRACKER' ? 'bg-white text-indigo-700' : 'bg-rose-500 text-white animate-pulse'}`}>
+                    {activeDeptOrders.filter((ord) => ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) && !ord.reviewedAt && ord.chargeStatus !== 'APPROVED').length} Ready
+                  </span>
+                )}
+              </button>
             </div>
-            {doctorRequests.length > 0 ? (
+
+            <p className="text-xs text-slate-500 font-medium">
+              {deptResponseSubTab === 'NURSE'
+                ? `${filteredActiveNurseTasks.length} active nurse task(s) · ${filteredHistoryNurseTasks.length} reviewed history task(s)`
+                : `${filteredActiveDeptOrders.length} active department order(s) · ${filteredHistoryDeptOrders.length} reviewed history report(s)`}
+            </p>
+          </div>
+
+          {/* Common Urgent Alerts: Patient Messages, Billing Queries & Pharmacy Substitutions */}
+          {activeDoctorRequests.length > 0 && (
+            <Card className="space-y-4 bg-white border border-purple-200 shadow-sm text-black">
+              <div className="border-b border-purple-100 pb-3">
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Bell size={18} className="text-purple-600" />
+                  Patient &amp; Guardian Messages ({activeDoctorRequests.length})
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">Messages routed only to the attending doctor.</p>
+              </div>
               <div className="space-y-3">
-                {doctorRequests.map((request) => (
+                {activeDoctorRequests.map((request) => (
                   <div
                     id={`doctor-patient-request-${request._id}`}
                     key={request._id}
@@ -1395,13 +1687,10 @@ const targetDocId = user?.id || user?._id;
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 py-3">No pending patient or guardian messages.</p>
-            )}
-          </Card>
+            </Card>
+          )}
 
-          {/* 0. Billing Desk Queries & Returned Prescriptions */}
-          {returnedBillingPrescriptions.length > 0 && (
+          {filteredActiveReturnedBilling.length > 0 && (
             <Card className="space-y-4 bg-white border-2 border-amber-300 shadow-md text-black overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-3 bg-amber-50/90 -mx-6 -mt-6 p-4">
                 <div className="flex items-center gap-2.5">
@@ -1410,10 +1699,10 @@ const targetDocId = user?.id || user?._id;
                   </div>
                   <div>
                     <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
-                      Billing Desk Queries &amp; Returned Cases ({returnedBillingPrescriptions.length})
+                      Billing Desk Queries &amp; Returned Cases ({filteredActiveReturnedBilling.length})
                     </h3>
                     <p className="text-xs text-amber-800 mt-0.5 font-medium">
-                      Cases returned by Central Billing Desk for prescription or charge clarification. Review cashier notes, adjust consultation/medicines, and return to billing.
+                      Cases returned by Central Billing Desk for prescription or charge clarification.
                     </p>
                   </div>
                 </div>
@@ -1435,7 +1724,7 @@ const targetDocId = user?.id || user?._id;
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-100 text-black">
-                    {returnedBillingPrescriptions.map((rx) => {
+                    {filteredActiveReturnedBilling.map((rx) => {
                       const pat = rx.patientId || {};
                       const queryInfo = rx.billingQuery || {};
                       return (
@@ -1510,318 +1799,521 @@ const targetDocId = user?.id || user?._id;
             </Card>
           )}
 
-          {/* 1. Nurse Administrations & Injections */}
-          <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-black flex items-center gap-2">
-                  <Syringe size={18} className="text-rose-600" />
-                  Nurse Treatment & Injection Administration Responses ({filteredNurseTasks.length})
-                </h3>
-                <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                  Injections and bedside treatments administered by nurses. Review administration timestamp, batch, and patient reactions.
-                </p>
+          {activeSubstitutions.length > 0 && (
+            <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
+                <Pill size={18} className="text-amber-600" />
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({activeSubstitutions.length})</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine.</p>
+                </div>
               </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
-                  <tr>
-                    <th className="p-3">Patient Name</th>
-                    <th className="p-3">UHID</th>
-                    <th className="p-3">Medicine & Dose</th>
-                    <th className="p-3">Route / Site</th>
-                    <th className="p-3">Administering Nurse</th>
-                    <th className="p-3">Administered Time</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Reaction / Notes</th>
-                    <th className="p-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-black">
-                  {filteredNurseTasks.length > 0 ? (
-                    filteredNurseTasks.map((task) => (
-                      <tr
-                        key={task._id}
-                        id={`doctor-nurse-task-${task._id}`}
-                        data-testid={`doctor-nurse-task-${task._id}`}
-                        className={`transition-colors ${String(task._id) === String(requestedNurseTaskId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-400' : 'hover:bg-slate-50'}`}
+              <div className="divide-y divide-amber-50 text-xs">
+                {activeSubstitutions.map((req) => (
+                  <div
+                    key={req._id}
+                    id={`substitution-${req._id}`}
+                    data-testid={`substitution-request-${req._id}`}
+                    className={`py-3 px-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedSubstitutionId) ? 'bg-amber-100 ring-2 ring-amber-400' : ''}`}
+                  >
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-slate-900 text-sm">
+                        {req.patientId?.firstName} {req.patientId?.lastName}
+                        <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
+                      </p>
+                      <p className="text-slate-600">
+                        <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
+                        {' '}&rarr;{' '}
+                        <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
+                      </p>
+                      <p className="text-slate-500">Reason: {req.reason}</p>
+                      <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                       >
-                        <td className="p-3 font-bold text-black">
-                          {task.patientId?.firstName} {task.patientId?.lastName}
-                        </td>
-                        <td className="p-3 font-mono font-bold text-indigo-700">
-                          {task.patientId?.uhid || '—'}
-                        </td>
-                        <td className="p-3 font-extrabold text-slate-900">
-                          {task.medicineName} ({task.dose})
-                        </td>
-                        <td className="p-3 text-slate-700 font-bold uppercase">
-                          {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
-                        </td>
-                        <td className="p-3 font-medium text-slate-800">
-                          {task.status === 'ADMINISTERED'
-                            ? `Nurse ${task.administrationDetails?.nurseName || 'Duty Nurse'}`
-                            : `Assigned: ${task.assignedNurseName || 'Nursing Station'}`}
-                        </td>
-                        <td className="p-3 text-slate-600 whitespace-nowrap">
-                          {task.administrationDetails?.administeredAt
-                            ? new Date(task.administrationDetails.administeredAt).toLocaleString()
-                            : new Date(task.createdAt).toLocaleString()}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${
-                              task.status === 'ADMINISTERED'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                : 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                            }`}
-                          >
-                            {task.status === 'ADMINISTERED' ? '✓ ADMINISTERED' : 'PENDING NURSING'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-600 max-w-xs truncate">
-                          {task.administrationDetails?.notes || (task.status === 'ADMINISTERED' ? 'Normal / Completed' : task.doctorInstructions || '—')}
-                        </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {task.status === 'ADMINISTERED' ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      await axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`);
-                                      resolvePending(task._id);
-                                      fetchNurseTasks();
-                                    } catch (e) {
-                                      console.error('Failed to review nurse task:', e);
-                                    }
-                                  }}
-                                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
-                                    task.doctorReviewedAt
-                                      ? 'bg-emerald-50 border border-emerald-300 text-emerald-700 font-extrabold'
-                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                                  }`}
-                                >
-                                  <CheckCircle2 size={12} />
-                                  {task.doctorReviewedAt ? 'Reviewed & Accepted' : 'Mark as Reviewed'}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleContinueConsultationForNurseTask(task)}
-                                  className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                  title="Open consultation with this patient and finalize diagnosis/bill"
-                                >
-                                  <Stethoscope size={13} />
-                                  Continue Consultation & Bill
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
-                              >
-                                <Lock size={12} /> Pending at Station
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={9} className="p-6 text-center text-slate-500">
-                        No nurse-administered treatment tasks recorded today.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* 2. Diagnostics & Imaging Orders */}
-          <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-black flex items-center gap-2">
-                  <FileCheck2 size={18} className="text-amber-600" />
-                  Department Request & Response Tracker ({filteredDeptOrders.length})
-                </h3>
-                <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                  Track each request from dispatch through processing, report submission, and doctor review.
-                </p>
-              </div>
-            </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
-                <tr>
-                  <th className="p-3">Patient Name</th>
-                  <th className="p-3">Token / Patient ID</th>
-                  <th className="p-3">Department</th>
-                  <th className="p-3">Requested Service</th>
-                  <th className="p-3">Sent Time</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Response Time</th>
-                  <th className="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-black">
-                {filteredDeptOrders.length > 0 ? (
-                  filteredDeptOrders.map((ord) => {
-                    const workflowStatus = displayWorkflowStatus(ord);
-                    const isDepartmentLocked = !['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status);
-                    return (
-                      <tr key={ord._id} className={`transition-colors ${isDepartmentLocked ? 'bg-slate-50/80 text-slate-500' : 'hover:bg-slate-50'}`}>
-                        <td className="p-3 font-bold text-black">{ord.patientName}</td>
-                        <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
-                        <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
-                        <td className="p-3 font-extrabold text-black">{ord.testName}</td>
-                        <td className="p-3 text-slate-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleString()}</td>
-                        <td className="p-3"><span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${statusClass(workflowStatus)}`}>{workflowStatus}</span></td>
-                        <td className="p-3 text-slate-600 whitespace-nowrap">{ord.responseSubmittedAt || ord.completedAt ? new Date(ord.responseSubmittedAt || ord.completedAt).toLocaleString() : '—'}</td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {ord.attachments?.length > 0 && (
-                              <a
-                                href={ord.attachments[0].fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
-                              >
-                                <Eye size={12} /> View Scan
-                              </a>
-                            )}
-
-                            {['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status) || ord.reviewedAt || ord.chargeStatus === 'APPROVED' ? (
-                              <>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      markAsRead(ord._id);
-                                      try {
-                                        await axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`);
-                                        resolvePending(ord._id);
-                                        fetchDepartmentOrders();
-                                      } catch (e) {
-                                        console.error('Failed to approve charge:', e);
-                                      }
-                                    }}
-                                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer ${
-                                      ord.chargeStatus === 'APPROVED' || ord.reviewedAt
-                                        ? 'bg-emerald-50 border border-emerald-300 text-emerald-700 font-extrabold'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                                    }`}
-                                  >
-                                    <CheckCircle2 size={12} />
-                                    {ord.chargeStatus === 'APPROVED' || ord.reviewedAt ? 'Reviewed & Accepted' : 'Mark as Reviewed'}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleContinueConsultation(ord)}
-                                    className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                    title="Open consultation with this patient and finalize diagnosis/bill"
-                                  >
-                                    <Stethoscope size={13} />
-                                    Continue Consultation & Bill
-                                  </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
-                                title="Report is being processed by department. You will be unlocked when department submits final report."
-                              >
-                                <Lock size={12} /> {ord.status === 'IN_PROGRESS' ? 'Locked: In Progress' : ord.status === 'ACCEPTED' ? 'Locked: Accepted' : 'Locked: Pending'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-500">
-                      No department orders or reports found matching search criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* PHARMACY SUBSTITUTION REQUESTS (shown inside DEPT_RESPONSES) */}
-        {substitutionRequests.filter(r => r.status === 'PENDING').length > 0 && (
-          <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
-              <Pill size={18} className="text-amber-600" />
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({substitutionRequests.filter(r => r.status === 'PENDING').length})</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine. Review and respond.</p>
-              </div>
-            </div>
-            <div className="divide-y divide-amber-50 text-xs">
-              {substitutionRequests.filter(r => r.status === 'PENDING').map((req) => (
-                <div
-                  key={req._id}
-                  id={`substitution-${req._id}`}
-                  data-testid={`substitution-request-${req._id}`}
-                  className={`py-3 px-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedSubstitutionId) ? 'bg-amber-100 ring-2 ring-amber-400' : ''}`}
-                >
-                  <div className="space-y-0.5">
-                    <p className="font-bold text-slate-900 text-sm">
-                      {req.patientId?.firstName} {req.patientId?.lastName}
-                      <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
-                    </p>
-                    <p className="text-slate-600">
-                      <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
-                      {' '}&rarr;{' '}
-                      <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
-                    </p>
-                    <p className="text-slate-500">Reason: {req.reason}</p>
-                    <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
+                        <CheckCircle2 size={13} /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <X size={13} /> Reject
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 size={13} /> Approve
-                    </button>
-                    <button
-                      onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
-                      className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5"
-                    >
-                      <X size={13} /> Reject
-                    </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* VIEW 1: NURSE TREATMENT & INJECTION ADMINISTRATION RESPONSES */}
+          {deptResponseSubTab === 'NURSE' && (
+            <div className="space-y-6">
+              {/* 1. Active Nurse Administrations & Injections Table */}
+              <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <div>
+                    <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                      <Syringe size={18} className="text-rose-600" />
+                      Nurse Treatment &amp; Injection Administration Responses ({filteredActiveNurseTasks.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Injections and bedside treatments administered by nurses. Review administration timestamp, batch, and patient reactions.
+                    </p>
                   </div>
                 </div>
-              ))}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                      <tr>
+                        <th className="p-3">Patient Name</th>
+                        <th className="p-3">UHID</th>
+                        <th className="p-3">Medicine &amp; Dose</th>
+                        <th className="p-3">Route / Site</th>
+                        <th className="p-3">Administering Nurse</th>
+                        <th className="p-3">Administered Time</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Reaction / Notes</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-black">
+                      {filteredActiveNurseTasks.length > 0 ? (
+                        filteredActiveNurseTasks.map((task) => (
+                          <tr
+                            key={task._id}
+                            id={`doctor-nurse-task-${task._id}`}
+                            data-testid={`doctor-nurse-task-${task._id}`}
+                            className={`transition-colors ${String(task._id) === String(requestedNurseTaskId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-400' : 'hover:bg-slate-50'}`}
+                          >
+                            <td className="p-3 font-bold text-black">
+                              {task.patientId?.firstName} {task.patientId?.lastName}
+                            </td>
+                            <td className="p-3 font-mono font-bold text-indigo-700">
+                              {task.patientId?.uhid || '—'}
+                            </td>
+                            <td className="p-3 font-extrabold text-slate-900">
+                              {task.medicineName} ({task.dose})
+                            </td>
+                            <td className="p-3 text-slate-700 font-bold uppercase">
+                              {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
+                            </td>
+                            <td className="p-3 font-medium text-slate-800">
+                              {task.status === 'ADMINISTERED'
+                                ? `Nurse ${task.administrationDetails?.nurseName || 'Duty Nurse'}`
+                                : `Assigned: ${task.assignedNurseName || 'Nursing Station'}`}
+                            </td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">
+                              {task.administrationDetails?.administeredAt
+                                ? new Date(task.administrationDetails.administeredAt).toLocaleString()
+                                : new Date(task.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <span
+                                className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${
+                                  task.status === 'ADMINISTERED'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                    : 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                                }`}
+                              >
+                                {task.status === 'ADMINISTERED' ? '✓ ADMINISTERED' : 'PENDING NURSING'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 max-w-xs truncate">
+                              {task.administrationDetails?.notes || (task.status === 'ADMINISTERED' ? 'Normal / Completed' : task.doctorInstructions || '—')}
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {task.status === 'ADMINISTERED' ? (
+                                  <>
+                                    {!task.doctorReviewedAt ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReviewNurseTask(task)}
+                                        className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                      >
+                                        <CheckCircle2 size={12} />
+                                        Mark as Reviewed
+                                      </button>
+                                    ) : (
+                                      <span className="px-2.5 py-1 rounded-lg font-black text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center gap-1">
+                                        <CheckCircle2 size={12} className="text-emerald-600" />
+                                        Reviewed
+                                      </span>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleContinueConsultationForNurseTask(task)}
+                                      className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                      title="Open consultation with this patient and finalize diagnosis/bill"
+                                    >
+                                      <Stethoscope size={13} />
+                                      Continue Consultation &amp; Bill
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
+                                  >
+                                    <Lock size={12} /> Pending at Station
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={9} className="p-6 text-center text-slate-500">
+                            No active nurse-administered treatment tasks waiting for review.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* 2. Reviewed & Completed History for Nurse Administrations (Below active content!) */}
+              <Card className="space-y-4 bg-white border border-emerald-200 shadow-sm text-black">
+                <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                      Reviewed &amp; Completed History &mdash; Nurse Administrations &amp; Injections ({filteredHistoryNurseTasks.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Historical log of nurse-administered bedside injections and treatments reviewed by doctor.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-emerald-50/70 text-slate-900 uppercase tracking-wider text-[10px] border-b border-emerald-200 font-bold">
+                      <tr>
+                        <th className="p-3">Patient Name</th>
+                        <th className="p-3">UHID</th>
+                        <th className="p-3">Medicine &amp; Dose</th>
+                        <th className="p-3">Route / Site</th>
+                        <th className="p-3">Administering Nurse</th>
+                        <th className="p-3">Administered Time</th>
+                        <th className="p-3">Review Status</th>
+                        <th className="p-3">Reaction / Notes</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-black">
+                      {filteredHistoryNurseTasks.length > 0 ? (
+                        filteredHistoryNurseTasks.map((task) => (
+                          <tr key={task._id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-3 font-bold text-black">
+                              {task.patientId?.firstName} {task.patientId?.lastName}
+                            </td>
+                            <td className="p-3 font-mono font-bold text-indigo-700">
+                              {task.patientId?.uhid || '—'}
+                            </td>
+                            <td className="p-3 font-extrabold text-slate-900">
+                              {task.medicineName} ({task.dose})
+                            </td>
+                            <td className="p-3 text-slate-700 font-bold uppercase">
+                              {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
+                            </td>
+                            <td className="p-3 font-medium text-slate-800">
+                              Nurse {task.administrationDetails?.nurseName || task.assignedNurseName || 'Duty Nurse'}
+                            </td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">
+                              {task.administrationDetails?.administeredAt
+                                ? new Date(task.administrationDetails.administeredAt).toLocaleString()
+                                : new Date(task.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-black bg-emerald-50 text-emerald-700 border-emerald-300">
+                                <CheckCircle2 size={11} /> REVIEWED &amp; ACCEPTED
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 max-w-xs truncate">
+                              {task.administrationDetails?.notes || 'Normal / Completed'}
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleContinueConsultationForNurseTask(task)}
+                                className="px-3 py-1 rounded-lg font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Stethoscope size={13} />
+                                Open Encounter
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={9} className="p-6 text-center text-slate-500">
+                            No reviewed nurse administration history recorded.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             </div>
-          </Card>
-        )}
-      </div>
+          )}
+
+          {/* VIEW 2: DEPARTMENT REQUEST & RESPONSE TRACKER */}
+          {deptResponseSubTab === 'DEPT_TRACKER' && (
+            <div className="space-y-6">
+              {/* 1. Active Department Diagnostic & Imaging Orders */}
+              <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <div>
+                    <h3 className="text-base font-extrabold text-black flex items-center gap-2">
+                      <FileCheck2 size={18} className="text-amber-600" />
+                      Department Request ({filteredActiveDeptOrders.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Track each request from dispatch through processing, report submission, and doctor review.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                      <tr>
+                        <th className="p-3">Patient Name</th>
+                        <th className="p-3">Token / Patient ID</th>
+                        <th className="p-3">Department</th>
+                        <th className="p-3">Requested Service</th>
+                        <th className="p-3">Sent Time</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Response Time</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-black">
+                      {filteredActiveDeptOrders.length > 0 ? (
+                        filteredActiveDeptOrders.map((ord) => {
+                          const workflowStatus = displayWorkflowStatus(ord);
+                          const isDepartmentLocked = !['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status);
+                          const isReviewed = Boolean(ord.reviewedAt || ord.status === 'REVIEWED' || ord.chargeStatus === 'APPROVED');
+                          return (
+                            <tr key={ord._id} className={`transition-colors ${isDepartmentLocked ? 'bg-slate-50/80 text-slate-500' : 'hover:bg-slate-50'}`}>
+                              <td className="p-3 font-bold text-black">{ord.patientName}</td>
+                              <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
+                              <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
+                              <td className="p-3 font-extrabold text-black">{ord.testName}</td>
+                              <td className="p-3 text-slate-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleString()}</td>
+                              <td className="p-3"><span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black whitespace-nowrap ${statusClass(workflowStatus)}`}>{workflowStatus}</span></td>
+                              <td className="p-3 text-slate-600 whitespace-nowrap">{ord.responseSubmittedAt || ord.completedAt ? new Date(ord.responseSubmittedAt || ord.completedAt).toLocaleString() : '—'}</td>
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {ord.attachments?.length > 0 && (
+                                    <a
+                                      href={ord.attachments[0].fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
+                                    >
+                                      <Eye size={12} /> View Scan
+                                    </a>
+                                  )}
+
+                                  {['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(ord.status) || ord.reviewedAt || ord.chargeStatus === 'APPROVED' ? (
+                                    <>
+                                      {!isReviewed ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleReviewDiagnosticOrder(ord)}
+                                          className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                        >
+                                          <CheckCircle2 size={12} />
+                                          Mark as Reviewed
+                                        </button>
+                                      ) : (
+                                        <span className="px-2.5 py-1 rounded-lg font-black text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center gap-1">
+                                          <CheckCircle2 size={12} className="text-emerald-600" />
+                                          Reviewed
+                                        </span>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleContinueConsultation(ord)}
+                                        className="px-3 py-1 rounded-lg font-bold text-[11px] bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                        title="Open consultation with this patient and finalize diagnosis/bill"
+                                      >
+                                        <Stethoscope size={13} />
+                                        Continue Consultation &amp; Bill
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 bg-slate-100 text-slate-400 border border-slate-200 opacity-70 cursor-not-allowed"
+                                      title="Report is being processed by department."
+                                    >
+                                      <Lock size={12} /> {ord.status === 'IN_PROGRESS' ? 'Locked: In Progress' : ord.status === 'ACCEPTED' ? 'Locked: Accepted' : 'Locked: Pending'}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-500">
+                            No active department orders or reports waiting for doctor review.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* 2. Reviewed & Completed History for Diagnostic Reports (Below active content!) */}
+              <Card className="space-y-4 bg-white border border-emerald-200 shadow-sm text-black">
+                <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                      Reviewed &amp; Completed History &mdash; Department Diagnostics &amp; Scans ({filteredHistoryDeptOrders.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Previously reviewed and accepted laboratory results and radiology scans.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-emerald-50/70 text-slate-900 uppercase tracking-wider text-[10px] border-b border-emerald-200 font-bold">
+                      <tr>
+                        <th className="p-3">Patient Name</th>
+                        <th className="p-3">Token / UHID</th>
+                        <th className="p-3">Department</th>
+                        <th className="p-3">Service</th>
+                        <th className="p-3">Sent Time</th>
+                        <th className="p-3">Reviewed Status</th>
+                        <th className="p-3">Reviewed At</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-black">
+                      {filteredHistoryDeptOrders.length > 0 ? (
+                        filteredHistoryDeptOrders.map((ord) => (
+                          <tr key={ord._id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-3 font-bold text-black">{ord.patientName}</td>
+                            <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
+                            <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
+                            <td className="p-3 font-extrabold text-black">{ord.testName}</td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleString()}</td>
+                            <td className="p-3">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-black bg-emerald-50 text-emerald-700 border-emerald-300">
+                                <CheckCircle2 size={11} /> REVIEWED &amp; ACCEPTED
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">{ord.reviewedAt ? new Date(ord.reviewedAt).toLocaleString() : (ord.completedAt ? new Date(ord.completedAt).toLocaleString() : '—')}</td>
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {ord.attachments?.length > 0 && (
+                                  <a
+                                    href={ord.attachments[0].fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
+                                  >
+                                    <Eye size={12} /> View Scan
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleContinueConsultation(ord)}
+                                  className="px-3 py-1 rounded-lg font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Stethoscope size={13} />
+                                  Open Encounter
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-500">
+                            No reviewed diagnostic reports recorded.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* Resolved Billing Queries History */}
+              {filteredHistoryReturnedBilling.length > 0 && (
+                <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+                  <div className="border-b border-slate-200 pb-3">
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <Receipt size={18} className="text-indigo-600" />
+                      Resolved Billing Queries ({filteredHistoryReturnedBilling.length})
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                        <tr>
+                          <th className="p-3">Patient Name</th>
+                          <th className="p-3">UHID</th>
+                          <th className="p-3">Cashier Query</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Resolved Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-black">
+                        {filteredHistoryReturnedBilling.map((rx) => (
+                          <tr key={rx._id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold">{rx.patientId?.firstName} {rx.patientId?.lastName}</td>
+                            <td className="p-3 font-mono text-indigo-700 font-bold">{rx.patientId?.uhid || '—'}</td>
+                            <td className="p-3 text-slate-600">{rx.billingQuery?.query || 'Resolved'}</td>
+                            <td className="p-3">
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                RESOLVED
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600">{rx.updatedAt ? new Date(rx.updatedAt).toLocaleString() : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* FOLLOW-UP VISITS TAB */}
-      {activeTab === 'FOLLOW_UPS' && (
-        <FollowUpVisitsSection
-          onViewHistory={(id) => {
-            setHistoryPatientId(id);
-            setIsHistoryOpen(true);
-          }}
-        />
-      )}
+          {/* FOLLOW-UP VISITS TAB */}
+          {activeTab === 'FOLLOW_UPS' && (
+            <FollowUpVisitsSection
+              onViewHistory={(id) => {
+                setHistoryPatientId(id);
+                setIsHistoryOpen(true);
+              }}
+            />
+          )}
 
       {/* Pop-up Consultation Modal */}
       <ConsultationModal
@@ -1834,6 +2326,9 @@ const targetDocId = user?.id || user?._id;
         patient={currentPatient}
         returnedPrescription={selectedReturnedRx || selectedToken?.returnedPrescription}
         onSuccess={() => {
+          setSelectedToken(null);
+          setPatientInvestigations([]);
+          setPatientNurseTasks([]);
           fetchOpdQueue();
           fetchDepartmentOrders();
           fetchNurseTasks();
@@ -1850,7 +2345,7 @@ const targetDocId = user?.id || user?._id;
         appointmentId={selectedToken?._id}
         tokenNumber={selectedToken?.tokenNumber || 1}
         doctorId={selectedToken?.doctorId?._id || selectedToken?.doctorId || user?.id || user?._id}
-        doctorName={selectedToken?.doctorId?.name ? `Dr. ${selectedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (user?.name ? `Dr. ${user.name.replace(/^Dr\.\s*/i, '')}` : 'Dr. Madhu Narayan')}
+        doctorName={selectedToken?.doctorId?.name ? `Dr. ${selectedToken.doctorId.name.replace(/^Dr\.\s*/i, '')}` : (user?.name ? `Dr. ${user.name.replace(/^Dr\.\s*/i, '')}` : 'Doctor')}
         onSuccess={() => {
           const dispatchedAppointmentId = selectedToken?._id;
           setLiveQueue((queue) => queue.filter((token) => String(token._id) !== String(dispatchedAppointmentId)));
@@ -1897,3 +2392,5 @@ const targetDocId = user?.id || user?._id;
     </div>
   );
 };
+
+export default DoctorDashboard;

@@ -563,6 +563,32 @@ export class DiagnosticsService {
       order.branchId,
     );
 
+    // Auto-complete active review notifications for this order
+    const { Notification } = await import('../../models/Notification.js');
+    const notifs = await Notification.find({
+      hospitalId,
+      $or: [
+        { relatedTaskId: String(orderId) },
+        { entityId: String(orderId) },
+        { 'metadata.orderId': String(orderId) },
+      ],
+      isCompleted: { $ne: true },
+    }).lean();
+
+    if (notifs.length > 0) {
+      const ids = notifs.map((n) => n._id);
+      await Notification.updateMany(
+        { _id: { $in: ids } },
+        { $set: { isCompleted: true, completedAt: new Date(), status: 'COMPLETED', isRead: true, readAt: new Date() } }
+      );
+      notifs.forEach((n) => {
+        if (n.recipientUserId) {
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:completed', { notificationId: n._id });
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:read', { notificationId: n._id });
+        }
+      });
+    }
+
     return order;
   }
 

@@ -78,6 +78,13 @@ export const WorkflowTrackerPage = () => {
     socket.on('opd_queue:updated', handleSync);
     socket.on('opd_queue:status_changed', handleSync);
     socket.on('department:order_update', handleSync);
+    socket.on('billing:payment_collected', handleSync);
+    socket.on('payment:collected', handleSync);
+    socket.on('receipt:created', handleSync);
+    socket.on('billing:receipt_created', handleSync);
+    socket.on('billing:receipt_deleted', handleSync);
+    socket.on('billing:invoice_created', handleSync);
+    socket.on('billing:invoice_updated', handleSync);
 
     return () => {
       socket.off('workflow:notification', handleSync);
@@ -85,6 +92,13 @@ export const WorkflowTrackerPage = () => {
       socket.off('opd_queue:updated', handleSync);
       socket.off('opd_queue:status_changed', handleSync);
       socket.off('department:order_update', handleSync);
+      socket.off('billing:payment_collected', handleSync);
+      socket.off('payment:collected', handleSync);
+      socket.off('receipt:created', handleSync);
+      socket.off('billing:receipt_created', handleSync);
+      socket.off('billing:receipt_deleted', handleSync);
+      socket.off('billing:invoice_created', handleSync);
+      socket.off('billing:invoice_updated', handleSync);
     };
   }, [socket, searchTerm, activeStageTab]);
 
@@ -273,7 +287,7 @@ export const WorkflowTrackerPage = () => {
         <div className="relative w-full sm:w-72">
           <input
             type="text"
-            placeholder="Search patient, UHID, token, staff..."
+            placeholder="Search patient, UHID, receipt #, invoice #, token..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 focus:bg-white focus:border-indigo-500 outline-none"
@@ -371,19 +385,35 @@ export const WorkflowTrackerPage = () => {
 
                       {/* Financial Clearance */}
                       <td className="p-3.5">
-                        <div className="space-y-0.5">
-                          <p className="text-[11px] font-black text-slate-900">
-                            Total: ₹{j.financials.totalAmount}
-                          </p>
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black ${
-                            j.financials.paymentStatus === 'PAID'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : j.financials.paymentStatus === 'PARTIALLY_PAID'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {j.financials.paymentStatus === 'PAID' ? '✓ SETTLED' : `PENDING: ₹${j.financials.balanceAmount}`}
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[11px] font-black text-slate-900">
+                              Total: ₹{j.financials.totalAmount}
+                            </span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black ${
+                              j.financials.paymentStatus === 'PAID'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : j.financials.paymentStatus === 'PARTIALLY_PAID'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {j.financials.paymentStatus === 'PAID' ? '✓ SETTLED' : `PENDING: ₹${j.financials.balanceAmount}`}
+                            </span>
+                          </div>
+
+                          {j.financials.receiptNo && j.financials.receiptNo !== 'None' && (
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <Receipt size={10} className="shrink-0 text-emerald-600" />
+                              <span>Receipt: {j.financials.receiptNo}</span>
+                            </div>
+                          )}
+
+                          {j.financials.invoiceNo && j.financials.invoiceNo !== 'None' && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                              <FileText size={10} className="shrink-0 text-slate-400" />
+                              <span>Inv: {j.financials.invoiceNo}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -467,9 +497,14 @@ export const WorkflowTrackerPage = () => {
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">3. Next Destination</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">3. Next Destination & Financials</span>
                   <p className="font-extrabold text-emerald-700 mt-0.5">{selectedJourney.nextDestination}</p>
-                  <p className="text-[11px] text-slate-600">Invoice: {selectedJourney.financials.invoiceNo}</p>
+                  <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5 font-mono">
+                    <p>Invoice: <strong>{selectedJourney.financials.invoiceNo}</strong></p>
+                    {selectedJourney.financials.receiptNo && selectedJourney.financials.receiptNo !== 'None' && (
+                      <p className="text-emerald-700 font-bold">Receipt: <strong>#{selectedJourney.financials.receiptNo}</strong> (₹{selectedJourney.financials.paidAmount})</p>
+                    )}
+                  </div>
                 </div>
               </div>
 

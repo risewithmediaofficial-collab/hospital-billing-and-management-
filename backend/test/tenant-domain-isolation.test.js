@@ -211,10 +211,10 @@ test('Real HTTP tenant journey: login, own detail, cross-tenant denial, and stre
 
     const clinicWorkMode = await request('/auth/me/enable-clinic-work-mode', token, { method: 'POST', body: {} });
     assert.strictEqual(clinicWorkMode.response.status, 200);
-    assert.ok(clinicWorkMode.payload.data.additionalRoles.includes('DOCTOR'));
     assert.ok(clinicWorkMode.payload.data.additionalRoles.includes('RECEPTIONIST'));
     assert.ok(clinicWorkMode.payload.data.additionalRoles.includes('CASHIER'));
     assert.ok(clinicWorkMode.payload.data.additionalRoles.includes('PHARMACIST'));
+    assert.ok(clinicWorkMode.payload.data.additionalRoles.includes('NURSE_INCHARGE'));
 
     const exportResponse = await fetch(`${baseUrl}/saas/hospitals/${hospitalA._id}/export`, { headers });
     assert.strictEqual(exportResponse.status, 200);

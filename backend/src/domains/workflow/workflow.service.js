@@ -3,6 +3,7 @@ import { Appointment } from '../../models/Appointment.js';
 import { DiagnosticOrder } from '../../models/DiagnosticOrder.js';
 import { Prescription } from '../../models/Prescription.js';
 import { Invoice } from '../../models/Invoice.js';
+import { Receipt } from '../../models/Receipt.js';
 import { PatientRequest } from '../../models/PatientRequest.js';
 import { Admission } from '../../models/Admission.js';
 import { Emergency } from '../../models/Emergency.js';
@@ -185,6 +186,7 @@ export class WorkflowService {
       return { total: uniqueTasks.length, byPath, tasks: uniqueTasks };
   }
 
+
   static async getHospitalDataJourney(query = {}, user) {
     try {
       if (!user) return { journeys: [], stats: {} };
@@ -209,67 +211,175 @@ export class WorkflowService {
       const search = (query.search || '').trim();
       const stageFilter = (query.stage || 'ALL').toUpperCase();
 
-      // Fetch today and recent appointments (up to 100)
-      const appointments = await Appointment.find(scope)
-        .populate('patientId', 'firstName lastName uhid gender age phone bloodGroup emergencyContact')
-        .populate('doctorId', 'name specialization cabinNo departmentId')
-        .sort({ createdAt: -1 })
-        .limit(100)
-        .lean();
+      // Targeted search queries if search query is provided
+      let searchedApptIds = [];
+      let searchedPatientIds = [];
+      let searchedInvoiceIds = [];
 
-      if (!appointments.length) {
-        return {
-          journeys: [],
-          stats: { total: 0, atNurse: 0, inLab: 0, atPharmacy: 0, atBilling: 0, completed: 0, delayedAlerts: 0 }
-        };
+      if (search) {
+        const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const [foundReceipts, foundInvoices, foundPatients, foundAppts] = await Promise.all([
+          Receipt.find({ ...scope, isDeleted: { $ne: true }, $or: [{ receiptNo: searchRegex }, { transactionRef: searchRegex }, { remarks: searchRegex }] }).select('_id invoiceId patientId appointmentId').lean().catch(() => []),
+          Invoice.find({ ...scope, isDeleted: { $ne: true }, $or: [{ invoiceNo: searchRegex }] }).select('_id patientId appointmentId').lean().catch(() => []),
+          Patient.find({ ...scope, $or: [{ uhid: searchRegex }, { firstName: searchRegex }, { lastName: searchRegex }, { phone: searchRegex }] }).select('_id').lean().catch(() => []),
+          Appointment.find({ ...scope, $or: [{ appointmentNo: searchRegex }, { tokenNumber: !isNaN(Number(search)) ? Number(search) : -1 }] }).select('_id patientId').lean().catch(() => []),
+        ]);
+
+        foundReceipts.forEach((r) => {
+          if (r.invoiceId) searchedInvoiceIds.push(r.invoiceId);
+          if (r.patientId) searchedPatientIds.push(r.patientId);
+          if (r.appointmentId) searchedApptIds.push(r.appointmentId);
+        });
+
+        foundInvoices.forEach((inv) => {
+          searchedInvoiceIds.push(inv._id);
+          if (inv.patientId) searchedPatientIds.push(inv.patientId);
+          if (inv.appointmentId) searchedApptIds.push(inv.appointmentId);
+        });
+
+        foundPatients.forEach((p) => searchedPatientIds.push(p._id));
+        foundAppts.forEach((a) => {
+          searchedApptIds.push(a._id);
+          if (a.patientId) searchedPatientIds.push(a.patientId);
+        });
       }
 
-      const apptIds = appointments.map((a) => a._id);
-      const patientIds = appointments.map((a) => a.patientId?._id || a.patientId).filter(Boolean);
+      // Fetch recent appointments (up to 150) plus any specifically searched
+      const apptQuery = { ...scope };
+      if (searchedApptIds.length > 0 || searchedPatientIds.length > 0) {
+        apptQuery.$or = [
+          { _id: { $in: searchedApptIds } },
+          { patientId: { $in: searchedPatientIds } },
+        ];
+      }
 
-      const [consultations, nurseTasks, diagnosticOrders, prescriptions, invoices] = await Promise.all([
-        Consultation.find({ hospitalId, appointmentId: { $in: apptIds } }).lean().catch(() => []),
-        NurseTask.find({ hospitalId, appointmentId: { $in: apptIds } }).populate('assignedNurseId', 'name role').lean().catch(() => []),
-        DiagnosticOrder.find({ hospitalId, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: patientIds } }] }).lean().catch(() => []),
-        Prescription.find({ hospitalId, patientId: { $in: patientIds } }).populate('doctorId', 'name').lean().catch(() => []),
-        Invoice.find({ hospitalId, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: patientIds } }] }).lean().catch(() => []),
+      const [appointments, recentInvoices, recentReceipts] = await Promise.all([
+        Appointment.find(searchedApptIds.length > 0 || searchedPatientIds.length > 0 ? apptQuery : scope)
+          .populate('patientId', 'firstName lastName uhid gender age phone bloodGroup emergencyContact')
+          .populate('doctorId', 'name specialization cabinNo departmentId')
+          .sort({ createdAt: -1 })
+          .limit(150)
+          .lean()
+          .catch(() => []),
+        Invoice.find({
+          ...scope,
+          isDeleted: { $ne: true },
+          ...(searchedInvoiceIds.length > 0 || searchedPatientIds.length > 0 ? { $or: [{ _id: { $in: searchedInvoiceIds } }, { patientId: { $in: searchedPatientIds } }] } : {}),
+        })
+          .populate('patientId', 'firstName lastName uhid gender age phone')
+          .populate('doctorId', 'name specialization cabinNo')
+          .sort({ createdAt: -1 })
+          .limit(150)
+          .lean()
+          .catch(() => []),
+        Receipt.find({
+          ...scope,
+          isDeleted: { $ne: true },
+          ...(searchedInvoiceIds.length > 0 || searchedPatientIds.length > 0 ? { $or: [{ invoiceId: { $in: searchedInvoiceIds } }, { patientId: { $in: searchedPatientIds } }] } : {}),
+        })
+          .populate('patientId', 'firstName lastName uhid gender age phone')
+          .populate('cashierId', 'name role')
+          .sort({ createdAt: -1 })
+          .limit(150)
+          .lean()
+          .catch(() => []),
+      ]);
+
+      const apptIds = appointments.map((a) => a._id);
+      const allPatientIds = Array.from(
+        new Set([
+          ...appointments.map((a) => a.patientId?._id || a.patientId),
+          ...recentInvoices.map((inv) => inv.patientId?._id || inv.patientId),
+          ...recentReceipts.map((rc) => rc.patientId?._id || rc.patientId),
+        ].filter(Boolean).map((id) => String(id)))
+      );
+
+      const allInvoiceIds = Array.from(
+        new Set([
+          ...recentInvoices.map((inv) => String(inv._id)),
+          ...recentReceipts.map((rc) => rc.invoiceId ? String(rc.invoiceId) : null).filter(Boolean),
+        ])
+      );
+
+      // Fetch all related clinical, diagnostic, pharmacy, invoice, and receipt records
+      const [consultations, nurseTasks, diagnosticOrders, prescriptions, allInvoices, allReceipts] = await Promise.all([
+        Consultation.find({ ...scope, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }] }).lean().catch(() => []),
+        NurseTask.find({ ...scope, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }] }).populate('assignedNurseId', 'name role').lean().catch(() => []),
+        DiagnosticOrder.find({ ...scope, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }] }).lean().catch(() => []),
+        Prescription.find({ ...scope, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }] }).populate('doctorId', 'name').lean().catch(() => []),
+        Invoice.find({ ...scope, isDeleted: { $ne: true }, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }, { _id: { $in: allInvoiceIds } }] }).populate('doctorId', 'name specialization cabinNo').populate('patientId', 'firstName lastName uhid gender age phone').lean().catch(() => []),
+        Receipt.find({ ...scope, isDeleted: { $ne: true }, $or: [{ appointmentId: { $in: apptIds } }, { patientId: { $in: allPatientIds } }, { invoiceId: { $in: allInvoiceIds } }] }).populate('cashierId', 'name role').populate('patientId', 'firstName lastName uhid gender age phone').lean().catch(() => []),
       ]);
 
       const now = new Date();
       let stats = { total: 0, atNurse: 0, inLab: 0, atPharmacy: 0, atBilling: 0, completed: 0, delayedAlerts: 0 };
+      const handledPatientIds = new Set();
+      const journeys = [];
 
-      const journeys = appointments.map((appt) => {
-        const patient = appt.patientId || {};
-        const doctor = appt.doctorId || {};
-        const pName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Patient';
-        const uhid = patient.uhid || 'UHID-N/A';
+      // Helper function to build a single journey object
+      const buildJourney = ({ appt, invoice, patient, doctor }) => {
+        const pId = patient?._id || patient?.id || appt?.patientId?._id || invoice?.patientId?._id;
+        const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
+        const uhid = patient?.uhid || 'UHID-N/A';
 
-        const apptConsultation = consultations.find((c) => String(c.appointmentId) === String(appt._id));
-        const apptNurseTasks = nurseTasks.filter((t) => String(t.appointmentId) === String(appt._id) || String(t.patientId) === String(patient._id));
-        const apptDiagOrders = diagnosticOrders.filter((d) => String(d.appointmentId) === String(appt._id) || String(d.patientId) === String(patient._id));
-        const apptPrescriptions = prescriptions.filter((p) => String(p.consultationId) === String(apptConsultation?._id) || String(p.patientId) === String(patient._id));
-        const apptInvoice = invoices.find((inv) => String(inv.appointmentId) === String(appt._id) || (String(inv.patientId) === String(patient._id) && ['UNPAID', 'PARTIALLY_PAID'].includes(inv.status))) || invoices.find((inv) => String(inv.patientId) === String(patient._id));
+        const apptId = appt?._id ? String(appt._id) : null;
+        const apptConsultation = consultations.find((c) => (apptId && String(c.appointmentId) === apptId) || (pId && String(c.patientId) === String(pId)));
+        const apptNurseTasks = nurseTasks.filter((t) => (apptId && String(t.appointmentId) === apptId) || (pId && String(t.patientId) === String(pId)));
+        const apptDiagOrders = diagnosticOrders.filter((d) => (apptId && String(d.appointmentId) === apptId) || (pId && String(d.patientId) === String(pId)));
+        const apptPrescriptions = prescriptions.filter((p) => (apptConsultation && String(p.consultationId) === String(apptConsultation._id)) || (pId && String(p.patientId) === String(pId)));
 
-        // Determine current stage & handling staff
+        const apptInvoices = allInvoices.filter((inv) => (apptId && String(inv.appointmentId) === apptId) || (pId && String(inv.patientId?._id || inv.patientId) === String(pId)));
+        const invoiceIds = apptInvoices.map((inv) => String(inv._id));
+        const apptReceipts = allReceipts.filter((rc) =>
+          (apptId && String(rc.appointmentId) === apptId) ||
+          (rc.invoiceId && invoiceIds.includes(String(rc.invoiceId))) ||
+          (pId && String(rc.patientId?._id || rc.patientId) === String(pId))
+        );
+
+        // Compute Financial Summary
+        const primaryInvoice = apptInvoices[0] || invoice;
+        const totalAmount = apptInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal || inv.totalAmount || 0), 0) || (apptReceipts.reduce((sum, rc) => sum + Number(rc.amountPaid || 0), 0));
+        const paidAmount = apptReceipts.reduce((sum, rc) => sum + Number(rc.amountPaid || 0), 0) || apptInvoices.reduce((sum, inv) => sum + Number(inv.paidAmount || 0), 0);
+        const balanceAmount = Math.max(0, totalAmount - paidAmount);
+
+        let paymentStatus = 'PENDING_GENERATION';
+        if (totalAmount > 0 && paidAmount >= totalAmount) {
+          paymentStatus = 'PAID';
+        } else if (paidAmount > 0) {
+          paymentStatus = 'PARTIALLY_PAID';
+        } else if (totalAmount > 0) {
+          paymentStatus = 'UNPAID';
+        }
+
+        const invoiceNoList = apptInvoices.map((inv) => inv.invoiceNo).filter(Boolean);
+        const receiptNoList = apptReceipts.map((rc) => rc.receiptNo).filter(Boolean);
+        const primaryInvoiceNo = invoiceNoList[0] || primaryInvoice?.invoiceNo || (totalAmount > 0 ? 'Pending Number' : 'None');
+        const primaryReceiptNo = receiptNoList[0] || (paidAmount > 0 ? 'Paid' : 'None');
+
+        // Stage & Handling Staff Determination
         let currentStage = 'WAITING';
         let currentStageLabel = 'Queued at Reception / Waiting for Doctor';
-        let handlingStaff = { name: doctor.name || 'Assigned Consultant', role: 'DOCTOR', department: 'Clinical OPD' };
+        let handlingStaff = { name: doctor?.name || 'Assigned Consultant', role: 'DOCTOR', department: 'Clinical OPD' };
         let nextDestination = 'Doctor Consultation';
         let isDelayed = false;
         const auditAlerts = [];
 
         const hasPendingNurse = apptNurseTasks.some((t) => ['PENDING', 'ACCEPTED', 'SCHEDULED'].includes(t.status));
         const hasPendingLab = apptDiagOrders.some((o) => ACTIVE_DIAGNOSTIC_STATUSES.includes(o.status));
-        const hasUnreviewedReport = apptDiagOrders.some((o) => ['REPORT_UPLOADED', 'COMPLETED'].includes(o.status) && !o.reviewedAt);
         const hasPendingPharmacy = apptPrescriptions.some((p) => p.dispenseStatus === 'PENDING_DISPENSE');
-        const hasUnpaidInvoice = apptInvoice && ['UNPAID', 'PARTIALLY_PAID'].includes(apptInvoice.status);
+        const hasUnpaidInvoice = balanceAmount > 0 && totalAmount > 0;
 
-        if (apptInvoice && apptInvoice.status === 'PAID') {
+        if (paymentStatus === 'PAID' || (apptReceipts.length > 0 && balanceAmount === 0 && !hasPendingNurse && !hasPendingLab && !hasPendingPharmacy)) {
           currentStage = 'COMPLETED_SETTLED';
           currentStageLabel = 'Bill Settled & Patient Discharged';
-          handlingStaff = { name: apptInvoice.createdByName || 'Cashier Desk', role: 'CASHIER', department: 'Central Billing' };
+          const latestRc = apptReceipts[0];
+          handlingStaff = {
+            name: latestRc?.cashierId?.name || latestRc?.createdByName || primaryInvoice?.createdByName || 'Cashier Desk',
+            role: 'CASHIER',
+            department: 'Central Billing',
+          };
           nextDestination = 'Visit Closed / Patient Discharged';
-        } else if (hasPendingNurse || appt.status === 'WAITING_NURSE') {
+        } else if (hasPendingNurse || appt?.status === 'WAITING_NURSE') {
           currentStage = 'AT_NURSE';
           currentStageLabel = 'At Nurse Station (Injection / IV Administration)';
           const activeTask = apptNurseTasks.find((t) => ['PENDING', 'ACCEPTED'].includes(t.status));
@@ -279,11 +389,11 @@ export class WorkflowService {
             department: 'Nursing Station',
           };
           nextDestination = 'Doctor Consultation Sign-Off & Billing';
-          if (new Date(activeTask?.createdAt || appt.updatedAt).getTime() < now.getTime() - 15 * 60 * 1000) {
+          if (new Date(activeTask?.createdAt || appt?.updatedAt || now).getTime() < now.getTime() - 15 * 60 * 1000) {
             isDelayed = true;
-            auditAlerts.push({ type: 'NURSE_DELAY', message: `Nursing procedure pending for >15 mins.` });
+            auditAlerts.push({ type: 'NURSE_DELAY', message: 'Nursing procedure pending for >15 mins.' });
           }
-        } else if (hasPendingLab || appt.status === 'WAITING_DEPARTMENT') {
+        } else if (hasPendingLab || appt?.status === 'WAITING_DEPARTMENT') {
           currentStage = 'IN_DIAGNOSTICS';
           currentStageLabel = 'In Pathology / Radiology (Sample / Scan in Progress)';
           const activeDiag = apptDiagOrders.find((o) => ACTIVE_DIAGNOSTIC_STATUSES.includes(o.status));
@@ -293,7 +403,7 @@ export class WorkflowService {
             department: activeDiag?.testCategory === 'RADIOLOGY' ? 'Radiology & Imaging' : 'Pathology & Lab',
           };
           nextDestination = 'Doctor Report Review';
-        } else if (hasPendingPharmacy || appt.status === 'WAITING_PHARMACY') {
+        } else if (hasPendingPharmacy || appt?.status === 'WAITING_PHARMACY') {
           currentStage = 'AT_PHARMACY';
           currentStageLabel = 'At Pharmacy Desk (Take-Home Medication Packaging)';
           handlingStaff = { name: 'Duty Pharmacist', role: 'PHARMACIST', department: 'Pharmacy' };
@@ -303,21 +413,21 @@ export class WorkflowService {
           currentStageLabel = 'At Central Billing Desk (Awaiting Payment Collection)';
           handlingStaff = { name: 'Cashier Desk', role: 'CASHIER', department: 'Central Billing' };
           nextDestination = 'Final Payment Settlement & Receipt Print';
-          if (new Date(apptInvoice.createdAt).getTime() < now.getTime() - 20 * 60 * 1000) {
+          if (primaryInvoice?.createdAt && new Date(primaryInvoice.createdAt).getTime() < now.getTime() - 20 * 60 * 1000) {
             isDelayed = true;
-            auditAlerts.push({ type: 'UNCOLLECTED_BILL', message: `Unpaid invoice of ₹${apptInvoice.balanceAmount || apptInvoice.totalAmount} waiting for >20 mins.` });
+            auditAlerts.push({ type: 'UNCOLLECTED_BILL', message: `Unpaid invoice of ₹${balanceAmount} waiting for >20 mins.` });
           }
-        } else if (appt.departmentReturnedAt && appt.status === 'IN_CONSULTATION') {
+        } else if (appt?.departmentReturnedAt && appt?.status === 'IN_CONSULTATION') {
           currentStage = 'RETURNED_TO_DOCTOR';
           currentStageLabel = 'Returned from Department (Ready for Doctor Finalization)';
-          handlingStaff = { name: doctor.name || 'Doctor', role: 'DOCTOR', department: `Cabin ${doctor.cabinNo || '101'}` };
+          handlingStaff = { name: doctor?.name || 'Doctor', role: 'DOCTOR', department: `Cabin ${doctor?.cabinNo || '101'}` };
           nextDestination = 'Prescribe Take-Home Medicine / Send to Bill';
-        } else if (appt.status === 'IN_CONSULTATION') {
+        } else if (appt?.status === 'IN_CONSULTATION') {
           currentStage = 'IN_CONSULTATION';
           currentStageLabel = 'In Doctor Cabin (Active Consultation)';
-          handlingStaff = { name: doctor.name || 'Doctor', role: 'DOCTOR', department: `Cabin ${doctor.cabinNo || '101'}` };
+          handlingStaff = { name: doctor?.name || 'Doctor', role: 'DOCTOR', department: `Cabin ${doctor?.cabinNo || '101'}` };
           nextDestination = 'Nurse Station / Diagnostics / Billing';
-        } else if (appt.status === 'CANCELLED') {
+        } else if (appt?.status === 'CANCELLED') {
           currentStage = 'CANCELLED';
           currentStageLabel = 'Visit Cancelled';
           handlingStaff = { name: 'Reception / Doctor', role: 'STAFF', department: 'OPD' };
@@ -331,23 +441,23 @@ export class WorkflowService {
             title: 'Registration & Token Issued',
             department: 'Reception / Front Desk',
             staff: 'Reception Desk',
-            timestamp: appt.createdAt,
+            timestamp: appt?.createdAt || primaryInvoice?.createdAt || now,
             status: 'COMPLETED',
-            details: `Token #${appt.tokenNumber} issued. Assigned to Dr. ${doctor.name || 'Doctor'} (${doctor.specialization || 'Consultant'}).`,
+            details: `Token #${appt?.tokenNumber || 'Walk-In'} registered for ${pName} (${uhid}). Consultant: Dr. ${doctor?.name || 'Attending Physician'}.`,
           },
         ];
 
-        if (apptConsultation || appt.status === 'IN_CONSULTATION' || appt.status === 'WAITING_NURSE' || appt.status === 'WAITING_DEPARTMENT' || appt.status === 'COMPLETED') {
+        if (apptConsultation || appt?.status === 'IN_CONSULTATION' || appt?.status === 'WAITING_NURSE' || appt?.status === 'WAITING_DEPARTMENT' || currentStage === 'COMPLETED_SETTLED') {
           journeySteps.push({
             stepIndex: 2,
             title: 'Doctor Clinical Examination',
             department: 'Clinical EMR',
-            staff: `Dr. ${doctor.name || 'Doctor'}`,
-            timestamp: apptConsultation?.createdAt || appt.updatedAt,
-            status: apptConsultation ? 'COMPLETED' : 'IN_PROGRESS',
+            staff: `Dr. ${doctor?.name || 'Doctor'}`,
+            timestamp: apptConsultation?.createdAt || appt?.updatedAt || primaryInvoice?.createdAt || now,
+            status: apptConsultation || currentStage === 'COMPLETED_SETTLED' ? 'COMPLETED' : 'IN_PROGRESS',
             details: apptConsultation
-              ? `Diagnosis: ${apptConsultation.chiefComplaints || 'Consultation done'}. Fee: ₹${apptConsultation.consultationFee || 0}.`
-              : `Token #${appt.tokenNumber} called into Cabin ${doctor.cabinNo || '101'}.`,
+              ? `Diagnosis: ${apptConsultation.chiefComplaints || 'Clinical consultation completed'}. Consultation fee: ₹${apptConsultation.consultationFee || 0}.`
+              : `Consultation recorded in Cabin ${doctor?.cabinNo || '101'}.`,
           });
         }
 
@@ -355,14 +465,14 @@ export class WorkflowService {
           apptNurseTasks.forEach((nt, idx) => {
             journeySteps.push({
               stepIndex: 3 + idx,
-              title: `Nursing: ${nt.medicineName} (${nt.dose})`,
+              title: `Nursing: ${nt.medicineName || 'Treatment'} (${nt.dose || 'Dose'})`,
               department: 'Nursing Station',
               staff: nt.administrationDetails?.nurseName || nt.assignedNurseName || 'Duty Nurse',
               timestamp: nt.administrationDetails?.administeredAt || nt.createdAt,
               status: nt.status === 'ADMINISTERED' ? 'COMPLETED' : 'IN_PROGRESS',
               details: nt.status === 'ADMINISTERED'
-                ? `Administered via ${nt.administrationDetails?.siteOrRoute || nt.route || 'IV'} by Nurse ${nt.administrationDetails?.nurseName || 'Staff'}. Notes: "${nt.administrationDetails?.notes || 'Normal'}". Doctor notified.`
-                : `Pending administration in nurse station. Prescribed by Dr. ${doctor.name || 'Doctor'}.`,
+                ? `Administered via ${nt.administrationDetails?.siteOrRoute || nt.route || 'IV'} by Nurse ${nt.administrationDetails?.nurseName || 'Staff'}. Notes: "${nt.administrationDetails?.notes || 'Normal'}".`
+                : `Pending administration in nurse station. Prescribed by Dr. ${doctor?.name || 'Doctor'}.`,
             });
           });
         }
@@ -377,8 +487,8 @@ export class WorkflowService {
               timestamp: ord.reviewedAt || ord.updatedAt || ord.createdAt,
               status: ['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status) ? 'COMPLETED' : 'IN_PROGRESS',
               details: ['COMPLETED', 'REPORT_UPLOADED'].includes(ord.status)
-                ? `Report uploaded: "${ord.reportSummary || 'Normal'}". Verified by ${ord.technicianName || 'Technician'}.`
-                : `Test ordered by Dr. ${doctor.name || 'Doctor'}. Current status: ${ord.status}.`,
+                ? `Report verified: "${ord.reportSummary || 'Normal findings'}". Technician: ${ord.technicianName || 'Diagnostics'}.`
+                : `Diagnostic test ordered by Dr. ${doctor?.name || 'Doctor'}. Status: ${ord.status}.`,
             });
           });
         }
@@ -399,17 +509,31 @@ export class WorkflowService {
           });
         }
 
-        if (apptInvoice) {
-          journeySteps.push({
-            stepIndex: 6,
-            title: `Central Billing & Cashier Settlement`,
-            department: 'Central Billing',
-            staff: apptInvoice.createdByName || 'Cashier Desk',
-            timestamp: apptInvoice.paidAt || apptInvoice.updatedAt || apptInvoice.createdAt,
-            status: apptInvoice.status === 'PAID' ? 'COMPLETED' : 'PENDING',
-            details: apptInvoice.status === 'PAID'
-              ? `Payment settled: ₹${apptInvoice.paidAmount || apptInvoice.totalAmount} collected via ${apptInvoice.paymentMethod || 'Cash'}. Invoice #${apptInvoice.invoiceNo}.`
-              : `Invoice #${apptInvoice.invoiceNo} generated. Balance pending: ₹${apptInvoice.balanceAmount || apptInvoice.totalAmount}.`,
+        if (apptInvoices.length > 0) {
+          apptInvoices.forEach((inv, idx) => {
+            journeySteps.push({
+              stepIndex: 6 + idx,
+              title: `Central Billing: Invoice #${inv.invoiceNo}`,
+              department: 'Central Billing',
+              staff: inv.createdByName || 'Cashier Desk',
+              timestamp: inv.createdAt,
+              status: inv.status === 'PAID' ? 'COMPLETED' : 'PENDING',
+              details: `Invoice #${inv.invoiceNo} for ₹${inv.grandTotal || inv.totalAmount}. Status: ${inv.status}. Balance pending: ₹${inv.balanceAmount || 0}.`,
+            });
+          });
+        }
+
+        if (apptReceipts.length > 0) {
+          apptReceipts.forEach((rc, idx) => {
+            journeySteps.push({
+              stepIndex: 7 + idx,
+              title: `Payment Settled: Receipt #${rc.receiptNo}`,
+              department: 'Central Billing',
+              staff: rc.cashierId?.name || rc.createdByName || 'Cashier Desk',
+              timestamp: rc.createdAt || rc.paidAt,
+              status: 'COMPLETED',
+              details: `Payment of ₹${rc.amountPaid} collected via ${rc.paymentMode}${rc.transactionRef ? ` (${rc.transactionRef})` : ''}. Official Receipt #${rc.receiptNo} generated.`,
+            });
           });
         }
 
@@ -423,28 +547,28 @@ export class WorkflowService {
         if (isDelayed || auditAlerts.length > 0) stats.delayedAlerts++;
 
         return {
-          id: appt._id,
-          appointmentNo: appt.appointmentNo,
-          tokenNumber: appt.tokenNumber,
-          createdAt: appt.createdAt,
+          id: appt?._id || primaryInvoice?._id || `j_${pId}_${Date.now()}`,
+          appointmentNo: appt?.appointmentNo || primaryInvoice?.invoiceNo || 'DIRECT-VISIT',
+          tokenNumber: appt?.tokenNumber || (primaryInvoice ? 'BILL' : '0'),
+          createdAt: appt?.createdAt || primaryInvoice?.createdAt || now,
           patient: {
-            id: patient._id,
+            id: pId,
             name: pName,
             uhid,
-            gender: patient.gender || 'N/A',
-            age: patient.age || 'N/A',
-            phone: patient.phone || 'N/A',
+            gender: patient?.gender || 'N/A',
+            age: patient?.age || 'N/A',
+            phone: patient?.phone || 'N/A',
           },
           doctor: {
-            id: doctor._id,
-            name: doctor.name || 'Doctor',
-            specialization: doctor.specialization || 'General',
-            cabin: doctor.cabinNo || appt.cabinNo || 'Cabin 101',
+            id: doctor?._id || null,
+            name: doctor?.name || primaryInvoice?.doctorName || 'General Consultant',
+            specialization: doctor?.specialization || 'Clinical Services',
+            cabin: doctor?.cabinNo || appt?.cabinNo || 'Cabin 101',
           },
           origin: {
-            department: 'Reception Desk',
-            time: appt.createdAt,
-            tokenNumber: appt.tokenNumber,
+            department: 'Reception / Front Desk',
+            time: appt?.createdAt || primaryInvoice?.createdAt || now,
+            tokenNumber: appt?.tokenNumber || 'N/A',
           },
           currentStage,
           currentStageLabel,
@@ -454,27 +578,100 @@ export class WorkflowService {
           auditAlerts,
           journeySteps,
           financials: {
-            invoiceNo: apptInvoice?.invoiceNo || 'Pending Creation',
-            totalAmount: apptInvoice?.totalAmount || 0,
-            paidAmount: apptInvoice?.paidAmount || 0,
-            balanceAmount: apptInvoice?.balanceAmount || 0,
-            paymentStatus: apptInvoice?.status || 'PENDING_GENERATION',
+            invoiceNo: primaryInvoiceNo,
+            invoiceNos: invoiceNoList,
+            receiptNo: primaryReceiptNo,
+            receiptNos: receiptNoList,
+            receipts: apptReceipts.map((r) => ({
+              id: r._id,
+              receiptNo: r.receiptNo,
+              amountPaid: r.amountPaid,
+              paymentMode: r.paymentMode,
+              transactionRef: r.transactionRef,
+              cashierName: r.cashierId?.name || r.createdByName || 'Cashier Desk',
+              paidAt: r.createdAt || r.paidAt,
+              remarks: r.remarks,
+            })),
+            invoices: apptInvoices.map((i) => ({
+              id: i._id,
+              invoiceNo: i.invoiceNo,
+              grandTotal: i.grandTotal || i.totalAmount,
+              paidAmount: i.paidAmount,
+              balanceAmount: i.balanceAmount,
+              status: i.status,
+            })),
+            totalAmount,
+            paidAmount,
+            balanceAmount,
+            paymentStatus,
           },
         };
+      };
+
+      // 1. Build journeys for all appointments
+      appointments.forEach((appt) => {
+        const pId = String(appt.patientId?._id || appt.patientId || '');
+        if (pId) handledPatientIds.add(pId);
+        journeys.push(buildJourney({
+          appt,
+          patient: appt.patientId,
+          doctor: appt.doctorId,
+        }));
       });
 
-      // Filter by search query
+      // 2. Build journeys for standalone invoices/receipts (e.g. direct billing or walk-in patients)
+      allInvoices.forEach((inv) => {
+        const pId = String(inv.patientId?._id || inv.patientId || '');
+        if (pId && !handledPatientIds.has(pId)) {
+          handledPatientIds.add(pId);
+          journeys.push(buildJourney({
+            invoice: inv,
+            patient: inv.patientId,
+            doctor: inv.doctorId,
+          }));
+        }
+      });
+
+      allReceipts.forEach((rc) => {
+        const pId = String(rc.patientId?._id || rc.patientId || '');
+        if (pId && !handledPatientIds.has(pId)) {
+          handledPatientIds.add(pId);
+          journeys.push(buildJourney({
+            patient: rc.patientId,
+          }));
+        }
+      });
+
+      // Filter by search query across all patient, clinical, financial, receipt, and invoice identifiers
       let filteredJourneys = journeys;
       if (search) {
         const q = search.toLowerCase();
-        filteredJourneys = filteredJourneys.filter((j) =>
-          j.patient.name.toLowerCase().includes(q) ||
-          j.patient.uhid.toLowerCase().includes(q) ||
-          String(j.tokenNumber).includes(q) ||
-          j.doctor.name.toLowerCase().includes(q) ||
-          j.handlingStaff.name.toLowerCase().includes(q) ||
-          j.currentStageLabel.toLowerCase().includes(q)
-        );
+        filteredJourneys = filteredJourneys.filter((j) => {
+          const inPatient = (j.patient.name || '').toLowerCase().includes(q) ||
+                            (j.patient.uhid || '').toLowerCase().includes(q) ||
+                            (j.patient.phone || '').toLowerCase().includes(q);
+          const inToken = String(j.tokenNumber).toLowerCase().includes(q) || (j.appointmentNo || '').toLowerCase().includes(q);
+          const inDoctor = (j.doctor.name || '').toLowerCase().includes(q);
+          const inStaff = (j.handlingStaff.name || '').toLowerCase().includes(q);
+          const inStage = (j.currentStageLabel || '').toLowerCase().includes(q);
+          const inInvoice = (j.financials.invoiceNo || '').toLowerCase().includes(q) ||
+                            (j.financials.invoiceNos || []).some((no) => no.toLowerCase().includes(q));
+          const inReceipt = (j.financials.receiptNo || '').toLowerCase().includes(q) ||
+                            (j.financials.receiptNos || []).some((no) => no.toLowerCase().includes(q)) ||
+                            (j.financials.receipts || []).some((r) =>
+                              (r.receiptNo || '').toLowerCase().includes(q) ||
+                              (r.transactionRef || '').toLowerCase().includes(q) ||
+                              (r.cashierName || '').toLowerCase().includes(q) ||
+                              (r.remarks || '').toLowerCase().includes(q)
+                            );
+          const inSteps = (j.journeySteps || []).some((s) =>
+            (s.title || '').toLowerCase().includes(q) ||
+            (s.details || '').toLowerCase().includes(q) ||
+            (s.staff || '').toLowerCase().includes(q)
+          );
+
+          return inPatient || inToken || inDoctor || inStaff || inStage || inInvoice || inReceipt || inSteps;
+        });
       }
 
       // Filter by stage tab

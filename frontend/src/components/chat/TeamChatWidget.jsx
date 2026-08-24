@@ -197,12 +197,21 @@ export const TeamChatWidget = () => {
       )}
 
       {/* ── WhatsApp-Style Chat Panel ─────────────────────────────────── */}
+      {isOpen && isExpanded && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[90] animate-fade-in cursor-pointer"
+          onClick={() => setIsExpanded(false)}
+          aria-hidden="true"
+          title="Click to minimize full view"
+        />
+      )}
+
       {isOpen && (
         <div
-          className={`fixed z-50 transition-all duration-200 shadow-2xl flex flex-col bg-[#efeae2] border border-slate-300 overflow-hidden font-sans ${
+          className={`fixed transition-all duration-200 shadow-2xl flex flex-col bg-[#efeae2] border border-slate-300 overflow-hidden font-sans ${
             isExpanded
-              ? 'inset-3 md:inset-8 rounded-2xl max-h-[calc(100vh-2rem)]'
-              : 'bottom-3 right-3 sm:bottom-4 sm:right-4 w-[92vw] sm:w-[360px] h-[450px] max-h-[calc(100vh-3rem)] rounded-xl'
+              ? 'z-[100] inset-3 sm:inset-6 md:inset-8 lg:inset-10 max-w-6xl mx-auto rounded-2xl max-h-[calc(100vh-2rem)]'
+              : 'z-[70] bottom-3 right-3 sm:bottom-4 sm:right-4 w-[92vw] sm:w-[380px] h-[480px] max-h-[calc(100vh-3rem)] rounded-xl'
           }`}
         >
           {/* Header — WhatsApp Teal Bar (Always visible at top) */}
@@ -341,21 +350,37 @@ export const TeamChatWidget = () => {
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isMe = String(msg.senderId) === currentUserId;
+                    const msgSenderId = String(msg.senderId?._id || msg.senderId?.id || msg.senderId || '');
+                    const isMe = Boolean(currentUserId && msgSenderId && currentUserId === msgSenderId);
                     const groupedReactions = getGroupedReactions(msg.reactions);
+                    const senderDisplayName = isMe
+                      ? `You (${msg.senderName || user?.name || 'Staff'})`
+                      : (msg.senderName || 'Staff Member');
+                    const senderDisplayRole = msg.senderRole || (isMe ? user?.role : 'STAFF');
 
                     return (
                       <div
                         key={msg._id}
                         className={`flex flex-col group relative ${isMe ? 'items-end' : 'items-start'}`}
                       >
-                        {/* Sender info (for incoming messages only) */}
-                        {!isMe && (
-                          <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-[#008069] mb-0.5 ml-1">
-                            <span>{msg.senderName}</span>
-                            {getRoleBadge(msg.senderRole)}
+                        {/* Sender info & role badge for all messages */}
+                        <div
+                          className={`flex items-center gap-1.5 text-[11px] font-extrabold mb-1 ${
+                            isMe ? 'text-emerald-800 justify-end mr-1' : 'text-[#008069] ml-1'
+                          }`}
+                        >
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black uppercase shrink-0 shadow-2xs ${
+                              isMe
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-[#008069] text-white'
+                            }`}
+                          >
+                            {(msg.senderName || user?.name || 'S').charAt(0)}
                           </div>
-                        )}
+                          <span>{senderDisplayName}</span>
+                          {getRoleBadge(senderDisplayRole)}
+                        </div>
 
                         {/* Message Bubble + Action Buttons Container */}
                         <div className="relative max-w-[85%] sm:max-w-[78%]">

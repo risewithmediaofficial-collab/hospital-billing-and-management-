@@ -10,6 +10,7 @@ export const useEmergencyStore = create((set, get) => ({
   resolvingIds: new Set(), // track which IDs are currently being resolved
 
   addEmergency: (data) => {
+    if (!data || typeof data !== 'object') return;
     const { emergencies } = get();
     const emgId = data.emergencyId || data._id || data.id || `emg_${Date.now()}`;
     const exists = emergencies.some((e) => String(e._id || e.emergencyId || e.id) === String(emgId));

@@ -77,12 +77,13 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
       const sRes = await axiosClient.get('/auth/staff');
       const allDocs = (sRes.data || []).filter(
         (s) =>
-          s.role === 'DOCTOR' ||
-          s.role === 'HOSPITAL_ADMIN' ||
-          (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))
+          (s.role === 'DOCTOR' ||
+            (Array.isArray(s.additionalRoles) && s.additionalRoles.includes('DOCTOR'))) &&
+          s.isActive !== false &&
+          s.status !== 'INACTIVE'
       );
       setDoctors(allDocs);
-      const activeDocs = allDocs.filter((d) => d.isAvailable !== false);
+      const activeDocs = allDocs.filter((d) => d.isAvailable !== false && d.isActive !== false);
       if (!initialDoctorId) {
         if (activeDocs.length > 0) {
           setSelectedDoctorId(activeDocs[0]._id);
@@ -572,19 +573,18 @@ export const IssueTokenModal = ({ isOpen, onClose, onSuccess, initialPatient = n
                     >
                       {doctors.length > 0 ? (
                         doctors.map((doc) => {
-                          const isAvail = doc.isAvailable !== false;
+                          const isAvail = doc.isAvailable !== false && doc.isActive !== false;
                           const statusTag = isAvail
-                            ? ` (Available - ${doc.cabinNo || 'Cabin 101'})`
-                            : ' (Off Duty)';
-                          const roleTag = doc.role === 'HOSPITAL_ADMIN' ? ' [Admin / Clinic In-Charge]' : '';
+                            ? ` (Online / Available - ${doc.cabinNo || 'Cabin 101'})`
+                            : ' (Off Duty / Offline)';
                           return (
                             <option key={doc._id} value={doc._id} className="py-2 text-slate-900 font-medium">
-                              {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}{roleTag} — {doc.specialization || 'General OPD'}{statusTag}
+                              {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} — {doc.specialization || 'General OPD'}{statusTag}
                             </option>
                           );
                         })
                       ) : (
-                        <option value="">No doctors registered in roster</option>
+                        <option value="">No active doctors registered in roster</option>
                       )}
                     </select>
                     <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">

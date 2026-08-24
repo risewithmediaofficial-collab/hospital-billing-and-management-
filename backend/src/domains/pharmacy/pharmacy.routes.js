@@ -51,6 +51,8 @@ router.patch('/substitutions/:id/respond', requireAssignedRole('DOCTOR'), respon
 router.patch('/substitutions/:id/acknowledge', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF'), acknowledgeSubstitution);
 
 // Nurse Administration Tasks
+
+// Nurse Administration Tasks
 router.get('/nurse-tasks', getNurseTasks);
 router.post('/nurse-tasks', requireAssignedRole('DOCTOR'), createNurseTask);
 router.post('/request-injection', requireAssignedRole('DOCTOR'), createNurseTask);
@@ -59,11 +61,54 @@ router.patch('/nurse-tasks/:id/status', requireAssignedRole('NURSE', 'NURSE_INCH
 router.patch('/nurse-tasks/:id/doctor-review', requireAssignedRole('DOCTOR'), async (req, res, next) => {
   try {
     const { NurseTask } = await import('../../models/NurseTask.js');
+    const { Notification } = await import('../../models/Notification.js');
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    const { socketManager } = await import('../../events/socketManager.js');
+
     const task = await NurseTask.findOneAndUpdate(
       { _id: req.params.id, hospitalId: req.user.hospitalId },
       { $set: { doctorReviewedAt: new Date() } },
       { new: true }
     );
+
+    // Auto-complete all task notifications for this entity
+    await NotificationService.completeEntityTasks({
+      hospitalId: req.user.hospitalId,
+      entityType: 'NurseTask',
+      entityId: req.params.id,
+    });
+
+    const notifs = await Notification.find({
+      hospitalId: req.user.hospitalId,
+      $or: [
+        { relatedTaskId: String(req.params.id) },
+        { entityId: String(req.params.id) },
+        { 'metadata.taskId': String(req.params.id) },
+      ],
+      isCompleted: { $ne: true },
+    }).lean();
+
+    if (notifs.length > 0) {
+      const ids = notifs.map((n) => n._id);
+      await Notification.updateMany(
+        { _id: { $in: ids } },
+        { $set: { isCompleted: true, completedAt: new Date(), status: 'COMPLETED', isRead: true, readAt: new Date() } }
+      );
+      notifs.forEach((n) => {
+        if (n.recipientUserId) {
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:completed', { notificationId: n._id });
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:read', { notificationId: n._id });
+        }
+      });
+    }
+
+    if (req.user?.id) {
+      socketManager.emitToUser(String(req.user.id), 'workflow:pending_changed', { taskId: req.params.id });
+    }
+    if (task?.branchId) {
+      socketManager.emitToBranch(task.branchId, 'workflow:pending_changed', { taskId: req.params.id });
+    }
+
     res.json({ success: true, data: task });
   } catch (err) {
     next(err);
