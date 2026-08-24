@@ -26,6 +26,7 @@ export const SuperAdminHospitalsPage = () => {
     name: '', email: '', password: '', confirmPassword: '',
   });
   const [actionMessage, setActionMessage] = useState(null);
+  const [modalError, setModalError] = useState(null);
   const [provisionedCreds, setProvisionedCreds] = useState(null);
   const [viewMode, setViewMode] = useState('cards');
 
@@ -225,13 +226,14 @@ export const SuperAdminHospitalsPage = () => {
     const pass = (directForm.adminPassword || '').trim();
     const confirm = (directForm.confirmAdminPassword || '').trim();
     if (pass !== confirm) {
-      setActionMessage('Admin Password and Confirm Admin Password do not match.');
+      setModalError('Admin Password and Confirm Admin Password do not match.');
       return;
     }
-    if (pass.length < 8) {
-      setActionMessage('Administrator password must be at least 8 characters long.');
+    if (pass.length < 4) {
+      setModalError('Administrator password must be at least 4 characters long.');
       return;
     }
+    setModalError(null);
     setIsLoading(true);
     try {
       const res = await axiosClient.post('/saas/register-hospital', {
@@ -247,7 +249,7 @@ export const SuperAdminHospitalsPage = () => {
       });
       fetchHospitals();
     } catch (err) {
-      setActionMessage(`Failed: ${err.error?.message || err.message}`);
+      setModalError(`Failed: ${err.error?.message || err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -597,8 +599,15 @@ export const SuperAdminHospitalsPage = () => {
                     />
                   </div>
 
+                  {modalError && (
+                    <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm">
+                      <span>⚠️</span>
+                      <span>{modalError}</span>
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-2">
-                    <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsDirectCreateOpen(false)}>Cancel</Button>
+                    <Button type="button" variant="outline" className="w-1/2" onClick={() => { setIsDirectCreateOpen(false); setModalError(null); }}>Cancel</Button>
                     <Button type="submit" variant="primary" className="w-1/2" isLoading={isLoading}>Provision Hospital</Button>
                   </div>
                 </form>
