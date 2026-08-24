@@ -11,14 +11,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const {
     notifications,
-    historyNotifications,
     unreadCount,
-    activeCount,
-    historyCount,
-    activeTab,
-    setActiveTab,
     fetchNotifications,
-    fetchHistory,
     markAsRead,
     markAsCompleted,
     markAllAsRead,
@@ -79,11 +73,11 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       }
     };
     if (isOpen) {
-      fetchNotifications(activeTab === 'HISTORY' ? 'history' : 'active');
+      fetchNotifications('active');
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, activeTab]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -165,10 +159,8 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     }
   };
 
-  const currentList = activeTab === 'HISTORY' ? historyNotifications : notifications;
-
   // Filter unauthorized and deduplicate
-  const displayNotifications = currentList.filter((notif, index, self) => {
+  const displayNotifications = (notifications || []).filter((notif, index, self) => {
     if (isUnauthorizedForRole(notif, user?.role, user?.additionalRoles)) {
       return false;
     }
@@ -234,7 +226,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
           </div>
           <div>
             <h3 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-              {user?.role === 'SUPER_ADMIN' ? 'Platform Control Center' : 'Notification & Task Center'}
+              {user?.role === 'SUPER_ADMIN' ? 'Platform Control Center' : 'Notification Center'}
               {unreadCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white">
                   {unreadCount} New
@@ -242,7 +234,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
               )}
             </h3>
             <p className="text-[10px] text-slate-400 font-medium">
-              Targeted workflow tasks & clinical alerts
+              Targeted workflow tasks &amp; clinical alerts
             </p>
           </div>
         </div>
@@ -256,60 +248,13 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
         </button>
       </div>
 
-      {/* Dual Tab Switcher */}
-      <div className="p-2 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5">
-        <button
-          onClick={() => {
-            setActiveTab('ACTIVE');
-            fetchNotifications('active');
-          }}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'ACTIVE'
-              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Sparkles size={13} className={activeTab === 'ACTIVE' ? 'text-indigo-600' : 'text-slate-400'} />
-          Active Tasks
-          {activeCount > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-              activeTab === 'ACTIVE' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {activeCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('HISTORY');
-            fetchHistory();
-          }}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'HISTORY'
-              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Clock size={13} className={activeTab === 'HISTORY' ? 'text-indigo-600' : 'text-slate-400'} />
-          Activity History
-          {historyCount > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-              activeTab === 'HISTORY' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {historyCount}
-            </span>
-          )}
-        </button>
-      </div>
-
       {/* Action Toolbar */}
-      <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px]">
-        <span className="text-slate-500 font-semibold">
-          {activeTab === 'ACTIVE' ? `${displayNotifications.length} Active Tasks` : `${displayNotifications.length} Past Activity Logs`}
+      <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px]">
+        <span className="text-slate-500 font-bold">
+          {displayNotifications.length} {displayNotifications.length === 1 ? 'Active Task / Alert' : 'Active Tasks & Alerts'}
         </span>
         <div className="flex items-center gap-2">
-          {activeTab === 'ACTIVE' && unreadCount > 0 && (
+          {unreadCount > 0 && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -404,29 +349,21 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
                   </span>
 
                   <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    {activeTab === 'ACTIVE' ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleNotificationClick(notif)}
-                          className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center gap-1 transition-colors border border-indigo-200"
-                        >
-                          <ExternalLink size={10} /> Take Action
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => markAsCompleted(notif.id)}
-                          className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center gap-1 transition-colors border border-emerald-200"
-                          title="Mark task completed"
-                        >
-                          <Check size={10} /> Done
-                        </button>
-                      </>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] flex items-center gap-1 border border-emerald-200">
-                        <CheckCircle2 size={10} /> Completed
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleNotificationClick(notif)}
+                      className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center gap-1 transition-colors border border-indigo-200"
+                    >
+                      <ExternalLink size={10} /> Take Action
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => markAsCompleted(notif.id)}
+                      className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center gap-1 transition-colors border border-emerald-200"
+                      title="Mark task completed"
+                    >
+                      <Check size={10} /> Done
+                    </button>
                   </div>
                 </div>
               </div>
@@ -436,12 +373,10 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
           <div className="p-8 text-center text-slate-400 space-y-2">
             <Inbox size={32} className="mx-auto text-slate-300" />
             <p className="font-bold text-xs text-slate-700">
-              {activeTab === 'ACTIVE' ? 'All Caught Up!' : 'No Activity History'}
+              All Caught Up!
             </p>
             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-              {activeTab === 'ACTIVE'
-                ? 'You have no pending tasks or unread clinical alerts.'
-                : 'Completed workflow milestones and archived events will appear here.'}
+              You have no pending tasks or unread clinical alerts.
             </p>
           </div>
         )}
