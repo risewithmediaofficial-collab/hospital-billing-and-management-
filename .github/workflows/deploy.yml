@@ -60,7 +60,7 @@ jobs:
             # Configure Test environment with port 93
             echo "COMPOSE_PROJECT_NAME=hpmbs_test" > .env
             echo "FRONTEND_PORT=93" >> .env
-            echo "NODE_ENV=production" >> .env
+            echo "NODE_ENV=development" >> .env
             echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
             echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
             echo "CORS_ORIGIN=*" >> .env
