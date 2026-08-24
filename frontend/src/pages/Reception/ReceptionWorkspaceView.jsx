@@ -31,14 +31,13 @@ export const ReceptionWorkspaceView = () => {
   const tabParam = searchParams.get('tab');
   const { socket } = useSocket();
 
-  // Tab state: 'QUEUED' | 'REGISTERED' | 'FOLLOW_UPS' | 'COMPLETED' | 'ALL' | 'DOCTORS'
-  const [activeTab, setActiveTab] = useState(tabParam || 'QUEUED');
+  // Tab state: 'QUEUED' | 'REGISTERED' | 'FOLLOW_UPS' | 'ALL' | 'DOCTORS'
+  const [activeTab, setActiveTab] = useState(tabParam === 'COMPLETED' ? 'QUEUED' : (tabParam || 'QUEUED'));
   const [historyPatientId, setHistoryPatientId] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [patients, setPatients] = useState([]);
   const [queuedPatients, setQueuedPatients] = useState([]);
-  const [completedPatients, setCompletedPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [doctorQueueCounts, setDoctorQueueCounts] = useState({});
 
@@ -50,7 +49,7 @@ export const ReceptionWorkspaceView = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (tabParam && ['REGISTERED', 'QUEUED', 'FOLLOW_UPS', 'COMPLETED', 'ALL', 'DOCTORS'].includes(tabParam)) {
+    if (tabParam && ['REGISTERED', 'QUEUED', 'FOLLOW_UPS', 'ALL', 'DOCTORS'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -94,41 +93,6 @@ export const ReceptionWorkspaceView = () => {
     }
   }, []);
 
-  const fetchCompletedPatients = useCallback(async () => {
-    try {
-      const [invRes, queueRes] = await Promise.all([
-        axiosClient.get('/billing/invoices'),
-        axiosClient.get('/appointments/queue'),
-      ]);
-      const invoices = invRes.data || [];
-      const allTokens = queueRes.data || [];
-
-      const completedTokens = allTokens.filter((t) => t.status === 'COMPLETED');
-
-      const completedWithBilling = completedTokens.map((tok) => {
-        const patId = tok.patientId?._id || tok.patientId;
-        const matchingInv =
-          invoices.find(
-            (inv) =>
-              (inv.patientId?._id === patId || inv.patientId === patId) &&
-              new Date(inv.createdAt).toDateString() === new Date(tok.updatedAt || tok.createdAt).toDateString()
-          ) || invoices.find((inv) => inv.patientId?._id === patId || inv.patientId === patId);
-
-        return {
-          ...tok,
-          invoice: matchingInv || null,
-          billingStatus: matchingInv ? matchingInv.status : 'NO_INVOICE',
-          paidAmount: matchingInv ? matchingInv.paidAmount : 0,
-          grandTotal: matchingInv ? matchingInv.grandTotal : 0,
-        };
-      }).filter((tok) => tok.billingStatus === 'PAID');
-
-      setCompletedPatients(completedWithBilling);
-    } catch (err) {
-      console.error('Failed to load completed patients:', err);
-    }
-  }, []);
-
   const fetchDoctors = useCallback(async () => {
     try {
       const sRes = await axiosClient.get('/auth/staff');
@@ -150,11 +114,10 @@ export const ReceptionWorkspaceView = () => {
     await Promise.all([
       fetchRegisteredPatients(),
       fetchQueuedPatients(),
-      fetchCompletedPatients(),
       fetchDoctors(),
     ]);
     setIsLoading(false);
-  }, [fetchRegisteredPatients, fetchQueuedPatients, fetchCompletedPatients, fetchDoctors]);
+  }, [fetchRegisteredPatients, fetchQueuedPatients, fetchDoctors]);
 
   useEffect(() => {
     fetchAllData();
@@ -166,7 +129,6 @@ export const ReceptionWorkspaceView = () => {
 
     const handleQueueUpdate = () => {
       fetchQueuedPatients();
-      fetchCompletedPatients();
     };
 
     const handlePatientUpdate = () => {
@@ -187,8 +149,6 @@ export const ReceptionWorkspaceView = () => {
     socket.on('opd_queue:status_changed', handleQueueUpdate);
     socket.on('token:generated', handleQueueUpdate);
     socket.on('token:created', handleQueueUpdate);
-    socket.on('billing:invoice_created', handleQueueUpdate);
-    socket.on('billing:payment_collected', handleQueueUpdate);
     socket.on('doctor:availability_changed', handleDoctorAvailabilityChange);
     socket.on('staff:availability_changed', handleDoctorAvailabilityChange);
     socket.on('staff:updated', handleStaffUpdate);
@@ -202,15 +162,13 @@ export const ReceptionWorkspaceView = () => {
       socket.off('opd_queue:status_changed', handleQueueUpdate);
       socket.off('token:generated', handleQueueUpdate);
       socket.off('token:created', handleQueueUpdate);
-      socket.off('billing:invoice_created', handleQueueUpdate);
-      socket.off('billing:payment_collected', handleQueueUpdate);
       socket.off('doctor:availability_changed', handleDoctorAvailabilityChange);
       socket.off('staff:availability_changed', handleDoctorAvailabilityChange);
       socket.off('staff:updated', handleStaffUpdate);
       socket.off('user:status_changed', handleStaffUpdate);
       socket.off('workflow:notification', handleQueueUpdate);
     };
-  }, [socket, fetchQueuedPatients, fetchCompletedPatients, fetchRegisteredPatients, fetchDoctors]);
+  }, [socket, fetchQueuedPatients, fetchRegisteredPatients, fetchDoctors]);
 
   const handleIssueTokenForPatient = (pat) => {
     setSelectedPatient(pat);
@@ -224,19 +182,15 @@ export const ReceptionWorkspaceView = () => {
     setIsTokenOpen(true);
   };
 
-  // Set of queued and completed patient IDs today
+  // Set of queued patient IDs today
   const queuedPatientIds = new Set(
     queuedPatients.map((q) => (q.patientId?._id || q.patientId || '').toString())
-  );
-
-  const completedPatientIds = new Set(
-    completedPatients.map((c) => (c.patientId?._id || c.patientId || '').toString())
   );
 
   // Tab 1: Registered Patients Awaiting OPD Token
   const registeredAwaitingToken = patients.filter((p) => {
     const pId = (p._id || '').toString();
-    return !queuedPatientIds.has(pId) && !completedPatientIds.has(pId);
+    return !queuedPatientIds.has(pId);
   });
 
   const activeDoctors = doctors.filter((d) => d.isAvailable !== false);
@@ -257,14 +211,6 @@ export const ReceptionWorkspaceView = () => {
       q.patientId?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       q.patientId?.uhid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       q.doctorId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredCompleted = completedPatients.filter(
-    (c) =>
-      c.patientId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.patientId?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.patientId?.uhid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.doctorId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredAllPatients = patients.filter(
@@ -361,12 +307,12 @@ export const ReceptionWorkspaceView = () => {
             color="amber"
           />
         </div>
-        <div onClick={() => handleTabChange('COMPLETED')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+        <div onClick={() => handleTabChange('ALL')} className="cursor-pointer transition-transform hover:scale-[1.01]">
           <StatCard
-            title="Completed &amp; Billed"
-            value={`${completedPatients.length} Visits`}
-            subtitle="Cleared Consultations"
-            icon={CheckCircle2}
+            title="Hospital Master Directory"
+            value={`${patients.length} Registered`}
+            subtitle="All Patient Profiles"
+            icon={FolderOpen}
             color="purple"
           />
         </div>
@@ -379,7 +325,6 @@ export const ReceptionWorkspaceView = () => {
             {activeTab === 'QUEUED' && <Ticket size={18} className="text-amber-600" />}
             {activeTab === 'REGISTERED' && <UserCheck size={18} className="text-indigo-600" />}
             {activeTab === 'FOLLOW_UPS' && <Calendar size={18} className="text-purple-600" />}
-            {activeTab === 'COMPLETED' && <CheckCircle2 size={18} className="text-emerald-600" />}
             {activeTab === 'ALL' && <FolderOpen size={18} className="text-slate-600" />}
             {activeTab === 'DOCTORS' && <Stethoscope size={18} className="text-teal-600" />}
           </span>
@@ -388,13 +333,11 @@ export const ReceptionWorkspaceView = () => {
               {activeTab === 'QUEUED' && 'Active OPD Live Queue'}
               {activeTab === 'REGISTERED' && 'Registered Patients Awaiting Token'}
               {activeTab === 'FOLLOW_UPS' && 'Scheduled Follow-Up Visits'}
-              {activeTab === 'COMPLETED' && 'Completed & Billed Consultations'}
               {activeTab === 'ALL' && 'All Hospital Patients Master Directory'}
               {activeTab === 'DOCTORS' && 'OPD Doctor On-Duty Roster'}
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {activeTab === 'QUEUED' && `${queuedPatients.length} Waiting`}
                 {activeTab === 'REGISTERED' && `${registeredAwaitingToken.length} Awaiting`}
-                {activeTab === 'COMPLETED' && `${completedPatients.length} Visits`}
                 {activeTab === 'ALL' && `${patients.length} Total`}
                 {activeTab === 'DOCTORS' && `${activeDoctors.length} / ${doctors.length} Online`}
               </span>
@@ -403,7 +346,6 @@ export const ReceptionWorkspaceView = () => {
               {activeTab === 'QUEUED' && 'Patients currently queued with active OPD tokens awaiting doctor consultation'}
               {activeTab === 'REGISTERED' && 'Newly registered patients ready for token generation and doctor assignment'}
               {activeTab === 'FOLLOW_UPS' && 'Patients scheduled for returning OPD follow-up consultations'}
-              {activeTab === 'COMPLETED' && 'Consultations finished by doctor and cleared by billing'}
               {activeTab === 'ALL' && 'Complete hospital patient registry with medical history and records'}
               {activeTab === 'DOCTORS' && 'Real-time doctor availability and consultation room allocations'}
             </p>
@@ -601,73 +543,7 @@ export const ReceptionWorkspaceView = () => {
         />
       )}
 
-      {/* ── TAB 4: COMPLETED & BILLED CONSULTATIONS ── */}
-      {activeTab === 'COMPLETED' && (
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <CheckCircle2 size={18} className="text-emerald-600" />
-                Completed &amp; Billed Consultations ({filteredCompleted.length})
-              </h3>
-              <p className="text-xs text-slate-500">History of patient consultations completed and settled at cashier today.</p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="p-3 font-extrabold">Token #</th>
-                  <th className="p-3 font-extrabold">UHID</th>
-                  <th className="p-3 font-extrabold">Patient Name</th>
-                  <th className="p-3 font-extrabold">Doctor</th>
-                  <th className="p-3 font-extrabold">Invoice No</th>
-                  <th className="p-3 font-extrabold">Total Amount</th>
-                  <th className="p-3 font-extrabold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800">
-                {filteredCompleted.length > 0 ? (
-                  filteredCompleted.map((item) => {
-                    const pat = item.patientId || {};
-                    const doc = item.doctorId || {};
-                    const inv = item.invoice;
-                    return (
-                      <tr key={item._id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-mono font-bold text-emerald-600">#{item.tokenNumber}</td>
-                        <td className="p-3 font-mono font-bold text-indigo-700">{pat.uhid || '—'}</td>
-                        <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-slate-700">
-                          <span className="font-bold text-slate-900">Dr. {doc.name || 'Doctor'}</span>
-                          <p className="text-[10px] text-slate-500">{doc.specialization || 'OPD'}</p>
-                        </td>
-                        <td className="p-3 font-mono text-slate-600">{inv ? inv.invoiceNo : '—'}</td>
-                        <td className="p-3 font-mono font-bold text-slate-900">
-                          {inv ? formatCurrency(inv.grandTotal) : '—'}
-                        </td>
-                        <td className="p-3">
-                          <span className="px-2.5 py-1 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            PAID &amp; COMPLETED
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
-                      No completed consultations recorded yet today.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* ── TAB 5: ALL HOSPITAL PATIENTS (MASTER DIRECTORY) ── */}
+      {/* ── TAB 4: ALL HOSPITAL PATIENTS (MASTER DIRECTORY) ── */}
       {activeTab === 'ALL' && (
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">

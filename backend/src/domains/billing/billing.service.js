@@ -219,7 +219,7 @@ export class BillingService {
         patientName,
         uhid: invoice.patientId?.uhid || 'N/A',
         receiptNo: receipt.receiptNo,
-        linkedPath: `/reception/registered-patients?tab=COMPLETED&receiptId=${receipt._id}&patientId=${invoice.patientId?._id || invoice.patientId}`,
+        linkedPath: `/billing/dashboard?tab=RECEIPTS&receiptId=${receipt._id}&patientId=${invoice.patientId?._id || invoice.patientId}`,
       };
       await WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
