@@ -74,6 +74,15 @@ jobs:
             fi
 
             (docker compose down --remove-orphans || true)
+
+            # Auto-cleanup any orphan container occupying port 89
+            OLD_CONTAINER=$(docker ps -q --filter "publish=89")
+            if [ -n "$OLD_CONTAINER" ]; then
+              echo "Cleaning up container occupying port 89: $OLD_CONTAINER"
+              docker stop $OLD_CONTAINER || true
+              docker rm $OLD_CONTAINER || true
+            fi
+
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
             echo "✅ Test deployment completed successfully at $DEPLOY_DIR"
 
@@ -120,5 +129,14 @@ jobs:
             fi
 
             (docker compose down --remove-orphans || true)
+
+            # Auto-cleanup any orphan container occupying port 86
+            OLD_CONTAINER=$(docker ps -q --filter "publish=86")
+            if [ -n "$OLD_CONTAINER" ]; then
+              echo "Cleaning up container occupying port 86: $OLD_CONTAINER"
+              docker stop $OLD_CONTAINER || true
+              docker rm $OLD_CONTAINER || true
+            fi
+
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
             echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
