@@ -57,9 +57,9 @@ jobs:
             git checkout test
             git reset --hard origin/test
 
-            # Configure Test environment with port 90
+            # Configure Test environment with port 93
             echo "COMPOSE_PROJECT_NAME=hpmbs_test" > .env
-            echo "FRONTEND_PORT=90" >> .env
+            echo "FRONTEND_PORT=93" >> .env
             echo "NODE_ENV=production" >> .env
             echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
             echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
@@ -73,16 +73,16 @@ jobs:
 
             (docker compose down --remove-orphans || true)
 
-            # Auto-cleanup any orphan container occupying port 90
-            OLD_CONTAINER=$(docker ps -q --filter "publish=90")
+            # Auto-cleanup any orphan container occupying port 93
+            OLD_CONTAINER=$(docker ps -q --filter "publish=93")
             if [ -n "$OLD_CONTAINER" ]; then
-              echo "Cleaning up container occupying port 90: $OLD_CONTAINER"
+              echo "Cleaning up container occupying port 93: $OLD_CONTAINER"
               docker stop $OLD_CONTAINER || true
               docker rm $OLD_CONTAINER || true
             fi
 
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
-            echo "✅ Test deployment completed successfully at $DEPLOY_DIR on port 90"
+            echo "✅ Test deployment completed successfully at $DEPLOY_DIR on port 93"
 
   deploy-production:
     needs: test-and-build
