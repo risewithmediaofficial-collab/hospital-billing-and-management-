@@ -583,7 +583,6 @@ export const ReceptionWorkspaceView = () => {
                 {filteredAllPatients.length > 0 ? (
                   filteredAllPatients.map((pat) => {
                     const isQueued = queuedPatientIds.has((pat._id || '').toString());
-                    const isCompleted = completedPatientIds.has((pat._id || '').toString());
 
                     return (
                       <tr key={pat._id} className="hover:bg-slate-50 transition-colors">
@@ -597,10 +596,6 @@ export const ReceptionWorkspaceView = () => {
                           {isQueued ? (
                             <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
                               IN QUEUE TODAY
-                            </span>
-                          ) : isCompleted ? (
-                            <span className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                              COMPLETED TODAY
                             </span>
                           ) : (
                             <Button
