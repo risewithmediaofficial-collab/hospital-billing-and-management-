@@ -823,7 +823,7 @@ export class BillingService {
       }).sort({ createdAt: -1 });
 
       if (appointment) {
-        appointment.status = 'WAITING';
+        appointment.status = 'WAITING_DEPARTMENT';
         appointment.departmentReturnedAt = new Date();
         await appointment.save();
       }
@@ -844,7 +844,7 @@ export class BillingService {
         resolved: false,
       };
       await invoice.save();
-      const linkedPathWithParams = `/doctor/dashboard?tab=DEPT_RESPONSES&invoiceId=${invoice._id}&patientId=${patientId}&appointmentId=${appointment?._id || ''}`;
+      const linkedPathWithParams = `/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES&invoiceId=${invoice._id}&patientId=${patientId}&appointmentId=${appointment?._id || ''}`;
 
       await NotificationService.createNotification({
         hospitalId: invoice.hospitalId,

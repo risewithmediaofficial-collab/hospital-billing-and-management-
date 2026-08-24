@@ -94,19 +94,45 @@ export const DoctorDashboard = () => {
   const [tempCabin, setTempCabin] = useState(user?.cabinNo || 'Cabin 101');
   const [statusMessage, setStatusMessage] = useState(null);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
-  const [deptResponseSubTab, setDeptResponseSubTab] = useState('NURSE'); // 'NURSE' | 'DEPT_TRACKER'
+  const [deptResponseSubTab, setDeptResponseSubTab] = useState('NURSE'); // 'NURSE' | 'DEPT_TRACKER' | 'QUERIES'
 
-  // Sync active tab with URL query parameter
+  // Sync active tab & subtab with URL query parameters
   // No ?tab= param  → OVERVIEW (Clinical EMR Desk)
   // ?tab=LIVE        → Queued Patients
   // ?tab=FOLLOW_UPS  → Follow-Up Visits & Missed Calls
   // ?tab=COMPLETED   → Completed Visits
-  // ?tab=DEPT_RESPONSES → Department Responses
+  // ?tab=DEPT_RESPONSES → Department Responses (subTab=NURSE | DEPT_TRACKER | QUERIES)
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get('tab');
+    const subTabParam = searchParams.get('subTab');
+    const invoiceId = searchParams.get('invoiceId');
+    const prescriptionId = searchParams.get('prescriptionId');
+    const requestId = searchParams.get('requestId');
+    const orderId = searchParams.get('orderId');
+    const nurseTaskId = searchParams.get('nurseTaskId');
+
     if (tabParam && ['LIVE', 'COMPLETED', 'SENT_DEPARTMENTS', 'DEPT_RESPONSES', 'FOLLOW_UPS'].includes(tabParam.toUpperCase())) {
-      setActiveTab(tabParam.toUpperCase() === 'SENT_DEPARTMENTS' ? 'DEPT_RESPONSES' : tabParam.toUpperCase());
+      const normalizedTab = tabParam.toUpperCase() === 'SENT_DEPARTMENTS' ? 'DEPT_RESPONSES' : tabParam.toUpperCase();
+      setActiveTab(normalizedTab);
+      if (normalizedTab === 'DEPT_RESPONSES') {
+        if (subTabParam) {
+          const s = subTabParam.toUpperCase();
+          if (s === 'QUERIES' || s === 'BILLING_QUERIES' || s === 'BILLING' || s === 'RETURNS') {
+            setDeptResponseSubTab('QUERIES');
+          } else if (s === 'DEPT_TRACKER' || s === 'DEPARTMENT' || s === 'DEPT') {
+            setDeptResponseSubTab('DEPT_TRACKER');
+          } else if (s === 'NURSE' || s === 'TREATMENT') {
+            setDeptResponseSubTab('NURSE');
+          }
+        } else if (invoiceId || prescriptionId || requestId) {
+          setDeptResponseSubTab('QUERIES');
+        } else if (orderId) {
+          setDeptResponseSubTab('DEPT_TRACKER');
+        } else if (nurseTaskId) {
+          setDeptResponseSubTab('NURSE');
+        }
+      }
     } else {
       setActiveTab('OVERVIEW');
     }
@@ -237,7 +263,7 @@ export const DoctorDashboard = () => {
           params: targetDocId ? { doctorId: targetDocId } : {},
         });
         const allTokens = res.data || [];
-        const waiting = allTokens.filter((t) => t.status === 'WAITING' || (t.status === 'IN_CONSULTATION' && !t.departmentReturnedAt));
+        const waiting = allTokens.filter((t) => (t.status === 'WAITING' && !t.departmentReturnedAt) || (t.status === 'IN_CONSULTATION' && !t.departmentReturnedAt));
         const done = allTokens.filter((t) => t.status === 'COMPLETED');
         const held = allTokens.filter((t) => ['WAITING_DEPARTMENT', 'WAITING_NURSE'].includes(t.status) || (t.departmentReturnedAt && t.status !== 'COMPLETED'));
 
@@ -1607,9 +1633,10 @@ const targetDocId = user?.id || user?._id;
       {/* DEPARTMENT RESPONSES TAB */}
       {activeTab === 'DEPT_RESPONSES' && (
         <div className="space-y-6">
-          {/* Sub-view Navigation: Nurse Treatment vs Department Request Tracker */}
+          {/* Sub-view Navigation: Nurse Treatment vs Department Request vs Department Queries */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* 1. Nurse Treatment Responses */}
               <button
                 type="button"
                 onClick={() => setDeptResponseSubTab('NURSE')}
@@ -1628,6 +1655,7 @@ const targetDocId = user?.id || user?._id;
                 )}
               </button>
 
+              {/* 2. Department Request (Diagnostics & Scans) */}
               <button
                 type="button"
                 onClick={() => setDeptResponseSubTab('DEPT_TRACKER')}
@@ -1645,209 +1673,33 @@ const targetDocId = user?.id || user?._id;
                   </span>
                 )}
               </button>
+
+              {/* 3. Department & Billing Queries / Returns */}
+              <button
+                type="button"
+                onClick={() => setDeptResponseSubTab('QUERIES')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  deptResponseSubTab === 'QUERIES'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <Receipt size={15} />
+                Department Queries ({filteredActiveReturnedBilling.length + activeDoctorRequests.length + activeSubstitutions.length})
+                {(filteredActiveReturnedBilling.length + activeDoctorRequests.length + activeSubstitutions.length) > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${deptResponseSubTab === 'QUERIES' ? 'bg-white text-amber-800' : 'bg-amber-500 text-white animate-pulse'}`}>
+                    {filteredActiveReturnedBilling.length + activeDoctorRequests.length + activeSubstitutions.length} Action
+                  </span>
+                )}
+              </button>
             </div>
 
             <p className="text-xs text-slate-500 font-medium">
-              {deptResponseSubTab === 'NURSE'
-                ? `${filteredActiveNurseTasks.length} active nurse task(s) · ${filteredHistoryNurseTasks.length} reviewed history task(s)`
-                : `${filteredActiveDeptOrders.length} active department order(s) · ${filteredHistoryDeptOrders.length} reviewed history report(s)`}
+              {deptResponseSubTab === 'NURSE' && `${filteredActiveNurseTasks.length} active nurse task(s) · ${filteredHistoryNurseTasks.length} reviewed history task(s)`}
+              {deptResponseSubTab === 'DEPT_TRACKER' && `${filteredActiveDeptOrders.length} active department order(s) · ${filteredHistoryDeptOrders.length} reviewed history report(s)`}
+              {deptResponseSubTab === 'QUERIES' && `${filteredActiveReturnedBilling.length} billing return query(s) · ${activeDoctorRequests.length} patient message(s)`}
             </p>
           </div>
-
-          {/* Common Urgent Alerts: Patient Messages, Billing Queries & Pharmacy Substitutions */}
-          {activeDoctorRequests.length > 0 && (
-            <Card className="space-y-4 bg-white border border-purple-200 shadow-sm text-black">
-              <div className="border-b border-purple-100 pb-3">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <Bell size={18} className="text-purple-600" />
-                  Patient &amp; Guardian Messages ({activeDoctorRequests.length})
-                </h3>
-                <p className="text-xs text-slate-600 mt-0.5">Messages routed only to the attending doctor.</p>
-              </div>
-              <div className="space-y-3">
-                {activeDoctorRequests.map((request) => (
-                  <div
-                    id={`doctor-patient-request-${request._id}`}
-                    key={request._id}
-                    className={`p-4 rounded-xl border ${String(request._id) === String(requestedPatientRequestId) ? 'border-purple-500 bg-purple-100 ring-2 ring-purple-200' : 'border-slate-200 bg-slate-50'}`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <div className="space-y-1 min-w-0">
-                        <p className="font-extrabold text-slate-900">{request.patientId?.firstName} {request.patientId?.lastName} <span className="font-mono text-xs text-indigo-700">{request.patientId?.uhid}</span></p>
-                        <p className="text-xs text-slate-700 whitespace-pre-wrap break-words">{request.notes || 'Doctor review requested.'}</p>
-                        <p className="text-[10px] text-slate-500">Sent by {request.requestedBy || 'PATIENT'} · {request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Just now'} · {request.status}</p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        {!['ACCEPTED', 'IN_PROGRESS'].includes(request.status) && (
-                          <Button size="sm" variant="outline" onClick={() => updateDoctorRequest(request._id, 'ACCEPTED')}>Acknowledge</Button>
-                        )}
-                        <Button size="sm" variant="success" onClick={() => updateDoctorRequest(request._id, 'COMPLETED')}>Mark Reviewed</Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {filteredActiveReturnedBilling.length > 0 && (
-            <Card className="space-y-4 bg-white border-2 border-amber-300 shadow-md text-black overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-3 bg-amber-50/90 -mx-6 -mt-6 p-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-amber-200 text-amber-900 shrink-0">
-                    <Receipt size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
-                      Billing Desk Queries &amp; Returned Cases ({filteredActiveReturnedBilling.length})
-                    </h3>
-                    <p className="text-xs text-amber-800 mt-0.5 font-medium">
-                      Cases returned by Central Billing Desk for prescription or charge clarification.
-                    </p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs animate-pulse self-start sm:self-auto shrink-0">
-                  ACTION REQUIRED
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-amber-100/60 text-slate-900 uppercase tracking-wider text-[10px] border-b border-amber-200 font-bold">
-                    <tr>
-                      <th className="p-3">Patient Name &amp; UHID</th>
-                      <th className="p-3">Cashier Query / Reason</th>
-                      <th className="p-3">Returned By</th>
-                      <th className="p-3">Prescribed Medicines</th>
-                      <th className="p-3">Returned Time</th>
-                      <th className="p-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-amber-100 text-black">
-                    {filteredActiveReturnedBilling.map((rx) => {
-                      const pat = rx.patientId || {};
-                      const queryInfo = rx.billingQuery || {};
-                      return (
-                        <tr
-                          key={rx._id}
-                          id={`doctor-billing-query-${rx.invoiceId || rx.billingQuery?.invoiceId || rx._id}`}
-                          className={`transition-colors ${String(rx.invoiceId || rx.billingQuery?.invoiceId || '') === String(requestedInvoiceId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-500' : 'bg-white hover:bg-amber-50/40'}`}
-                        >
-                          <td className="p-3">
-                            <p className="font-extrabold text-slate-900 text-sm">
-                              {pat.firstName} {pat.lastName}
-                            </p>
-                            <span className="font-mono text-indigo-700 font-bold text-[11px]">
-                              {pat.uhid || '—'}
-                            </span>
-                          </td>
-                          <td className="p-3 max-w-xs">
-                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-950">
-                              &ldquo;{queryInfo.query || 'Prescription clarification requested'}&rdquo;
-                            </div>
-                          </td>
-                          <td className="p-3 font-medium text-slate-800">
-                            <span className="font-bold text-slate-900">{queryInfo.requestedByName || 'Cashier'}</span>
-                            <div className="text-[10px] text-slate-500">Central Billing</div>
-                          </td>
-                          <td className="p-3 text-slate-700">
-                            <div className="space-y-0.5 max-w-xs">
-                              {rx.medicines?.map((m, mIdx) => (
-                                <p key={mIdx} className="text-xs font-semibold text-slate-800 truncate">
-                                  &bull; {m.medicineName} ({m.dosage || 'Tab'}) &times; {m.quantity || m.dispensedQty || 10}
-                                </p>
-                              ))}
-                              {(!rx.medicines || rx.medicines.length === 0) && rx.invoiceItems?.map((item, itemIdx) => (
-                                <p key={itemIdx} className="text-xs font-semibold text-slate-800 truncate">
-                                  &bull; {item.description} &times; {item.qty || 1} (₹{Number(item.totalPrice || 0).toFixed(2)})
-                                </p>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="p-3 text-slate-600 whitespace-nowrap text-[11px]">
-                            {queryInfo.requestedAt ? new Date(queryInfo.requestedAt).toLocaleString() : new Date(rx.updatedAt || rx.createdAt).toLocaleString()}
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="inline-flex flex-col gap-1.5 items-stretch">
-                              <button
-                                type="button"
-                                onClick={() => handleConfirmBillingQuery(rx)}
-                                disabled={String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId)}
-                                className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer"
-                                title="Confirm existing charges without creating another consultation"
-                              >
-                                <Check size={14} />
-                                {String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId) ? 'Returning…' : 'Confirm & Return'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleReviewBillingQuery(rx)}
-                                className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
-                                title="Open consultation only when clinical details or charges need correction"
-                              >
-                                <Stethoscope size={14} />
-                                Review &amp; Correct
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-
-          {activeSubstitutions.length > 0 && (
-            <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
-                <Pill size={18} className="text-amber-600" />
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({activeSubstitutions.length})</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute a prescribed medicine.</p>
-                </div>
-              </div>
-              <div className="divide-y divide-amber-50 text-xs">
-                {activeSubstitutions.map((req) => (
-                  <div
-                    key={req._id}
-                    id={`substitution-${req._id}`}
-                    data-testid={`substitution-request-${req._id}`}
-                    className={`py-3 px-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedSubstitutionId) ? 'bg-amber-100 ring-2 ring-amber-400' : ''}`}
-                  >
-                    <div className="space-y-0.5">
-                      <p className="font-bold text-slate-900 text-sm">
-                        {req.patientId?.firstName} {req.patientId?.lastName}
-                        <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
-                      </p>
-                      <p className="text-slate-600">
-                        <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
-                        {' '}&rarr;{' '}
-                        <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
-                      </p>
-                      <p className="text-slate-500">Reason: {req.reason}</p>
-                      <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <CheckCircle2 size={13} /> Approve
-                      </button>
-                      <button
-                        onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
-                        className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <X size={13} /> Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
 
           {/* VIEW 1: NURSE TREATMENT & INJECTION ADMINISTRATION RESPONSES */}
           {deptResponseSubTab === 'NURSE' && (
@@ -2261,13 +2113,226 @@ const targetDocId = user?.id || user?._id;
                 </div>
               </Card>
 
+            </div>
+          )}
+
+          {/* VIEW 3: DEPARTMENT & BILLING QUERIES / RETURNED CASES */}
+          {deptResponseSubTab === 'QUERIES' && (
+            <div className="space-y-6">
+              {/* 1. Urgent Patient / Guardian Messages */}
+              {activeDoctorRequests.length > 0 && (
+                <Card className="space-y-4 bg-white border border-purple-200 shadow-sm text-black">
+                  <div className="border-b border-purple-100 pb-3">
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <Bell size={18} className="text-purple-600" />
+                      Patient &amp; Guardian Messages ({activeDoctorRequests.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5">Messages routed directly to the attending doctor for clinical guidance or query response.</p>
+                  </div>
+                  <div className="space-y-3">
+                    {activeDoctorRequests.map((request) => (
+                      <div
+                        id={`doctor-patient-request-${request._id}`}
+                        key={request._id}
+                        className={`p-4 rounded-xl border ${String(request._id) === String(requestedPatientRequestId) ? 'border-purple-500 bg-purple-100 ring-2 ring-purple-200' : 'border-slate-200 bg-slate-50'}`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                          <div className="space-y-1 min-w-0">
+                            <p className="font-extrabold text-slate-900">{request.patientId?.firstName} {request.patientId?.lastName} <span className="font-mono text-xs text-indigo-700">{request.patientId?.uhid}</span></p>
+                            <div className="p-2.5 bg-white border border-purple-200 rounded-lg text-xs font-semibold text-slate-800 my-1">
+                              &ldquo;{request.notes || 'Doctor review requested.'}&rdquo;
+                            </div>
+                            <p className="text-[10px] text-slate-500">Sent by {request.requestedBy || 'PATIENT'} &middot; {request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Just now'} &middot; Status: {request.status}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {!['ACCEPTED', 'IN_PROGRESS'].includes(request.status) && (
+                              <Button size="sm" variant="outline" onClick={() => updateDoctorRequest(request._id, 'ACCEPTED')}>Acknowledge</Button>
+                            )}
+                            <Button size="sm" variant="success" onClick={() => updateDoctorRequest(request._id, 'COMPLETED')}>Mark Reviewed</Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* 2. Pharmacy Substitution Requests */}
+              {activeSubstitutions.length > 0 && (
+                <Card className="space-y-3 bg-white border border-amber-200 shadow-sm">
+                  <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
+                    <Pill size={18} className="text-amber-600" />
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900">Pharmacy Substitution Requests ({activeSubstitutions.length})</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Pharmacist is requesting your approval to substitute an out-of-stock or alternative medicine.</p>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-amber-50 text-xs">
+                    {activeSubstitutions.map((req) => (
+                      <div
+                        key={req._id}
+                        id={`substitution-${req._id}`}
+                        data-testid={`substitution-request-${req._id}`}
+                        className={`py-3 px-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${String(req._id) === String(requestedSubstitutionId) ? 'bg-amber-100 ring-2 ring-amber-400' : ''}`}
+                      >
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-slate-900 text-sm">
+                            {req.patientId?.firstName} {req.patientId?.lastName}
+                            <span className="ml-2 font-mono text-indigo-600 text-xs">{req.patientId?.uhid}</span>
+                          </p>
+                          <p className="text-slate-600">
+                            <span className="font-bold text-rose-600">Original:</span> {req.originalMedicineName}
+                            {' '}&rarr;{' '}
+                            <span className="font-bold text-emerald-600">Suggested:</span> {req.suggestedMedicineId?.name || 'See notes'}
+                          </p>
+                          <p className="text-slate-500">Reason: {req.reason}</p>
+                          <p className="text-slate-400">Requested by: {req.requestedBy?.name || 'Pharmacist'} &middot; {new Date(req.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => handleSubstitutionResponse(req._id, 'APPROVE')}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 size={13} /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleSubstitutionResponse(req._id, 'REJECT')}
+                            className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <X size={13} /> Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* 3. Central Billing Queries & Returned Prescriptions */}
+              <Card className="space-y-4 bg-white border-2 border-amber-300 shadow-md text-black overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200 pb-3 bg-amber-50/90 -mx-6 -mt-6 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-amber-200 text-amber-900 shrink-0">
+                      <Receipt size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
+                        Billing Desk Queries &amp; Returned Cases ({filteredActiveReturnedBilling.length})
+                      </h3>
+                      <p className="text-xs text-amber-800 mt-0.5 font-medium">
+                        Cases returned by Central Billing Desk with cashier doubts or price clarification queries.
+                      </p>
+                    </div>
+                  </div>
+                  {filteredActiveReturnedBilling.length > 0 && (
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs animate-pulse self-start sm:self-auto shrink-0">
+                      ACTION REQUIRED
+                    </span>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-amber-100/60 text-slate-900 uppercase tracking-wider text-[10px] border-b border-amber-200 font-bold">
+                      <tr>
+                        <th className="p-3">Patient Name &amp; UHID</th>
+                        <th className="p-3">Cashier Query / Doubt</th>
+                        <th className="p-3">Returned By</th>
+                        <th className="p-3">Prescribed Medicines / Items</th>
+                        <th className="p-3">Returned Time</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100 text-black">
+                      {filteredActiveReturnedBilling.length > 0 ? (
+                        filteredActiveReturnedBilling.map((rx) => {
+                          const pat = rx.patientId || {};
+                          const queryInfo = rx.billingQuery || {};
+                          return (
+                            <tr
+                              key={rx._id}
+                              id={`doctor-billing-query-${rx.invoiceId || rx.billingQuery?.invoiceId || rx._id}`}
+                              className={`transition-colors ${String(rx.invoiceId || rx.billingQuery?.invoiceId || '') === String(requestedInvoiceId) ? 'bg-amber-100 ring-2 ring-inset ring-amber-500' : 'bg-white hover:bg-amber-50/40'}`}
+                            >
+                              <td className="p-3">
+                                <p className="font-extrabold text-slate-900 text-sm">
+                                  {pat.firstName} {pat.lastName}
+                                </p>
+                                <span className="font-mono text-indigo-700 font-bold text-[11px]">
+                                  {pat.uhid || '—'}
+                                </span>
+                              </td>
+                              <td className="p-3 max-w-xs">
+                                <div className="p-2.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-xs font-bold text-amber-950 shadow-2xs">
+                                  &ldquo;{queryInfo.query || 'Prescription / Fee clarification requested'}&rdquo;
+                                </div>
+                              </td>
+                              <td className="p-3 font-medium text-slate-800">
+                                <span className="font-bold text-slate-900">{queryInfo.requestedByName || 'Cashier'}</span>
+                                <div className="text-[10px] text-slate-500">Central Billing Desk</div>
+                              </td>
+                              <td className="p-3 text-slate-700">
+                                <div className="space-y-0.5 max-w-xs">
+                                  {rx.medicines?.map((m, mIdx) => (
+                                    <p key={mIdx} className="text-xs font-semibold text-slate-800 truncate">
+                                      &bull; {m.medicineName} ({m.dosage || 'Tab'}) &times; {m.quantity || m.dispensedQty || 10}
+                                    </p>
+                                  ))}
+                                  {(!rx.medicines || rx.medicines.length === 0) && rx.invoiceItems?.map((item, itemIdx) => (
+                                    <p key={itemIdx} className="text-xs font-semibold text-slate-800 truncate">
+                                      &bull; {item.description} &times; {item.qty || 1} (₹{Number(item.totalPrice || 0).toFixed(2)})
+                                    </p>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="p-3 text-slate-600 whitespace-nowrap text-[11px]">
+                                {queryInfo.requestedAt ? new Date(queryInfo.requestedAt).toLocaleString() : new Date(rx.updatedAt || rx.createdAt).toLocaleString()}
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="inline-flex flex-col gap-1.5 items-stretch">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmBillingQuery(rx)}
+                                    disabled={String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId)}
+                                    className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="Confirm existing charges without creating another consultation"
+                                  >
+                                    <Check size={14} />
+                                    {String(resolvingBillingInvoiceId) === String(rx.invoiceId || rx.billingQuery?.invoiceId) ? 'Returning…' : 'Confirm & Return'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReviewBillingQuery(rx)}
+                                    className="px-3.5 py-2 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                    title="Open consultation only when clinical details or charges need correction"
+                                  >
+                                    <Stethoscope size={14} />
+                                    Review &amp; Correct
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-500 font-medium">
+                            No active billing return queries pending doctor clarification.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
               {/* Resolved Billing Queries History */}
               {filteredHistoryReturnedBilling.length > 0 && (
                 <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
                   <div className="border-b border-slate-200 pb-3">
                     <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                      <Receipt size={18} className="text-indigo-600" />
-                      Resolved Billing Queries ({filteredHistoryReturnedBilling.length})
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                      Resolved Billing Queries History ({filteredHistoryReturnedBilling.length})
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
