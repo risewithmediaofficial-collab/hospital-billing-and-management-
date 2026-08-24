@@ -73,7 +73,14 @@ jobs:
 
             (docker compose down --remove-orphans || true)
 
-            # Auto-cleanup any orphan container occupying port 93
+            # Force-remove any stale containers from old project names (hospital-billing-test_*)
+            OLD_BY_NAME=$(docker ps -aq --filter "name=hospital-billing-test")
+            if [ -n "$OLD_BY_NAME" ]; then
+              echo "Removing stale hospital-billing-test containers..."
+              docker rm -f $OLD_BY_NAME || true
+            fi
+
+            # Auto-cleanup any remaining container occupying port 93
             OLD_CONTAINER=$(docker ps -q --filter "publish=93")
             if [ -n "$OLD_CONTAINER" ]; then
               echo "Cleaning up container occupying port 93: $OLD_CONTAINER"
