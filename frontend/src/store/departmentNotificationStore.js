@@ -63,11 +63,16 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
       metadata.notificationType === 'NURSE_RESPONSE' ||
       metadata.notificationType === 'SUBSTITUTION_REQUEST' ||
       metadata.notificationType === 'BILLING_QUERY' ||
+      metadata.notificationType === 'DOCTOR_REQUEST' ||
       metadata.type === 'BILLING_QUERY' ||
       metadata.type === 'DEPT_RESPONSE' ||
+      metadata.type === 'DEPARTMENT_RESPONSE' ||
+      metadata.type === 'NURSE_RESPONSE' ||
       metadata.type === 'NURSE_TASK_COMPLETED' ||
       metadata.type === 'REPORT_READY' ||
       metadata.type === 'SUBSTITUTION_REQUEST' ||
+      metadata.type === 'DOCTOR_REQUEST' ||
+      metadata.actionType === 'REVIEW_BILLING_QUERY' ||
       metadata.event === 'billing:returned_to_doctor' ||
       metadata.event === 'nurse:request_completed' ||
       metadata.event === 'diagnostics:report_ready' ||
@@ -194,6 +199,13 @@ export const useDepartmentNotificationStore = create((set, get) => ({
 
     // 2. Direct path mapping from workflow pending snapshot
     if (get().byPath[navPath] !== undefined) return get().byPath[navPath];
+
+    // 3. Fallback: Check active unread notifications from notificationStore
+    try {
+      const bellNotifs = useNotificationStore.getState().notifications || [];
+      const unreadBellMatching = bellNotifs.filter((item) => !item.isRead && pathMatches(item.linkedPath || item.targetRoute || item.link, navPath, item)).length;
+      if (unreadBellMatching > 0) return unreadBellMatching;
+    } catch {}
 
     return 0;
   },

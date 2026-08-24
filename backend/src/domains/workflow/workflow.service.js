@@ -30,6 +30,7 @@ const task = (type, record, path, title, extra = {}) => {
     DOCTOR_REQUEST: 'requestId',
     SUBSTITUTION_REQUEST: 'substitutionId',
     NURSE_RESPONSE: 'taskId',
+    BILLING_QUERY: 'invoiceId',
     BILLING_WORK: 'invoiceId',
     LAB_WORK: 'orderId',
     RADIOLOGY_WORK: 'orderId',
@@ -102,24 +103,54 @@ export class WorkflowService {
 
       if (userRoles.has('DOCTOR')) {
         const docId = userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null;
-          const docQuery = docId ? { doctorId: docId } : { doctorId: null };
-          const [appointments, reports, doctorRequests, subRequests, nurseResponses] = await Promise.all([
-            Appointment.find({ ...scope, ...docQuery, status: { $in: ['WAITING', 'IN_CONSULTATION'] } }).populate('patientId').lean(),
-            DiagnosticOrder.find({ ...scope, ...docQuery, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
-            PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, ...(docId ? { $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] } : { assignedDoctorId: null }) }).populate('patientId').lean(),
-            PharmacySubstitutionRequest.find({ ...scope, ...docQuery, status: 'PENDING' }).populate('patientId').lean(),
-            NurseTask.find({ ...scope, ...docQuery, status: 'ADMINISTERED', doctorReviewedAt: null }).populate('patientId').lean(),
-          ]);
-          appointments.forEach((item) => item && tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-          reports.forEach((item) => item && tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Review report: ${item.testName || 'Report'}`, { targetModule: 'doctor' })));
-          doctorRequests.forEach((item) => item && tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard', `Patient request: ${item.requestType || 'Request'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-          subRequests.forEach((item) => item && tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Substitution approval: ${item.originalMedicineName || 'Medicine'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-          nurseResponses.forEach((item) => item && tasks.push(task('NURSE_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES', `Injection Administered: ${item.medicineName || 'Treatment'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+        const docQuery = docId ? { doctorId: docId } : { doctorId: null };
+        const [appointments, reports, doctorRequests, subRequests, nurseResponses, billingQueries, returnedRx] = await Promise.all([
+          Appointment.find({
+            ...scope,
+            ...docQuery,
+            status: { $in: ['WAITING', 'IN_CONSULTATION'] },
+            departmentReturnedAt: null,
+          }).populate('patientId').lean(),
+          DiagnosticOrder.find({ ...scope, ...docQuery, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
+          PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, ...(docId ? { $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] } : { assignedDoctorId: null }) }).populate('patientId').lean(),
+          PharmacySubstitutionRequest.find({ ...scope, ...docQuery, status: 'PENDING' }).populate('patientId').lean(),
+          NurseTask.find({ ...scope, ...docQuery, status: 'ADMINISTERED', doctorReviewedAt: null }).populate('patientId').lean(),
+          Invoice.find({
+            ...scope,
+            ...(docId ? { 'doctorReviewQuery.attendingDoctorId': docId } : {}),
+            'doctorReviewQuery.resolved': false,
+            isDeleted: { $ne: true },
+          }).populate('patientId').lean(),
+          Prescription.find({
+            ...scope,
+            ...docQuery,
+            dispenseStatus: 'RETURNED_TO_DOCTOR',
+            'billingQuery.resolved': false,
+          }).populate('patientId').lean(),
+        ]);
+
+        appointments.forEach((item) => item && tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+        reports.forEach((item) => item && tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=DEPT_TRACKER', `Review report: ${item.testName || 'Report'}`, { targetModule: 'doctor' })));
+        doctorRequests.forEach((item) => item && tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Patient request: ${item.requestType || 'Request'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+        subRequests.forEach((item) => item && tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Substitution approval: ${item.originalMedicineName || 'Medicine'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+        nurseResponses.forEach((item) => item && tasks.push(task('NURSE_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=NURSE', `Injection Administered: ${item.medicineName || 'Treatment'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+
+        const seenInvoiceIds = new Set();
+        billingQueries.forEach((item) => {
+          if (!item) return;
+          seenInvoiceIds.add(String(item._id));
+          tasks.push(task('BILLING_QUERY', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Billing Query: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: item.doctorReviewQuery?.query || 'Billing Query' }));
+        });
+        returnedRx.forEach((item) => {
+          if (!item) return;
+          const invId = String(item.billingQuery?.invoiceId || '');
+          if (invId && seenInvoiceIds.has(invId)) return;
+          tasks.push(task('BILLING_QUERY', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Prescription Returned: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: item.billingQuery?.query || 'Returned to Doctor' }));
+        });
       }
 
       if (Array.from(userRoles).some((r) => ['CASHIER', 'BILLING_STAFF', 'ACCOUNTANT'].includes(r))) {
           const pendingPrescriptions = await Prescription.find({
-            ...scope,
             dispenseStatus: { $in: ['PENDING_DISPENSE', 'PARTIALLY_DISPENSED'] },
           }).select('patientId').lean();
           const pendingPatientIds = new Set(pendingPrescriptions.map(p => String(p.patientId?._id || p.patientId)));
