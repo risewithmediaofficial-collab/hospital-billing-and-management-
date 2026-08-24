@@ -57,34 +57,32 @@ jobs:
             git checkout test
             git reset --hard origin/test
 
-            # Ensure .env exists with isolated Test configuration
-            if [ ! -f .env ]; then
-              echo "COMPOSE_PROJECT_NAME=hpmbs_test" > .env
-              echo "FRONTEND_PORT=89" >> .env
-              echo "NODE_ENV=production" >> .env
-              echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
-              echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
-              echo "CORS_ORIGIN=*" >> .env
-              echo "JWT_SECRET=hpmbs_test_jwt_secret_key_2026_x89" >> .env
-              echo "JWT_EXPIRES_IN=7d" >> .env
-              echo "REFRESH_TOKEN_SECRET=hpmbs_test_refresh_secret_key_2026_x89" >> .env
-              echo "REFRESH_TOKEN_EXPIRES_IN=30d" >> .env
-              echo "FIELD_ENCRYPTION_KEY=aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=" >> .env
-              echo "SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b" >> .env
-            fi
+            # Configure Test environment with port 90
+            echo "COMPOSE_PROJECT_NAME=hpmbs_test" > .env
+            echo "FRONTEND_PORT=90" >> .env
+            echo "NODE_ENV=production" >> .env
+            echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
+            echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
+            echo "CORS_ORIGIN=*" >> .env
+            echo "JWT_SECRET=hpmbs_test_jwt_secret_key_2026_x89" >> .env
+            echo "JWT_EXPIRES_IN=7d" >> .env
+            echo "REFRESH_TOKEN_SECRET=hpmbs_test_refresh_secret_key_2026_x89" >> .env
+            echo "REFRESH_TOKEN_EXPIRES_IN=30d" >> .env
+            echo "FIELD_ENCRYPTION_KEY=aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=" >> .env
+            echo "SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b" >> .env
 
             (docker compose down --remove-orphans || true)
 
-            # Auto-cleanup any orphan container occupying port 89
-            OLD_CONTAINER=$(docker ps -q --filter "publish=89")
+            # Auto-cleanup any orphan container occupying port 90
+            OLD_CONTAINER=$(docker ps -q --filter "publish=90")
             if [ -n "$OLD_CONTAINER" ]; then
-              echo "Cleaning up container occupying port 89: $OLD_CONTAINER"
+              echo "Cleaning up container occupying port 90: $OLD_CONTAINER"
               docker stop $OLD_CONTAINER || true
               docker rm $OLD_CONTAINER || true
             fi
 
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
-            echo "✅ Test deployment completed successfully at $DEPLOY_DIR"
+            echo "✅ Test deployment completed successfully at $DEPLOY_DIR on port 90"
 
   deploy-production:
     needs: test-and-build
@@ -112,7 +110,7 @@ jobs:
             git checkout main || git checkout master || true
             git reset --hard origin/main || git reset --hard origin/master || true
 
-            # Ensure .env exists with Production configuration
+            # Ensure .env exists with Production configuration on port 86
             if [ ! -f .env ]; then
               echo "COMPOSE_PROJECT_NAME=hpmbs_main" > .env
               echo "FRONTEND_PORT=86" >> .env
@@ -139,4 +137,4 @@ jobs:
             fi
 
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
-            echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
+            echo "✅ Production deployment completed successfully at $DEPLOY_DIR on port 86"
