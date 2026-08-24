@@ -56,7 +56,28 @@ jobs:
             git fetch origin test
             git checkout test
             git reset --hard origin/test
-            (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
+
+            # Ensure .env exists with isolated Test configuration and non-conflicting ports
+            if [ ! -f .env ]; then
+              cat << 'EOF' > .env
+COMPOSE_PROJECT_NAME=hpmbs_test
+FRONTEND_PORT=89
+BACKEND_PORT=5004
+MONGO_PORT=27022
+NODE_ENV=production
+MONGO_INITDB_DATABASE=hpmbs_db
+MONGO_URI=mongodb://mongo:27017/hpmbs_db
+CORS_ORIGIN=*
+JWT_SECRET=hpmbs_test_jwt_secret_key_2026_x89
+JWT_EXPIRES_IN=7d
+REFRESH_TOKEN_SECRET=hpmbs_test_refresh_secret_key_2026_x89
+REFRESH_TOKEN_EXPIRES_IN=30d
+FIELD_ENCRYPTION_KEY=aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=
+SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b
+EOF
+            fi
+
+            (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
             echo "✅ Test deployment completed successfully at $DEPLOY_DIR"
 
   deploy-production:
@@ -84,6 +105,26 @@ jobs:
             git fetch origin main || git fetch origin master || true
             git checkout main || git checkout master || true
             git reset --hard origin/main || git reset --hard origin/master || true
-            (docker compose up -d --build --force-recreate) || (docker-compose up -d --build --force-recreate)
-            echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
 
+            # Ensure .env exists with Production configuration
+            if [ ! -f .env ]; then
+              cat << 'EOF' > .env
+COMPOSE_PROJECT_NAME=hpmbs_main
+FRONTEND_PORT=86
+BACKEND_PORT=5003
+MONGO_PORT=27021
+NODE_ENV=production
+MONGO_INITDB_DATABASE=hpmbs_db
+MONGO_URI=mongodb://mongo:27017/hpmbs_db
+CORS_ORIGIN=*
+JWT_SECRET=hpmbs_super_secure_jwt_secret_key_2026_x89
+JWT_EXPIRES_IN=7d
+REFRESH_TOKEN_SECRET=hpmbs_super_secure_refresh_secret_key_2026_x89
+REFRESH_TOKEN_EXPIRES_IN=30d
+FIELD_ENCRYPTION_KEY=aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=
+SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b
+EOF
+            fi
+
+            (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
+            echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
