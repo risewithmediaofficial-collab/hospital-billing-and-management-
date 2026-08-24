@@ -20,8 +20,8 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-hpmbs_db}
     volumes:
       - mongo_data:/data/db
-    ports:
-      - "${MONGO_PORT:-27021}:27017"
+    expose:
+      - "27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -48,8 +48,8 @@ services:
       FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=}
       SEARCH_HASH_KEY: ${SEARCH_HASH_KEY:-hpmbs_search_hash_secret_key_2026_production_safe_key_32b}
       CORS_ORIGIN: "${CORS_ORIGIN:-*}"
-    ports:
-      - "${BACKEND_PORT:-5003}:5000"
+    expose:
+      - "5000"
     depends_on:
       mongo:
         condition: service_healthy

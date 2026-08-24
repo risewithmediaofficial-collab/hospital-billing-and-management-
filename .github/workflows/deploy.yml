@@ -57,12 +57,10 @@ jobs:
             git checkout test
             git reset --hard origin/test
 
-            # Ensure .env exists with isolated Test configuration and non-conflicting ports
+            # Ensure .env exists with isolated Test configuration
             if [ ! -f .env ]; then
               echo "COMPOSE_PROJECT_NAME=hpmbs_test" > .env
               echo "FRONTEND_PORT=89" >> .env
-              echo "BACKEND_PORT=5004" >> .env
-              echo "MONGO_PORT=27022" >> .env
               echo "NODE_ENV=production" >> .env
               echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
               echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
@@ -75,6 +73,7 @@ jobs:
               echo "SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b" >> .env
             fi
 
+            (docker compose down --remove-orphans || true)
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
             echo "✅ Test deployment completed successfully at $DEPLOY_DIR"
 
@@ -108,8 +107,6 @@ jobs:
             if [ ! -f .env ]; then
               echo "COMPOSE_PROJECT_NAME=hpmbs_main" > .env
               echo "FRONTEND_PORT=86" >> .env
-              echo "BACKEND_PORT=5003" >> .env
-              echo "MONGO_PORT=27021" >> .env
               echo "NODE_ENV=production" >> .env
               echo "MONGO_INITDB_DATABASE=hpmbs_db" >> .env
               echo "MONGO_URI=mongodb://mongo:27017/hpmbs_db" >> .env
@@ -122,5 +119,6 @@ jobs:
               echo "SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b" >> .env
             fi
 
+            (docker compose down --remove-orphans || true)
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
             echo "✅ Production deployment completed successfully at $DEPLOY_DIR"
