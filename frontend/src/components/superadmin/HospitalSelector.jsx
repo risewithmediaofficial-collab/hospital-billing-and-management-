@@ -6,21 +6,57 @@ import { axiosClient } from '../../api/axiosClient';
 
 export const HospitalSelector = ({ compact = false }) => {
   const navigate = useNavigate();
-  const { selectedHospitalId, selectedHospitalName, setSelectedHospital, clearSelectedHospital, hospitals, setHospitals } =
-    useSuperAdminContextStore();
+  const {
+    selectedHospitalId,
+    selectedHospitalName,
+    setSelectedHospital,
+    clearSelectedHospital,
+    hospitals,
+    setHospitals,
+  } = useSuperAdminContextStore();
   const [isOpen, setIsOpen] = useState(false);
 
+  const fetchHospitals = async () => {
+    try {
+      const res = await axiosClient.get('/saas/hospitals');
+      const rawList = res.data?.data || res.data || [];
+      const activeList = Array.isArray(rawList)
+        ? rawList.filter((h) => !h.isDeleted && h.status !== 'DELETED')
+        : [];
+      setHospitals(activeList);
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await axiosClient.get('/saas/hospitals');
-        setHospitals(res.data || []);
-      } catch {
-        // ignore
+    fetchHospitals();
+  }, []);
+
+  // Filter out any deleted hospitals from store list before rendering
+  const activeHospitals = (hospitals || []).filter(
+    (h) => !h.isDeleted && h.status !== 'DELETED'
+  );
+
+  // If currently selected hospital was deleted, clear selection
+  useEffect(() => {
+    if (selectedHospitalId && hospitals.length > 0) {
+      const isCurrentActive = hospitals.some(
+        (h) => h._id === selectedHospitalId && !h.isDeleted && h.status !== 'DELETED'
+      );
+      if (!isCurrentActive) {
+        clearSelectedHospital();
       }
-    };
-    if (hospitals.length === 0) load();
-  }, [hospitals.length, setHospitals]);
+    }
+  }, [selectedHospitalId, hospitals, clearSelectedHospital]);
+
+  const handleToggle = () => {
+    const nextState = !isOpen;
+    if (nextState) {
+      fetchHospitals();
+    }
+    setIsOpen(nextState);
+  };
 
   const handleSelect = (hospital) => {
     if (!hospital) {
@@ -40,7 +76,7 @@ export const HospitalSelector = ({ compact = false }) => {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className={`flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors ${
           compact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm'
         }`}
@@ -73,22 +109,28 @@ export const HospitalSelector = ({ compact = false }) => {
               <Globe size={16} className="text-slate-500" />
               <span className="font-semibold text-slate-700">Platform Overview (All Hospitals)</span>
             </button>
-            {hospitals.map((h) => (
-              <button
-                key={h._id}
-                type="button"
-                onClick={() => handleSelect(h)}
-                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 ${
-                  selectedHospitalId === h._id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
-                }`}
-              >
-                <Building2 size={16} className={selectedHospitalId === h._id ? 'text-indigo-600' : 'text-slate-400'} />
-                <div className="min-w-0">
-                  <p className="font-semibold truncate">{h.name}</p>
-                  <p className="text-[10px] text-slate-400 font-mono">{h.code} · {h.status}</p>
-                </div>
-              </button>
-            ))}
+            {activeHospitals.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-slate-400 text-center">
+                No active hospitals found
+              </div>
+            ) : (
+              activeHospitals.map((h) => (
+                <button
+                  key={h._id}
+                  type="button"
+                  onClick={() => handleSelect(h)}
+                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 ${
+                    selectedHospitalId === h._id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                  }`}
+                >
+                  <Building2 size={16} className={selectedHospitalId === h._id ? 'text-indigo-600' : 'text-slate-400'} />
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{h.name}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">{h.code} · {h.status}</p>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </>
       )}

@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import { useSuperAdminContextStore } from '../../store/superAdminContextStore';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 
 export const SuperAdminHospitalsPage = () => {
@@ -42,11 +43,19 @@ export const SuperAdminHospitalsPage = () => {
   const fetchHospitals = async () => {
     try {
       const res = await axiosClient.get('/saas/hospitals/stats');
-      setHospitals(res.data?.data || res.data || []);
+      const list = res.data?.data || res.data || [];
+      setHospitals(list);
+      useSuperAdminContextStore.getState().setHospitals(
+        (Array.isArray(list) ? list : []).filter((h) => !h.isDeleted && h.status !== 'DELETED')
+      );
     } catch {
       try {
         const fallback = await axiosClient.get('/saas/hospitals');
-        setHospitals(fallback.data?.data || fallback.data || []);
+        const list = fallback.data?.data || fallback.data || [];
+        setHospitals(list);
+        useSuperAdminContextStore.getState().setHospitals(
+          (Array.isArray(list) ? list : []).filter((h) => !h.isDeleted && h.status !== 'DELETED')
+        );
       } catch (err) {
         console.error('Failed to load hospitals:', err);
       }

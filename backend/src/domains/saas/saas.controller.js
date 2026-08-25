@@ -15,7 +15,7 @@ export const registerHospital = async (req, res, next) => {
 
 export const getAllHospitals = async (req, res, next) => {
   try {
-    const hospitals = await SaasService.getAllHospitals(req.user);
+    const hospitals = await SaasService.getAllHospitals(req.user, req.query);
     return sendSuccess(res, 200, 'SaaS Hospital Tenants retrieved successfully', hospitals);
   } catch (error) {
     next(error);

@@ -73,7 +73,10 @@ export const SuperAdminReportsPage = () => {
         axiosClient.get(`/pharmacy/nurse-tasks${queryParams}`, { headers: reqHeaders }).catch(() => ({ data: [] })),
       ]);
 
-      const hospList = hospRes.data || [];
+      const rawHospList = hospRes.data?.data || hospRes.data || [];
+      const hospList = (Array.isArray(rawHospList) ? rawHospList : []).filter(
+        (h) => !h.isDeleted && h.status !== 'DELETED'
+      );
       setHospitals(hospList);
       const allOrders = diagRes.data || [];
 

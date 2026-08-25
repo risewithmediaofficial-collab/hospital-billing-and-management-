@@ -28,8 +28,12 @@ export const SuperAdminStaffPage = ({ roleFilter = null, title = 'All Staff' }) 
             headers: { 'X-Hospital-Context': '' },
           }).catch(() => ({ data: [] })),
         ]);
+        const rawHospList = hospRes.data?.data || hospRes.data || [];
+        const activeHospList = (Array.isArray(rawHospList) ? rawHospList : []).filter(
+          (h) => !h.isDeleted && h.status !== 'DELETED'
+        );
         setStaff(staffRes.data || []);
-        setHospitals(hospRes.data || []);
+        setHospitals(activeHospList);
       } catch (err) {
         console.error(err);
       }

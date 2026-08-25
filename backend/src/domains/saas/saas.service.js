@@ -332,8 +332,15 @@ export class SaasService {
     };
   }
 
-  static async getAllHospitals(user) {
-    return await Hospital.find(tenantFilter()).sort({ createdAt: -1 });
+  static async getAllHospitals(user, query = {}) {
+    const filter = {
+      ...tenantFilter(),
+    };
+    if (query?.includeDeleted !== 'true' && query?.includeDeleted !== true) {
+      filter.isDeleted = { $ne: true };
+      filter.status = { $ne: 'DELETED' };
+    }
+    return await Hospital.find(filter).sort({ createdAt: -1 });
   }
 
   static async getPendingApprovals() {
@@ -536,7 +543,11 @@ export class SaasService {
   }
 
   static async getAllHospitalAdminOverview() {
-    const hospitals = await Hospital.find({ ...tenantFilter() }).sort({ name: 1 });
+    const hospitals = await Hospital.find({
+      ...tenantFilter(),
+      isDeleted: { $ne: true },
+      status: { $ne: 'DELETED' },
+    }).sort({ name: 1 });
 
     const overview = await Promise.all(
       hospitals.map(async (hospital) => {
@@ -564,7 +575,12 @@ export class SaasService {
     }
 
     const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    const hospitalQuery = { ...tenantFilter(), $or: [{ name: regex }, { code: regex }, { subdomain: regex }] };
+    const hospitalQuery = {
+      ...tenantFilter(),
+      isDeleted: { $ne: true },
+      status: { $ne: 'DELETED' },
+      $or: [{ name: regex }, { code: regex }, { subdomain: regex }],
+    };
     if (filters.hospitalId) hospitalQuery._id = filters.hospitalId;
 
     const [hospitals, doctors, staff, patients, bills, administrators] = await Promise.all([

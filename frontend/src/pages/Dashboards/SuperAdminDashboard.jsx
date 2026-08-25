@@ -34,7 +34,8 @@ export const SuperAdminDashboard = () => {
   const fetchHospitals = async () => {
     try {
       const res = await axiosClient.get('/saas/hospitals');
-      setHospitals(res.data);
+      const raw = res.data?.data || res.data || [];
+      setHospitals(Array.isArray(raw) ? raw : []);
     } catch (err) {
       console.error('Failed to load SaaS hospitals:', err);
     }
