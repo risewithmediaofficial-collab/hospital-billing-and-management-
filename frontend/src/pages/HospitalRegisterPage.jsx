@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import { axiosClient } from '../api/axiosClient';
 import {
-  Building2, CheckCircle, ArrowRight, Activity, Eye, EyeOff,
+  Building2, CheckCircle, ArrowRight, Activity,
   Zap, TrendingUp, Globe, Users, Clock, ShieldCheck, AlertTriangle,
   Star, Check
 } from 'lucide-react';
@@ -102,8 +103,6 @@ export const HospitalRegisterPage = () => {
     confirmAdminPassword: '',
   });
 
-  const [showAdminPass, setShowAdminPass] = useState(false);
-  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [registeredResult, setRegisteredResult] = useState(null);
   const [error, setError] = useState(null);
@@ -399,34 +398,20 @@ export const HospitalRegisterPage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <Input
-                      label="Desired Hospital Admin Password"
-                      type={showAdminPass ? 'text' : 'password'}
-                      value={formData.adminPassword}
-                      onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
-                      placeholder="Min 8 characters"
-                      required
-                    />
-                    <button type="button" onClick={() => setShowAdminPass(!showAdminPass)}
-                      className="absolute right-3 top-8 text-slate-400 hover:text-slate-700 p-0.5">
-                      {showAdminPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      label="Confirm Admin Password"
-                      type={showConfirmPass ? 'text' : 'password'}
-                      value={formData.confirmAdminPassword}
-                      onChange={(e) => setFormData({ ...formData, confirmAdminPassword: e.target.value })}
-                      placeholder="Re-enter password"
-                      required
-                    />
-                    <button type="button" onClick={() => setShowConfirmPass(!showConfirmPass)}
-                      className="absolute right-3 top-8 text-slate-400 hover:text-slate-700 p-0.5">
-                      {showConfirmPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    label="Desired Hospital Admin Password"
+                    value={formData.adminPassword}
+                    onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                    placeholder="Min 8 characters"
+                    required
+                  />
+                  <PasswordInput
+                    label="Confirm Admin Password"
+                    value={formData.confirmAdminPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmAdminPassword: e.target.value })}
+                    placeholder="Re-enter password"
+                    required
+                  />
                 </div>
 
                 {/* Terms & Conditions */}

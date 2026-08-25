@@ -9,6 +9,7 @@ import {
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 
@@ -840,16 +841,14 @@ export const SuperAdminReportsPage = () => {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">New Password</label>
-              <input
-                type="text"
-                placeholder="Enter new password"
-                value={newPasswordInput}
-                onChange={(e) => setNewPasswordInput(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+            <PasswordInput
+              label="New Password"
+              labelClassName="text-slate-700 font-bold"
+              placeholder="Enter new password"
+              value={newPasswordInput}
+              onChange={(e) => setNewPasswordInput(e.target.value)}
+              inputClassName="font-mono font-bold"
+            />
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setSelectedStaffForPassword(null)}>

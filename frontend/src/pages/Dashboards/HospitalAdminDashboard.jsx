@@ -4,6 +4,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
@@ -193,14 +194,11 @@ const HospitalAdminDashboardInner = () => {
   const [activeFormTab, setActiveFormTab] = useState('DETAILS'); // 'DETAILS' | 'PERMISSIONS'
 
   useScrollLock(isStaffModalOpen || isChangeModalOpen);
-  const [showCreatePassword, setShowCreatePassword] = useState(true);
 
   const [changeForm, setChangeForm] = useState({
     newPassword: '',
     adminPassword: '',
   });
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showAdminPasswordChange, setShowAdminPasswordChange] = useState(false);
 
   
 
@@ -996,28 +994,16 @@ const HospitalAdminDashboardInner = () => {
 
                     {!staffForm.id && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="relative">
-                          <Input
-                            label="Assign Password"
-                            type={showCreatePassword ? 'text' : 'password'}
-                            value={staffForm.password}
-                            onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                            placeholder="••••••••"
-                            required={!staffForm.id}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowCreatePassword(!showCreatePassword)}
-                            className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
-                            aria-label="Toggle Password Visibility"
-                          >
-                            {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
+                        <PasswordInput
+                          label="Assign Password"
+                          value={staffForm.password}
+                          onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                          placeholder="••••••••"
+                          required={!staffForm.id}
+                        />
 
-                        <Input
+                        <PasswordInput
                           label="Confirm Password"
-                          type={showCreatePassword ? 'text' : 'password'}
                           value={staffForm.confirmPassword}
                           onChange={(e) => setStaffForm({ ...staffForm, confirmPassword: e.target.value })}
                           placeholder="••••••••"
@@ -1291,9 +1277,8 @@ const HospitalAdminDashboardInner = () => {
                 </div>
               ) : (
                 <form onSubmit={handleFetchPassword} className="space-y-4">
-                  <Input
+                  <PasswordInput
                     label="Enter Your Hospital Admin Password to Reveal Credentials"
-                    type="password"
                     value={viewAdminPassword}
                     onChange={(e) => setViewAdminPassword(e.target.value)}
                     placeholder="Enter your admin password"
@@ -1339,43 +1324,21 @@ const HospitalAdminDashboardInner = () => {
                   </div>
                 )}
 
-                <div className="relative">
-                  <Input
-                    label="Enter New Password for Staff"
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={changeForm.newPassword}
-                    onChange={(e) => setChangeForm({ ...changeForm, newPassword: e.target.value })}
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
-                    aria-label={showNewPassword ? 'Hide' : 'Show'}
-                  >
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                <PasswordInput
+                  label="Enter New Password for Staff"
+                  value={changeForm.newPassword}
+                  onChange={(e) => setChangeForm({ ...changeForm, newPassword: e.target.value })}
+                  placeholder="••••••••"
+                  required
+                />
 
-                <div className="relative">
-                  <Input
-                    label="Verify Your Hospital Admin Password"
-                    type={showAdminPasswordChange ? 'text' : 'password'}
-                    value={changeForm.adminPassword}
-                    onChange={(e) => setChangeForm({ ...changeForm, adminPassword: e.target.value })}
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminPasswordChange(!showAdminPasswordChange)}
-                    className="absolute right-3 top-8 text-neutral-400 hover:text-neutral-900 p-0.5"
-                    aria-label={showAdminPasswordChange ? 'Hide' : 'Show'}
-                  >
-                    {showAdminPasswordChange ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                <PasswordInput
+                  label="Verify Your Hospital Admin Password"
+                  value={changeForm.adminPassword}
+                  onChange={(e) => setChangeForm({ ...changeForm, adminPassword: e.target.value })}
+                  placeholder="••••••••"
+                  required
+                />
 
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsChangeModalOpen(false)}>Cancel</Button>

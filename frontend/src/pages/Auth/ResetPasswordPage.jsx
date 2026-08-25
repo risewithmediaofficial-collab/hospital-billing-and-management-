@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Lock, CheckCircle2, ShieldAlert, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Lock, CheckCircle2, ShieldAlert, ArrowRight } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 
 export const ResetPasswordPage = () => {
@@ -12,7 +13,6 @@ export const ResetPasswordPage = () => {
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -88,38 +88,27 @@ export const ResetPasswordPage = () => {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">New Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-200"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+            <PasswordInput
+              label="New Password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              inputClassName="bg-slate-800 border-slate-700 rounded-xl text-xs text-white focus:ring-indigo-500 font-medium py-2.5 placeholder:text-slate-500"
+              labelClassName="text-slate-300"
+              buttonClassName="text-slate-400 hover:text-indigo-400 focus:text-indigo-400"
+              required
+            />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">Confirm New Password</label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                required
-              />
-            </div>
+            <PasswordInput
+              label="Confirm New Password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              inputClassName="bg-slate-800 border-slate-700 rounded-xl text-xs text-white focus:ring-indigo-500 font-medium py-2.5 placeholder:text-slate-500"
+              labelClassName="text-slate-300"
+              buttonClassName="text-slate-400 hover:text-indigo-400 focus:text-indigo-400"
+              required
+            />
 
             <Button
               type="submit"

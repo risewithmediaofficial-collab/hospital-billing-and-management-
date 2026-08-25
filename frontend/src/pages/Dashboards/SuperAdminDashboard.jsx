@@ -3,6 +3,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { Building2, ShieldCheck, CheckCircle, XCircle, Clock, Users, PlusCircle, X, Key } from 'lucide-react';
@@ -295,7 +296,7 @@ export const SuperAdminDashboard = () => {
                   <Input label="Subdomain / Code" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="hospital-name" required />
                   <Input label="Hospital Authorized Officer Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="Your Name" required />
                   <Input label="Hospital Admin Email (Handover Login ID)" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="email@gmail.com" required />
-                  <Input label="Hospital Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="Minimum 8 characters" required />
+                  <PasswordInput label="Hospital Admin Password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="Minimum 8 characters" required />
 
                   <div className="flex gap-2 pt-2">
                     <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsDirectCreateOpen(false)}>Cancel</Button>

@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Input } from '../components/ui/Input';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import { Button } from '../components/ui/Button';
 import { ROLES } from '../utils/constants';
 import { axiosClient } from '../api/axiosClient';
 import { HospitalNotFoundPage } from './HospitalNotFoundPage';
 import { verifiedDomainCache, notFoundDomainCache } from '../components/auth/TenantRouteGuard';
-import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, Eye, EyeOff, User, Users, Phone, Calendar, Hash, Globe, Info } from 'lucide-react';
+import { Lock, Mail, Building2, PlusCircle, AlertCircle, ShieldCheck, User, Users, Phone, Calendar, Hash, Globe, Info } from 'lucide-react';
 
 export const LoginPage = () => {
   const { hospitalDomain } = useParams();
@@ -22,7 +23,6 @@ export const LoginPage = () => {
   // Staff credentials
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // Patient credentials
   const [patientMobile, setPatientMobile] = useState('');
@@ -247,26 +247,14 @@ export const LoginPage = () => {
                   required
                 />
 
-                <Input
+                <PasswordInput
                   label="Password"
-                  type={showPassword ? 'text' : 'password'}
                   icon={Lock}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="off"
                   required
-                  rightElement={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-slate-400 hover:text-indigo-600 focus:outline-none transition-colors p-1"
-                      tabIndex={-1}
-                      title={showPassword ? 'Hide Password' : 'Show Password'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  }
                 />
 
                 <div className="flex items-center justify-end pt-0.5">

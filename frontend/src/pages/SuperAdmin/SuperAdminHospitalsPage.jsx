@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, EyeOff, MapPin, Mail, Phone, Trash2, RotateCcw, Clock, X } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, MapPin, Mail, Phone, Trash2, RotateCcw, Clock, X } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
@@ -19,9 +20,6 @@ export const SuperAdminHospitalsPage = () => {
   const [isDirectCreateOpen, setIsDirectCreateOpen] = useState(false);
   const [isEditCredentialsOpen, setIsEditCredentialsOpen] = useState(false);
   const [editingHospital, setEditingHospital] = useState(null);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [credentialsForm, setCredentialsForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
   });
@@ -581,17 +579,15 @@ export const SuperAdminHospitalsPage = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                    <Input
+                    <PasswordInput
                       label="Admin Initial Password"
-                      type="password"
                       value={directForm.adminPassword}
                       onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })}
                       placeholder="••••••••"
                       required
                     />
-                    <Input
+                    <PasswordInput
                       label="Confirm Admin Password"
-                      type="password"
                       value={directForm.confirmAdminPassword}
                       onChange={(e) => setDirectForm({ ...directForm, confirmAdminPassword: e.target.value })}
                       placeholder="••••••••"
@@ -710,43 +706,20 @@ export const SuperAdminHospitalsPage = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="relative">
-                      <Input
-                        label="New Password (Leave blank to keep)"
-                        type={showPassword ? 'text' : 'password'}
-                        value={credentialsForm.password}
-                        onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
-                        placeholder="••••••••"
-                        className="pr-10 font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                        title={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-
-                    <div className="relative">
-                      <Input
-                        label="Confirm New Password"
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        value={credentialsForm.confirmPassword}
-                        onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
-                        placeholder="••••••••"
-                        className="pr-10 font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-900 p-0.5"
-                        title={showConfirmPassword ? "Hide password" : "Show password"}
-                      >
-                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
+                    <PasswordInput
+                      label="New Password (Leave blank to keep)"
+                      value={credentialsForm.password}
+                      onChange={(e) => setCredentialsForm({ ...credentialsForm, password: e.target.value })}
+                      placeholder="••••••••"
+                      inputClassName="font-mono"
+                    />
+                    <PasswordInput
+                      label="Confirm New Password"
+                      value={credentialsForm.confirmPassword}
+                      onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
+                      placeholder="••••••••"
+                      inputClassName="font-mono"
+                    />
                   </div>
                 </div>
 
