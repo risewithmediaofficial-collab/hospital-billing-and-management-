@@ -149,7 +149,7 @@ export const EmergencyBanner = () => {
                     label="Patient Name (If known)"
                     value={formData.patientName}
                     onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                    placeholder="e.g. John Doe"
+                    placeholder="Patient Name"
                   />
                   <Input
                     label="UHID (If known)"

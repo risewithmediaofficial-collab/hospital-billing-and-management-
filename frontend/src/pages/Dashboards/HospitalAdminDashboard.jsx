@@ -969,28 +969,28 @@ const HospitalAdminDashboardInner = () => {
                         label="Full Staff Name"
                         value={staffForm.name}
                         onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                        placeholder="e.g. Dr. Madhu Narayan"
+                        placeholder="Your Name"
                         required
                       />
                       <Input
                         label="Employee ID / Staff Code"
                         value={staffForm.employeeId}
                         onChange={(e) => setStaffForm({ ...staffForm, employeeId: e.target.value })}
-                        placeholder="e.g. EMP-2026-042"
+                        placeholder="EMP-XXXXX"
                       />
                       <Input
                         label="Staff Work Email (Login ID)"
                         type="email"
                         value={staffForm.email}
                         onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                        placeholder="e.g. narayanamadhu93@gmail.com"
+                        placeholder="email@gmail.com"
                         required
                       />
                       <Input
                         label="Mobile / Phone Number"
                         value={staffForm.phone}
                         onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                        placeholder="e.g. +91 9876543210"
+                        placeholder="+91 XXXXX XXXXX"
                       />
                     </div>
 

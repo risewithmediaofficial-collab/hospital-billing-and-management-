@@ -86,7 +86,7 @@ export const ReserveBedModal = ({ isOpen, onClose, bed = null, onSuccess }) => {
               </label>
               <Input
                 type="text"
-                placeholder="e.g. John Doe"
+                placeholder="Patient Name"
                 value={patientName}
                 onChange={(e) => setPatientName(e.target.value)}
                 className="w-full text-xs font-semibold"

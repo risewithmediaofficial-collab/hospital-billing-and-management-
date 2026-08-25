@@ -239,7 +239,7 @@ export const LoginPage = () => {
                   icon={Mail}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@hospital.com or staff ID"
+                  placeholder="email@gmail.com or Staff ID"
                   autoComplete="off"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -302,7 +302,7 @@ export const LoginPage = () => {
                   icon={Phone}
                   value={patientMobile}
                   onChange={(e) => setPatientMobile(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   autoComplete="off"
                   required
                 />
@@ -351,7 +351,7 @@ export const LoginPage = () => {
                   icon={Phone}
                   value={guardianMobile}
                   onChange={(e) => setGuardianMobile(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   autoComplete="off"
                   required
                 />
@@ -362,7 +362,7 @@ export const LoginPage = () => {
                   icon={Phone}
                   value={guardianPatientMobile}
                   onChange={(e) => setGuardianPatientMobile(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   autoComplete="off"
                   required
                 />

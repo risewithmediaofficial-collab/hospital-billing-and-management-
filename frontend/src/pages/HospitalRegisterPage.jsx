@@ -299,7 +299,7 @@ export const HospitalRegisterPage = () => {
                         subdomain: prev.domainManual ? prev.domain : autoDomain,
                       }));
                     }}
-                    placeholder="e.g. Guman Hospital"
+                    placeholder="Hospital Name"
                     required
                   />
                   <div>
@@ -315,12 +315,12 @@ export const HospitalRegisterPage = () => {
                           domainManual: true,
                         }));
                       }}
-                      placeholder="e.g. guman or apollo-hosur"
+                      placeholder="hospital-name"
                       required
                     />
                     <div className="mt-1.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg text-[11px] font-mono text-indigo-700 flex items-center gap-1.5">
                       <Globe size={12} className="shrink-0 text-indigo-500" />
-                      <span>URL Preview: <strong className="text-indigo-900">http://82.29.166.169:86/{formData.domain || formData.subdomain || 'guman'}/login</strong></span>
+                      <span>URL Preview: <strong className="text-indigo-900">http://82.29.166.169:86/{formData.domain || formData.subdomain || 'hospital-name'}/login</strong></span>
                     </div>
                   </div>
                 </div>
@@ -330,7 +330,7 @@ export const HospitalRegisterPage = () => {
                     label="Contact Officer Name"
                     value={formData.contactName}
                     onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                    placeholder="Your full name"
+                    placeholder="Your Name"
                     required
                   />
                   <Input
@@ -338,7 +338,7 @@ export const HospitalRegisterPage = () => {
                     type="email"
                     value={formData.contactEmail}
                     onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                    placeholder="email@hospital.com"
+                    placeholder="email@gmail.com"
                     required
                   />
                 </div>
@@ -348,7 +348,7 @@ export const HospitalRegisterPage = () => {
                     label="Contact Phone Number"
                     value={formData.contactPhone}
                     onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 XXXXX XXXXX"
                     required
                   />
                   <Input
@@ -370,7 +370,7 @@ export const HospitalRegisterPage = () => {
                     label="Street / Building / Area Address"
                     value={formData.street || ''}
                     onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                    placeholder="e.g. 123 Healthcare Boulevard, Medical Enclave"
+                    placeholder="Hospital Address"
                     required
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -378,21 +378,21 @@ export const HospitalRegisterPage = () => {
                       label="City / Town"
                       value={formData.city || ''}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      placeholder="e.g. Chennai"
+                      placeholder="City"
                       required
                     />
                     <Input
                       label="State / Province"
                       value={formData.state || ''}
                       onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      placeholder="e.g. Tamil Nadu"
+                      placeholder="State"
                       required
                     />
                     <Input
                       label="PIN / Postal Code"
                       value={formData.postalCode || ''}
                       onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                      placeholder="e.g. 600001"
+                      placeholder="Pincode"
                       required
                     />
                   </div>

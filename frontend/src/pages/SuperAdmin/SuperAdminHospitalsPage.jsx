@@ -497,14 +497,14 @@ export const SuperAdminHospitalsPage = () => {
                       label="Hospital Name"
                       value={directForm.hospitalName}
                       onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })}
-                      placeholder="e.g. City Care Hospital"
+                      placeholder="Hospital Name"
                       required
                     />
                     <Input
                       label="Subdomain / URL Slug"
                       value={directForm.subdomain}
                       onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                      placeholder="e.g. citycare"
+                      placeholder="hospital-name"
                       required
                     />
                   </div>
@@ -531,14 +531,14 @@ export const SuperAdminHospitalsPage = () => {
                       label="Owner / Contact Person Name"
                       value={directForm.contactName}
                       onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })}
-                      placeholder="e.g. Dr. Ramesh Kumar"
+                      placeholder="Your Name"
                       required
                     />
                     <Input
                       label="Contact Phone / Mobile Number"
                       value={directForm.contactPhone}
                       onChange={(e) => setDirectForm({ ...directForm, contactPhone: e.target.value })}
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 XXXXX XXXXX"
                       required
                     />
                   </div>
@@ -548,7 +548,7 @@ export const SuperAdminHospitalsPage = () => {
                     type="email"
                     value={directForm.contactEmail}
                     onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })}
-                    placeholder="admin@hospital.com"
+                    placeholder="email@gmail.com"
                     required
                   />
 
@@ -556,7 +556,7 @@ export const SuperAdminHospitalsPage = () => {
                     label="Street / Area Address"
                     value={directForm.street}
                     onChange={(e) => setDirectForm({ ...directForm, street: e.target.value })}
-                    placeholder="123 Medical Boulevard, Central Area"
+                    placeholder="Hospital Address"
                   />
 
                   <div className="grid grid-cols-3 gap-2">
@@ -564,19 +564,19 @@ export const SuperAdminHospitalsPage = () => {
                       label="City"
                       value={directForm.city}
                       onChange={(e) => setDirectForm({ ...directForm, city: e.target.value })}
-                      placeholder="Chennai"
+                      placeholder="City"
                     />
                     <Input
                       label="State"
                       value={directForm.state}
                       onChange={(e) => setDirectForm({ ...directForm, state: e.target.value })}
-                      placeholder="Tamil Nadu"
+                      placeholder="State"
                     />
                     <Input
                       label="PIN Code"
                       value={directForm.postalCode}
                       onChange={(e) => setDirectForm({ ...directForm, postalCode: e.target.value })}
-                      placeholder="600001"
+                      placeholder="Pincode"
                     />
                   </div>
 
@@ -637,14 +637,14 @@ export const SuperAdminHospitalsPage = () => {
                     label="Hospital Name"
                     value={credentialsForm.hospitalName}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, hospitalName: e.target.value })}
-                    placeholder="Enter hospital name"
+                    placeholder="Hospital Name"
                     required
                   />
                   <Input
                     label="Domain / Subdomain Slug"
                     value={credentialsForm.domain}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, domain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    placeholder="e.g. srivijayalakshmi"
+                    placeholder="hospital-name"
                     required
                   />
                 </div>
@@ -654,14 +654,14 @@ export const SuperAdminHospitalsPage = () => {
                     label="Owner / Contact Person Name"
                     value={credentialsForm.name}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, name: e.target.value })}
-                    placeholder="e.g. NARASIMHARAJU BG"
+                    placeholder="Your Name"
                     required
                   />
                   <Input
                     label="Contact Phone / Mobile No."
                     value={credentialsForm.phone}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, phone: e.target.value })}
-                    placeholder="+91 94889 69682"
+                    placeholder="+91 XXXXX XXXXX"
                     required
                   />
                 </div>
@@ -671,7 +671,7 @@ export const SuperAdminHospitalsPage = () => {
                   type="email"
                   value={credentialsForm.email}
                   onChange={(e) => setCredentialsForm({ ...credentialsForm, email: e.target.value })}
-                  placeholder="admin@example.com"
+                  placeholder="email@gmail.com"
                   required
                 />
 
@@ -679,7 +679,7 @@ export const SuperAdminHospitalsPage = () => {
                   label="Street / Area Address"
                   value={credentialsForm.street}
                   onChange={(e) => setCredentialsForm({ ...credentialsForm, street: e.target.value })}
-                  placeholder="12, Old Subjail Road, New Pet"
+                  placeholder="Hospital Address"
                 />
 
                 <div className="grid grid-cols-3 gap-2">
@@ -687,19 +687,19 @@ export const SuperAdminHospitalsPage = () => {
                     label="City"
                     value={credentialsForm.city}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, city: e.target.value })}
-                    placeholder="Krishnagiri"
+                    placeholder="City"
                   />
                   <Input
                     label="State"
                     value={credentialsForm.state}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, state: e.target.value })}
-                    placeholder="Tamil Nadu"
+                    placeholder="State"
                   />
                   <Input
                     label="PIN Code"
                     value={credentialsForm.postalCode}
                     onChange={(e) => setCredentialsForm({ ...credentialsForm, postalCode: e.target.value })}
-                    placeholder="635001"
+                    placeholder="Pincode"
                   />
                 </div>
 

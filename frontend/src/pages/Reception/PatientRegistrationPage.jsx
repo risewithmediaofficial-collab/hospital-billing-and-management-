@@ -353,7 +353,7 @@ export const PatientRegistrationPage = () => {
                   icon={Phone}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   required
                 />
 
@@ -435,7 +435,7 @@ export const PatientRegistrationPage = () => {
                     label="Guardian / Relative Name (Optional)"
                     value={formData.guardianName}
                     onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
-                    placeholder="e.g. John Doe (Optional)"
+                    placeholder="Guardian Name (Optional)"
                   />
                   <Input
                     label="Guardian Mobile Number (Optional)"

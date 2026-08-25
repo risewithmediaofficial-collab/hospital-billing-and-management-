@@ -307,7 +307,7 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   required
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                 />
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
@@ -382,14 +382,14 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                     label="Guardian / Relative Name (Optional)"
                     value={formData.guardianName}
                     onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
-                    placeholder="e.g. Parent / Spouse Name"
+                    placeholder="Guardian Name (Optional)"
                   />
                   <Input
                     label="Guardian Mobile Number (Optional)"
                     icon={Phone}
                     value={formData.guardianPhone}
                     onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 XXXXX XXXXX"
                   />
                 </div>
               </div>

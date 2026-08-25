@@ -844,7 +844,7 @@ export const SuperAdminReportsPage = () => {
               <label className="text-xs font-bold text-slate-700">New Password</label>
               <input
                 type="text"
-                placeholder="Enter new password (e.g. Staff123!)"
+                placeholder="Enter new password"
                 value={newPasswordInput}
                 onChange={(e) => setNewPasswordInput(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"

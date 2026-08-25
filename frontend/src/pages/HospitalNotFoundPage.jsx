@@ -32,7 +32,7 @@ export const HospitalNotFoundPage = ({ domain }) => {
             <Building2 size={14} /> Please verify the hospital URL slug
           </div>
           <p className="text-slate-400">
-            Check the spelling of your hospital domain name in the address bar (e.g. <span className="text-indigo-400 font-mono">/guman/login</span> or <span className="text-indigo-400 font-mono">/apollo-hosur/login</span>).
+            Check the spelling of your hospital domain name in the address bar (e.g. <span className="text-indigo-400 font-mono">/hospital-name/login</span>).
           </p>
         </div>
 

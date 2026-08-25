@@ -79,7 +79,7 @@ export const MarkCleaningCompleteModal = ({ isOpen, onClose, bed = null, onSucce
               </label>
               <Input
                 type="text"
-                placeholder="e.g. Maria / Shift Clean Team"
+                placeholder="Staff Name / Cleaning Team"
                 value={cleanedByName}
                 onChange={(e) => setCleanedByName(e.target.value)}
                 className="w-full text-xs font-semibold"

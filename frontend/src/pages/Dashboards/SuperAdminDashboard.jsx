@@ -291,10 +291,10 @@ export const SuperAdminDashboard = () => {
                 </div>
               ) : (
                 <form onSubmit={handleDirectCreate} className="space-y-4 text-xs">
-                  <Input label="Hospital Client Name" value={directForm.hospitalName} onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })} placeholder="e.g. City General Hospital" required />
-                  <Input label="Subdomain / Code" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="e.g. citygeneral" required />
-                  <Input label="Hospital Authorized Officer Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="e.g. Dr. Robert Vance" required />
-                  <Input label="Hospital Admin Email (Handover Login ID)" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="e.g. admin@citygeneral.com" required />
+                  <Input label="Hospital Client Name" value={directForm.hospitalName} onChange={(e) => setDirectForm({ ...directForm, hospitalName: e.target.value })} placeholder="Hospital Name" required />
+                  <Input label="Subdomain / Code" value={directForm.subdomain} onChange={(e) => setDirectForm({ ...directForm, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') })} placeholder="hospital-name" required />
+                  <Input label="Hospital Authorized Officer Name" value={directForm.contactName} onChange={(e) => setDirectForm({ ...directForm, contactName: e.target.value })} placeholder="Your Name" required />
+                  <Input label="Hospital Admin Email (Handover Login ID)" type="email" value={directForm.contactEmail} onChange={(e) => setDirectForm({ ...directForm, contactEmail: e.target.value })} placeholder="email@gmail.com" required />
                   <Input label="Hospital Admin Password" type="password" value={directForm.adminPassword} onChange={(e) => setDirectForm({ ...directForm, adminPassword: e.target.value })} placeholder="Minimum 8 characters" required />
 
                   <div className="flex gap-2 pt-2">
