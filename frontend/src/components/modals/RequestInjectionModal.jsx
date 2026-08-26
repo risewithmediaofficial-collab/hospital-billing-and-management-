@@ -19,8 +19,9 @@ const COMMON_INJECTIONS = [
 
 export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId, tokenNumber, doctorId, doctorName, onSuccess }) => {
   useScrollLock(isOpen);
+  const [selectedPreset, setSelectedPreset] = useState('');
   const [medicineName, setMedicineName] = useState('');
-  const [dose, setDose] = useState('1 Ampoule IV Stat');
+  const [dose, setDose] = useState('');
   const [route, setRoute] = useState('IV');
   const [taskType, setTaskType] = useState('INJECTION');
   const [priority, setPriority] = useState('STAT');
@@ -32,12 +33,13 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedPreset('');
       setMedicineName('');
-      setDose('1 Ampoule IV Stat');
+      setDose('');
       setRoute('IV');
       setTaskType('INJECTION');
       setPriority('STAT');
-      setDoctorInstructions('Administer immediately in nursing/injection station.');
+      setDoctorInstructions('');
       setAssignedNurseId('AUTO_ASSIGN');
       setErrorMsg(null);
       fetchAvailableNurses();
@@ -56,11 +58,22 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
 
   if (!isOpen || !patient) return null;
 
-  const handleSelectQuick = (inj) => {
-    setMedicineName(inj.name);
-    setDose(inj.dose);
-    setRoute(inj.route);
-    setTaskType(inj.type);
+  const handleSelectPreset = (presetName) => {
+    setSelectedPreset(presetName);
+    if (!presetName || presetName === 'CUSTOM') {
+      if (presetName === 'CUSTOM') {
+        setMedicineName('');
+        setDose('');
+      }
+      return;
+    }
+    const found = COMMON_INJECTIONS.find((inj) => inj.name === presetName);
+    if (found) {
+      setMedicineName(found.name);
+      setDose(found.dose);
+      setRoute(found.route);
+      setTaskType(found.type);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -126,28 +139,25 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
               </div>
             )}
 
-            {/* Quick Templates */}
+            {/* Quick Templates Dropdown */}
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider flex items-center gap-1">
                 <Sparkles size={13} className="text-purple-600" />
                 Quick Clinical Presets (Click to Auto-Fill)
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <select
+                value={selectedPreset}
+                onChange={(e) => handleSelectPreset(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15 cursor-pointer"
+              >
+                <option value="">-- Select a Preset to Auto-Fill (or Type Own Medicine Below) --</option>
                 {COMMON_INJECTIONS.map((inj) => (
-                  <button
-                    key={inj.name}
-                    type="button"
-                    onClick={() => handleSelectQuick(inj)}
-                    className={`text-left p-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer flex items-center justify-between ${
-                      medicineName === inj.name
-                        ? 'bg-purple-50 border-purple-500 text-purple-950 font-bold shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
-                    }`}
-                  >
-                    <span className="truncate">{inj.name}</span>
-                  </button>
+                  <option key={inj.name} value={inj.name}>
+                    {inj.name}
+                  </option>
                 ))}
-              </div>
+                <option value="CUSTOM">✏️ Custom / Type Own Medicine</option>
+              </select>
             </div>
 
             {/* Medication Name & Dosage */}
@@ -159,8 +169,13 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
                 <input
                   type="text"
                   value={medicineName}
-                  onChange={(e) => setMedicineName(e.target.value)}
-                  placeholder="e.g. Inj. Paracetamol IV"
+                  onChange={(e) => {
+                    setMedicineName(e.target.value);
+                    if (selectedPreset && selectedPreset !== e.target.value) {
+                      setSelectedPreset('CUSTOM');
+                    }
+                  }}
+                  placeholder="e.g. Inj. Paracetamol IV or type own medicine"
                   required
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15"
                 />

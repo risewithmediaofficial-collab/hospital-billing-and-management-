@@ -4,6 +4,8 @@ import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
+import { useNotificationStore } from '../../store/notificationStore';
+import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Stethoscope, X, AlertCircle, Plus, Trash2, CheckCircle2,
@@ -45,8 +47,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     guardianAddress: '',
   });
 
-  const [consultationFee, setConsultationFee] = useState(0);
-  const [emergencyFee, setEmergencyFee] = useState(0);
+  const [consultationFee, setConsultationFee] = useState('');
+  const [emergencyFee, setEmergencyFee] = useState('');
   const [doctorProcedureCharges, setDoctorProcedureCharges] = useState([]);
   const [pharmacyMode, setPharmacyMode] = useState('IN_HOUSE_PHARMACY'); // 'IN_HOUSE_PHARMACY' | 'EXTERNAL_NO_INHOUSE_PHARMACY'
 
@@ -55,15 +57,15 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       medicineName: '',
       genericName: '',
       dosageForm: 'TABLET',
-      dosage: '1 Tablet',
+      dosage: '',
       frequency: 'TWICE_DAILY',
-      durationDays: 5,
+      durationDays: '',
       timing: 'AFTER_FOOD',
       treatmentType: 'ORAL_TAKE_HOME',
       instructions: '',
       externalPurchaseRequired: false,
-      unitPrice: 0,
-      quantity: 10,
+      unitPrice: '',
+      quantity: '',
       totalPrice: 0,
     },
   ]);
@@ -127,8 +129,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       setHistoryOfPresentIllness('');
       setFollowUpDate('');
       setAdviceToPatient('');
-      setConsultationFee(0);
-      setEmergencyFee(0);
+      setConsultationFee('');
+      setEmergencyFee('');
       setDoctorProcedureCharges([]);
 
       // Pre-fill existing medicines if returned from Billing or Pharmacy
@@ -139,15 +141,15 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
             medicineName: m.medicineName || '',
             genericName: m.genericName || '',
             dosageForm: m.dosageForm || 'TABLET',
-            dosage: m.dosage || '1 Tablet',
+            dosage: m.dosage || '',
             frequency: m.frequency || 'TWICE_DAILY',
-            durationDays: Number(m.durationDays) || 5,
+            durationDays: m.durationDays !== undefined && m.durationDays !== null ? m.durationDays : '',
             timing: m.timing || 'AFTER_FOOD',
             treatmentType: m.treatmentType || 'ORAL_TAKE_HOME',
             instructions: m.instructions || '',
             externalPurchaseRequired: Boolean(m.externalPurchaseRequired),
-            unitPrice: Number(m.unitPrice || m.price || 0),
-            quantity: Number(m.quantity || m.dispensedQty || 10),
+            unitPrice: m.unitPrice !== undefined && m.unitPrice !== null ? m.unitPrice : '',
+            quantity: m.quantity !== undefined && m.quantity !== null ? m.quantity : '',
             totalPrice: Number(m.totalPrice || 0),
           }))
         );
@@ -157,15 +159,15 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
             medicineName: '',
             genericName: '',
             dosageForm: 'TABLET',
-            dosage: '1 Tablet',
+            dosage: '',
             frequency: 'TWICE_DAILY',
-            durationDays: 5,
+            durationDays: '',
             timing: 'AFTER_FOOD',
             treatmentType: 'ORAL_TAKE_HOME',
             instructions: '',
             externalPurchaseRequired: false,
-            unitPrice: 0,
-            quantity: 10,
+            unitPrice: '',
+            quantity: '',
             totalPrice: 0,
           },
         ]);
@@ -227,15 +229,15 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
         medicineName: '',
         genericName: '',
         dosageForm: 'TABLET',
-        dosage: '1 Tablet',
+        dosage: '',
         frequency: 'TWICE_DAILY',
-        durationDays: 5,
+        durationDays: '',
         timing: 'AFTER_FOOD',
         treatmentType: 'ORAL_TAKE_HOME',
         instructions: '',
         externalPurchaseRequired: false,
-        unitPrice: 0,
-        quantity: 10,
+        unitPrice: '',
+        quantity: '',
         totalPrice: 0,
       },
     ]);
@@ -247,9 +249,19 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       u[index][field] = value;
 
       if (field === 'durationDays' && !u[index].quantityManuallyEdited) {
-        const d = Number(value) || 5;
-        const freqMultiplier = u[index].frequency === 'THRICE_DAILY' ? 3 : u[index].frequency === 'ONCE_DAILY' ? 1 : 2;
-        u[index].quantity = d * freqMultiplier;
+        if (value === '' || value === null) {
+          u[index].quantity = '';
+        } else {
+          const d = Number(value) || 0;
+          const freqMultiplier = u[index].frequency === 'THRICE_DAILY' ? 3 : u[index].frequency === 'ONCE_DAILY' ? 1 : u[index].frequency === 'FOUR_TIMES_DAILY' ? 4 : 2;
+          u[index].quantity = d > 0 ? d * freqMultiplier : '';
+        }
+      }
+
+      if (field === 'frequency' && !u[index].quantityManuallyEdited && u[index].durationDays) {
+        const d = Number(u[index].durationDays) || 0;
+        const freqMultiplier = value === 'THRICE_DAILY' ? 3 : value === 'ONCE_DAILY' ? 1 : value === 'FOUR_TIMES_DAILY' ? 4 : 2;
+        u[index].quantity = d > 0 ? d * freqMultiplier : '';
       }
 
       if (field === 'quantity') {
@@ -257,8 +269,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       }
 
       const isOutside = u[index].externalPurchaseRequired || pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY';
-      const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
-      const p = Number(u[index].unitPrice !== undefined ? u[index].unitPrice : 0);
+      const q = Number(u[index].quantity || 0);
+      const p = Number(u[index].unitPrice || 0);
 
       if (isOutside) {
         u[index].totalPrice = 0;
@@ -280,9 +292,9 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
         u[index].dosageForm = med.dosageForm || 'TABLET';
         u[index].strength = med.strength;
         const p = Number(med.sellingPrice) || 0;
-        u[index].unitPrice = p;
+        u[index].unitPrice = p > 0 ? p : '';
         u[index].price = p;
-        const q = Number(u[index].quantity || ((Number(u[index].durationDays) || 5) * 2));
+        const q = Number(u[index].quantity || 0);
         u[index].totalPrice = pharmacyMode === 'EXTERNAL_NO_INHOUSE_PHARMACY' ? 0 : q * p;
         u[index].externalPurchaseRequired = (med.totalQuantity ?? 0) === 0;
         return u;
@@ -290,7 +302,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     }
   };
 
-  const handleAddProcedureRow = () => setDoctorProcedureCharges((prev) => [...prev, { description: '', amount: 0 }]);
+  const handleAddProcedureRow = () => setDoctorProcedureCharges((prev) => [...prev, { description: '', amount: '' }]);
   const handleRemoveProcedureRow = (index) => setDoctorProcedureCharges((prev) => prev.filter((_, idx) => idx !== index));
   const handleProcedureChange = (index, field, value) => setDoctorProcedureCharges((prev) => { const u = [...prev]; u[index][field] = value; return u; });
 
@@ -350,6 +362,18 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
           : { isRecommended: false },
       });
       setShowConfirmModal(false);
+      try {
+        if (token?._id) {
+          useNotificationStore.getState().resolveEntityNotification(String(token._id));
+          useDepartmentNotificationStore.getState().resolvePending(String(token._id));
+        }
+        if (activePatient?._id) {
+          useNotificationStore.getState().resolveEntityNotification(String(activePatient._id));
+          useDepartmentNotificationStore.getState().resolvePending(String(activePatient._id));
+        }
+        useDepartmentNotificationStore.getState().fetchPendingWork?.();
+        useNotificationStore.getState().fetchNotifications?.('active');
+      } catch {}
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
@@ -441,6 +465,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                   <Input
                     type="number"
                     min="0"
+                    placeholder="0"
                     onWheel={(e) => e.target.blur()}
                     value={consultationFee}
                     onChange={(e) => setConsultationFee(e.target.value)}
@@ -451,6 +476,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                   <Input
                     type="number"
                     min="0"
+                    placeholder="0"
                     onWheel={(e) => e.target.blur()}
                     value={emergencyFee}
                     onChange={(e) => setEmergencyFee(e.target.value)}
@@ -566,7 +592,8 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                           <input
                             type="number"
                             min="1"
-                            value={med.durationDays || 5}
+                            placeholder="e.g. 5"
+                            value={med.durationDays !== undefined && med.durationDays !== null ? med.durationDays : ''}
                             onChange={(e) => handleMedicineChange(idx, 'durationDays', e.target.value)}
                             className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:border-indigo-500"
                           />
@@ -599,9 +626,10 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                           <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Quantity (Units)</label>
                           <input
                             type="number"
-                            min="1"
+                            min="0"
+                            placeholder="0"
                             onWheel={(e) => e.target.blur()}
-                            value={med.quantity || 10}
+                            value={med.quantity !== undefined && med.quantity !== null ? med.quantity : ''}
                             onChange={(e) => handleMedicineChange(idx, 'quantity', e.target.value)}
                             className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
                           />
@@ -616,7 +644,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                               step="0.5"
                               min="0"
                               onWheel={(e) => e.target.blur()}
-                              value={med.unitPrice !== undefined ? med.unitPrice : 0}
+                              value={med.unitPrice !== undefined && med.unitPrice !== null ? med.unitPrice : ''}
                               onChange={(e) => handleMedicineChange(idx, 'unitPrice', e.target.value)}
                               placeholder="0"
                               className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
@@ -627,7 +655,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                         <div className="sm:col-span-2 text-left sm:text-center">
                           <span className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Line Total</span>
                           <span className="font-mono font-black text-sm text-indigo-700">
-                            ₹{((Number(med.quantity || 10)) * Number(med.unitPrice || 0)).toFixed(2)}
+                            ₹{((Number(med.quantity || 0)) * Number(med.unitPrice || 0)).toFixed(2)}
                           </span>
                         </div>
 

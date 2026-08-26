@@ -183,8 +183,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
     socket.on('workflow:notification', handleRefresh);
     socket.on('workflow:pending_changed', handleRefresh);
     socket.on('notification:created', handleRefresh);
+    socket.on('notification:completed', handleRefresh);
     socket.on('notification:cleared', handleRefresh);
     socket.on('notification:read', handleRefresh);
+    socket.on('opd_queue:status_changed', handleRefresh);
     socket.on('patient:registered', handleRefresh);
     socket.on('patient:created', handleRefresh);
     socket.on('token:generated', handleRefresh);
@@ -208,8 +210,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
       socket.off('workflow:notification', handleRefresh);
       socket.off('workflow:pending_changed', handleRefresh);
       socket.off('notification:created', handleRefresh);
+      socket.off('notification:completed', handleRefresh);
       socket.off('notification:cleared', handleRefresh);
       socket.off('notification:read', handleRefresh);
+      socket.off('opd_queue:status_changed', handleRefresh);
       socket.off('patient:registered', handleRefresh);
       socket.off('patient:created', handleRefresh);
       socket.off('token:generated', handleRefresh);

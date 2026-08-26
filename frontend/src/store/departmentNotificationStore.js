@@ -176,7 +176,29 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   fetchInitialNotifications: async () => get().fetchPendingWork(),
   refreshPendingWork: async () => get().fetchPendingWork(),
   addNotification: () => get().fetchPendingWork(),
-  resolvePending: () => get().fetchPendingWork(),
+  resolvePending: (resourceId) => {
+    if (!resourceId) {
+      get().fetchPendingWork();
+      return;
+    }
+    const resStr = String(resourceId);
+    set((state) => {
+      const remaining = state.notifications.filter((n) => (
+        String(n.resourceId) !== resStr &&
+        String(n.id) !== resStr &&
+        String(n._id) !== resStr &&
+        String(n.entityId) !== resStr &&
+        String(n.appointmentId) !== resStr &&
+        String(n.patientId) !== resStr &&
+        !String(n.linkedPath || '').includes(resStr)
+      ));
+      return {
+        notifications: remaining,
+        unreadCount: Math.max(0, remaining.length),
+      };
+    });
+    get().fetchPendingWork();
+  },
 
   markAsRead: () => get().fetchPendingWork(),
   markAllAsRead: () => get().fetchPendingWork(),
@@ -203,7 +225,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     // 3. Fallback: Check active unread notifications from notificationStore
     try {
       const bellNotifs = useNotificationStore.getState().notifications || [];
-      const unreadBellMatching = bellNotifs.filter((item) => !item.isRead && pathMatches(item.linkedPath || item.targetRoute || item.link, navPath, item)).length;
+      const unreadBellMatching = bellNotifs.filter((item) => !item.isRead && !item.isCompleted && !item.isCleared && pathMatches(item.linkedPath || item.targetRoute || item.link, navPath, item)).length;
       if (unreadBellMatching > 0) return unreadBellMatching;
     } catch {}
 

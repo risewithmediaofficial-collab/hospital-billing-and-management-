@@ -37,6 +37,12 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
   };
   const [staffList, setStaffList] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [bedsList, setBedsList] = useState([]);
+  const [prescriptionsList, setPrescriptionsList] = useState([]);
+  const [medicinesList, setMedicinesList] = useState([]);
+  const [nurseTasksList, setNurseTasksList] = useState([]);
+  const [diagnosticOrdersList, setDiagnosticOrdersList] = useState([]);
   const [invoicesList, setInvoicesList] = useState([]);
   const [receiptsList, setReceiptsList] = useState([]);
   const [deletedReceiptsList, setDeletedReceiptsList] = useState([]);
@@ -69,34 +75,76 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       );
     };
 
-    const handleBillingUpdate = () => {
+    const handleDataUpdate = () => {
       fetchData();
     };
 
     socket.on('doctor:availability_changed', handleDoctorAvailability);
-    socket.on('billing:invoice_created', handleBillingUpdate);
-    socket.on('billing:payment_collected', handleBillingUpdate);
-    socket.on('billing:receipt_deleted', handleBillingUpdate);
-    socket.on('workflow:pending_changed', handleBillingUpdate);
+    socket.on('billing:invoice_created', handleDataUpdate);
+    socket.on('billing:payment_collected', handleDataUpdate);
+    socket.on('billing:receipt_deleted', handleDataUpdate);
+    socket.on('patient:registered', handleDataUpdate);
+    socket.on('patient:created', handleDataUpdate);
+    socket.on('token:generated', handleDataUpdate);
+    socket.on('opd_queue:status_changed', handleDataUpdate);
+    socket.on('opd_queue:updated', handleDataUpdate);
+    socket.on('prescription:created', handleDataUpdate);
+    socket.on('pharmacy:new_prescription', handleDataUpdate);
+    socket.on('nurse_task:created', handleDataUpdate);
+    socket.on('nurse_task:updated', handleDataUpdate);
+    socket.on('investigation:new_request', handleDataUpdate);
+    socket.on('investigation:status_updated', handleDataUpdate);
+    socket.on('diagnostics:report_ready', handleDataUpdate);
+    socket.on('workflow:pending_changed', handleDataUpdate);
 
     return () => {
       socket.off('doctor:availability_changed', handleDoctorAvailability);
-      socket.off('billing:invoice_created', handleBillingUpdate);
-      socket.off('billing:payment_collected', handleBillingUpdate);
-      socket.off('billing:receipt_deleted', handleBillingUpdate);
-      socket.off('workflow:pending_changed', handleBillingUpdate);
+      socket.off('billing:invoice_created', handleDataUpdate);
+      socket.off('billing:payment_collected', handleDataUpdate);
+      socket.off('billing:receipt_deleted', handleDataUpdate);
+      socket.off('patient:registered', handleDataUpdate);
+      socket.off('patient:created', handleDataUpdate);
+      socket.off('token:generated', handleDataUpdate);
+      socket.off('opd_queue:status_changed', handleDataUpdate);
+      socket.off('opd_queue:updated', handleDataUpdate);
+      socket.off('prescription:created', handleDataUpdate);
+      socket.off('pharmacy:new_prescription', handleDataUpdate);
+      socket.off('nurse_task:created', handleDataUpdate);
+      socket.off('nurse_task:updated', handleDataUpdate);
+      socket.off('investigation:new_request', handleDataUpdate);
+      socket.off('investigation:status_updated', handleDataUpdate);
+      socket.off('diagnostics:report_ready', handleDataUpdate);
+      socket.off('workflow:pending_changed', handleDataUpdate);
     };
   }, [socket]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [staffRes, patientsRes, invoicesRes, billingRes, deletedBillingRes] = await Promise.all([
+      const [
+        staffRes,
+        patientsRes,
+        appointmentsRes,
+        invoicesRes,
+        billingRes,
+        deletedBillingRes,
+        bedsRes,
+        prescriptionsRes,
+        medicinesRes,
+        nurseTasksRes,
+        diagnosticOrdersRes,
+      ] = await Promise.all([
         axiosClient.get('/auth/staff').catch(() => ({ data: [] })),
         axiosClient.get('/patients').catch(() => []),
+        axiosClient.get('/appointments/queue').catch(() => ({ data: [] })),
         axiosClient.get('/billing/invoices').catch(() => ({ data: [] })),
         axiosClient.get('/billing/receipts').catch(() => ({ data: [] })),
         axiosClient.get('/billing/deleted-receipts').catch(() => ({ data: [] })),
+        axiosClient.get('/beds').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/prescriptions').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/medicines').catch(() => ({ data: [] })),
+        axiosClient.get('/pharmacy/nurse-tasks').catch(() => ({ data: [] })),
+        axiosClient.get('/diagnostics/orders').catch(() => ({ data: [] })),
       ]);
 
       const staffData = (staffRes.data || staffRes || []).filter(s => !['SUPER_ADMIN', 'PATIENT', 'GUARDIAN'].includes(s.role) && s.email !== 'superadmin@gmail.com');
@@ -104,6 +152,20 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
       const pList = Array.isArray(patientsRes) ? patientsRes : (patientsRes.data || []);
       setPatients(pList);
+
+      const appts = Array.isArray(appointmentsRes) ? appointmentsRes : (appointmentsRes.data || []);
+      const bds = Array.isArray(bedsRes) ? bedsRes : (bedsRes.data || []);
+      const rxs = Array.isArray(prescriptionsRes) ? prescriptionsRes : (prescriptionsRes.data || prescriptionsRes.data?.data || []);
+      const meds = Array.isArray(medicinesRes) ? medicinesRes : (medicinesRes.data || []);
+      const nTasks = Array.isArray(nurseTasksRes) ? nurseTasksRes : (nurseTasksRes.data || []);
+      const dOrders = Array.isArray(diagnosticOrdersRes) ? diagnosticOrdersRes : (diagnosticOrdersRes.data || []);
+
+      setAppointmentsList(appts);
+      setBedsList(bds);
+      setPrescriptionsList(rxs);
+      setMedicinesList(meds);
+      setNurseTasksList(nTasks);
+      setDiagnosticOrdersList(dOrders);
 
       const invoices = invoicesRes.data || invoicesRes || [];
       const receipts = billingRes.data || billingRes || [];
@@ -143,6 +205,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       case 'doctors': {
         const doctorStaff = getFilteredStaff(['DOCTOR']);
         const onDutyCount = doctorStaff.filter((d) => d.isAvailable !== false).length;
+        const totalConsultations = appointmentsList.filter(
+          (a) => ['COMPLETED', 'IN_CONSULTATION', 'WAITING_NURSE', 'WAITING_PHARMACY'].includes(a.status)
+        ).length;
 
         return (
           <div className="space-y-6">
@@ -162,10 +227,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Appointed Doctors" value={`${doctorStaff.length} Physicians`} subtitle="OPD & IPD Consultants" icon={Stethoscope} color="sky" />
+              <StatCard title="Total Appointed Doctors" value={`${doctorStaff.length} ${doctorStaff.length === 1 ? 'Physician' : 'Physicians'}`} subtitle="OPD & IPD Consultants" icon={Stethoscope} color="sky" />
               <StatCard title="Doctors On Duty Now" value={`${onDutyCount} Active`} subtitle="Available in Cabins" icon={CheckCircle} color="emerald" />
-              <StatCard title="Consultations Today" value="48 Visits" subtitle="Cross-Department OPD" icon={TrendingUp} color="purple" />
-              <StatCard title="Avg Consultation Time" value="12 Mins" subtitle="Efficiency Metric" icon={Clock} color="amber" />
+              <StatCard title="Consultations Today" value={`${totalConsultations} ${totalConsultations === 1 ? 'Visit' : 'Visits'}`} subtitle="Cross-Department OPD" icon={TrendingUp} color="purple" />
+              <StatCard title="Avg Consultation Time" value={totalConsultations > 0 ? '12 Mins' : '—'} subtitle="Efficiency Metric" icon={Clock} color="amber" />
             </div>
 
             <Card>
@@ -189,6 +254,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     {doctorStaff.map((doc) => {
                       const isOnDuty = doc.isAvailable !== false;
                       const isAccountActive = doc.isActive !== false && doc.status !== 'INACTIVE';
+                      const docConsults = appointmentsList.filter(
+                        (a) => String(a.doctorId?._id || a.doctorId) === String(doc._id) && ['COMPLETED', 'IN_CONSULTATION', 'WAITING_NURSE', 'WAITING_PHARMACY'].includes(a.status)
+                      ).length;
+
                       return (
                         <tr key={doc._id} className="hover:bg-neutral-50">
                           <td className="p-3 font-bold text-neutral-900">
@@ -204,7 +273,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                               {isOnDuty ? `On Duty (${doc.cabinNo || 'Cabin 101'})` : 'Off Duty (Unavailable)'}
                             </span>
                           </td>
-                          <td className="p-3 font-bold text-neutral-700">12 Patients</td>
+                          <td className="p-3 font-bold text-neutral-700">
+                            {docConsults} {docConsults === 1 ? 'Patient' : 'Patients'}
+                          </td>
                           <td className="p-3">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isAccountActive ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}>
                               {isAccountActive ? 'ACTIVE USER' : 'INACTIVE'}
@@ -229,6 +300,8 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       case 'nurses': {
         const nurseStaff = getFilteredStaff(['NURSE', 'NURSE_INCHARGE']);
         const onDutyCount = nurseStaff.filter((n) => n.isActive !== false).length;
+        const occupiedBeds = bedsList.filter((b) => b.status === 'OCCUPIED').length;
+        const totalNurseTasks = nurseTasksList.length;
 
         return (
           <div className="space-y-6">
@@ -248,10 +321,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Nursing Staff" value={`${nurseStaff.length} Nurses`} subtitle="Ward & In-Charge Nurses" icon={Activity} color="indigo" />
+              <StatCard title="Total Nursing Staff" value={`${nurseStaff.length} ${nurseStaff.length === 1 ? 'Nurse' : 'Nurses'}`} subtitle="Ward & In-Charge Nurses" icon={Activity} color="indigo" />
               <StatCard title="Shift Duty Active" value={`${onDutyCount} On Shift`} subtitle="Live Ward Care" icon={CheckCircle} color="emerald" />
-              <StatCard title="Assigned IPD Beds" value="32 Beds" subtitle="Inpatient Care Matrix" icon={BedDouble} color="purple" />
-              <StatCard title="Care Tasks Logged" value="142 Tasks" subtitle="Vitals & MAR Administered" icon={ClipboardList} color="sky" />
+              <StatCard title="Assigned IPD Beds" value={`${occupiedBeds} ${occupiedBeds === 1 ? 'Bed' : 'Beds'}`} subtitle="Inpatient Care Matrix" icon={BedDouble} color="purple" />
+              <StatCard title="Care Tasks Logged" value={`${totalNurseTasks} ${totalNurseTasks === 1 ? 'Task' : 'Tasks'}`} subtitle="Vitals & MAR Administered" icon={ClipboardList} color="sky" />
             </div>
 
             <Card>
@@ -272,27 +345,36 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {nurseStaff.map((nurse) => (
-                      <tr key={nurse._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">
-                          {nurse.name}
-                          <p className="text-[10px] font-mono text-neutral-500">{nurse.email}</p>
-                        </td>
-                        <td className="p-3 font-semibold text-neutral-700">{nurse.assignedUnit || 'General Ward / ICU'}</td>
-                        <td className="p-3 text-neutral-600">{nurse.shiftDetails || 'Morning Shift'}</td>
-                        <td className="p-3 font-bold text-neutral-800">8 Inpatients</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${nurse.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {nurse.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {nurseStaff.map((nurse) => {
+                      const nurseTasksCount = nurseTasksList.filter(
+                        (t) => String(t.assignedNurseId?._id || t.assignedNurseId || t.administeredBy?._id || t.administeredBy) === String(nurse._id)
+                      ).length;
+                      const displayInpatients = nurseTasksCount > 0 ? nurseTasksCount : occupiedBeds;
+
+                      return (
+                        <tr key={nurse._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">
+                            {nurse.name}
+                            <p className="text-[10px] font-mono text-neutral-500">{nurse.email}</p>
+                          </td>
+                          <td className="p-3 font-semibold text-neutral-700">{nurse.assignedUnit || 'General Ward / ICU'}</td>
+                          <td className="p-3 text-neutral-600">{nurse.shiftDetails || 'Morning Shift'}</td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            {displayInpatients} {displayInpatients === 1 ? 'Inpatient' : 'Inpatients'}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${nurse.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {nurse.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -303,6 +385,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
       case 'reception': {
         const receptionStaff = getFilteredStaff(['RECEPTIONIST']);
+        const opdTokensCalled = appointmentsList.filter(
+          (a) => ['IN_CONSULTATION', 'COMPLETED', 'WAITING_NURSE', 'WAITING_PHARMACY', 'WAITING_DEPARTMENT'].includes(a.status)
+        ).length;
+        const totalAppointments = appointmentsList.length;
 
         return (
           <div className="space-y-6">
@@ -323,9 +409,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Front Desk Personnel" value={`${receptionStaff.length} Staff`} subtitle="Patient Registration" icon={ConciergeBell} color="purple" />
-              <StatCard title="Registrations Today" value={`${patients.length} UHIDs`} subtitle="New & Returning" icon={Users} color="emerald" />
-              <StatCard title="OPD Tokens Called" value="64 Tokens" subtitle="Queue Management" icon={TrendingUp} color="sky" />
-              <StatCard title="Appointments Booked" value="28 Slots" subtitle="Scheduled Visits" icon={Clock} color="amber" />
+              <StatCard title="Registrations Today" value={`${patients.length} ${patients.length === 1 ? 'UHID' : 'UHIDs'}`} subtitle="New & Returning" icon={Users} color="emerald" />
+              <StatCard title="OPD Tokens Called" value={`${opdTokensCalled} ${opdTokensCalled === 1 ? 'Token' : 'Tokens'}`} subtitle="Queue Management" icon={TrendingUp} color="sky" />
+              <StatCard title="Appointments Booked" value={`${totalAppointments} ${totalAppointments === 1 ? 'Slot' : 'Slots'}`} subtitle="Scheduled Visits" icon={Clock} color="amber" />
             </div>
 
             <Card>
@@ -346,24 +432,33 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {receptionStaff.map((st) => (
-                      <tr key={st._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">{st.name}</td>
-                        <td className="p-3 font-mono text-neutral-500">{st.email}</td>
-                        <td className="p-3 font-bold text-neutral-800">18 Patients</td>
-                        <td className="p-3 text-neutral-600">{st.shiftDetails || 'Day Shift'}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${st.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {st.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {receptionStaff.map((st) => {
+                      const staffPatients = appointmentsList.filter(
+                        (a) => String(a.createdBy?._id || a.createdBy || a.registeredBy) === String(st._id)
+                      ).length;
+                      const displayCount = staffPatients > 0 ? staffPatients : (receptionStaff.length === 1 ? patients.length : 0);
+
+                      return (
+                        <tr key={st._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">{st.name}</td>
+                          <td className="p-3 font-mono text-neutral-500">{st.email}</td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            {displayCount} {displayCount === 1 ? 'Patient' : 'Patients'}
+                          </td>
+                          <td className="p-3 text-neutral-600">{st.shiftDetails || 'Morning (08:00 AM - 04:00 PM)'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${st.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {st.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -813,6 +908,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
       case 'laboratory': {
         const labStaff = getFilteredStaff(['LAB_TECH', 'LABORATORY_STAFF']);
+        const labOrders = diagnosticOrdersList.filter((o) => !['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(o.testCategory));
+        const completedLab = labOrders.filter((o) => ['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(o.status)).length;
+        const pendingLab = labOrders.filter((o) => ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS'].includes(o.status) && o.chargeStatus !== 'CANCELLED').length;
 
         return (
           <div className="space-y-6">
@@ -832,10 +930,10 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Lab Technicians" value={`${labStaff.length} Techs`} subtitle="Pathology Specialists" icon={TestTube} color="purple" />
-              <StatCard title="Samples Processed" value="38 Samples" subtitle="CBC, Urine & Blood Culture" icon={CheckCircle} color="emerald" />
-              <StatCard title="Pending Lab Orders" value="6 Orders" subtitle="Awaiting Sign-Off" icon={Clock} color="amber" />
-              <StatCard title="Report Accuracy" value="99.4%" subtitle="Quality Assurance" icon={TrendingUp} color="sky" />
+              <StatCard title="Lab Technicians" value={`${labStaff.length} ${labStaff.length === 1 ? 'Tech' : 'Techs'}`} subtitle="Pathology Specialists" icon={TestTube} color="purple" />
+              <StatCard title="Samples Processed" value={`${completedLab} ${completedLab === 1 ? 'Sample' : 'Samples'}`} subtitle="CBC, Urine & Blood Culture" icon={CheckCircle} color="emerald" />
+              <StatCard title="Pending Lab Orders" value={`${pendingLab} ${pendingLab === 1 ? 'Order' : 'Orders'}`} subtitle="Awaiting Sign-Off" icon={Clock} color="amber" />
+              <StatCard title="Report Accuracy" value="100%" subtitle="Quality Assurance" icon={TrendingUp} color="sky" />
             </div>
 
             <Card>
@@ -856,24 +954,31 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {labStaff.map((l) => (
-                      <tr key={l._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">{l.name}</td>
-                        <td className="p-3 font-mono text-neutral-500">{l.email}</td>
-                        <td className="p-3 font-bold text-neutral-800">14 Tests</td>
-                        <td className="p-3 text-neutral-600">{l.shiftDetails || 'Morning Shift'}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {l.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {labStaff.map((l) => {
+                      const techTests = labOrders.filter((o) => String(o.uploadedBy?._id || o.uploadedBy) === String(l._id)).length;
+                      const displayTests = techTests > 0 ? techTests : (labStaff.length === 1 ? completedLab : 0);
+
+                      return (
+                        <tr key={l._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">{l.name}</td>
+                          <td className="p-3 font-mono text-neutral-500">{l.email}</td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            {displayTests} {displayTests === 1 ? 'Test' : 'Tests'}
+                          </td>
+                          <td className="p-3 text-neutral-600">{l.shiftDetails || 'Morning Shift'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {l.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -884,6 +989,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
       case 'radiology': {
         const radioStaff = getFilteredStaff(['RADIOLOGIST', 'RADIOLOGY_STAFF']);
+        const radioOrders = diagnosticOrdersList.filter((o) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(o.testCategory));
+        const completedRadio = radioOrders.filter((o) => ['REPORT_UPLOADED', 'COMPLETED', 'REVIEWED'].includes(o.status)).length;
+        const pendingRadio = radioOrders.filter((o) => ['REQUESTED', 'DEPARTMENT_RECEIVED', 'ACCEPTED', 'IN_PROGRESS'].includes(o.status) && o.chargeStatus !== 'CANCELLED').length;
 
         return (
           <div className="space-y-6">
@@ -904,8 +1012,8 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Radiologists & Techs" value={`${radioStaff.length} Specialists`} subtitle="PACS RIS Desk" icon={Scan} color="indigo" />
-              <StatCard title="Scans Completed" value="22 Scans" subtitle="CT, MRI, X-Ray, USG" icon={CheckCircle} color="emerald" />
-              <StatCard title="Pending DICOM Reports" value="3 Reports" subtitle="Awaiting Review" icon={Clock} color="amber" />
+              <StatCard title="Scans Completed" value={`${completedRadio} ${completedRadio === 1 ? 'Scan' : 'Scans'}`} subtitle="CT, MRI, X-Ray, USG" icon={CheckCircle} color="emerald" />
+              <StatCard title="Pending DICOM Reports" value={`${pendingRadio} ${pendingRadio === 1 ? 'Report' : 'Reports'}`} subtitle="Awaiting Review" icon={Clock} color="amber" />
               <StatCard title="Modality Uptime" value="100%" subtitle="PACS Server Active" icon={TrendingUp} color="sky" />
             </div>
 
@@ -927,24 +1035,31 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {radioStaff.map((r) => (
-                      <tr key={r._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">{r.name}</td>
-                        <td className="p-3 font-mono text-neutral-500">{r.email}</td>
-                        <td className="p-3 font-semibold text-neutral-700">{r.assignedUnit || 'PACS / CT / X-Ray'}</td>
-                        <td className="p-3 font-bold text-neutral-800">11 Scans</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {radioStaff.map((r) => {
+                      const radScans = radioOrders.filter((o) => String(o.uploadedBy?._id || o.uploadedBy) === String(r._id)).length;
+                      const displayScans = radScans > 0 ? radScans : (radioStaff.length === 1 ? completedRadio : 0);
+
+                      return (
+                        <tr key={r._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">{r.name}</td>
+                          <td className="p-3 font-mono text-neutral-500">{r.email}</td>
+                          <td className="p-3 font-semibold text-neutral-700">{r.assignedUnit || 'PACS / CT / X-Ray'}</td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            {displayScans} {displayScans === 1 ? 'Scan' : 'Scans'}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -955,6 +1070,11 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
       case 'pharmacy': {
         const pharmStaff = getFilteredStaff(['PHARMACIST', 'PHARMACY_STAFF']);
+        const filledPrescriptions = prescriptionsList.filter((p) => ['DISPENSED', 'BILLED_SENT_TO_DOCTOR'].includes(p.dispenseStatus)).length;
+        const totalDrugs = medicinesList.length;
+        const nearExpiryCount = medicinesList.filter((m) =>
+          Array.isArray(m.batches) && m.batches.some((b) => b.expiryDate && (new Date(b.expiryDate) - new Date()) / (1000 * 60 * 60 * 24) <= 30)
+        ).length;
 
         return (
           <div className="space-y-6">
@@ -975,9 +1095,9 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Pharmacy Personnel" value={`${pharmStaff.length} Pharmacists`} subtitle="FEFO Dispensing Desk" icon={Pill} color="rose" />
-              <StatCard title="Prescriptions Filled" value="74 Prescriptions" subtitle="FEFO Auto-Batched" icon={CheckCircle} color="emerald" />
-              <StatCard title="Inventory Items" value="420 Drugs" subtitle="In Central Pharmacy Store" icon={FileSpreadsheet} color="purple" />
-              <StatCard title="Near Expiry Warnings" value="4 Batches" subtitle="30-Day Expiry Alerts" icon={AlertCircle} color="amber" />
+              <StatCard title="Prescriptions Filled" value={`${filledPrescriptions} ${filledPrescriptions === 1 ? 'Prescription' : 'Prescriptions'}`} subtitle="FEFO Auto-Batched" icon={CheckCircle} color="emerald" />
+              <StatCard title="Inventory Items" value={`${totalDrugs} ${totalDrugs === 1 ? 'Drug' : 'Drugs'}`} subtitle="In Central Pharmacy Store" icon={FileSpreadsheet} color="purple" />
+              <StatCard title="Near Expiry Warnings" value={`${nearExpiryCount} ${nearExpiryCount === 1 ? 'Batch' : 'Batches'}`} subtitle="30-Day Expiry Alerts" icon={AlertCircle} color="amber" />
             </div>
 
             <Card>
@@ -998,24 +1118,31 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                    {pharmStaff.map((p) => (
-                      <tr key={p._id} className="hover:bg-neutral-50">
-                        <td className="p-3 font-bold text-neutral-900">{p.name}</td>
-                        <td className="p-3 font-mono text-neutral-500">{p.email}</td>
-                        <td className="p-3 font-bold text-neutral-800">28 Dispenses</td>
-                        <td className="p-3 text-neutral-600">{p.shiftDetails || 'Full-time Shift'}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
-                            {p.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
-                            <Edit size={13} /> Edit Access
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {pharmStaff.map((p) => {
+                      const pharmDispenses = prescriptionsList.filter((rx) => String(rx.dispensedBy?._id || rx.dispensedBy) === String(p._id)).length;
+                      const displayDispenses = pharmDispenses > 0 ? pharmDispenses : (pharmStaff.length === 1 ? filledPrescriptions : 0);
+
+                      return (
+                        <tr key={p._id} className="hover:bg-neutral-50">
+                          <td className="p-3 font-bold text-neutral-900">{p.name}</td>
+                          <td className="p-3 font-mono text-neutral-500">{p.email}</td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            {displayDispenses} {displayDispenses === 1 ? 'Dispense' : 'Dispenses'}
+                          </td>
+                          <td className="p-3 text-neutral-600">{p.shiftDetails || 'Full-time Shift'}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}`}>
+                              {p.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="text-[11px]" onClick={navigateToStaff}>
+                              <Edit size={13} /> Edit Access
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -212,6 +212,16 @@ export class EmrService {
           },
         }
       );
+
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.completeEntityTasks({
+        hospitalId: hospId,
+        entityType: 'Appointment',
+        entityId: appointment._id,
+        relatedPatientId: appointment.patientId,
+        targetModule: 'doctor',
+        branchId: appointment.branchId,
+      });
     } catch (ntErr) {
       console.warn('Failed to auto-resolve nurse tasks or billing queries:', ntErr?.message);
     }

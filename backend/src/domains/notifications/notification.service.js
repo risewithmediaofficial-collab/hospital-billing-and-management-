@@ -454,4 +454,55 @@ export class NotificationService {
     }
     return { success: true };
   }
+
+  /**
+   * Complete all notifications related to a finished entity or clinical work item
+   */
+  static async completeEntityTasks({ hospitalId, entityType, entityId, relatedPatientId, targetModule, recipientRole, branchId }) {
+    if (!hospitalId && !entityId && !relatedPatientId) return;
+    const filter = {
+      isCompleted: { $ne: true },
+      ...(hospitalId ? { hospitalId } : {}),
+      $or: [
+        ...(entityId ? [
+          { entityId: String(entityId) },
+          { relatedTaskId: String(entityId) },
+          { relatedRequestId: String(entityId) },
+          { 'metadata.appointmentId': String(entityId) },
+          { 'metadata.orderId': String(entityId) },
+          { 'metadata.taskId': String(entityId) },
+          { 'metadata.invoiceId': String(entityId) },
+          { 'metadata.prescriptionId': String(entityId) },
+          { 'metadata.substitutionId': String(entityId) },
+        ] : []),
+        ...(relatedPatientId ? [
+          {
+            relatedPatientId,
+            ...(targetModule ? { targetModule } : { targetModule: { $in: ['doctor', 'DOCTOR'] } }),
+            ...(recipientRole ? { recipientRole } : {}),
+          },
+        ] : []),
+      ],
+    };
+
+    const notifs = await Notification.find(filter).lean().catch(() => []);
+    if (notifs.length > 0) {
+      const ids = notifs.map((n) => n._id);
+      await Notification.updateMany(
+        { _id: { $in: ids } },
+        { $set: { isCompleted: true, completedAt: new Date(), status: 'COMPLETED', isRead: true, readAt: new Date() } }
+      );
+      notifs.forEach((n) => {
+        if (n.recipientUserId) {
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:completed', { notificationId: n._id });
+          socketManager.emitToUser(String(n.recipientUserId), 'notification:read', { notificationId: n._id });
+        }
+      });
+    }
+
+    if (branchId) {
+      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { entityId, status: 'COMPLETED' });
+      socketManager.emitToBranch(branchId, 'notification:cleared', { entityId });
+    }
+  }
 }

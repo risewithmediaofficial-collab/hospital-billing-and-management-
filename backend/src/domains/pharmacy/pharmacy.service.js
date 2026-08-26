@@ -729,6 +729,18 @@ export class PharmacyService {
       status,
     });
 
+    try {
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.completeEntityTasks({
+        hospitalId: user.hospitalId,
+        entityType: 'PharmacySubstitutionRequest',
+        entityId: requestId,
+        branchId: user.branchId,
+      });
+    } catch (err) {
+      console.warn('Failed to clear notifications for substitution response:', err?.message);
+    }
+
     return req;
   }
 

@@ -931,6 +931,11 @@ const targetDocId = user?.id || user?._id;
       });
 
       alert(`✓ Consultation completed! Charges dispatched directly to Central Billing for ${patName}.`);
+      useNotificationStore.getState().resolveEntityNotification(String(targetToken._id));
+      if (targetToken.patientId?._id) {
+        useNotificationStore.getState().resolveEntityNotification(String(targetToken.patientId._id));
+      }
+      useDepartmentNotificationStore.getState().resolvePending(String(targetToken._id));
       setSelectedToken(null);
       setPatientInvestigations([]);
       setPatientNurseTasks([]);
@@ -938,6 +943,7 @@ const targetDocId = user?.id || user?._id;
       fetchDepartmentOrders();
       fetchNurseTasks();
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      useNotificationStore.getState().fetchNotifications?.('active');
     } catch (err) {
       console.error('Failed to complete consultation directly to billing:', err);
       alert(err.response?.data?.message || 'Failed to dispatch to billing');
@@ -948,11 +954,14 @@ const targetDocId = user?.id || user?._id;
     if (!window.confirm('Are you sure you want to cancel this token / appointment?')) return;
     try {
       await axiosClient.patch(`/appointments/tokens/${tokenId}/status`, { status: 'CANCELLED' });
+      useNotificationStore.getState().resolveEntityNotification(String(tokenId));
+      useDepartmentNotificationStore.getState().resolvePending(String(tokenId));
       setSelectedToken(null);
       setPatientInvestigations([]);
       setPatientNurseTasks([]);
       fetchOpdQueue();
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
+      useNotificationStore.getState().fetchNotifications?.('active');
     } catch (err) {
       console.error('Failed to cancel token:', err);
       alert(err.response?.data?.message || 'Failed to cancel duplicate token');
@@ -2391,6 +2400,16 @@ const targetDocId = user?.id || user?._id;
         patient={currentPatient}
         returnedPrescription={selectedReturnedRx || selectedToken?.returnedPrescription}
         onSuccess={() => {
+          const tokId = selectedToken?._id;
+          const pId = currentPatient?._id || currentPatient?.id;
+          if (tokId) {
+            useNotificationStore.getState().resolveEntityNotification(String(tokId));
+            useDepartmentNotificationStore.getState().resolvePending(String(tokId));
+          }
+          if (pId) {
+            useNotificationStore.getState().resolveEntityNotification(String(pId));
+            useDepartmentNotificationStore.getState().resolvePending(String(pId));
+          }
           setSelectedToken(null);
           setPatientInvestigations([]);
           setPatientNurseTasks([]);
@@ -2400,6 +2419,7 @@ const targetDocId = user?.id || user?._id;
           fetchReturnedBillingPrescriptions();
           setSelectedReturnedRx(null);
           useDepartmentNotificationStore.getState().fetchPendingWork?.();
+          useNotificationStore.getState().fetchNotifications?.('active');
         }}
       />
 

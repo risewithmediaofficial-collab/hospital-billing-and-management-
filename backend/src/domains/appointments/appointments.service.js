@@ -200,18 +200,32 @@ export class AppointmentsService {
         patientId: appointment.patientId?._id,
         linkedPath: '/reception/registered-patients?tab=QUEUED',
       }, appointment.branchId);
-    } else if (status === 'COMPLETED') {
-      await WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
-        patientName: pName,
-        senderUserId: user?.id || user?._id,
-        uhid,
-        doctorName: docName,
-        hospitalId,
-        branchId: appointment.branchId,
-        appointmentId: appointment._id,
-        patientId: appointment.patientId?._id,
-        linkedPath: '/billing/dashboard',
-      }, appointment.branchId);
+    } else if (status === 'COMPLETED' || status === 'CANCELLED') {
+      if (status === 'COMPLETED') {
+        await WorkflowEventService.emit(WORKFLOW_EVENTS.CONSULTATION_COMPLETE, {
+          patientName: pName,
+          senderUserId: user?.id || user?._id,
+          uhid,
+          doctorName: docName,
+          hospitalId,
+          branchId: appointment.branchId,
+          appointmentId: appointment._id,
+          patientId: appointment.patientId?._id,
+          linkedPath: '/billing/dashboard',
+        }, appointment.branchId);
+      }
+      try {
+        const { NotificationService } = await import('../notifications/notification.service.js');
+        await NotificationService.completeEntityTasks({
+          hospitalId,
+          entityType: 'Appointment',
+          entityId: appointment._id,
+          relatedPatientId: appointment.patientId?._id || appointment.patientId,
+          branchId: appointment.branchId,
+        });
+      } catch (err) {
+        console.warn('Failed to complete notifications on appointment status update:', err?.message);
+      }
     }
 
     return appointment;
