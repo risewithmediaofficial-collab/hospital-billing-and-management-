@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: false, sparse: true, lowercase: true, trim: true, default: null },
     phone: { type: String, trim: true, default: '' },
     loginIds: [{ type: String, trim: true, index: true }],
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String, required: true, select: false },
     // Legacy cleanup-only field. Never return recoverable passwords.
     assignedPasswordHint: { type: String, default: '', select: false },
     role: { type: String, required: true, enum: Object.values(ROLES), index: true },
@@ -55,16 +55,44 @@ const userSchema = new mongoose.Schema(
     permissionUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     lastLoginAt: { type: Date },
 
-    // Email Verification & Password Reset Security
+    // Email Verification & Password Reset Security (Exempt from API responses)
     isEmailVerified: { type: Boolean, default: true }, // Default true for seed/admin users, updated dynamically for registrations
-    emailVerificationToken: { type: String, default: null },
-    emailVerificationExpires: { type: Date, default: null },
-    passwordResetToken: { type: String, default: null },
-    passwordResetExpires: { type: Date, default: null },
-    failedLoginAttempts: { type: Number, default: 0 },
-    lockUntil: { type: Date, default: null },
+    emailVerificationToken: { type: String, default: null, select: false },
+    emailVerificationExpires: { type: Date, default: null, select: false },
+    passwordResetToken: { type: String, default: null, select: false },
+    passwordResetExpires: { type: Date, default: null, select: false },
+    failedLoginAttempts: { type: Number, default: 0, select: false },
+    lockUntil: { type: Date, default: null, select: false },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform: function (doc, ret) {
+        delete ret.passwordHash;
+        delete ret.assignedPasswordHint;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
+        delete ret.emailVerificationToken;
+        delete ret.emailVerificationExpires;
+        delete ret.failedLoginAttempts;
+        delete ret.lockUntil;
+        return ret;
+      },
+    },
+    toObject: {
+      transform: function (doc, ret) {
+        delete ret.passwordHash;
+        delete ret.assignedPasswordHint;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
+        delete ret.emailVerificationToken;
+        delete ret.emailVerificationExpires;
+        delete ret.failedLoginAttempts;
+        delete ret.lockUntil;
+        return ret;
+      },
+    },
+  }
 );
 
 userSchema.pre('save', async function (next) {
@@ -87,6 +115,7 @@ userSchema.post('findOneAndUpdate', async function syncUpdatedIdentity(document)
 });
 
 userSchema.methods.comparePassword = async function (enteredPassword) {
+  if (!this.passwordHash) return false;
   return await bcrypt.compare(enteredPassword, this.passwordHash);
 };
 

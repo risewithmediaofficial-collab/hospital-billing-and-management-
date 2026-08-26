@@ -9,6 +9,9 @@ import { requireBranchContext, requireHospitalContext } from '../../utils/tenant
 export const FIFO_QUEUE_SORT = { appointmentDate: 1, tokenNumber: 1, createdAt: 1, _id: 1 };
 
 export class AppointmentsService {
+  static DOCTOR_SAFE_FIELDS = '_id name email phone role departmentId specialization cabinNo isAvailable consultationFee';
+  static PATIENT_SAFE_FIELDS = '_id firstName lastName uhid gender age phone bloodGroup category admissionStatus emergencyContact allergies vitals';
+
   static async issueToken(data, user) {
     const hospitalId = requireHospitalContext(user);
     const branchId = requireBranchContext(user);
@@ -143,7 +146,91 @@ export class AppointmentsService {
       linkedPath: `/doctor/dashboard?tab=LIVE&appointmentId=${appointment._id}&patientId=${patient._id}`,
     }, branchId || doctor.branchId);
 
-    return await Appointment.findById(appointment._id).populate('patientId').populate('doctorId');
+    return await Appointment.findById(appointment._id).populate('patientId', this.PATIENT_SAFE_FIELDS).populate('doctorId', this.DOCTOR_SAFE_FIELDS);
+  }
+
+  static async generateOpdToken(data, user) {
+    const hospitalId = requireHospitalContext(user);
+    const branchId = data.branchId || user?.branchId;
+
+    const patient = await Patient.findOne({ _id: data.patientId, hospitalId });
+    if (!patient) {
+      throw new ApiError(404, 'Patient record not found', null, 'NOT_FOUND');
+    }
+
+    const doctor = await User.findOne({ _id: data.doctorId, hospitalId, role: 'DOCTOR' });
+    if (!doctor) {
+      throw new ApiError(404, 'Doctor not found in this hospital', null, 'NOT_FOUND');
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const countToday = await Appointment.countDocuments({
+      hospitalId,
+      doctorId: doctor._id,
+      createdAt: { $gte: todayStart, $lte: todayEnd },
+    });
+
+    const tokenNumber = countToday + 1;
+    const appointmentNo = `APT-${Date.now().toString().slice(-6)}-${tokenNumber}`;
+
+    const appointment = await Appointment.create({
+      hospitalId,
+      branchId: branchId || doctor.branchId,
+      patientId: patient._id,
+      doctorId: doctor._id,
+      departmentId: data.departmentId || doctor.departmentId || 'OPD',
+      appointmentNo,
+      tokenNumber,
+      tokenType: data.tokenType || 'STANDARD',
+      appointmentDate: new Date(),
+      status: 'WAITING',
+      queuePriority: data.queuePriority || 0,
+      fee: data.fee !== undefined ? data.fee : (doctor.consultationFee || 0),
+      paymentStatus: data.paymentStatus || 'PENDING',
+      notes: data.notes || '',
+      registeredBy: user?.id || user?._id,
+    });
+
+    const queuePayload = {
+      appointmentId: appointment._id,
+      tokenNumber,
+      patientId: patient._id,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      uhid: patient.uhid,
+      doctorId: doctor._id,
+      doctorName: doctor.name,
+      cabinNo: doctor.cabinNo || 'Cabin 101',
+      status: 'WAITING',
+      tokenType: appointment.tokenType,
+      createdAt: appointment.createdAt,
+    };
+
+    if (appointment.branchId) {
+      socketManager.emitToBranch(appointment.branchId, 'opd_queue:patient_added', queuePayload);
+    }
+    socketManager.emitToUser(String(doctor._id), 'queue:patient_added', queuePayload);
+    socketManager.emitToUser(String(doctor._id), 'token:generated', queuePayload);
+
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.PATIENT_QUEUED, {
+      patientId: patient._id,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      uhid: patient.uhid,
+      tokenNumber,
+      doctorId: doctor._id,
+      doctorName: doctor.name,
+      hospitalId: hospitalId,
+      branchId: branchId || doctor.branchId,
+      appointmentId: appointment._id,
+      linkedPath: `/doctor/dashboard?tab=LIVE&appointmentId=${appointment._id}&patientId=${patient._id}`,
+    }, branchId || doctor.branchId);
+
+    return await Appointment.findById(appointment._id)
+      .populate('patientId', this.PATIENT_SAFE_FIELDS)
+      .populate('doctorId', this.DOCTOR_SAFE_FIELDS);
   }
 
   static async getOpdQueue(user, doctorId = null) {
@@ -161,14 +248,16 @@ export class AppointmentsService {
     }
 
     return await Appointment.find(filter)
-      .populate('patientId')
-      .populate('doctorId')
+      .populate('patientId', this.PATIENT_SAFE_FIELDS)
+      .populate('doctorId', this.DOCTOR_SAFE_FIELDS)
       .sort(FIFO_QUEUE_SORT);
   }
 
   static async updateTokenStatus(appointmentId, status, user) {
     const hospitalId = requireHospitalContext(user);
-    const appointment = await Appointment.findOne({ _id: appointmentId, hospitalId }).populate('patientId').populate('doctorId');
+    const appointment = await Appointment.findOne({ _id: appointmentId, hospitalId })
+      .populate('patientId', this.PATIENT_SAFE_FIELDS)
+      .populate('doctorId', this.DOCTOR_SAFE_FIELDS);
     if (!appointment) {
       throw new ApiError(404, 'OPD token appointment not found', null, 'NOT_FOUND');
     }

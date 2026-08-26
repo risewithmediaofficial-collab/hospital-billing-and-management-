@@ -194,7 +194,10 @@ export class AuthService {
         { employeeId: cleanId.toUpperCase() },
         { uhid: cleanId.toUpperCase() },
       ],
-    }).populate('hospitalId').populate('branchId');
+    })
+      .select('+passwordHash +failedLoginAttempts +lockUntil')
+      .populate('hospitalId')
+      .populate('branchId');
 
     // Filter out users belonging to deleted/soft-deleted hospitals
     candidates = candidates.filter((candidate) => {
@@ -602,7 +605,7 @@ export class AuthService {
       throw new ApiError(400, 'New password must be at least 8 characters long.', null, 'WEAK_PASSWORD');
     }
     if (adminUser?.role !== 'SUPER_ADMIN') {
-      const adminDoc = adminId ? await User.findOne(this.staffManagementFilter(adminId, adminUser)) : null;
+      const adminDoc = adminId ? await User.findOne(this.staffManagementFilter(adminId, adminUser)).select('+passwordHash') : null;
       if (!adminDoc) {
         throw new ApiError(404, 'Admin account not found. Please log out and log in again.', null, 'NOT_FOUND');
       }
@@ -611,7 +614,7 @@ export class AuthService {
       }
     }
 
-    const staffDoc = await User.findOne(this.staffManagementFilter(staffId, adminUser));
+    const staffDoc = await User.findOne(this.staffManagementFilter(staffId, adminUser)).select('+passwordHash +passwordResetToken +passwordResetExpires');
     if (!staffDoc) {
       throw new ApiError(404, 'Staff user account not found', null, 'NOT_FOUND');
     }
@@ -965,7 +968,7 @@ export class AuthService {
     const user = await User.findOne({
       emailVerificationToken: token,
       emailVerificationExpires: { $gt: new Date() },
-    });
+    }).select('+emailVerificationToken +emailVerificationExpires');
     if (!user) {
       throw new ApiError(400, 'Invalid or expired email verification token.', null, 'INVALID_TOKEN');
     }
@@ -1092,7 +1095,7 @@ export class AuthService {
     const user = await User.findOne({
       passwordResetToken: token,
       passwordResetExpires: { $gt: new Date() },
-    });
+    }).select('+passwordResetToken +passwordResetExpires +passwordHash +failedLoginAttempts +lockUntil');
 
     if (!user) {
       throw new ApiError(400, 'Invalid or expired password reset token.', null, 'INVALID_TOKEN');

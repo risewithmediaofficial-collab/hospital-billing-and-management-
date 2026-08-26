@@ -69,7 +69,7 @@ export async function autoEnsureSystemCredentials() {
       });
     }
 
-    let superAdminUser = await User.findOne({ email: "superadmin@gmail.com" });
+    let superAdminUser = await User.findOne({ email: "superadmin@gmail.com" }).select('+passwordHash');
     if (!superAdminUser) {
       if (bootstrapPassword.length < 12) {
         console.warn('[AutoSeed] SuperAdmin was not created. Set SUPER_ADMIN_BOOTSTRAP_PASSWORD (minimum 12 characters) for the initial bootstrap.');
