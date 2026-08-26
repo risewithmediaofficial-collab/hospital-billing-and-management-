@@ -21,12 +21,19 @@ export const SocketProvider = ({ children }) => {
     const socketInstance = io('/', {
       auth: { token },
       autoConnect: true,
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      transports: ['polling', 'websocket'],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     socketInstance.on('connect', () => {
       console.log('[Socket.IO Client] Connected to server successfully');
+    });
+
+    socketInstance.on('connect_error', (err) => {
+      console.warn('[Socket.IO Client] Real-time sync connection notice:', err.message);
     });
 
     socketInstance.on('emergency:code_blue_triggered', (data) => {
