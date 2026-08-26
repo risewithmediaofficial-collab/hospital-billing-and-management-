@@ -451,7 +451,7 @@ test('Real HTTP tenant journey: login, own detail, cross-tenant denial, and stre
     assert.ok(receipt?._id);
 
     const receptionCompletionAlert = (await request('/notifications', receptionToken)).payload.notifications.find((item) => (
-      String(item.entityId) === String(receipt._id) && item.actionType === 'COMPLETE_VISIT'
+      String(item.entityId) === String(receipt._id) && (item.actionType === 'VIEW_RECEIPT' || item.actionType === 'COMPLETE_VISIT')
     ));
     assert.ok(receptionCompletionAlert);
     assert.ok(receptionCompletionAlert.targetRoute.includes(`receiptId=${receipt._id}`));

@@ -535,8 +535,6 @@ const HospitalAdminDashboardInner = () => {
   const handleOpenChangeModal = (staff) => {
     setSelectedStaff(staff);
     setChangeForm({ newPassword: '', adminPassword: '' });
-    setShowNewPassword(false);
-    setShowAdminPasswordChange(false);
     setErrorMsg(null);
     setIsChangeModalOpen(true);
   };
@@ -1221,76 +1219,6 @@ const HospitalAdminDashboardInner = () => {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Legacy password-reveal dialog is intentionally disabled: passwords are reset, never retrieved. */}
-      {false && selectedStaff && (
-        <div className="modal-overlay animate-fade-in">
-          <div className="modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-600 flex-shrink-0">
-                  <Eye size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-neutral-900">View Staff Password</h3>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Staff: <span className="font-bold text-neutral-700">{selectedStaff.name} ({selectedStaff.email})</span>
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setIsViewModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="modal-body space-y-4 text-xs">
-              {errorMsg && (
-                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center gap-2">
-                  <AlertCircle size={16} /> {errorMsg}
-                </div>
-              )}
-
-              {revealedPassword !== null ? (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-center space-y-2">
-                    <p className="text-xs text-neutral-500">Current Assigned Password:</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-2xl font-mono font-extrabold text-neutral-900 tracking-wider">
-                        {showRevealedPassword ? revealedPassword : '••••••••'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowRevealedPassword(!showRevealedPassword)}
-                        className="text-neutral-500 hover:text-neutral-900 p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
-                        aria-label={showRevealedPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showRevealedPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-                  <Button variant="primary" className="w-full font-bold" onClick={() => setIsViewModalOpen(false)}>
-                    Close Password View
-                  </Button>
-                </div>
-              ) : (
-                <form onSubmit={handleFetchPassword} className="space-y-4">
-                  <PasswordInput
-                    label="Enter Your Hospital Admin Password to Reveal Credentials"
-                    value={viewAdminPassword}
-                    onChange={(e) => setViewAdminPassword(e.target.value)}
-                    placeholder="Enter your admin password"
-                    required
-                  />
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" className="w-1/2" onClick={() => setIsViewModalOpen(false)}>Cancel</Button>
-                    <Button type="submit" variant="primary" className="w-1/2 font-bold" isLoading={isLoading}>Reveal Password</Button>
-                  </div>
-                </form>
-              )}
-            </div>
           </div>
         </div>
       )}

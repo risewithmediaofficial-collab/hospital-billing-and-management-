@@ -166,9 +166,6 @@ export const SuperAdminHospitalsPage = () => {
 
   const openEditCredentialsModal = (hosp) => {
     setEditingHospital(hosp);
-    setShowCurrentPassword(false);
-    setShowPassword(false);
-    setShowConfirmPassword(false);
     setCredentialsForm({
       hospitalName: hosp.name || '',
       domain: hosp.domain || hosp.subdomain || '',
