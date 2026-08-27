@@ -20,17 +20,17 @@ const patientSchema = new mongoose.Schema(
     activeAdmissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admission', default: null },
     admissionCount: { type: Number, default: 0 }, // total admissions ever in this hospital
     firstName: { type: String, required: true, trim: true },
-    lastName: { type: String, required: true, trim: true },
+    lastName: { type: String, default: '', trim: true },
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'], default: 'MALE' },
     age: { type: Number },
-    dob: { type: Date, default: () => new Date('1995-01-01') },
+    dob: { type: Date, default: null },
     chiefComplaints: { type: String, default: '' },
     bloodGroup: {
       type: String,
-      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'O_POSITIVE', 'O_NEGATIVE', 'A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE', 'AB_POSITIVE', 'AB_NEGATIVE'],
-      default: 'O+'
+      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'O_POSITIVE', 'O_NEGATIVE', 'A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE', 'AB_POSITIVE', 'AB_NEGATIVE', '', null, 'UNKNOWN'],
+      default: ''
     },
-    phone: { type: String, default: '+1 (555) 000-0000', trim: true, index: true },
+    phone: { type: String, default: '', trim: true, index: true },
     email: { type: String, trim: true, lowercase: true, default: '' },
     nationalId: { type: String, default: '' },
     address: { type: String, default: 'General Registration' },

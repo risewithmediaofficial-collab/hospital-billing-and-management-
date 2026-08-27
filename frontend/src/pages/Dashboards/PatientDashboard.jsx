@@ -533,20 +533,20 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-slate-500 font-medium">Date of Birth (Login DOB)</span>
                 <p className="font-bold text-indigo-700 text-sm mt-0.5">
-                  {patient.dob ? formatDate(patient.dob) : '10 Nov 2004'}
+                  {patient.dob ? formatDate(patient.dob) : 'Not Specified'}
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-slate-500 font-medium">Gender & Age</span>
                 <p className="font-bold text-slate-900 text-sm mt-0.5">
-                  {patient.gender || 'MALE'} &bull; {patient.age ? `${patient.age} Yrs` : '21 Yrs'}
+                  {patient.gender || 'MALE'} &bull; {patient.age ? `${patient.age} Yrs` : '—'}
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-slate-500 font-medium">Blood Group</span>
-                <p className="font-bold text-red-600 text-sm mt-0.5">{patient.bloodGroup || 'O+'}</p>
+                <p className="font-bold text-red-600 text-sm mt-0.5">{patient.bloodGroup || 'Not Specified'}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">

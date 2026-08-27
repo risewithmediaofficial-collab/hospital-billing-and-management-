@@ -51,7 +51,7 @@ export const UserProfilePopover = ({ isOpen, onClose }) => {
   return (
     <div
       ref={popoverRef}
-      className="absolute right-0 top-14 w-88 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900"
+      className="absolute right-0 top-14 w-88 sm:w-96 max-w-[calc(100vw-20px)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900"
     >
       {/* Header with Avatar & Name */}
       <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white relative">

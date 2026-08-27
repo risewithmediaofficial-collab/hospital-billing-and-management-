@@ -216,7 +216,7 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
   return (
     <div
       ref={dropdownRef}
-      className="absolute right-0 top-12 w-84 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900 flex flex-col max-h-[85vh]"
+      className="absolute right-0 top-12 w-84 sm:w-96 max-w-[calc(100vw-20px)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900 flex flex-col max-h-[85vh]"
     >
       {/* Header */}
       <div className="p-3.5 bg-slate-900 text-white flex items-center justify-between">

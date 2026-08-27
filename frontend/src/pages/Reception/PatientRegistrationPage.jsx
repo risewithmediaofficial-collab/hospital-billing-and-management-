@@ -47,11 +47,11 @@ export const PatientRegistrationPage = () => {
     lastName: '',
     age: '',
     gender: 'MALE',
-    dob: '1995-01-01',
+    dob: '',
     phone: '',
     address: '',
     chiefComplaints: '',
-    bloodGroup: 'O+',
+    bloodGroup: '',
     category: 'GENERAL',
     guardianName: '',
     guardianPhone: '',
@@ -83,8 +83,8 @@ export const PatientRegistrationPage = () => {
 
   const handleInlineSubmit = async (e, issueToken = false, force = false) => {
     if (e) e.preventDefault();
-    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim()) {
-      setError('First name, last name, and patient mobile number are required.');
+    if (!formData.firstName.trim()) {
+      setError('Patient first name is required.');
       return;
     }
     setIsLoading(true);
@@ -100,8 +100,8 @@ export const PatientRegistrationPage = () => {
       
       // Reset form
       setFormData({
-        firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01',
-        phone: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+        firstName: '', lastName: '', age: '', gender: 'MALE', dob: '',
+        phone: '', address: '', chiefComplaints: '', bloodGroup: '', category: 'GENERAL',
         guardianName: '', guardianPhone: '', guardianRelationship: 'FATHER',
       });
       fetchRecentPatients();
@@ -297,7 +297,7 @@ export const PatientRegistrationPage = () => {
             </div>
 
             <form onSubmit={(e) => handleInlineSubmit(e, false)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="First Name *"
                   value={formData.firstName}
@@ -306,11 +306,10 @@ export const PatientRegistrationPage = () => {
                   required
                 />
                 <Input
-                  label="Last Name *"
+                  label="Last Name (Optional)"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  placeholder="Enter last name"
-                  required
+                  placeholder="Enter last name (optional)"
                 />
               </div>
 
@@ -338,12 +337,13 @@ export const PatientRegistrationPage = () => {
                 />
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Blood Group</label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Blood Group (Optional)</label>
                   <select
                     value={formData.bloodGroup}
                     onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                   >
+                    <option value="">Select Blood Group (Optional)</option>
                     {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
                       <option key={bg} value={bg}>{bg}</option>
                     ))}
@@ -353,21 +353,19 @@ export const PatientRegistrationPage = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
-                  label="Mobile / Phone Number *"
+                  label="Mobile / Phone Number (Optional)"
                   icon={Phone}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 XXXXX XXXXX"
-                  required
+                  placeholder="+91 XXXXX XXXXX (optional)"
                 />
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
-                    Date of Birth (DOB) *
+                    Date of Birth (Optional)
                   </label>
                   <input
                     type="date"
-                    required
                     value={formData.dob || ''}
                     onChange={(e) => {
                       const dobVal = e.target.value;
@@ -387,7 +385,7 @@ export const PatientRegistrationPage = () => {
                     className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 font-semibold"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Used for Patient Portal login (Mobile + DOB) & family member matching.
+                    Optional. Used for Patient Portal login & age calculation.
                   </p>
                 </div>
               </div>
@@ -476,8 +474,8 @@ export const PatientRegistrationPage = () => {
                   variant="outline"
                   onClick={() =>
                     setFormData({
-                      firstName: '', lastName: '', age: '', gender: 'MALE', dob: '1995-01-01',
-                      phone: '', address: '', chiefComplaints: '', bloodGroup: 'O+', category: 'GENERAL',
+                      firstName: '', lastName: '', age: '', gender: 'MALE', dob: '',
+                      phone: '', address: '', chiefComplaints: '', bloodGroup: '', category: 'GENERAL',
                       guardianName: '', guardianPhone: '', guardianRelationship: 'FATHER',
                     })
                   }

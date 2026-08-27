@@ -17,16 +17,16 @@ const globalPatientSchema = new mongoose.Schema(
       index: true,
     }, // e.g. GP-2026-00001
     firstName: { type: String, required: true, trim: true },
-    lastName: { type: String, required: true, trim: true },
-    dob: { type: Date },
+    lastName: { type: String, default: '', trim: true },
+    dob: { type: Date, default: null },
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'], default: 'MALE' },
-    primaryPhone: { type: String, required: true, trim: true },
+    primaryPhone: { type: String, default: '', trim: true },
     email: { type: String, trim: true, lowercase: true, default: '' },
     nationalId: { type: String, default: '', trim: true },
     bloodGroup: {
       type: String,
-      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'O_POSITIVE', 'O_NEGATIVE', 'A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE', 'AB_POSITIVE', 'AB_NEGATIVE'],
-      default: 'O+'
+      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'O_POSITIVE', 'O_NEGATIVE', 'A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE', 'AB_POSITIVE', 'AB_NEGATIVE', '', null, 'UNKNOWN'],
+      default: ''
     },
     allergies: [{ type: String }],
     emergencyContact: {

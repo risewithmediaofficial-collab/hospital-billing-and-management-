@@ -12,14 +12,14 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
     lastName: '',
     age: '',
     gender: 'MALE',
-    dob: '1995-01-01',
+    dob: '',
     phone: '',
     address: '',
     guardianName: '',
     guardianPhone: '',
     guardianRelationship: 'PARENT',
     chiefComplaints: '',
-    bloodGroup: 'O+',
+    bloodGroup: '',
     category: 'GENERAL',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +34,10 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
 
   const handleSubmit = async (e, issueToken = false, force = false) => {
     if (e) e.preventDefault();
+    if (!formData.firstName.trim()) {
+      setError('Patient first name is required.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     setDuplicates([]);
@@ -76,14 +80,14 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
       lastName: '',
       age: '',
       gender: 'MALE',
-      dob: '1995-01-01',
+      dob: '',
       phone: '',
       address: '',
       guardianName: '',
       guardianPhone: '',
       guardianRelationship: 'PARENT',
       chiefComplaints: '',
-      bloodGroup: 'O+',
+      bloodGroup: '',
       category: 'GENERAL',
     });
     setDuplicates([]);
@@ -253,11 +257,10 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                   placeholder="Enter first name"
                 />
                 <Input
-                  label="Last Name *"
+                  label="Last Name (Optional)"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  required
-                  placeholder="Enter last name"
+                  placeholder="Enter last name (optional)"
                 />
               </div>
 
@@ -286,12 +289,13 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
                 />
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Blood Group</label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Blood Group (Optional)</label>
                   <select
                     value={formData.bloodGroup}
                     onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                   >
+                    <option value="">Select Blood Group (Optional)</option>
                     {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
                       <option key={bg} value={bg}>{bg}</option>
                     ))}
@@ -302,20 +306,18 @@ export const RegisterPatientModal = ({ isOpen, onClose, onSuccess, onIssueToken 
               {/* 3. Phone & DOB Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
-                  label="Mobile / Phone Number *"
+                  label="Mobile / Phone Number (Optional)"
                   icon={Phone}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                  placeholder="+91 XXXXX XXXXX"
+                  placeholder="+91 XXXXX XXXXX (optional)"
                 />
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
-                    Date of Birth (DOB) *
+                    Date of Birth (Optional)
                   </label>
                   <input
                     type="date"
-                    required
                     value={formData.dob || ''}
                     onChange={(e) => {
                       const dobVal = e.target.value;

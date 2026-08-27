@@ -263,7 +263,7 @@ export const PatientDetailsModal = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Blood Group:</span>
-                  <span className="font-bold text-red-600">{patient.bloodGroup || 'O+'}</span>
+                  <span className="font-bold text-red-600">{patient.bloodGroup || 'Not Specified'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Patient Category:</span>

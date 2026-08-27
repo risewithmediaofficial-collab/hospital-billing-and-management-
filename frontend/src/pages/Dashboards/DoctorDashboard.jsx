@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { ConsultationModal } from '../../components/modals/ConsultationModal';
+import { DirectToBillingModal } from '../../components/modals/DirectToBillingModal';
 import { RequestInvestigationModal } from '../../components/modals/RequestInvestigationModal';
 import { RequestInjectionModal } from '../../components/modals/RequestInjectionModal';
 import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
@@ -83,6 +84,8 @@ export const DoctorDashboard = () => {
   const [selectedReturnedRx, setSelectedReturnedRx] = useState(null);
   const [resolvingBillingInvoiceId, setResolvingBillingInvoiceId] = useState(null);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
+  const [isDirectBillModalOpen, setIsDirectBillModalOpen] = useState(false);
+  const [directBillToken, setDirectBillToken] = useState(null);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isInjectionModalOpen, setIsInjectionModalOpen] = useState(false);
   const [isAdmitModalOpen, setIsAdmitModalOpen] = useState(false);
@@ -904,50 +907,11 @@ const targetDocId = user?.id || user?._id;
       .catch(() => {});
   };
 
-  const handleDirectToBilling = async (tok) => {
+  const handleDirectToBilling = (tok) => {
     const targetToken = tok || selectedToken;
     if (!targetToken) return;
-    const patName = targetToken.patientId?.firstName
-      ? `${targetToken.patientId.firstName} ${targetToken.patientId.lastName || ''}`.trim()
-      : 'Patient';
-
-    const feeInput = window.prompt(
-      `Send ${patName} directly to Central Billing (No Pharmacy)?\nEnter Doctor Consultation Fee (₹):`,
-      '100'
-    );
-    if (feeInput === null) return; // cancelled
-
-    try {
-      await axiosClient.post('/emr/consultations', {
-        appointmentId: targetToken._id,
-        patientId: targetToken.patientId?._id || targetToken.patientId,
-        chiefComplaints: targetToken.chiefComplaints || 'General Consultation',
-        prescriptions: [],
-        pharmacyMode: 'EXTERNAL_NO_INHOUSE_PHARMACY',
-        consultationFee: Number(feeInput) || 0,
-        emergencyFee: 0,
-        doctorProcedureCharges: [],
-        adviceToPatient: 'Consultation completed without in-house pharmacy. Dispatched directly to Central Billing.',
-      });
-
-      alert(`✓ Consultation completed! Charges dispatched directly to Central Billing for ${patName}.`);
-      useNotificationStore.getState().resolveEntityNotification(String(targetToken._id));
-      if (targetToken.patientId?._id) {
-        useNotificationStore.getState().resolveEntityNotification(String(targetToken.patientId._id));
-      }
-      useDepartmentNotificationStore.getState().resolvePending(String(targetToken._id));
-      setSelectedToken(null);
-      setPatientInvestigations([]);
-      setPatientNurseTasks([]);
-      fetchOpdQueue();
-      fetchDepartmentOrders();
-      fetchNurseTasks();
-      useDepartmentNotificationStore.getState().fetchPendingWork?.();
-      useNotificationStore.getState().fetchNotifications?.('active');
-    } catch (err) {
-      console.error('Failed to complete consultation directly to billing:', err);
-      alert(err.response?.data?.message || 'Failed to dispatch to billing');
-    }
+    setDirectBillToken(targetToken);
+    setIsDirectBillModalOpen(true);
   };
 
   const handleCancelToken = async (tokenId) => {
@@ -2418,6 +2382,38 @@ const targetDocId = user?.id || user?._id;
           fetchNurseTasks();
           fetchReturnedBillingPrescriptions();
           setSelectedReturnedRx(null);
+          useDepartmentNotificationStore.getState().fetchPendingWork?.();
+          useNotificationStore.getState().fetchNotifications?.('active');
+        }}
+      />
+
+      {/* Direct to Billing Modal */}
+      <DirectToBillingModal
+        isOpen={isDirectBillModalOpen}
+        onClose={() => {
+          setIsDirectBillModalOpen(false);
+          setDirectBillToken(null);
+        }}
+        token={directBillToken || selectedToken}
+        onSuccess={() => {
+          const tokId = (directBillToken || selectedToken)?._id;
+          const pId = currentPatient?._id || currentPatient?.id;
+          if (tokId) {
+            useNotificationStore.getState().resolveEntityNotification(String(tokId));
+            useDepartmentNotificationStore.getState().resolvePending(String(tokId));
+          }
+          if (pId) {
+            useNotificationStore.getState().resolveEntityNotification(String(pId));
+            useDepartmentNotificationStore.getState().resolvePending(String(pId));
+          }
+          setSelectedToken(null);
+          setDirectBillToken(null);
+          setPatientInvestigations([]);
+          setPatientNurseTasks([]);
+          fetchOpdQueue();
+          fetchDepartmentOrders();
+          fetchNurseTasks();
+          fetchReturnedBillingPrescriptions();
           useDepartmentNotificationStore.getState().fetchPendingWork?.();
           useNotificationStore.getState().fetchNotifications?.('active');
         }}

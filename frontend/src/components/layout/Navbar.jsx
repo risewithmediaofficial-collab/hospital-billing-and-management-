@@ -132,24 +132,24 @@ export const Navbar = ({ onToggleSidebar }) => {
   })();
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white sticky top-0 z-30 px-3 sm:px-4 xl:px-6 flex items-center justify-between shadow-sm gap-2">
+    <header className="h-16 border-b border-slate-200 bg-white sticky top-0 z-30 px-2 sm:px-3 lg:px-4 xl:px-5 flex items-center justify-between shadow-sm gap-1.5 sm:gap-2 w-full max-w-full">
       {/* Left: Hamburger + Hospital & Branch Switcher Button */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink min-w-0">
         <button
           onClick={onToggleSidebar}
-          className="lg:hidden text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+          className="lg:hidden text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
           aria-label="Toggle sidebar"
         >
           <Menu size={18} />
         </button>
 
         {user?.role === 'SUPER_ADMIN' ? (
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
               <Building2 size={16} />
             </div>
             <div className="hidden sm:block min-w-0">
-              <h1 className="text-xs sm:text-sm font-bold text-slate-800 leading-none truncate max-w-[120px] md:max-w-[160px] xl:max-w-xs">
+              <h1 className="text-xs sm:text-sm font-bold text-slate-800 leading-none truncate max-w-[100px] md:max-w-[140px] lg:max-w-[180px] xl:max-w-[220px]">
                 Super Admin Console
               </h1>
               <span className="text-[10px] text-slate-400 font-medium truncate block mt-0.5">
@@ -158,12 +158,15 @@ export const Navbar = ({ onToggleSidebar }) => {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-1 -ml-1 rounded-xl text-left">
-            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1 -ml-1 rounded-xl text-left min-w-0">
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
               <Building2 size={16} />
             </div>
             <div className="hidden sm:block min-w-0">
-              <h1 className="text-xs sm:text-sm font-bold text-slate-800 leading-none truncate max-w-[120px] md:max-w-[160px] xl:max-w-xs">
+              <h1
+                className="text-xs sm:text-sm font-bold text-slate-800 leading-none truncate max-w-[90px] md:max-w-[130px] lg:max-w-[170px] xl:max-w-[210px]"
+                title={user?.hospitalName || 'Healthcare System'}
+              >
                 {user?.hospitalName || 'Healthcare System'}
               </h1>
               <span className="text-[10px] text-slate-400 font-medium truncate block mt-0.5">
@@ -180,7 +183,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           <button
             type="button"
             onClick={() => handleSwitchMode('WORK')}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-150 ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-bold transition-all duration-150 ${
               currentMode === 'WORK'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -188,14 +191,14 @@ export const Navbar = ({ onToggleSidebar }) => {
             title="Switch to Clinical, Front Desk & Billing Workstations"
           >
             <Stethoscope size={13} className={currentMode === 'WORK' ? 'text-white' : 'text-indigo-600'} />
-            <span className="hidden sm:inline">Work Mode</span>
-            <span className="sm:hidden">Work</span>
+            <span className="hidden md:inline">Work Mode</span>
+            <span className="md:hidden hidden sm:inline">Work</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleSwitchMode('ADMIN')}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-150 ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-bold transition-all duration-150 ${
               currentMode === 'ADMIN'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -203,14 +206,14 @@ export const Navbar = ({ onToggleSidebar }) => {
             title="Switch to Hospital Admin, Staff Roles & Tariffs"
           >
             <Building2 size={13} className={currentMode === 'ADMIN' ? 'text-white' : 'text-slate-600'} />
-            <span className="hidden sm:inline">Admin Mode</span>
-            <span className="sm:hidden">Admin</span>
+            <span className="hidden md:inline">Admin Mode</span>
+            <span className="md:hidden hidden sm:inline">Admin</span>
           </button>
         </div>
       )}
 
-      {/* Right: Notifications + User Info + Logout */}
-      <div className="flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 shrink-0">
+      {/* Right: Availability + Emergency + Chat + Notifications + User Info + Logout */}
+      <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
         {isAdminOrDualMode ? (
           <AdminAvailabilityPopover />
         ) : canSetAvailability ? (
@@ -218,11 +221,15 @@ export const Navbar = ({ onToggleSidebar }) => {
             type="button"
             onClick={handleToggle}
             disabled={isToggling}
-            className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 py-1 rounded-lg border text-xs font-bold transition-colors disabled:opacity-60 cursor-pointer ${isAvailable ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'}`}
+            className={`flex items-center gap-1 sm:gap-1.5 h-8 px-2 py-1 rounded-lg border text-xs font-bold transition-colors disabled:opacity-60 cursor-pointer shrink-0 ${
+              isAvailable
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+            }`}
             title={isAvailable ? 'Available — click to go offline' : 'Unavailable — click to go online'}
           >
             {isAvailable ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span className="hidden sm:inline">{isToggling ? 'Updating…' : (isAvailable ? 'Available' : 'Unavailable')}</span>
+            <span className="hidden md:inline">{isToggling ? 'Updating…' : (isAvailable ? 'Available' : 'Unavailable')}</span>
           </button>
         ) : null}
 
@@ -231,7 +238,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event('open-emergency-modal'))}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer border border-rose-500 shrink-0"
+            className="flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-extrabold shadow-2xs transition-all cursor-pointer border border-rose-500 shrink-0"
             title="Raise Emergency / Code Blue Broadcast"
           >
             <ShieldAlert size={14} className="animate-pulse" />
@@ -248,9 +255,9 @@ export const Navbar = ({ onToggleSidebar }) => {
             aria-label="Hospital Team Chat"
             title="Hospital Staff Team Chat & Communication"
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={15} />
             {useTeamChatStore.getState().unreadTotal > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full text-[9px] font-black bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full text-[9px] font-black bg-indigo-600 text-white flex items-center justify-center shadow-xs">
                 {useTeamChatStore.getState().unreadTotal}
               </span>
             )}
@@ -262,13 +269,13 @@ export const Navbar = ({ onToggleSidebar }) => {
           <div className="relative shrink-0">
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative h-8 w-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-150 flex items-center justify-center cursor-pointer"
+              className="relative h-8 w-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-150 flex items-center justify-center cursor-pointer shrink-0"
               aria-label="Notifications"
               title="Notifications"
             >
-              <Bell size={16} />
+              <Bell size={15} />
               {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full text-[9px] font-black bg-amber-500 text-white flex items-center justify-center shadow-xs animate-pulse">
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full text-[9px] font-black bg-amber-500 text-white flex items-center justify-center shadow-xs animate-pulse">
                   {notificationCount}
                 </span>
               )}
@@ -279,51 +286,42 @@ export const Navbar = ({ onToggleSidebar }) => {
         )}
 
         {/* User Identity & Profile Popover Trigger */}
-        <div className="relative flex items-center pl-1.5 sm:pl-2 border-l border-slate-200 shrink-0">
+        <div className="relative flex items-center pl-1 sm:pl-1.5 border-l border-slate-200 shrink-0 gap-1 sm:gap-1.5">
           <button
             type="button"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-1.5 sm:gap-2 p-1 sm:px-1.5 sm:py-1 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer text-left select-none"
+            className="flex items-center gap-1 sm:gap-1.5 p-0.5 sm:px-1 sm:py-0.5 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer text-left select-none shrink-0"
             title="Click to view user profile, assigned roles & status"
           >
-            <div className="text-right hidden xl:block min-w-0">
-              <p className="text-xs font-bold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors truncate max-w-[120px]">
+            <div className="text-right hidden min-[1400px]:block min-w-0">
+              <p className="text-xs font-bold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors truncate max-w-[100px]">
                 {user?.name}
               </p>
-              <p className="text-[10px] font-semibold text-indigo-500 mt-0.5 truncate max-w-[120px]">
+              <p className="text-[10px] font-semibold text-indigo-500 mt-0.5 truncate max-w-[100px]">
                 {isGuardianView ? 'Guardian Portal' : (ROLE_NAMES[user?.role] || user?.role)}
               </p>
             </div>
 
             {/* Avatar */}
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-indigo-600 group-hover:bg-indigo-700 flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0 shadow-sm transition-transform group-hover:scale-105">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 group-hover:bg-indigo-700 flex items-center justify-center text-white font-bold text-xs sm:text-sm shrink-0 shadow-xs transition-transform group-hover:scale-105">
               {user?.name ? user.name.charAt(0).toUpperCase() : <User size={15} />}
             </div>
 
-            <ChevronDown size={13} className="text-slate-400 group-hover:text-slate-700 transition-transform hidden sm:block" />
+            <ChevronDown size={12} className="text-slate-400 group-hover:text-slate-700 transition-transform hidden sm:block shrink-0" />
           </button>
 
           {/* Profile Popover */}
           <UserProfilePopover isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
 
-          {/* Quick Logout Button */}
+          {/* Quick Logout Button - Always visible on all screens */}
           <button
             type="button"
             onClick={logout}
-            className="hidden sm:flex items-center gap-1.5 ml-1.5 h-8 px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
-            title="Logout"
+            className="flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 text-slate-700 hover:text-rose-700 transition-all font-bold text-xs shrink-0 cursor-pointer shadow-2xs"
+            title="Logout of Hospital Session"
           >
-            <LogOut size={13} />
-            <span className="hidden md:inline">Logout</span>
-          </button>
-
-          {/* Mobile-only icon logout */}
-          <button
-            onClick={logout}
-            className="sm:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors ml-1"
-            aria-label="Logout"
-          >
-            <LogOut size={15} />
+            <LogOut size={14} className="shrink-0" />
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </div>

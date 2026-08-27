@@ -116,51 +116,75 @@ export class PatientsService {
     const hospitalId = requireHospitalContext(user);
     const branchId = requireBranchContext(user);
 
+    const firstName = String(data.firstName || '').trim();
+    if (!firstName) {
+      throw new ApiError(422, 'Patient first name is required.', null, 'VALIDATION_ERROR');
+    }
+
+    const lastName = String(data.lastName || '').trim();
     const patientPhone = String(data.phone || '').trim();
     const guardianPhone = String(data.guardianPhone || '').trim();
-    if (!patientPhone) {
-      throw new ApiError(422, 'Patient mobile number is required.', null, 'VALIDATION_ERROR');
+
+    // Format Date of Birth (Optional - default null)
+    let parsedDob = null;
+    if (data.dob && String(data.dob).trim()) {
+      const d = new Date(data.dob);
+      if (!isNaN(d.getTime())) {
+        parsedDob = d;
+      }
+    }
+
+    // Format Blood Group (Optional - default empty string)
+    let parsedBloodGroup = '';
+    if (data.bloodGroup && String(data.bloodGroup).trim()) {
+      const bg = String(data.bloodGroup).toUpperCase().replace(/_/g, '').trim();
+      if (bg === 'OPOSITIVE' || bg === 'O+') parsedBloodGroup = 'O+';
+      else if (bg === 'ONEGATIVE' || bg === 'O-') parsedBloodGroup = 'O-';
+      else if (bg === 'APOSITIVE' || bg === 'A+') parsedBloodGroup = 'A+';
+      else if (bg === 'ANEGATIVE' || bg === 'A-') parsedBloodGroup = 'A-';
+      else if (bg === 'BPOSITIVE' || bg === 'B+') parsedBloodGroup = 'B+';
+      else if (bg === 'BNEGATIVE' || bg === 'B-') parsedBloodGroup = 'B-';
+      else if (bg === 'ABPOSITIVE' || bg === 'AB+') parsedBloodGroup = 'AB+';
+      else if (bg === 'ABNEGATIVE' || bg === 'AB-') parsedBloodGroup = 'AB-';
+      else parsedBloodGroup = data.bloodGroup.trim();
     }
 
     // --- 1. STRICT EXACT DUPLICATE CHECK (Same Mobile AND Same Date of Birth) ---
     // A single mobile number can have multiple family members (e.g. children with different DOBs),
     // but the EXACT SAME Person (Same Phone + Same DOB) is strictly rejected to prevent duplicate accounts.
     const phoneDigits = patientPhone.replace(/\D/g, '').slice(-10);
-    if (phoneDigits.length >= 8 && data.dob) {
-      const dobDate = new Date(data.dob);
-      if (!isNaN(dobDate.getTime())) {
-        const exactDuplicate = await Patient.findOne({
-          hospitalId,
-          phone: { $regex: phoneDigits, $options: 'i' },
-          dob: {
-            $gte: new Date(new Date(dobDate).setHours(0, 0, 0, 0)),
-            $lte: new Date(new Date(dobDate).setHours(23, 59, 59, 999)),
-          },
-        });
+    if (phoneDigits.length >= 8 && parsedDob) {
+      const exactDuplicate = await Patient.findOne({
+        hospitalId,
+        phone: { $regex: phoneDigits, $options: 'i' },
+        dob: {
+          $gte: new Date(new Date(parsedDob).setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date(parsedDob).setHours(23, 59, 59, 999)),
+        },
+      });
 
-        if (exactDuplicate) {
-          const err = new ApiError(
-            409,
-            `A patient with Mobile ${patientPhone} and Date of Birth ${dobDate.toLocaleDateString()} is already registered as ${exactDuplicate.firstName} ${exactDuplicate.lastName} (UHID: ${exactDuplicate.uhid}). Duplicate registration is not permitted.`,
-            [{
-              _id: exactDuplicate._id,
-              uhid: exactDuplicate.uhid,
-              firstName: exactDuplicate.firstName,
-              lastName: exactDuplicate.lastName,
-              phone: exactDuplicate.phone,
-              dob: exactDuplicate.dob,
-            }],
-            'EXACT_DUPLICATE_FORBIDDEN'
-          );
-          err.exactDuplicate = true;
-          throw err;
-        }
+      if (exactDuplicate) {
+        const err = new ApiError(
+          409,
+          `A patient with Mobile ${patientPhone} and Date of Birth ${parsedDob.toLocaleDateString()} is already registered as ${exactDuplicate.firstName} ${exactDuplicate.lastName} (UHID: ${exactDuplicate.uhid}). Duplicate registration is not permitted.`,
+          [{
+            _id: exactDuplicate._id,
+            uhid: exactDuplicate.uhid,
+            firstName: exactDuplicate.firstName,
+            lastName: exactDuplicate.lastName,
+            phone: exactDuplicate.phone,
+            dob: exactDuplicate.dob,
+          }],
+          'EXACT_DUPLICATE_FORBIDDEN'
+        );
+        err.exactDuplicate = true;
+        throw err;
       }
     }
 
     // --- 2. SOFT DUPLICATE CHECK (unless allowForce is set) ---
-    if (!data.allowForce) {
-      const duplicates = await PatientsService.checkDuplicate({ ...data, phone: patientPhone }, hospitalId);
+    if (!data.allowForce && (patientPhone || firstName)) {
+      const duplicates = await PatientsService.checkDuplicate({ ...data, firstName, lastName, phone: patientPhone, dob: parsedDob }, hospitalId);
       if (duplicates.length > 0) {
         const err = new ApiError(
           409,
@@ -197,16 +221,10 @@ export class PatientsService {
       existingPatient = await Patient.findOne({ uhid });
     }
 
-    // Format Date of Birth
-    let parsedDob = new Date();
-    if (data.dob) {
-      parsedDob = new Date(data.dob);
-    }
-
     // Calculate age if not provided
     let patientAge = data.age ? Number(data.age) : undefined;
-    if (!patientAge && data.dob) {
-      const birthYear = new Date(data.dob).getFullYear();
+    if (!patientAge && parsedDob) {
+      const birthYear = parsedDob.getFullYear();
       patientAge = new Date().getFullYear() - birthYear;
     }
 
@@ -215,24 +233,13 @@ export class PatientsService {
         hospitalId,
         branchId,
         uhid,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        firstName,
+        lastName,
         gender: (data.gender || 'MALE').toUpperCase(),
         age: patientAge,
         dob: parsedDob,
         chiefComplaints: data.chiefComplaints || data.chiefComplaint || '',
-        bloodGroup: (() => {
-          const bg = String(data.bloodGroup || 'O+').toUpperCase().replace(/_/g, '').trim();
-          if (bg === 'OPOSITIVE' || bg === 'O+') return 'O+';
-          if (bg === 'ONEGATIVE' || bg === 'O-') return 'O-';
-          if (bg === 'APOSITIVE' || bg === 'A+') return 'A+';
-          if (bg === 'ANEGATIVE' || bg === 'A-') return 'A-';
-          if (bg === 'BPOSITIVE' || bg === 'B+') return 'B+';
-          if (bg === 'BNEGATIVE' || bg === 'B-') return 'B-';
-          if (bg === 'ABPOSITIVE' || bg === 'AB+') return 'AB+';
-          if (bg === 'ABNEGATIVE' || bg === 'AB-') return 'AB-';
-          return 'O+';
-        })(),
+        bloodGroup: parsedBloodGroup,
         phone: patientPhone,
         email: '',
         nationalId: data.nationalId || '',
@@ -241,7 +248,7 @@ export class PatientsService {
           : (data.address || 'General Registration'),
         city: data.city || 'Metropolis',
         allergies: data.allergies || [],
-        emergencyContact: data.emergencyContact || { name: 'Family Contact', phone: data.phone, relation: 'Family' },
+        emergencyContact: data.emergencyContact || { name: 'Family Contact', phone: patientPhone, relation: 'Family' },
         category: (data.category || 'GENERAL').toUpperCase(),
         qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${uhid}`,
       });
@@ -328,7 +335,7 @@ export class PatientsService {
 
       try {
         const userEmail = `${uhid.toLowerCase()}@hospital.local`;
-        const userPassword = patientPhone;
+        const userPassword = patientPhone || uhid;
         const bcrypt = (await import('bcryptjs')).default;
         const passwordHash = await bcrypt.hash(userPassword, 12);
         const { User } = await import('../../models/User.js');
@@ -337,7 +344,7 @@ export class PatientsService {
         const existingUser = await User.findOne({
           $or: [
             { email: userEmail },
-            { role: 'PATIENT', loginIds: patientPhone },
+            ...(patientPhone ? [{ role: 'PATIENT', loginIds: patientPhone }] : []),
             { uhid },
           ],
         });
@@ -346,10 +353,10 @@ export class PatientsService {
           patientUserAccount = await User.create({
             hospitalId,
             branchId,
-            name: `${data.firstName} ${data.lastName}`,
+            name: `${data.firstName}${data.lastName ? ` ${data.lastName}` : ''}`.trim(),
             email: userEmail,
-            phone: patientPhone,
-            loginIds: [patientPhone],
+            phone: patientPhone || '',
+            loginIds: patientPhone ? [patientPhone, uhid] : [uhid],
             uhid,
             passwordHash,
             role: 'PATIENT',

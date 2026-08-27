@@ -110,7 +110,7 @@ export const AdminAvailabilityPopover = () => {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isToggling}
-        className={`flex items-center gap-1.5 sm:gap-2 h-8 px-2.5 sm:px-3 py-1 rounded-xl border text-xs font-black transition-all shadow-2xs cursor-pointer ${
+        className={`flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-2.5 py-1 rounded-lg border text-xs font-black transition-all shadow-2xs cursor-pointer shrink-0 ${
           isAvailable
             ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100/80'
             : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
@@ -128,19 +128,22 @@ export const AdminAvailabilityPopover = () => {
           ></span>
         </span>
 
-        <span className="hidden sm:inline">
+        <span className="hidden md:inline">
           {isAvailable ? `Available (${activeCount}/${totalCount})` : 'Unavailable'}
+        </span>
+        <span className="md:hidden hidden sm:inline">
+          {isAvailable ? `(${activeCount}/${totalCount})` : 'Off'}
         </span>
         <span className="sm:hidden">
           {isAvailable ? `${activeCount}/${totalCount}` : 'Off'}
         </span>
 
-        <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Popover Content */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[340px] sm:w-[410px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900">
+        <div className="absolute right-0 mt-2 w-[340px] sm:w-[410px] max-w-[calc(100vw-20px)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in text-slate-900">
           {/* Header */}
           <div className="p-4 bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 text-white">
             <div className="flex items-center justify-between">

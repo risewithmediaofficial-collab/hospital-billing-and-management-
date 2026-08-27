@@ -48,7 +48,6 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
   });
 
   const [consultationFee, setConsultationFee] = useState('');
-  const [emergencyFee, setEmergencyFee] = useState('');
   const [doctorProcedureCharges, setDoctorProcedureCharges] = useState([]);
   const [pharmacyMode, setPharmacyMode] = useState('IN_HOUSE_PHARMACY'); // 'IN_HOUSE_PHARMACY' | 'EXTERNAL_NO_INHOUSE_PHARMACY'
 
@@ -220,7 +219,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
     return acc + itemTotal;
   }, 0);
 
-  const grandTotal = Number(consultationFee || 0) + Number(emergencyFee || 0) + totalDoctorProcedureCharges + totalDepartmentCharges + totalPharmacyCharges;
+  const grandTotal = Number(consultationFee || 0) + totalDoctorProcedureCharges + totalDepartmentCharges + totalPharmacyCharges;
 
   const handleAddMedicineRow = () =>
     setPrescriptions((prev) => [
@@ -341,7 +340,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
         prescriptions: validPrescriptions,
         pharmacyMode,
         consultationFee: Number(consultationFee) || 0,
-        emergencyFee: Number(emergencyFee) || 0,
+        emergencyFee: 0,
         doctorProcedureCharges: validProcedureCharges,
         followUpDate: followUpDate || undefined,
         adviceToPatient,
@@ -418,70 +417,47 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
             )}
 
             {/* Billing Return Query Banner */}
-            {returnedQuery && !returnedQuery.resolved && (
-              <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-xs text-amber-950 flex items-start gap-3 shadow-xs animate-fade-in">
-                <div className="p-2 rounded-lg bg-amber-200/80 text-amber-800 shrink-0 mt-0.5">
-                  <Receipt size={18} />
+            {returnedQuery && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                  <AlertTriangle size={15} /> Returned from Central Billing — Clarification Required
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-black text-amber-900 text-sm">
-                      Case Returned by Central Billing ({returnedQuery.requestedByName || 'Cashier'})
-                    </p>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-2xs shrink-0">
-                      BILLING QUERY
-                    </span>
-                  </div>
-                  <div className="mt-1.5 p-2 rounded-lg bg-white/90 border border-amber-200 font-semibold text-slate-800 text-xs">
-                    "{returnedQuery.query}"
-                  </div>
-                  <p className="text-[11px] text-amber-800 mt-1 font-medium">
-                    Please review or update the prescription / consultation fee below. Clicking &ldquo;Finalize Consultation &amp; Send to Billing&rdquo; will automatically resolve this query and update the bill.
-                  </p>
-                </div>
+                <p className="text-xs text-amber-800 pl-5">{returnedQuery.query || 'Cashier requested review of this consultation.'}</p>
+                <p className="text-[11px] text-amber-700 pl-5">
+                  Please review or update the prescription / consultation fee below. Clicking &ldquo;Finalize Consultation &amp; Send to Billing&rdquo; will automatically resolve this query and update the bill.
+                </p>
               </div>
             )}
 
-            {/* Department Reports */}
-            <div className={sectionBg}>
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
-                  <TestTube size={16} className="text-sky-600" /> Department Reports & Charges ({departmentOrders.length})
-                </span>
-                <span className="text-slate-500">
-                  Total: <strong className="text-emerald-700 font-mono">{formatCurrency(totalDepartmentCharges)}</strong>
-                </span>
+            {/* Completed Department Orders Banner (if any) */}
+            {completedDeptOrders.length > 0 && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+                <div className="flex items-center justify-between font-bold text-emerald-800">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 size={15} /> {completedDeptOrders.length} Completed Department Order(s) Included in Bill
+                  </span>
+                  <span className="text-slate-500">
+                    Total: <strong className="text-emerald-700 font-mono">{formatCurrency(totalDepartmentCharges)}</strong>
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Doctor Fees */}
             <div className={sectionBg}>
               <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
                 <Receipt size={16} className="text-indigo-600" /> Doctor Fees & Charges
               </span>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Consultation Fee (₹)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    onWheel={(e) => e.target.blur()}
-                    value={consultationFee}
-                    onChange={(e) => setConsultationFee(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Emergency Surcharge (₹)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    onWheel={(e) => e.target.blur()}
-                    value={emergencyFee}
-                    onChange={(e) => setEmergencyFee(e.target.value)}
-                  />
-                </div>
+              <div>
+                <label className={labelClass}>Consultation Fee (₹)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  onWheel={(e) => e.target.blur()}
+                  value={consultationFee}
+                  onChange={(e) => setConsultationFee(e.target.value)}
+                />
               </div>
             </div>
 
@@ -899,12 +875,6 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                   <span>• Doctor Consultation Fee:</span>
                   <span className="font-mono font-bold text-slate-900">{formatCurrency(consultationFee || 0)}</span>
                 </div>
-                {Number(emergencyFee) > 0 && (
-                  <div className="flex justify-between text-rose-700 font-bold">
-                    <span>• Emergency Surcharge:</span>
-                    <span className="font-mono">{formatCurrency(emergencyFee)}</span>
-                  </div>
-                )}
                 {totalDoctorProcedureCharges > 0 && (
                   <div className="flex justify-between">
                     <span>• Doctor Procedures:</span>
