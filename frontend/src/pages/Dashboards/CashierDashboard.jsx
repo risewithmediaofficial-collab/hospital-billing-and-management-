@@ -86,8 +86,11 @@ export const CashierDashboard = () => {
     setIsLoading(true);
     try {
       const res = await axiosClient.get('/billing/unpaid-invoices');
-      const invoices = res.data || [];
+      const allInvoices = res.data || [];
+      const invoices = allInvoices.filter((inv) => !(inv.doctorReviewQuery && inv.doctorReviewQuery.resolved === false));
       setUnpaidInvoices(invoices);
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard', invoices.length);
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=CENTRAL_DESK', invoices.length);
       setSelectedInvoice((prev) => {
         const requested = invoices.find((invoice) => invoice._id === requestedInvoiceId);
         if (requested) return requested;

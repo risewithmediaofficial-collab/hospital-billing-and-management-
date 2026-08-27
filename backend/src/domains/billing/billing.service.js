@@ -21,6 +21,12 @@ export class BillingService {
       hospitalId,
       status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
       isDeleted: { $ne: true },
+      $or: [
+        { doctorReviewQuery: { $exists: false } },
+        { 'doctorReviewQuery.resolved': { $ne: false } },
+        { 'doctorReviewQuery.query': null },
+        { 'doctorReviewQuery.query': { $exists: false } },
+      ],
     })
       .populate('patientId')
       .populate('doctorId', 'name specialization cabinNo')

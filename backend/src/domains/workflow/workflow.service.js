@@ -155,7 +155,17 @@ export class WorkflowService {
           }).select('patientId').lean();
           const pendingPatientIds = new Set(pendingPrescriptions.map(p => String(p.patientId?._id || p.patientId)));
 
-          const records = await Invoice.find({ ...scope, status: { $in: ['UNPAID', 'PARTIALLY_PAID'] } }).populate('patientId').lean();
+          const records = await Invoice.find({
+            ...scope,
+            status: { $in: ['UNPAID', 'PARTIALLY_PAID'] },
+            isDeleted: { $ne: true },
+            $or: [
+              { doctorReviewQuery: { $exists: false } },
+              { 'doctorReviewQuery.resolved': { $ne: false } },
+              { 'doctorReviewQuery.query': null },
+              { 'doctorReviewQuery.query': { $exists: false } },
+            ],
+          }).populate('patientId').lean();
           records
             .filter((item) => !pendingPatientIds.has(String(item.patientId?._id || item.patientId)))
             .forEach((item) => item && tasks.push(task('BILLING_WORK', item, '/billing/dashboard', `Collect payment: ${item.invoiceNo || 'Invoice'}`, { targetModule: 'billing', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid, message: `Balance: ${item.balanceAmount || 0}` })));
