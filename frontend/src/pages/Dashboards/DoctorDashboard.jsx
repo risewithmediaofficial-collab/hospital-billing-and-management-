@@ -868,7 +868,6 @@ const targetDocId = user?.id || user?._id;
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
     fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
     setIsConsultationModalOpen(true);
-    handleTabClick('OVERVIEW');
 
     axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`)
       .then(() => {
@@ -927,7 +926,6 @@ const targetDocId = user?.id || user?._id;
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || task.patientId);
     fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || task.patientId);
     setIsConsultationModalOpen(true);
-    handleTabClick('OVERVIEW');
 
     axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`)
       .then(() => {
