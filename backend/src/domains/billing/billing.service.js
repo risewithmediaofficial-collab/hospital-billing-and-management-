@@ -360,6 +360,22 @@ export class BillingService {
         relatedTaskId: String(invoice._id),
       });
     }
+
+    socketManager.emitToBranch(invoice.branchId, 'billing:invoice_updated', {
+      invoiceId: invoice._id,
+      patientId: invoice.patientId,
+    });
+    socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { invoiceId: invoice._id });
+    socketManager.emitToBranch(invoice.branchId, 'doctor:billing_query_response', { invoiceId: invoice._id });
+    if (query.requestedBy) {
+      socketManager.emitToUser(String(query.requestedBy), 'billing:invoice_updated', {
+        invoiceId: invoice._id,
+        patientId: invoice.patientId,
+      });
+      socketManager.emitToUser(String(query.requestedBy), 'workflow:pending_changed', { invoiceId: invoice._id });
+      socketManager.emitToUser(String(query.requestedBy), 'doctor:billing_query_response', { invoiceId: invoice._id });
+    }
+
     return invoice;
   }
 
@@ -891,8 +907,10 @@ export class BillingService {
         });
         socketManager.emitToUser(String(attendingDoctorId), 'workflow:pending_changed', { patientId });
       }
-      // Also emit branch-scoped queue update so the OPD queue refreshes
+      // Also emit branch-scoped updates so billing and OPD queues refresh immediately
       socketManager.emitToBranch(invoice.branchId, 'opd_queue:updated', { patientId });
+      socketManager.emitToBranch(invoice.branchId, 'billing:invoice_updated', { invoiceId: invoice._id, patientId });
+      socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { invoiceId: invoice._id });
 
       return {
         success: true,

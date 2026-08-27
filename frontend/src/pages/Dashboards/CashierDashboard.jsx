@@ -184,6 +184,8 @@ export const CashierDashboard = () => {
     socket.on('workflow:notification', handler);
     socket.on('workflow:notification_cleared', handler);
     socket.on('consultation:completed', handler);
+    socket.on('doctor:billing_query_response', handler);
+    socket.on('notification:created', handler);
     return () => {
       socket.off('billing:invoice_created', handler);
       socket.off('billing:invoice_updated', handler);
@@ -194,6 +196,8 @@ export const CashierDashboard = () => {
       socket.off('workflow:notification', handler);
       socket.off('workflow:notification_cleared', handler);
       socket.off('consultation:completed', handler);
+      socket.off('doctor:billing_query_response', handler);
+      socket.off('notification:created', handler);
     };
   }, [socket, fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
