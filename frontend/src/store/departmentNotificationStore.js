@@ -184,12 +184,15 @@ export const useDepartmentNotificationStore = create((set, get) => ({
     const resStr = String(resourceId);
     set((state) => {
       const remaining = state.notifications.filter((n) => (
-        String(n.resourceId) !== resStr &&
-        String(n.id) !== resStr &&
-        String(n._id) !== resStr &&
-        String(n.entityId) !== resStr &&
-        String(n.appointmentId) !== resStr &&
-        String(n.patientId) !== resStr &&
+        String(n.resourceId || '') !== resStr &&
+        String(n.id || '') !== resStr &&
+        String(n._id || '') !== resStr &&
+        String(n.entityId || '') !== resStr &&
+        String(n.relatedTaskId || '') !== resStr &&
+        String(n.metadata?.taskId || '') !== resStr &&
+        String(n.metadata?.entityId || '') !== resStr &&
+        String(n.appointmentId || '') !== resStr &&
+        String(n.patientId || '') !== resStr &&
         !String(n.linkedPath || '').includes(resStr)
       ));
       return {

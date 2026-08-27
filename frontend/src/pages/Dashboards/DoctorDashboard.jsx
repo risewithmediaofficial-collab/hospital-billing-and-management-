@@ -315,7 +315,18 @@ export const DoctorDashboard = () => {
               const matchInWaitingOrHeld = [...waiting, ...held].find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
-              if (matchInWaitingOrHeld) return matchInWaitingOrHeld;
+              if (matchInWaitingOrHeld) return { ...prev, ...matchInWaitingOrHeld };
+
+              // If consultation modal is open or patient was explicitly opened from history/nurse tasks, keep it
+              if (isConsultationModalOpen) {
+                return prev;
+              }
+
+              // Also check completed queue
+              const matchInCompleted = completed.find(
+                (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
+              );
+              if (matchInCompleted) return { ...prev, ...matchInCompleted };
 
               // If previous patient was completed/billed or is no longer waiting/held, select the next waiting token
               const nextTok = waiting[0];
@@ -339,10 +350,13 @@ export const DoctorDashboard = () => {
             if (prev) {
               const currentId = String(prev._id || prev.id);
               const currentPatId = String(prev.patientId?._id || prev.patientId);
-              const matchInHeld = held.find(
+              const matchInHeldOrCompleted = [...held, ...completed].find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
-              if (matchInHeld) return matchInHeld;
+              if (matchInHeldOrCompleted) return { ...prev, ...matchInHeldOrCompleted };
+
+              // Preserve encounter if modal is open
+              if (isConsultationModalOpen) return prev;
             }
             setPatientInvestigations([]);
             setPatientNurseTasks([]);
@@ -631,7 +645,9 @@ const targetDocId = user?.id || user?._id;
 
   const activeNurseTasks = allMyNurseTasks.filter((t) => {
     const isCompletedConsultation =
-      t.isResolved ||
+      Boolean(t.doctorReviewedAt) ||
+      Boolean(t.isResolved) ||
+      t.status === 'CANCELLED' ||
       t.appointmentId?.status === 'COMPLETED' ||
       completedQueue.some((tok) => String(tok._id || tok.id) === String(t.appointmentId?._id || t.appointmentId));
     return !isCompletedConsultation;
@@ -639,7 +655,9 @@ const targetDocId = user?.id || user?._id;
 
   const historyNurseTasks = allMyNurseTasks.filter((t) => {
     const isCompletedConsultation =
-      t.isResolved ||
+      Boolean(t.doctorReviewedAt) ||
+      Boolean(t.isResolved) ||
+      t.status === 'CANCELLED' ||
       t.appointmentId?.status === 'COMPLETED' ||
       completedQueue.some((tok) => String(tok._id || tok.id) === String(t.appointmentId?._id || t.appointmentId));
     return Boolean(isCompletedConsultation);
@@ -839,11 +857,18 @@ const targetDocId = user?.id || user?._id;
       };
     }
 
+    setDepartmentOrders((prev) =>
+      prev.map((o) => (String(o._id) === String(ord._id) ? { ...o, reviewedAt: new Date() } : o))
+    );
+
+    useNotificationStore.getState().resolveEntityNotification(ord._id);
+    resolvePending(ord._id);
+
     setSelectedToken(targetToken);
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
     fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || ord.patientId);
-    setActiveTab('OVERVIEW');
     setIsConsultationModalOpen(true);
+    handleTabClick('OVERVIEW');
 
     axiosClient.post(`/diagnostics/orders/${ord._id}/approve-charge`)
       .then(() => {
@@ -890,11 +915,19 @@ const targetDocId = user?.id || user?._id;
       };
     }
 
+    // Optimistically update local nurse task state immediately
+    setNurseTasks((prev) =>
+      prev.map((t) => (String(t._id) === String(task._id) ? { ...t, doctorReviewedAt: new Date() } : t))
+    );
+
+    useNotificationStore.getState().resolveEntityNotification(task._id);
+    resolvePending(task._id);
+
     setSelectedToken(targetToken);
     fetchPatientInvestigations(targetToken.patientId?._id || targetToken.patientId || task.patientId);
     fetchPatientNurseTasks(targetToken.patientId?._id || targetToken.patientId || task.patientId);
-    setActiveTab('OVERVIEW');
     setIsConsultationModalOpen(true);
+    handleTabClick('OVERVIEW');
 
     axiosClient.patch(`/pharmacy/nurse-tasks/${task._id}/doctor-review`)
       .then(() => {
