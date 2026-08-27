@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useEmergencyStore } from '../../store/emergencyStore';
+import { useSocket } from '../../providers/SocketProvider';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ShieldAlert, CheckCircle2, MapPin, User, Clock, AlertTriangle, Activity, History } from 'lucide-react';
 import { axiosClient } from '../../api/axiosClient';
 
 export const EmergencyConsoleView = () => {
-  const { emergencies, resolveEmergency, fetchActiveEmergencies, isResolving } = useEmergencyStore();
+  const [searchParams] = useSearchParams();
+  const targetEmergencyId = searchParams.get('emergencyId');
+  const { socket } = useSocket();
+  const { emergencies, resolveEmergency, fetchActiveEmergencies, addEmergency, markResolved, isResolving } = useEmergencyStore();
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('ACTIVE'); // 'ACTIVE' | 'HISTORY'
 
@@ -14,6 +19,40 @@ export const EmergencyConsoleView = () => {
     fetchActiveEmergencies();
     fetchHistory();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleEmergencyAlert = (data) => {
+      if (data) {
+        addEmergency(data);
+      }
+      fetchActiveEmergencies();
+    };
+
+    const handleEmergencyResolved = (data) => {
+      if (data?.emergencyId || data?._id) {
+        markResolved(data.emergencyId || data._id);
+      }
+      fetchActiveEmergencies();
+      fetchHistory();
+    };
+
+    socket.on('emergency:alert', handleEmergencyAlert);
+    socket.on('emergency:raised', handleEmergencyAlert);
+    socket.on('emergency:code_blue_triggered', handleEmergencyAlert);
+    socket.on('workflow:emergency_raised', handleEmergencyAlert);
+    socket.on('emergency:resolved', handleEmergencyResolved);
+    socket.on('workflow:emergency_resolved', handleEmergencyResolved);
+
+    return () => {
+      socket.off('emergency:alert', handleEmergencyAlert);
+      socket.off('emergency:raised', handleEmergencyAlert);
+      socket.off('emergency:code_blue_triggered', handleEmergencyAlert);
+      socket.off('workflow:emergency_raised', handleEmergencyAlert);
+      socket.off('emergency:resolved', handleEmergencyResolved);
+      socket.off('workflow:emergency_resolved', handleEmergencyResolved);
+    };
+  }, [socket, addEmergency, markResolved, fetchActiveEmergencies]);
 
   const fetchHistory = async () => {
     try {
@@ -24,7 +63,7 @@ export const EmergencyConsoleView = () => {
     }
   };
 
-  const activeList = emergencies.filter((e) => e.status === 'ACTIVE');
+  const activeList = emergencies.filter((e) => e.status === 'ACTIVE' || e.status === 'RESPONDED');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

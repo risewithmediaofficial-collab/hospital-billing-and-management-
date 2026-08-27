@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEmergencyStore } from '../../store/emergencyStore';
 import { useAuthStore } from '../../store/authStore';
+import { useSocket } from '../../providers/SocketProvider';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { axiosClient } from '../../api/axiosClient';
 import { AlertTriangle, ShieldAlert, CheckCircle2, X, PlusCircle, MapPin, User, Clock, BellRing } from 'lucide-react';
 
 export const EmergencyBanner = () => {
-  const { emergencies, activeCount, resolveEmergency, addEmergency } = useEmergencyStore();
+  const { emergencies, activeCount, resolveEmergency, addEmergency, markResolved, fetchActiveEmergencies } = useEmergencyStore();
   const { user } = useAuthStore();
+  const { socket } = useSocket();
   const [isRaiseModalOpen, setIsRaiseModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +24,39 @@ export const EmergencyBanner = () => {
     description: '',
   });
 
-  const activeEmergencies = emergencies.filter((e) => e.status === 'ACTIVE');
+  const activeEmergencies = emergencies.filter((e) => e.status === 'ACTIVE' || e.status === 'RESPONDED');
+
+  useEffect(() => {
+    fetchActiveEmergencies();
+  }, [fetchActiveEmergencies]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleAlert = (data) => {
+      if (data) addEmergency(data);
+      fetchActiveEmergencies();
+    };
+    const handleResolved = (data) => {
+      if (data?.emergencyId || data?._id) markResolved(data.emergencyId || data._id);
+      fetchActiveEmergencies();
+    };
+
+    socket.on('emergency:alert', handleAlert);
+    socket.on('emergency:raised', handleAlert);
+    socket.on('emergency:code_blue_triggered', handleAlert);
+    socket.on('workflow:emergency_raised', handleAlert);
+    socket.on('emergency:resolved', handleResolved);
+    socket.on('workflow:emergency_resolved', handleResolved);
+
+    return () => {
+      socket.off('emergency:alert', handleAlert);
+      socket.off('emergency:raised', handleAlert);
+      socket.off('emergency:code_blue_triggered', handleAlert);
+      socket.off('workflow:emergency_raised', handleAlert);
+      socket.off('emergency:resolved', handleResolved);
+      socket.off('workflow:emergency_resolved', handleResolved);
+    };
+  }, [socket, addEmergency, markResolved, fetchActiveEmergencies]);
 
   React.useEffect(() => {
     const handleOpenModal = () => setIsRaiseModalOpen(true);

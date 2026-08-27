@@ -2,14 +2,15 @@ import { Emergency } from '../../models/Emergency.js';
 import { Branch } from '../../models/Branch.js';
 import { Patient } from '../../models/Patient.js';
 import { WorkflowEventService, WORKFLOW_EVENTS } from '../../events/workflowEventService.js';
+import { socketManager } from '../../events/socketManager.js';
+import { requireHospitalContext } from '../../utils/tenantContext.js';
 import { ApiError } from '../../utils/apiError.js';
 
 export class EmergencyService {
   static async raiseEmergency(data, user) {
-    let hospitalId = user?.hospitalId;
-    let branchId = user?.branchId;
+    const hospitalId = requireHospitalContext(user);
+    let branchId = user?.branchId?._id || user?.branchId;
 
-    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
     if (!branchId) {
       const defaultBranch = await Branch.findOne({ hospitalId });
       branchId = defaultBranch?._id;
@@ -50,8 +51,8 @@ export class EmergencyService {
       ],
     });
 
-    // Broadcast workflow emergency event to ALL connected roles across hospital
-    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RAISED, {
+    const emergencyPayload = {
+      _id: newEmergency._id,
       emergencyId: newEmergency._id,
       emergencyType: newEmergency.emergencyType,
       severity: newEmergency.severity,
@@ -59,31 +60,40 @@ export class EmergencyService {
       patientName: newEmergency.patientName,
       uhid: newEmergency.uhid,
       raisedBy: newEmergency.raisedByUserName,
+      raisedByUserName: newEmergency.raisedByUserName,
       raisedByDept: newEmergency.raisedByDept,
       description: newEmergency.description,
       createdAt: newEmergency.createdAt,
       hospitalId: newEmergency.hospitalId,
       branchId: newEmergency.branchId,
-    }, branchId);
+      status: 'ACTIVE',
+    };
+
+    // Broadcast workflow emergency event across the entire facility
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RAISED, emergencyPayload, branchId);
+    socketManager.emitEmergency('emergency:alert', emergencyPayload, { hospitalId, branchId });
+    if (branchId) {
+      socketManager.emitToBranch(branchId, 'emergency:alert', emergencyPayload);
+      socketManager.emitToBranch(branchId, 'emergency:raised', emergencyPayload);
+    }
 
     return newEmergency;
   }
 
   static async resolveEmergency(id, data, user) {
-    // Validate MongoDB ObjectId format before querying
     const mongoose = (await import('mongoose')).default;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new ApiError(400, `Invalid emergency ID format: '${id}'. The ID must be a valid MongoDB ObjectId. Please reload the emergency console to fetch live data.`, null, 'INVALID_ID');
     }
 
-    if (!user?.hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
-    const emergency = await Emergency.findOne({ _id: id, hospitalId: user.hospitalId });
+    const hospitalId = requireHospitalContext(user);
+    const emergency = await Emergency.findOne({ _id: id, hospitalId });
     if (!emergency) {
       throw new ApiError(404, 'Emergency record not found. It may have already been resolved.', null, 'NOT_FOUND');
     }
 
     if (emergency.status === 'RESOLVED') {
-      return emergency; // Already resolved — return current state, no-op
+      return emergency;
     }
 
     emergency.status = 'RESOLVED';
@@ -101,38 +111,38 @@ export class EmergencyService {
 
     await emergency.save();
 
-    // Broadcast resolution event to ALL connected roles
-    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, {
+    const resolutionPayload = {
       hospitalId: emergency.hospitalId,
       branchId: emergency.branchId,
+      _id: emergency._id,
       emergencyId: emergency._id,
       emergencyType: emergency.emergencyType,
       location: emergency.location,
       resolvedBy: emergency.resolvedByUserName,
       resolutionNotes: emergency.resolutionNotes,
       resolvedAt: emergency.resolvedAt,
-    }, emergency.branchId);
+      status: 'RESOLVED',
+    };
+
+    // Broadcast resolution event to ALL connected roles
+    await WorkflowEventService.emit(WORKFLOW_EVENTS.EMERGENCY_RESOLVED, resolutionPayload, emergency.branchId);
+    socketManager.emitEmergency('emergency:resolved', resolutionPayload, { hospitalId: emergency.hospitalId, branchId: emergency.branchId });
+    if (emergency.branchId) {
+      socketManager.emitToBranch(emergency.branchId, 'emergency:resolved', resolutionPayload);
+    }
 
     return emergency;
   }
 
   static async getActiveEmergencies(user) {
-    const hospitalId = user?.hospitalId;
-    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
-
-    const filter = { status: 'ACTIVE' };
-    if (hospitalId) filter.hospitalId = hospitalId;
-
+    const hospitalId = requireHospitalContext(user);
+    const filter = { hospitalId, status: { $in: ['ACTIVE', 'RESPONDED'] } };
     return await Emergency.find(filter).sort({ createdAt: -1 });
   }
 
   static async getEmergencyHistory(user) {
-    const hospitalId = user?.hospitalId;
-    if (!hospitalId) throw new ApiError(400, 'Hospital context is required', null, 'HOSPITAL_CONTEXT_REQUIRED');
-
-    const filter = {};
-    if (hospitalId) filter.hospitalId = hospitalId;
-
+    const hospitalId = requireHospitalContext(user);
+    const filter = { hospitalId };
     return await Emergency.find(filter).sort({ createdAt: -1 }).limit(100);
   }
 }
