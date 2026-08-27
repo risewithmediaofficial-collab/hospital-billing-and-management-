@@ -129,7 +129,6 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       setFollowUpDate('');
       setAdviceToPatient('');
       setConsultationFee('');
-      setEmergencyFee('');
       setDoctorProcedureCharges([]);
 
       // Pre-fill existing medicines if returned from Billing or Pharmacy
