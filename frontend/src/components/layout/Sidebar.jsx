@@ -235,44 +235,14 @@ export const Sidebar = ({ isOpen, onClose }) => {
   }, [socket, fetchPendingWork]);
 
   const fetchReceiptsCount = useCallback(async () => {
-    if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;
-    try {
-      const isCurrentlyViewingReceipts =
-        location.pathname.includes('/billing/receipts') ||
-        (location.pathname.includes('/billing/dashboard') && location.search.includes('tab=RECEIPTS'));
-
-      const storageKey = `last_viewed_receipts_${user.hospitalId || 'default'}_${user.id || user._id || 'user'}`;
-
-      if (isCurrentlyViewingReceipts) {
-        localStorage.setItem(storageKey, new Date().toISOString());
-        setUnviewedReceiptsCount(0);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
-        return;
-      }
-
-      const res = await axiosClient.get('/billing/receipts');
-      const receipts = res.data || [];
-      const lastViewedTs = localStorage.getItem(storageKey);
-
-      if (!lastViewedTs) {
-        localStorage.setItem(storageKey, new Date().toISOString());
-        setUnviewedReceiptsCount(0);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
-      } else {
-        const lastDate = new Date(lastViewedTs);
-        const unviewed = receipts.filter((r) => new Date(r.createdAt || r.paidAt) > lastDate).length;
-        setUnviewedReceiptsCount(unviewed);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', unviewed);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', unviewed);
-      }
-    } catch (err) {}
-  }, [user?.role, user?.hospitalId, user?.id, user?._id, location.pathname, location.search]);
+    setUnviewedReceiptsCount(0);
+    useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+    useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+  }, []);
 
   useEffect(() => {
     fetchReceiptsCount();
-  }, [location.pathname, location.search, fetchReceiptsCount]);
+  }, [fetchReceiptsCount]);
 
   useEffect(() => {
     if (!user?.role || !['CASHIER', 'BILLING_STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'].includes(user.role)) return;

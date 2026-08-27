@@ -121,27 +121,12 @@ export const CashierDashboard = () => {
       }, 0);
       setTodayCollected(total);
 
-      const storageKey = `last_viewed_receipts_${user?.hospitalId || 'default'}_${user?.id || user?._id || 'user'}`;
-      if (isReceiptsRoute || activeTab === 'RECEIPTS') {
-        localStorage.setItem(storageKey, new Date().toISOString());
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
-        useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
-      } else {
-        const lastViewedTs = localStorage.getItem(storageKey);
-        if (!lastViewedTs) {
-          localStorage.setItem(storageKey, new Date().toISOString());
-          useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
-          useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
-        } else {
-          const unviewed = receipts.filter((r) => new Date(r.createdAt || r.paidAt) > new Date(lastViewedTs)).length;
-          useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', unviewed);
-          useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', unviewed);
-        }
-      }
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+      useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
     } catch (err) {
       console.error('Failed to load receipts:', err);
     }
-  }, [user?.hospitalId, user?.id, user?._id, isReceiptsRoute, activeTab]);
+  }, []);
 
   const fetchDeletedReceipts = useCallback(async () => {
     try {
@@ -153,13 +138,9 @@ export const CashierDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'RECEIPTS' || isReceiptsRoute) {
-      const storageKey = `last_viewed_receipts_${user?.hospitalId || 'default'}_${user?.id || user?._id || 'user'}`;
-      localStorage.setItem(storageKey, new Date().toISOString());
-      useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
-      useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
-    }
-  }, [activeTab, isReceiptsRoute, user?.hospitalId, user?.id, user?._id]);
+    useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=RECEIPTS', 0);
+    useDepartmentNotificationStore.getState().setNavCount?.('/billing/receipts', 0);
+  }, [activeTab, isReceiptsRoute]);
 
   useEffect(() => {
     fetchUnpaidInvoices();
@@ -202,11 +183,17 @@ export const CashierDashboard = () => {
   }, [socket, fetchUnpaidInvoices, fetchAllReceipts, fetchDeletedReceipts]);
 
   const handlePaymentSuccess = () => {
+    if (selectedInvoice) {
+      useNotificationStore.getState().resolveEntityNotification(String(selectedInvoice._id));
+      useDepartmentNotificationStore.getState().resolvePending(String(selectedInvoice._id));
+    }
+    useNotificationStore.getState().markRouteAsRead('/billing/dashboard');
     fetchUnpaidInvoices();
     fetchAllReceipts();
     fetchDeletedReceipts();
     setIsPaymentOpen(false);
     useDepartmentNotificationStore.getState().fetchPendingWork?.();
+    useNotificationStore.getState().fetchNotifications?.('active');
   };
 
   const handleConfirmDeleteBill = async () => {

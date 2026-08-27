@@ -204,16 +204,24 @@ export class BillingService {
     socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { resourceId: invoice._id, status: invoice.status });
 
     if (invoice.status === PAYMENT_STATUS.PAID) {
-      // Resolve only billing alerts for this paid patient. Never mark unrelated
-      // cashier notifications as read merely because they share the module.
+      const { NotificationService } = await import('../notifications/notification.service.js');
+      await NotificationService.completeEntityTasks({
+        hospitalId,
+        entityType: 'Invoice',
+        entityId: invoice._id,
+      });
       await Notification.updateMany(
         {
           hospitalId,
-          relatedPatientId: invoice.patientId?._id || invoice.patientId,
-          targetModule: 'billing',
-          isRead: false,
+          $or: [
+            { entityId: String(invoice._id) },
+            { relatedTaskId: String(invoice._id) },
+            { relatedPatientId: invoice.patientId?._id || invoice.patientId },
+            { 'metadata.invoiceId': String(invoice._id) },
+            { targetModule: 'billing', relatedPatientId: invoice.patientId?._id || invoice.patientId },
+          ],
         },
-        { $set: { isRead: true, readAt: new Date() } }
+        { $set: { isCompleted: true, completedAt: new Date(), isRead: true, readAt: new Date(), status: 'COMPLETED' } }
       ).catch(() => {});
 
       const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';
@@ -227,9 +235,9 @@ export class BillingService {
         receiptNo: receipt.receiptNo,
         linkedPath: `/billing/dashboard?tab=RECEIPTS&receiptId=${receipt._id}&patientId=${invoice.patientId?._id || invoice.patientId}`,
       };
-      await WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId);
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
       socketManager.emitToBranch(invoice.branchId, 'workflow:notification_cleared', { targetModule: 'billing', patientId: invoice.patientId });
+      socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { invoiceId: invoice._id });
     }
 
     const populatedReceipt = await Receipt.findById(receipt._id)
