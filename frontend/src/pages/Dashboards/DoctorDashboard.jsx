@@ -323,7 +323,7 @@ export const DoctorDashboard = () => {
               }
 
               // Also check completed queue
-              const matchInCompleted = completed.find(
+              const matchInCompleted = done.find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
               if (matchInCompleted) return { ...prev, ...matchInCompleted };
@@ -350,7 +350,7 @@ export const DoctorDashboard = () => {
             if (prev) {
               const currentId = String(prev._id || prev.id);
               const currentPatId = String(prev.patientId?._id || prev.patientId);
-              const matchInHeldOrCompleted = [...held, ...completed].find(
+              const matchInHeldOrCompleted = [...held, ...done].find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
               if (matchInHeldOrCompleted) return { ...prev, ...matchInHeldOrCompleted };
