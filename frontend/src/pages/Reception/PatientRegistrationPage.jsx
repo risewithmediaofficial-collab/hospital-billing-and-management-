@@ -7,6 +7,7 @@ import { axiosClient } from '../../api/axiosClient';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
 import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
+import { PatientDetailsModal } from '../../components/modals/PatientDetailsModal';
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
@@ -24,6 +25,7 @@ import {
   Calendar,
   UserCheck,
   History,
+  Eye,
 } from 'lucide-react';
 
 export const PatientRegistrationPage = () => {
@@ -35,6 +37,8 @@ export const PatientRegistrationPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTokenOpen, setIsTokenOpen] = useState(false);
   const [selectedPatientForToken, setSelectedPatientForToken] = useState(null);
+  const [selectedDetailsPatient, setSelectedDetailsPatient] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [duplicates, setDuplicates] = useState([]);
   const [isExactDuplicate, setIsExactDuplicate] = useState(false);
 
@@ -542,19 +546,38 @@ export const PatientRegistrationPage = () => {
                       <p className="font-bold text-slate-900">{p.firstName} {p.lastName}</p>
                       <p className="text-[11px] font-mono text-indigo-600 font-bold">{p.uhid}</p>
                       <p className="text-[10px] text-slate-500">{p.phone} &bull; {p.gender}</p>
+                      {p.dob && (
+                        <p className="text-[10px] text-indigo-700 font-semibold flex items-center gap-1 mt-0.5">
+                          <Calendar size={10} className="text-indigo-500" />
+                          DOB: {new Date(p.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="font-bold text-[10px] px-2 py-1 gap-1 text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
+                        className="font-bold text-[10px] px-1.5 py-1 gap-0.5 text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100"
+                        onClick={() => {
+                          setSelectedDetailsPatient(p);
+                          setIsDetailsOpen(true);
+                        }}
+                        title="View Login Credentials & DOB"
+                      >
+                        <Eye size={11} /> DOB
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="font-bold text-[10px] px-1.5 py-1 gap-0.5 text-slate-700 bg-white border-slate-200 hover:bg-slate-50"
                         onClick={() => {
                           setHistoryPatientId(p.uhid || p._id);
                           setIsHistoryOpen(true);
                         }}
                       >
-                        <History size={12} /> History
+                        <History size={11} />
                       </Button>
 
                       <Button
@@ -566,7 +589,7 @@ export const PatientRegistrationPage = () => {
                           setIsTokenOpen(true);
                         }}
                       >
-                        <Ticket size={12} /> Token
+                        <Ticket size={11} /> Token
                       </Button>
                     </div>
                   </div>
@@ -610,6 +633,19 @@ export const PatientRegistrationPage = () => {
           setHistoryPatientId(null);
         }}
         initialIdentifier={historyPatientId}
+      />
+
+      <PatientDetailsModal
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedDetailsPatient(null);
+        }}
+        patient={selectedDetailsPatient}
+        onIssueToken={(pat) => {
+          setSelectedPatientForToken(pat);
+          setIsTokenOpen(true);
+        }}
       />
     </div>
   );

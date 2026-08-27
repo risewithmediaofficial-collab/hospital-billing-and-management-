@@ -7,6 +7,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { RegisterPatientModal } from '../../components/modals/RegisterPatientModal';
 import { IssueTokenModal } from '../../components/modals/IssueTokenModal';
 import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
+import { PatientDetailsModal } from '../../components/modals/PatientDetailsModal';
 import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
 import { axiosClient } from '../../api/axiosClient';
 import { useSocket } from '../../providers/SocketProvider';
@@ -24,6 +25,7 @@ import {
   UserCheck,
   Calendar,
   CheckCircle,
+  Eye,
 } from 'lucide-react';
 
 export const ReceptionWorkspaceView = () => {
@@ -46,7 +48,14 @@ export const ReceptionWorkspaceView = () => {
   const [isTokenOpen, setIsTokenOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+  const [selectedDetailsPatient, setSelectedDetailsPatient] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleOpenDetails = (patient) => {
+    setSelectedDetailsPatient(patient);
+    setIsDetailsOpen(true);
+  };
 
   useEffect(() => {
     if (tabParam && ['REGISTERED', 'QUEUED', 'FOLLOW_UPS', 'ALL', 'DOCTORS'].includes(tabParam)) {
@@ -497,19 +506,40 @@ export const ReceptionWorkspaceView = () => {
                     <tr key={pat._id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3 font-mono font-extrabold text-indigo-700">{pat.uhid}</td>
                       <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
-                      <td className="p-3 text-slate-600">{pat.age ? `${pat.age} Yrs` : '—'} &bull; {pat.gender || '—'}</td>
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-800">
+                          {pat.age ? `${pat.age} Yrs` : '—'} &bull; {pat.gender || '—'}
+                        </div>
+                        {pat.dob && (
+                          <div className="flex items-center gap-1 text-[11px] text-indigo-700 font-semibold mt-0.5">
+                            <Calendar size={11} className="text-indigo-500 shrink-0" />
+                            <span>DOB: {new Date(pat.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3 font-mono text-slate-600">{pat.phone}</td>
                       <td className="p-3 text-amber-700 font-medium">{pat.chiefComplaints || 'Routine Consultation'}</td>
                       <td className="p-3 text-slate-500">{new Date(pat.createdAt).toLocaleDateString()}</td>
                       <td className="p-3 text-right">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          className="font-bold gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
-                          onClick={() => handleIssueTokenForPatient(pat)}
-                        >
-                          <Ticket size={13} /> Issue OPD Token
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="font-bold gap-1 text-xs text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 shadow-2xs"
+                            onClick={() => handleOpenDetails(pat)}
+                            title="View Patient Login Credentials & DOB"
+                          >
+                            <Eye size={13} /> View DOB
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            className="font-bold gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+                            onClick={() => handleIssueTokenForPatient(pat)}
+                          >
+                            <Ticket size={13} /> Issue OPD Token
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -588,25 +618,46 @@ export const ReceptionWorkspaceView = () => {
                       <tr key={pat._id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 font-mono font-extrabold text-indigo-700">{pat.uhid}</td>
                         <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
-                        <td className="p-3 text-slate-600">{pat.age ? `${pat.age} Yrs` : '—'} &bull; {pat.gender || '—'}</td>
+                        <td className="p-3">
+                          <div className="font-semibold text-slate-800">
+                            {pat.age ? `${pat.age} Yrs` : '—'} &bull; {pat.gender || '—'}
+                          </div>
+                          {pat.dob && (
+                            <div className="flex items-center gap-1 text-[11px] text-indigo-700 font-semibold mt-0.5">
+                              <Calendar size={11} className="text-indigo-500 shrink-0" />
+                              <span>DOB: {new Date(pat.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            </div>
+                          )}
+                        </td>
                         <td className="p-3 font-mono text-slate-600">{pat.phone}</td>
                         <td className="p-3 text-amber-700 font-medium">{pat.chiefComplaints || 'OPD Checkup'}</td>
                         <td className="p-3 text-slate-500">{new Date(pat.createdAt).toLocaleDateString()}</td>
                         <td className="p-3 text-right">
-                          {isQueued ? (
-                            <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
-                              IN QUEUE TODAY
-                            </span>
-                          ) : (
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
-                              variant="primary"
-                              className="font-bold gap-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
-                              onClick={() => handleIssueTokenForPatient(pat)}
+                              variant="outline"
+                              className="font-bold gap-1 text-xs text-indigo-700 bg-indigo-50/80 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 shadow-2xs"
+                              onClick={() => handleOpenDetails(pat)}
+                              title="View Patient Login Credentials & DOB"
                             >
-                              <Ticket size={13} /> Issue OPD Token
+                              <Eye size={13} /> View DOB
                             </Button>
-                          )}
+                            {isQueued ? (
+                              <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                                IN QUEUE TODAY
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                className="font-bold gap-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+                                onClick={() => handleIssueTokenForPatient(pat)}
+                              >
+                                <Ticket size={13} /> Issue OPD Token
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -720,6 +771,25 @@ export const ReceptionWorkspaceView = () => {
           setHistoryPatientId(null);
         }}
         initialIdentifier={historyPatientId}
+      />
+
+      <PatientDetailsModal
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedDetailsPatient(null);
+        }}
+        patient={selectedDetailsPatient}
+        onIssueToken={(pat) => {
+          setSelectedPatient(pat);
+          setSelectedDoctorId(null);
+          setIsTokenOpen(true);
+        }}
+        isQueued={
+          selectedDetailsPatient
+            ? queuedPatientIds.has((selectedDetailsPatient._id || '').toString())
+            : false
+        }
       />
     </div>
   );

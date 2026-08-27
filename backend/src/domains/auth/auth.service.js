@@ -330,24 +330,29 @@ export class AuthService {
       throw new ApiError(401, 'Date of Birth (DOB) does not match patient records.', null, 'INVALID_CREDENTIALS');
     }
 
+    // Look up existing user strictly with role 'PATIENT' to prevent accidental admin/staff collision
     let user = await User.findOne({
       hospitalId: matchedPatient.hospitalId?._id || matchedPatient.hospitalId,
+      role: 'PATIENT',
       $or: [
-        { uhid: matchedPatient.uhid, role: 'PATIENT' },
-        ...(matchedPatient.email ? [{ email: matchedPatient.email }] : []),
+        { uhid: matchedPatient.uhid },
+        { phone: cleanMobile },
         { phone: matchedPatient.phone },
-        { phone: cleanMobile }
+        ...(matchedPatient.email ? [{ email: matchedPatient.email }] : [])
       ]
     }).populate('hospitalId').populate('branchId');
 
     if (!user) {
       const dummyPass = await bcrypt.hash(matchedPatient.uhid + 'PatientKey!', 12);
+      const uhidClean = matchedPatient.uhid.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const patientEmail = matchedPatient.email || `${uhidClean}@patient.local`;
+
       try {
         user = await User.create({
           hospitalId: matchedPatient.hospitalId._id || matchedPatient.hospitalId,
           branchId: matchedPatient.branchId?._id || matchedPatient.branchId,
           name: `${matchedPatient.firstName} ${matchedPatient.lastName}`.trim(),
-          email: matchedPatient.email || `${matchedPatient.uhid.toLowerCase()}@patient.local`,
+          email: patientEmail,
           phone: matchedPatient.phone || cleanMobile,
           uhid: matchedPatient.uhid,
           passwordHash: dummyPass,
@@ -358,8 +363,13 @@ export class AuthService {
       } catch (err) {
         if (err.code === 11000 || err.message?.includes('already exists') || err.message?.includes('duplicate key')) {
           user = await User.findOne({
-            email: matchedPatient.email,
             hospitalId: matchedPatient.hospitalId?._id || matchedPatient.hospitalId,
+            role: 'PATIENT',
+            $or: [
+              { uhid: matchedPatient.uhid },
+              { email: patientEmail },
+              { phone: matchedPatient.phone || cleanMobile }
+            ]
           }).populate('hospitalId').populate('branchId');
         } else {
           throw err;

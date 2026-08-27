@@ -783,7 +783,14 @@ export const SuperAdminReportsPage = () => {
                         <tr key={pat._id} className="hover:bg-slate-50">
                           <td className="p-3 font-mono font-bold text-indigo-900">{pat.uhid}</td>
                           <td className="p-3 font-bold text-slate-900">{pat.firstName} {pat.lastName}</td>
-                          <td className="p-3 text-slate-600">{pat.gender || 'MALE'} / {pat.age || '30 Y'}</td>
+                          <td className="p-3 text-slate-600">
+                            <div>{pat.gender || 'MALE'} / {pat.age ? `${pat.age} Y` : '—'}</div>
+                            {pat.dob && (
+                              <div className="text-[10px] text-indigo-700 font-semibold">
+                                DOB: {new Date(pat.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </div>
+                            )}
+                          </td>
                           <td className="p-3 font-mono text-slate-700">{pat.phone}</td>
                           <td className="p-3">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
