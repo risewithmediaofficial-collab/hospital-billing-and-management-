@@ -720,12 +720,17 @@ const targetDocId = user?.id || user?._id;
 
   // Keep badge counts strictly synced with active items
   useEffect(() => {
-    const activeTotal = activeNurseTasks.length + activeDeptOrders.length + patientDoctorRequests.length + substitutionRequests.length + (returnedBillingPrescriptions?.length || 0);
+    const activeTotal =
+      (activeNurseTasks?.length || 0) +
+      (activeDeptOrders?.length || 0) +
+      (doctorRequests?.length || 0) +
+      (substitutionRequests?.length || 0) +
+      (returnedBillingPrescriptions?.length || 0);
     useDepartmentNotificationStore.getState().setNavCount('/doctor/dashboard?tab=DEPT_RESPONSES', activeTotal);
     if (activeTab === 'DEPT_RESPONSES') {
       useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
     }
-  }, [activeTab, activeNurseTasks.length, activeDeptOrders.length, patientDoctorRequests.length, substitutionRequests.length, returnedBillingPrescriptions?.length]);
+  }, [activeTab, activeNurseTasks?.length, activeDeptOrders?.length, doctorRequests?.length, substitutionRequests?.length, returnedBillingPrescriptions?.length]);
 
   // Backward compatibility alias
   const filteredDeptOrders = filteredActiveDeptOrders;
