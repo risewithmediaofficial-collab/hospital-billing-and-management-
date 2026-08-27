@@ -132,7 +132,7 @@ export const verifyJwt = async (req, res, next) => {
     let currentUser = null;
     if (decoded.id && decoded.role !== 'SUPER_ADMIN') {
       currentUser = await User.findById(decoded.id)
-        .select('hospitalId branchId role additionalRoles isActive status permissions revokedPermissions departmentId additionalDepartments')
+        .select('hospitalId branchId role additionalRoles isActive status permissions revokedPermissions departmentId additionalDepartments phone uhid patientId email name')
         .lean();
 
       if (currentUser) {
@@ -144,6 +144,11 @@ export const verifyJwt = async (req, res, next) => {
         req.user.additionalDepartments = currentUser.additionalDepartments || [];
         req.user.permissions = currentUser.permissions || {};
         req.user.departmentId = currentUser.departmentId;
+        req.user.phone = currentUser.phone || req.user.phone || '';
+        req.user.uhid = currentUser.uhid || req.user.uhid || '';
+        req.user.patientId = currentUser.patientId || req.user.patientId || null;
+        req.user.name = currentUser.name || req.user.name || '';
+        req.user.email = currentUser.email || req.user.email || '';
         if (currentUser.hospitalId) {
           req.user.hospitalId = currentUser.hospitalId.toString();
         }

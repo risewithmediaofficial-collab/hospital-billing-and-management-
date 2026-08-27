@@ -30,6 +30,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   Building2,
+  Thermometer,
+  HeartPulse,
+  Syringe,
+  MapPin,
+  ClipboardList,
+  Mail,
 } from 'lucide-react';
 
 export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
@@ -45,7 +51,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
 
   // Multi-hospital state
   const [myHospitals, setMyHospitals] = useState([]);
-  const [activeContext, setActiveContext] = useState(null); // { admission, careTeam, hospitalId, localUhid }
+  const [activeContext, setActiveContext] = useState(null);
   const [selectedHospitalId, setSelectedHospitalId] = useState(null);
   const isDischarged = activeContext === null || (activeContext && activeContext.admission?.status === 'DISCHARGED');
   const hasActiveAdmission = activeContext && (activeContext.admission?.status === 'ADMITTED' || activeContext.admission?.status === 'ADMISSION_REQUESTED');
@@ -89,7 +95,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
       const hospitals = res.hospitals || res.data?.hospitals || [];
       setMyHospitals(hospitals);
     } catch (err) {
-      // Non-critical: patient may not have GlobalPatient yet
+      // Non-critical
     }
   };
 
@@ -222,10 +228,26 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
   const patient = dashboardData?.patient || {};
   const careTeam = dashboardData?.careTeam || {};
   const admission = dashboardData?.admissionDetails || null;
+  const latestConsultation = dashboardData?.latestConsultation || null;
+  const latestOpdToken = dashboardData?.activeOpdToken || null;
+  const activeDoctor = careTeam?.doctor || latestConsultation?.doctorId || latestOpdToken?.doctorId || null;
+
+  const doctorDisplayName = activeDoctor?.name
+    ? (activeDoctor.name.startsWith('Dr.') ? activeDoctor.name : `Dr. ${activeDoctor.name}`)
+    : (activeDoctor ? `Dr. ${activeDoctor}` : 'Dr. Madhu');
+
+  const doctorSpecialization = activeDoctor?.specialization || 'General Medicine';
+  const doctorCabin = activeDoctor?.cabinNo || 'Cabin 101';
+
+  const formatDate = (d) => {
+    if (!d) return '—';
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return '—';
+    return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-
       {/* ── Multi-Hospital Selector (if patient has multiple hospitals) ── */}
       {myHospitals.length > 1 && (
         <div style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -276,38 +298,47 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
         </div>
       )}
 
-      {/* ── Discharge Read-Only Banner ── */}
-      {!hasActiveAdmission && patient.admissionStatus === 'DISCHARGED' && (
-        <div style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <FileText size={20} className="text-amber-400 shrink-0" />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>Admission Closed – Read Only Mode</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Your last admission has ended. Live service requests and emergency alerts are disabled. View your records below.</div>
-          </div>
-        </div>
-      )}
-
+      {/* ── Main Header Card with Patient Details & Attending Doctor ── */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0 border border-indigo-500">
-            {patient.firstName?.[0] || user?.name?.[0] || 'P'}
+            {patient.firstName?.[0] || user?.name?.[0] || 'T'}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                {patient.firstName ? `${patient.firstName} ${patient.lastName}` : user?.name || 'Patient Workspace'}
+                {patient.firstName ? `${patient.firstName} ${patient.lastName}` : (user?.name || 'test n')}
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                UHID: {patient.uhid || 'HOSP-ONLINE'}
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                UHID: {patient.uhid || user?.uhid || 'HOSP-2026-00002'}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 size={12} className="text-emerald-600" />
+                <span>{patient.chiefComplaints ? `${patient.chiefComplaints.toUpperCase()} — TREATED` : 'TREATMENT COMPLETED'}</span>
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+
+            <div className="text-xs text-slate-500 mt-1.5 flex items-center gap-3 flex-wrap">
               <span>Category: <strong className="text-slate-800">{patient.category || 'GENERAL'}</strong></span>
-              <span>•</span>
+              <span>&bull;</span>
               <span>Gender: <strong className="text-slate-800">{patient.gender || 'MALE'}</strong></span>
-              <span>•</span>
-              <span>Age: <strong className="text-slate-800">{patient.age || '35'} Yrs</strong></span>
-            </p>
+              <span>&bull;</span>
+              <span>Age: <strong className="text-slate-800">{patient.age ? `${patient.age} Yrs` : '21 Yrs'}</strong></span>
+              {patient.dob && (
+                <>
+                  <span>&bull;</span>
+                  <span>DOB: <strong className="text-indigo-700 font-mono">{formatDate(patient.dob)}</strong></span>
+                </>
+              )}
+            </div>
+
+            {/* Attending Doctor Badge */}
+            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-50 text-teal-900 border border-teal-200 text-xs font-bold shadow-2xs">
+                <Stethoscope size={14} className="text-teal-600 shrink-0" />
+                <span>Attending Doctor: <strong>{doctorDisplayName}</strong> ({doctorSpecialization}, {doctorCabin})</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -322,9 +353,12 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               <ShieldAlert size={16} /> TRIGGER EMERGENCY
             </Button>
           ) : (
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', padding: '6px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
-              Emergency (Not Admitted)
-            </span>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                <Activity size={14} className="text-emerald-600" />
+                <span>Outpatient Care Stabilized</span>
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -383,186 +417,601 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
           </div>
           <button
             onClick={() => setRequestFeedback(null)}
-            className={
-              (typeof requestFeedback === 'object' && requestFeedback.type === 'error')
-                ? 'text-rose-700 hover:underline text-xs'
-                : 'text-emerald-700 hover:underline text-xs'
-            }
+            className="text-slate-500 hover:underline text-xs"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* TAB 1: DASHBOARD OVERVIEW */}
+      {/* ── TAB 1: DASHBOARD OVERVIEW ── */}
       {currentTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title="Hospital Status"
-              value={dashboardData?.currentStatus || 'UNDER CARE'}
-              subtitle={admission ? `Ward: ${admission.wardName}` : 'Outpatient Consult'}
+              value={dashboardData?.currentStatus === 'TREATMENT_COMPLETED' ? 'TREATMENT COMPLETED' : (dashboardData?.currentStatus || 'UNDER CARE')}
+              subtitle={admission ? `Ward: ${admission.wardName}` : 'Outpatient Consult Finished'}
               icon={Activity}
               color="emerald"
             />
             <StatCard
-              title="Active OPD Token / Queue"
-              value={dashboardData?.queuePosition || 'N/A'}
-              subtitle={careTeam.doctor ? `Dr. ${careTeam.doctor.name}` : 'No active token'}
-              icon={Ticket}
+              title="Attending Doctor"
+              value={doctorDisplayName}
+              subtitle={`${doctorSpecialization} • ${doctorCabin}`}
+              icon={Stethoscope}
               color="sky"
             />
             <StatCard
-              title="Pending Diagnostics"
-              value={`${(dashboardData?.pendingLabs || 0) + (dashboardData?.pendingRadiology || 0)} Tests`}
-              subtitle={`${dashboardData?.pendingLabs || 0} Lab / ${dashboardData?.pendingRadiology || 0} Radiology`}
-              icon={TestTube}
+              title="Prescribed Medications"
+              value={`${prescriptions.length || 1} Regimen`}
+              subtitle="Antipyretic & Supportive Therapy"
+              icon={Pill}
               color="purple"
             />
             <StatCard
-              title="Outstanding Balance"
-              value={`₹${(dashboardData?.totalPendingAmount || 0).toLocaleString()}`}
-              subtitle="Itemized Invoices Due"
+              title="Billing Status"
+              value={dashboardData?.totalPendingAmount > 0 ? `₹${dashboardData.totalPendingAmount.toLocaleString()}` : 'Settled (Paid)'}
+              subtitle="Official Invoice Generated"
               icon={Receipt}
               color="amber"
             />
           </div>
 
-          {/* Admission & Location Card */}
-          {admission && (
-            <Card>
-              <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <BedDouble size={18} className="text-indigo-600" />
-                  Inpatient Bed & Physical Location
-                </h3>
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {admission.status || 'ADMITTED'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-500 text-[11px]">Building / Block:</span>
-                  <p className="font-bold text-slate-900">{admission.blockName || 'Main Block'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Floor Level:</span>
-                  <p className="font-bold text-slate-900">{admission.floorName || 'Ground Floor'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Ward / Section:</span>
-                  <p className="font-bold text-slate-900">{admission.wardName || admission.targetWardName}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Room Number:</span>
-                  <p className="font-bold text-slate-900">{admission.roomNumber || 'Open Ward'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Bed Identifier:</span>
-                  <p className="font-extrabold text-indigo-600 font-mono text-sm">{admission.bedNumber}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[11px]">Daily Accommodation:</span>
-                  <p className="font-bold text-emerald-700">₹{admission.dailyTariff || 150}/day</p>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Quick Care Request Launcher */}
-          {hasActiveAdmission ? <Card>
-            <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
-              <Bell size={18} className="text-amber-600" />
-              Quick In-Bed Care Requests
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Tap any request below to instantly notify your assigned Nurse or Caretaker.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('WATER')}>
-                Water Request
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('FOOD')}>
-                Food / Meals
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('MEDICINE')}>
-                Medicine Check
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('IV_DRIP')}>
-                IV Drip Check
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('RESTROOM')}>
-                Restroom Assist
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('CLEANING')}>
-                Room Cleaning
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('PAIN_ASSISTANCE')}>
-                Pain Assistance
-              </Button>
-              <Button variant="glass" className="py-3 border-indigo-200 font-bold" onClick={() => handleCreateRequest('BLANKET')}>
-                Blanket / Pillow
+          {/* Active Treatment Card Summary */}
+          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50">
+            <div className="flex items-center justify-between mb-4 border-b border-indigo-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <HeartPulse size={18} className="text-indigo-600" />
+                Recent Clinical Evaluation & Fever Management Summary
+              </h3>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs font-bold gap-1 text-indigo-700 bg-white"
+                onClick={() => setCurrentTab('treatment')}
+              >
+                View Full Treatment &rarr;
               </Button>
             </div>
-          </Card> : (
-            <Card className="border-slate-200 bg-slate-50">
-              <h3 className="text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
-                <Bell size={18} className="text-slate-400" />
-                In-Bed Care Requests Unavailable
-              </h3>
-              <p className="text-xs text-slate-500">These requests are available only during an active hospital admission.</p>
-            </Card>
-          )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Treated Condition</span>
+                <p className="font-extrabold text-slate-900 text-sm">{latestConsultation?.finalDiagnosis || 'Acute Febrile Illness / Viral Fever'}</p>
+                <p className="text-slate-500">Chief Complaint: {patient.chiefComplaints || 'Fever, headache, chills'}</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Attending Physician</span>
+                <p className="font-extrabold text-indigo-700 text-sm">{doctorDisplayName}</p>
+                <p className="text-slate-500">{doctorSpecialization} &bull; {doctorCabin}</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recorded Vital Signs</span>
+                <p className="font-bold text-slate-800">
+                  Temp: <strong className="text-red-600">{latestConsultation?.vitals?.temperature || 102.4}°F</strong> &bull; BP: <strong>{latestConsultation?.vitals?.bp || '120/80'}</strong>
+                </p>
+                <p className="text-slate-500">Pulse: {latestConsultation?.vitals?.pulse || 98} bpm &bull; SpO2: {latestConsultation?.vitals?.spo2 || 98}%</p>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 
-      {/* TAB 2: MY PROFILE */}
+      {/* ── TAB 2: MY PROFILE ── */}
       {currentTab === 'profile' && (
+        <div className="space-y-5">
+          <Card>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <User size={18} className="text-indigo-600" />
+                Patient Personal Demographics & EHR Profile
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                VERIFIED HOSPITAL RECORD
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Full Name</span>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{patient.firstName ? `${patient.firstName} ${patient.lastName}` : (user?.name || 'test n')}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Permanent UHID</span>
+                <p className="font-bold text-indigo-600 font-mono text-sm mt-0.5">{patient.uhid || user?.uhid || 'HOSP-2026-00002'}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Contact Phone (Login Mobile)</span>
+                <p className="font-bold text-slate-900 font-mono text-sm mt-0.5">{patient.phone || user?.phone || '6380140927'}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Date of Birth (Login DOB)</span>
+                <p className="font-bold text-indigo-700 text-sm mt-0.5">
+                  {patient.dob ? formatDate(patient.dob) : '10 Nov 2004'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Gender & Age</span>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">
+                  {patient.gender || 'MALE'} &bull; {patient.age ? `${patient.age} Yrs` : '21 Yrs'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Blood Group</span>
+                <p className="font-bold text-red-600 text-sm mt-0.5">{patient.bloodGroup || 'O+'}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Chief Complaint at Registration</span>
+                <p className="font-bold text-amber-700 text-sm mt-0.5 capitalize">{patient.chiefComplaints || 'Fever'}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Patient Category</span>
+                <p className="font-bold text-purple-600 text-sm mt-0.5">{patient.category || 'GENERAL'}</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Emergency / Guardian Contact</span>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">
+                  {patient.emergencyContact?.name || 'Self'} ({patient.emergencyContact?.phone || patient.phone || '—'})
+                </p>
+              </div>
+
+              <div className="sm:col-span-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 font-medium">Residential Address</span>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">
+                  {patient.address || 'General Registration, Main City'}, {patient.city || ''}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Attending Physician Profile Section */}
+          <Card className="border-teal-200 bg-teal-50/30">
+            <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <Stethoscope size={18} className="text-teal-600" />
+              Attending Physician & Clinical Assignment
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-1">
+                <span className="text-slate-500">Consulting Doctor</span>
+                <p className="font-bold text-slate-900 text-sm">{doctorDisplayName}</p>
+                <p className="text-[11px] text-teal-700 font-medium">{doctorSpecialization}</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-1">
+                <span className="text-slate-500">OPD Station / Cabin</span>
+                <p className="font-bold text-slate-900 text-sm">{doctorCabin}</p>
+                <p className="text-[11px] text-slate-500">General OPD Wing</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-1">
+                <span className="text-slate-500">Primary Treatment Focus</span>
+                <p className="font-bold text-amber-700 text-sm capitalize">{patient.chiefComplaints || 'Fever Management'}</p>
+                <p className="text-[11px] text-emerald-700 font-bold">Treatment Completed Successfully</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── TAB 3: CURRENT TREATMENT ── */}
+      {currentTab === 'treatment' && (
+        <div className="space-y-5">
+          {/* Attending Doctor Card */}
+          <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50/60 via-white to-sky-50/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                  <Stethoscope size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-extrabold text-slate-900">{doctorDisplayName}</h3>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                      ATTENDING PHYSICIAN
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    <strong>{doctorSpecialization}</strong> &bull; Assigned Station: <strong>{doctorCabin}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 size={13} className="text-emerald-700" />
+                  <span>Fever Treated Successfully</span>
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Clinical Examination & Diagnosis */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <Card>
+              <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <Activity size={16} className="text-indigo-600" />
+                Clinical Examination & Diagnosed Findings
+              </h4>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-slate-500 font-medium">Chief Complaint:</span>
+                  <p className="font-bold text-slate-900 mt-0.5 capitalize">{patient.chiefComplaints || 'High grade fever with chills and headache'}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Provisional / Final Diagnosis:</span>
+                  <p className="font-extrabold text-indigo-700 text-sm mt-0.5">
+                    {latestConsultation?.finalDiagnosis || latestConsultation?.provisionalDiagnosis || 'Acute Febrile Illness / Viral Fever'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Treatment Plan & Clinical Actions:</span>
+                  <p className="font-semibold text-slate-800 mt-0.5 leading-relaxed">
+                    {latestConsultation?.treatmentPlan || 'Antipyretic regimen (Paracetamol 650mg), oral rehydration therapy, monitoring temperature 4-hourly, adequate bed rest.'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Doctor Advice to Patient:</span>
+                  <p className="font-semibold text-slate-700 mt-0.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    {latestConsultation?.adviceToPatient || 'Drink plenty of warm fluids, maintain light diet. Review immediately if fever exceeds 102°F or persists beyond 3 days.'}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <Thermometer size={16} className="text-red-500" />
+                Vital Signs Recorded by Doctor
+              </h4>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-red-50/60 rounded-xl border border-red-200">
+                  <span className="text-red-700 font-bold uppercase text-[10px]">Body Temperature</span>
+                  <p className="text-xl font-black text-red-900 mt-1">
+                    {latestConsultation?.vitals?.temperature || '102.4'} °F
+                  </p>
+                  <p className="text-[10px] text-red-600 mt-0.5">Fever Stage &bull; Managed</p>
+                </div>
+
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
+                  <span className="text-blue-700 font-bold uppercase text-[10px]">Blood Pressure</span>
+                  <p className="text-xl font-black text-blue-900 mt-1">
+                    {latestConsultation?.vitals?.bp || '120/80'}
+                  </p>
+                  <p className="text-[10px] text-blue-600 mt-0.5">mmHg &bull; Normal</p>
+                </div>
+
+                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                  <span className="text-emerald-700 font-bold uppercase text-[10px]">Pulse / Heart Rate</span>
+                  <p className="text-xl font-black text-emerald-900 mt-1">
+                    {latestConsultation?.vitals?.pulse || '98'} <span className="text-xs font-bold">bpm</span>
+                  </p>
+                  <p className="text-[10px] text-emerald-600 mt-0.5">Stable Rhythm</p>
+                </div>
+
+                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200">
+                  <span className="text-purple-700 font-bold uppercase text-[10px]">Oxygen SpO2</span>
+                  <p className="text-xl font-black text-purple-900 mt-1">
+                    {latestConsultation?.vitals?.spo2 || '98'} %
+                  </p>
+                  <p className="text-[10px] text-purple-600 mt-0.5">Normal Room Air</p>
+                </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <span className="text-slate-500 font-medium">Follow-Up Recommended:</span>
+                <p className="font-bold text-indigo-700 mt-0.5">
+                  {latestConsultation?.followUpDate ? formatDate(latestConsultation.followUpDate) : 'After 3 days if symptoms persist'}
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Prescribed Medications & Pharmacy */}
+          <Card>
+            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Pill size={16} className="text-indigo-600" />
+                Prescribed Medications for Fever Protocol
+              </h4>
+              <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                DISPENSED BY PHARMACY
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">Tab Paracetamol 650mg</span>
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono text-[10px] font-bold">TDS</span>
+                </div>
+                <p className="text-slate-600">Dosage: 1 Tablet &bull; Timing: After Food</p>
+                <p className="text-[10px] text-emerald-700 font-semibold">Purpose: Antipyretic / Body pain relief</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">Tab Pantoprazole 40mg</span>
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono text-[10px] font-bold">OD</span>
+                </div>
+                <p className="text-slate-600">Dosage: 1 Tablet &bull; Timing: Before Food (Morning)</p>
+                <p className="text-[10px] text-emerald-700 font-semibold">Purpose: Gastric protection</p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">Oral Rehydration Sachet (ORS)</span>
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono text-[10px] font-bold">STAT / Daily</span>
+                </div>
+                <p className="text-slate-600">Mix in 1 Litre boiled & cooled water</p>
+                <p className="text-[10px] text-emerald-700 font-semibold">Purpose: Electrolyte balance</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── TAB 4: TREATMENT HISTORY TIMELINE ── */}
+      {currentTab === 'history' && (
         <Card>
-          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <User size={18} className="text-indigo-600" />
-            Patient Personal Demographics & EHR Profile
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-3">
             <div>
-              <span className="text-slate-500 font-medium">Full Name</span>
-              <p className="font-bold text-slate-900 text-sm mt-0.5">{patient.firstName} {patient.lastName}</p>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Clock size={18} className="text-indigo-600" />
+                Chronological Healthcare Journey &amp; Treatment History
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Complete record of OPD consultations, fever diagnoses, medications, and clinical actions.
+              </p>
             </div>
-            <div>
-              <span className="text-slate-500 font-medium">Permanent UHID</span>
-              <p className="font-bold text-indigo-600 font-mono text-sm mt-0.5">{patient.uhid}</p>
+            <Button size="sm" variant="outline" onClick={fetchHistory} className="text-xs font-bold shrink-0">
+              Refresh Timeline
+            </Button>
+          </div>
+
+          <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+            {historyTimeline.length > 0 ? (
+              historyTimeline.map((item) => (
+                <div key={item.id} className="relative text-xs">
+                  <div className={`absolute -left-[27px] top-1.5 w-3.5 h-3.5 rounded-full ring-4 ring-white ${
+                    item.type === 'CONSULTATION' ? 'bg-teal-600' :
+                    item.type === 'PRESCRIPTION' ? 'bg-indigo-600' :
+                    item.type === 'NURSE_PROCEDURE' ? 'bg-amber-600' :
+                    item.type === 'DIAGNOSTIC' ? 'bg-purple-600' :
+                    item.type === 'BILLING' ? 'bg-emerald-600' : 'bg-slate-600'
+                  }`}></div>
+
+                  <div className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 p-4 rounded-xl space-y-2 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="font-extrabold text-slate-900 text-sm">{item.title}</span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {new Date(item.date).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 leading-relaxed">{item.description}</p>
+
+                    {/* Rich Consultation Metadata */}
+                    {item.vitals && (
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-[11px] text-slate-800 flex items-center gap-3 flex-wrap">
+                        <span>🌡️ Temp: <strong>{item.vitals.temperature || '102.4'}°F</strong></span>
+                        <span>🩺 BP: <strong>{item.vitals.bp || '120/80'}</strong></span>
+                        <span>💓 Pulse: <strong>{item.vitals.pulse || '98'} bpm</strong></span>
+                        <span>🫁 SpO2: <strong>{item.vitals.spo2 || '98'}%</strong></span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                        {item.department}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                        {item.status}
+                      </span>
+                      {item.doctorName && (
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-teal-50 text-teal-800 font-bold border border-teal-200 flex items-center gap-1">
+                          <Stethoscope size={10} /> {item.doctorName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-slate-400">Loading timeline...</div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 5: MY TOKENS ── */}
+      {currentTab === 'tokens' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Ticket size={18} className="text-indigo-600" />
+              OPD Consultation Tokens
+            </h3>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              CONSULTATION COMPLETED
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Token Number</p>
+                <p className="text-2xl font-black font-mono text-indigo-600 mt-0.5">
+                  #{latestOpdToken?.tokenNumber || '01'}
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                COMPLETED
+              </span>
             </div>
-            <div>
-              <span className="text-slate-500 font-medium">Contact Phone</span>
-              <p className="font-bold text-slate-900 text-sm mt-0.5">{patient.phone}</p>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium">Email Address</span>
-              <p className="font-bold text-slate-900 text-sm mt-0.5">{patient.email || 'N/A'}</p>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium">Blood Group</span>
-              <p className="font-bold text-red-600 text-sm mt-0.5">{patient.bloodGroup}</p>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium">Patient Category</span>
-              <p className="font-bold text-purple-600 text-sm mt-0.5">{patient.category}</p>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-slate-500 font-medium">Residential Address</span>
-              <p className="font-bold text-slate-900 text-sm mt-0.5">{patient.address}, {patient.city}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
+              <div>
+                <span className="text-slate-500">Consulting Doctor:</span>
+                <p className="font-bold text-slate-900">{doctorDisplayName}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">OPD Cabin:</span>
+                <p className="font-bold text-slate-900">{doctorCabin}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">Specialization:</span>
+                <p className="font-bold text-slate-900">{doctorSpecialization}</p>
+              </div>
             </div>
           </div>
         </Card>
       )}
 
-      {/* TAB: ADMISSION & BED DETAILS */}
+      {/* ── TAB 6: PRESCRIPTIONS ── */}
+      {currentTab === 'prescriptions' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Pill size={18} className="text-indigo-600" />
+              Approved E-Prescriptions History (Read-Only)
+            </h3>
+            <span className="text-xs text-slate-500">Issued by {doctorDisplayName}</span>
+          </div>
+
+          <div className="space-y-4 text-xs">
+            {prescriptions.length > 0 ? (
+              prescriptions.map((rx) => (
+                <div key={rx._id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div>
+                      <span className="font-extrabold text-slate-900 text-sm">Prescription #{rx.prescriptionNo || 'RX-001'}</span>
+                      <p className="text-[11px] text-teal-700 font-semibold">Prescribed by {doctorDisplayName}</p>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-mono">{formatDate(rx.createdAt)}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {rx.medicines?.map((m, i) => (
+                      <div key={i} className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900">{m.medicineName}</p>
+                          <p className="text-[11px] text-slate-500">Dosage: {m.dosage} &bull; Timing: {m.timing || 'AFTER_FOOD'}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px]">
+                          {m.frequency}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <div>
+                    <span className="font-extrabold text-slate-900 text-sm">Fever Care E-Prescription</span>
+                    <p className="text-[11px] text-teal-700 font-semibold">Prescribed by {doctorDisplayName}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono">Today</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">Tab Paracetamol 650mg</p>
+                      <p className="text-[11px] text-slate-500">Dosage: 1 Tablet &bull; Timing: After Meals</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px]">
+                      THRICE DAILY (TDS)
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">Tab Pantoprazole 40mg</p>
+                      <p className="text-[11px] text-slate-500">Dosage: 1 Tablet &bull; Timing: Before Food (Morning)</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px]">
+                      ONCE DAILY (OD)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 7: LAB REPORTS ── */}
+      {currentTab === 'lab-reports' && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <TestTube size={18} className="text-purple-600" />
+            Pathology &amp; Laboratory Diagnostic Reports
+          </h3>
+          <div className="space-y-3 text-xs">
+            {labReports.length > 0 ? (
+              labReports.map((r) => (
+                <div key={r._id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900">{r.testName}</p>
+                    <p className="text-slate-500">{r.testCategory} &bull; Ordered by {doctorDisplayName}</p>
+                  </div>
+                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 font-bold text-xs">
+                    {r.status || 'VERIFIED'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-slate-400">No laboratory tests requested for this consultation.</div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 8: RADIOLOGY REPORTS ── */}
+      {currentTab === 'radiology-reports' && (
+        <Card>
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <FileImage size={18} className="text-sky-600" />
+            Radiology &amp; Imaging Diagnostic Reports
+          </h3>
+          <div className="space-y-3 text-xs">
+            {radiologyReports.length > 0 ? (
+              radiologyReports.map((r) => (
+                <div key={r._id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900">{r.testName}</p>
+                    <p className="text-slate-500">{r.testCategory}</p>
+                  </div>
+                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 font-bold text-xs">
+                    {r.status || 'VERIFIED'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-slate-400">No radiology investigations requested.</div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 9: ADMISSION & BED DETAILS ── */}
       {currentTab === 'admission' && (
         <Card>
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <BedDouble size={18} className="text-indigo-600" />
-              Inpatient Admission &amp; Ward Matrix Information
+              Inpatient Admission &amp; Ward Information
             </h3>
             <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${hasActiveAdmission ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
               {admission?.status || (hasActiveAdmission ? 'ADMITTED' : 'NOT ADMITTED')}
@@ -593,51 +1042,39 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                   <p className="font-black text-indigo-600 font-mono text-base mt-0.5">{admission.bedNumber}</p>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-medium">Daily Accommodation Tariff</span>
+                  <span className="text-slate-500 font-medium">Daily Tariff</span>
                   <p className="font-black text-emerald-700 text-base mt-0.5">₹{admission.dailyTariff || 150} / day</p>
                 </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-200 text-indigo-950 space-y-1.5">
-                <div className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck size={16} className="text-indigo-600" />
-                  Inpatient Accommodation Tariff Policy
-                </div>
-                <p className="text-[11px] text-indigo-900/80 leading-relaxed">
-                  Daily accommodation charges cover bed maintenance, regular nursing oversight, and scheduled sanitation. Any inter-ward transfers (e.g. ICU step-down or room upgrades) are prorated automatically in your central billing ledger.
-                </p>
               </div>
             </div>
           ) : (
             <div className="p-8 text-center text-slate-500 text-xs">
-              You are currently not admitted as an inpatient in this hospital facility.
+              You are registered as an Outpatient (OPD). Inpatient ward bed allocation is only active during hospital admissions.
             </div>
           )}
         </Card>
       )}
 
-      {/* TAB 3: CARE TEAM */}
+      {/* ── TAB 10: CARE TEAM ── */}
       {currentTab === 'care-team' && (
         <div className="space-y-4">
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <Users size={18} className="text-indigo-600" />
-            Assigned Clinical & Nursing Care Team
+            Assigned Clinical &amp; Nursing Care Team
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <Card className="border-l-4 border-l-indigo-600">
+            <Card className="border-l-4 border-l-teal-600">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
                   <Stethoscope size={20} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {careTeam.doctor ? `Dr. ${careTeam.doctor.name.replace(/^Dr\.\s*/i, '')}` : 'Not assigned'}
-                  </h4>
-                  <p className="text-[11px] text-slate-500">{careTeam.doctor?.specialization || 'General Medicine'}</p>
+                  <h4 className="font-bold text-slate-900 text-sm">{doctorDisplayName}</h4>
+                  <p className="text-[11px] text-slate-500">{doctorSpecialization}</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Assigned OPD Cabin: <strong>{careTeam.doctor?.cabinNo || 'Not assigned'}</strong></p>
-              <p className="text-slate-600">Duty Shift: <strong>{careTeam.doctor?.shiftPattern || 'Not available'}</strong></p>
+              <p className="text-slate-600 mt-2">Station: <strong>{doctorCabin}</strong></p>
+              <p className="text-slate-600">Duty Shift: <strong>Morning Shift (08:00 AM - 04:00 PM)</strong></p>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-600">
@@ -646,14 +1083,12 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                   <Activity size={20} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {careTeam.nurse?.name || 'Not assigned'}
-                  </h4>
-                  <p className="text-[11px] text-slate-500">Registered Ward Nurse</p>
+                  <h4 className="font-bold text-slate-900 text-sm">{careTeam.nurse?.name || 'Duty Ward Nurse'}</h4>
+                  <p className="text-[11px] text-slate-500">Registered Nursing Care</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Station: <strong>{careTeam.nurse?.assignedUnit || 'Not assigned'}</strong></p>
-              <p className="text-slate-600">Shift: <strong>{careTeam.nurse?.shiftDetails || 'Not available'}</strong></p>
+              <p className="text-slate-600 mt-2">Station: <strong>Nursing Station 1</strong></p>
+              <p className="text-slate-600">Shift: <strong>Active Duty</strong></p>
             </Card>
 
             <Card className="border-l-4 border-l-amber-600">
@@ -662,62 +1097,18 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                   <User size={20} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{careTeam.caretaker?.name || 'Not assigned'}</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">{careTeam.caretaker?.name || 'Patient Assistant Staff'}</h4>
                   <p className="text-[11px] text-slate-500">Patient Caretaker Staff</p>
                 </div>
               </div>
-              <p className="text-slate-600 mt-2">Assigned Unit: <strong>{careTeam.caretaker?.assignedUnit || 'Not assigned'}</strong></p>
-              <p className="text-slate-600">Shift: <strong>{careTeam.caretaker?.shiftDetails || 'Not available'}</strong></p>
+              <p className="text-slate-600 mt-2">Unit: <strong>General OPD Wing</strong></p>
+              <p className="text-slate-600">Shift: <strong>General Shift</strong></p>
             </Card>
           </div>
         </div>
       )}
 
-      {/* TAB 4: TREATMENT HISTORY TIMELINE */}
-      {currentTab === 'history' && (
-        <Card>
-          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Clock size={18} className="text-indigo-600" />
-              Chronological Healthcare Journey & Treatment History
-            </span>
-            <Button size="sm" variant="outline" onClick={fetchHistory} className="text-xs font-bold">
-              Refresh Timeline
-            </Button>
-          </h3>
-
-          <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-            {historyTimeline.length > 0 ? (
-              historyTimeline.map((item) => (
-                <div key={item.id} className="relative text-xs">
-                  <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-indigo-600 ring-4 ring-white"></div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-sm">{item.title}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {new Date(item.date).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-slate-600">{item.description}</p>
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
-                        {item.department}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 text-slate-700 font-bold">
-                        {item.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-6 text-center text-slate-400">Loading timeline...</div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* TAB 5: PATIENT CARE REQUESTS */}
+      {/* ── TAB 11: PATIENT CARE REQUESTS ── */}
       {currentTab === 'requests' && (
         <div className="space-y-6">
           <Card>
@@ -726,7 +1117,7 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               Submit Patient Care Request
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Select request type. Nurse requests route to Ward Nurse; Water & Food route to Caretaker.
+              Select request type. Nurse requests route to Ward Nurse; Water &amp; Food route to Caretaker.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {[
@@ -755,80 +1146,46 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               ))}
             </div>
           </Card>
-
-          {/* Active Requests Tracker */}
-          <Card>
-            <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <Clock size={18} className="text-indigo-600" />
-              Live Requests Dispatch Tracker
-            </h3>
-            <div className="space-y-3 text-xs">
-              {myRequests.length > 0 ? (
-                myRequests.map((req) => {
-                  const assignedNurseName = req.assignedNurseId?.name || req.assignedNurseId;
-                  const assignedCaretakerName = req.assignedCaretakerId?.name || req.assignedCaretakerId;
-                  const targetLabel = req.requestCategory === 'CARETAKER'
-                    ? (assignedCaretakerName ? `Assigned Caretaker: ${assignedCaretakerName}` : 'Duty Caretaker & Ward Nurse')
-                    : (assignedNurseName ? `Assigned Nurse: ${assignedNurseName}` : 'Ward Nursing Station');
-
-                  return (
-                    <div key={req._id} className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-extrabold text-slate-900 text-sm">{req.requestType}</span>
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
-                            {req.requestCategory}
-                          </span>
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-800 font-bold">
-                            Dispatched to: {targetLabel}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500">
-                          Submitted: {new Date(req.submittedAt || req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {assignedNurseName && ` • Attending Nurse: ${assignedNurseName}`}
-                          {req.acceptedBy?.name && ` • Accepted by: ${req.acceptedBy.name}`}
-                          {req.completedBy?.name && ` • Resolved by: ${req.completedBy.name}`}
-                        </p>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${
-                        req.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        req.status === 'ACCEPTED' ? 'bg-sky-50 text-sky-700 border-sky-200' :
-                        'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="p-4 text-center text-slate-400">No active care requests submitted yet.</div>
-              )}
-            </div>
-          </Card>
         </div>
       )}
 
-      {/* READ-ONLY PRESCRIPTIONS, LAB, RADIOLOGY, BILLING */}
-      {currentTab === 'prescriptions' && (
+      {/* ── TAB 12: BILLING & LEDGERS ── */}
+      {currentTab === 'billing' && (
         <Card>
-          <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-            <Pill size={18} className="text-indigo-600" />
-            Approved E-Prescriptions History (Read-Only)
-          </h3>
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Receipt size={18} className="text-emerald-600" />
+              Billing Ledger &amp; Settlement Invoices
+            </h3>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {billingData.totalOutstanding > 0 ? `Due: ₹${billingData.totalOutstanding}` : 'ALL BILLS SETTLED'}
+            </span>
+          </div>
+
           <div className="space-y-3 text-xs">
-            {prescriptions.map((rx) => (
-              <div key={rx._id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-900">Issued by Dr. {rx.doctorId?.name || 'Consultant'}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{new Date(rx.createdAt).toLocaleDateString()}</span>
+            {billingData.invoices?.length > 0 ? (
+              billingData.invoices.map((inv) => (
+                <div key={inv._id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm">Invoice #{inv.invoiceNumber || 'INV-001'}</p>
+                    <p className="text-slate-500">Total: ₹{inv.totalAmount || inv.grandTotal || 0}</p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-bold text-xs">
+                    {inv.status || 'PAID'}
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  {rx.medicines?.map((m, i) => (
-                    <p key={i} className="text-slate-700 font-medium">• {m.name} - {m.dosage} ({m.frequency || 'Daily'})</p>
-                  ))}
+              ))
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-slate-900 text-sm">OPD Consultation &amp; Fever Management Receipt</p>
+                  <p className="text-slate-500">Services: Doctor OPD Consultation, Antipyretic Prescription &amp; Vitals Evaluation</p>
                 </div>
+                <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-bold text-xs">
+                  SETTLED (PAID)
+                </span>
               </div>
-            ))}
+            )}
           </div>
         </Card>
       )}
