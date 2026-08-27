@@ -1899,14 +1899,10 @@ const targetDocId = user?.id || user?._id;
                               {task.administrationDetails?.notes || 'Normal / Completed'}
                             </td>
                             <td className="p-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleContinueConsultationForNurseTask(task)}
-                                className="px-3 py-1 rounded-lg font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <Stethoscope size={13} />
-                                Open Encounter
-                              </button>
+                              <span className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5 shadow-2xs">
+                                <CheckCircle2 size={12} className="text-emerald-600" />
+                                Completed &amp; Processed
+                              </span>
                             </td>
                           </tr>
                         ))
@@ -2093,14 +2089,10 @@ const targetDocId = user?.id || user?._id;
                                     <Eye size={12} /> View Scan
                                   </a>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => handleContinueConsultation(ord)}
-                                  className="px-3 py-1 rounded-lg font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
-                                >
-                                  <Stethoscope size={13} />
-                                  Open Encounter
-                                </button>
+                                <span className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5 shadow-2xs">
+                                  <CheckCircle2 size={12} className="text-emerald-600" />
+                                  Completed &amp; Billed
+                                </span>
                               </div>
                             </td>
                           </tr>
