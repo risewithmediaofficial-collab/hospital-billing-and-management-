@@ -718,6 +718,15 @@ const targetDocId = user?.id || user?._id;
     return pName.includes(search) || uhid.includes(search) || tName.includes(search);
   });
 
+  // Keep badge counts strictly synced with active items
+  useEffect(() => {
+    const activeTotal = activeNurseTasks.length + activeDeptOrders.length + patientDoctorRequests.length + substitutionRequests.length + (returnedBillingPrescriptions?.length || 0);
+    useDepartmentNotificationStore.getState().setNavCount('/doctor/dashboard?tab=DEPT_RESPONSES', activeTotal);
+    if (activeTab === 'DEPT_RESPONSES') {
+      useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
+    }
+  }, [activeTab, activeNurseTasks.length, activeDeptOrders.length, patientDoctorRequests.length, substitutionRequests.length, returnedBillingPrescriptions?.length]);
+
   // Backward compatibility alias
   const filteredDeptOrders = filteredActiveDeptOrders;
   const filteredNurseTasks = filteredActiveNurseTasks;
@@ -1836,87 +1845,6 @@ const targetDocId = user?.id || user?._id;
                   </table>
                 </div>
               </Card>
-
-              {/* 2. Reviewed & Completed History for Nurse Administrations (Below active content!) */}
-              <Card className="space-y-4 bg-white border border-emerald-200 shadow-sm text-black">
-                <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                      <CheckCircle2 size={18} className="text-emerald-600" />
-                      Reviewed &amp; Completed History &mdash; Nurse Administrations &amp; Injections ({filteredHistoryNurseTasks.length})
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                      Historical log of nurse-administered bedside injections and treatments reviewed by doctor.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-emerald-50/70 text-slate-900 uppercase tracking-wider text-[10px] border-b border-emerald-200 font-bold">
-                      <tr>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">UHID</th>
-                        <th className="p-3">Medicine &amp; Dose</th>
-                        <th className="p-3">Route / Site</th>
-                        <th className="p-3">Administering Nurse</th>
-                        <th className="p-3">Administered Time</th>
-                        <th className="p-3">Review Status</th>
-                        <th className="p-3">Reaction / Notes</th>
-                        <th className="p-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-black">
-                      {filteredHistoryNurseTasks.length > 0 ? (
-                        filteredHistoryNurseTasks.map((task) => (
-                          <tr key={task._id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-bold text-black">
-                              {task.patientId?.firstName} {task.patientId?.lastName}
-                            </td>
-                            <td className="p-3 font-mono font-bold text-indigo-700">
-                              {task.patientId?.uhid || '—'}
-                            </td>
-                            <td className="p-3 font-extrabold text-slate-900">
-                              {task.medicineName} ({task.dose})
-                            </td>
-                            <td className="p-3 text-slate-700 font-bold uppercase">
-                              {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
-                            </td>
-                            <td className="p-3 font-medium text-slate-800">
-                              Nurse {task.administrationDetails?.nurseName || task.assignedNurseName || 'Duty Nurse'}
-                            </td>
-                            <td className="p-3 text-slate-600 whitespace-nowrap">
-                              {task.administrationDetails?.administeredAt
-                                ? new Date(task.administrationDetails.administeredAt).toLocaleString()
-                                : new Date(task.createdAt).toLocaleString()}
-                            </td>
-                            <td className="p-3">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-black bg-emerald-50 text-emerald-700 border-emerald-300">
-                                <CheckCircle2 size={11} /> REVIEWED &amp; ACCEPTED
-                              </span>
-                            </td>
-                            <td className="p-3 text-slate-600 max-w-xs truncate">
-                              {task.administrationDetails?.notes || 'Normal / Completed'}
-                            </td>
-                            <td className="p-3 text-right">
-                              <span className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5 shadow-2xs">
-                                <CheckCircle2 size={12} className="text-emerald-600" />
-                                Completed &amp; Processed
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={9} className="p-6 text-center text-slate-500">
-                            No reviewed nurse administration history recorded.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
             </div>
           )}
 
@@ -2033,82 +1961,6 @@ const targetDocId = user?.id || user?._id;
                   </table>
                 </div>
               </Card>
-
-              {/* 2. Reviewed & Completed History for Diagnostic Reports (Below active content!) */}
-              <Card className="space-y-4 bg-white border border-emerald-200 shadow-sm text-black">
-                <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                      <CheckCircle2 size={18} className="text-emerald-600" />
-                      Reviewed &amp; Completed History &mdash; Department Diagnostics &amp; Scans ({filteredHistoryDeptOrders.length})
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                      Previously reviewed and accepted laboratory results and radiology scans.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-emerald-50/70 text-slate-900 uppercase tracking-wider text-[10px] border-b border-emerald-200 font-bold">
-                      <tr>
-                        <th className="p-3">Patient Name</th>
-                        <th className="p-3">Token / UHID</th>
-                        <th className="p-3">Department</th>
-                        <th className="p-3">Service</th>
-                        <th className="p-3">Sent Time</th>
-                        <th className="p-3">Reviewed Status</th>
-                        <th className="p-3">Reviewed At</th>
-                        <th className="p-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-black">
-                      {filteredHistoryDeptOrders.length > 0 ? (
-                        filteredHistoryDeptOrders.map((ord) => (
-                          <tr key={ord._id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-bold text-black">{ord.patientName}</td>
-                            <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
-                            <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
-                            <td className="p-3 font-extrabold text-black">{ord.testName}</td>
-                            <td className="p-3 text-slate-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleString()}</td>
-                            <td className="p-3">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-black bg-emerald-50 text-emerald-700 border-emerald-300">
-                                <CheckCircle2 size={11} /> REVIEWED &amp; ACCEPTED
-                              </span>
-                            </td>
-                            <td className="p-3 text-slate-600 whitespace-nowrap">{ord.reviewedAt ? new Date(ord.reviewedAt).toLocaleString() : (ord.completedAt ? new Date(ord.completedAt).toLocaleString() : '—')}</td>
-                            <td className="p-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {ord.attachments?.length > 0 && (
-                                  <a
-                                    href={ord.attachments[0].fileUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-bold text-[11px] inline-flex items-center gap-1 shadow-xs"
-                                  >
-                                    <Eye size={12} /> View Scan
-                                  </a>
-                                )}
-                                <span className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5 shadow-2xs">
-                                  <CheckCircle2 size={12} className="text-emerald-600" />
-                                  Completed &amp; Billed
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={8} className="p-6 text-center text-slate-500">
-                            No reviewed diagnostic reports recorded.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
             </div>
           )}
 
