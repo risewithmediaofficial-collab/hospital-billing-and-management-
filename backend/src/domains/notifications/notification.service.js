@@ -355,11 +355,25 @@ export class NotificationService {
    * Auto-complete all active notifications matching an entity when its workflow step finishes.
    */
   static async completeEntityTasks({ hospitalId, entityType, entityId, actionType }) {
-    if (!hospitalId || !entityType || !entityId) return { modifiedCount: 0 };
+    if (!hospitalId || !entityId) return { modifiedCount: 0 };
+    const entityIdStr = String(entityId);
+    const orConds = [
+      { entityId: entityIdStr },
+      { relatedTaskId: entityIdStr },
+      { 'metadata.taskId': entityIdStr },
+      { 'metadata.entityId': entityIdStr },
+      { 'metadata.orderId': entityIdStr },
+      { 'metadata.prescriptionId': entityIdStr },
+      { 'metadata.appointmentId': entityIdStr },
+    ];
+    if (mongoose.Types.ObjectId.isValid(entityIdStr)) {
+      const objId = new mongoose.Types.ObjectId(entityIdStr);
+      orConds.push({ entityId: objId });
+      orConds.push({ relatedPatientId: objId });
+    }
     const query = {
       hospitalId,
-      entityType,
-      entityId: String(entityId),
+      $or: orConds,
       isCompleted: { $ne: true },
     };
     if (actionType) {

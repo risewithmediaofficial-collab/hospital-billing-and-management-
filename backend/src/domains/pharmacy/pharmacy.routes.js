@@ -84,6 +84,7 @@ router.patch('/nurse-tasks/:id/doctor-review', requireAssignedRole('DOCTOR'), as
         { relatedTaskId: String(req.params.id) },
         { entityId: String(req.params.id) },
         { 'metadata.taskId': String(req.params.id) },
+        { 'metadata.entityId': String(req.params.id) },
       ],
       isCompleted: { $ne: true },
     }).lean();
