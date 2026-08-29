@@ -170,7 +170,7 @@ export const MODULE_ACTION_MATRIX = {
 
 export const ROLE_NAVIGATION = {
   SUPER_ADMIN: [
-    { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
+    { title: 'Emergency Console', path: '/admin/emergency', icon: 'ShieldAlert', module: 'emergency', category: 'Emergency Services' },
   ],
   HOSPITAL_ADMIN: [
     // Executive & System Management

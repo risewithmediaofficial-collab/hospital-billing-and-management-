@@ -40,4 +40,5 @@ export const STAT_CARD_ROUTES = {
   ipdPatients: '/admin/reports?metric=patients',
   recentHospitalRegistrations: '/admin/hospitals',
   recentActivities: '/admin/audit-logs',
+  emergencyCases: '/admin/emergency',
 };

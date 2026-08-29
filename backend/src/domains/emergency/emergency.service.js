@@ -135,14 +135,20 @@ export class EmergencyService {
   }
 
   static async getActiveEmergencies(user) {
-    const hospitalId = requireHospitalContext(user);
-    const filter = { hospitalId, status: { $in: ['ACTIVE', 'RESPONDED'] } };
+    const hospitalId = user?.role === 'SUPER_ADMIN'
+      ? (user?.hospitalId?._id || user?.hospitalId || null)
+      : requireHospitalContext(user);
+    const filter = hospitalId
+      ? { hospitalId, status: { $in: ['ACTIVE', 'RESPONDED'] } }
+      : { status: { $in: ['ACTIVE', 'RESPONDED'] } };
     return await Emergency.find(filter).sort({ createdAt: -1 });
   }
 
   static async getEmergencyHistory(user) {
-    const hospitalId = requireHospitalContext(user);
-    const filter = { hospitalId };
+    const hospitalId = user?.role === 'SUPER_ADMIN'
+      ? (user?.hospitalId?._id || user?.hospitalId || null)
+      : requireHospitalContext(user);
+    const filter = hospitalId ? { hospitalId } : {};
     return await Emergency.find(filter).sort({ createdAt: -1 }).limit(100);
   }
 }
