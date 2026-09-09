@@ -111,10 +111,22 @@ export class WorkflowService {
             status: { $in: ['WAITING', 'IN_CONSULTATION'] },
             departmentReturnedAt: null,
           }).populate('patientId').lean(),
-          DiagnosticOrder.find({ ...scope, ...docQuery, status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] }, reviewedAt: null, chargeStatus: { $ne: 'CANCELLED' } }).lean(),
+          DiagnosticOrder.find({
+            ...scope,
+            ...docQuery,
+            status: { $in: ['REPORT_UPLOADED', 'COMPLETED'] },
+            reviewedAt: null,
+            chargeStatus: { $nin: ['CANCELLED', 'APPROVED', 'INCLUDED_IN_FINAL_BILL'] },
+          }).populate('appointmentId').lean(),
           PatientRequest.find({ ...scope, requestCategory: 'DOCTOR', status: { $in: ACTIVE_REQUEST_STATUSES }, ...(docId ? { $or: [{ assignedDoctorId: docId }, { assignedDoctorId: null }] } : { assignedDoctorId: null }) }).populate('patientId').lean(),
           PharmacySubstitutionRequest.find({ ...scope, ...docQuery, status: 'PENDING' }).populate('patientId').lean(),
-          NurseTask.find({ ...scope, ...docQuery, status: 'ADMINISTERED', doctorReviewedAt: null }).populate('patientId').lean(),
+          NurseTask.find({
+            ...scope,
+            ...docQuery,
+            status: 'ADMINISTERED',
+            doctorReviewedAt: null,
+            isResolved: { $ne: true },
+          }).populate('patientId').populate('appointmentId').lean(),
           Invoice.find({
             ...scope,
             ...(docId ? { 'doctorReviewQuery.attendingDoctorId': docId } : {}),
@@ -130,10 +142,14 @@ export class WorkflowService {
         ]);
 
         appointments.forEach((item) => item && tasks.push(task('DOCTOR_PATIENT', item, '/doctor/dashboard', `Patient waiting: ${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-        reports.forEach((item) => item && tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=DEPT_TRACKER', `Review report: ${item.testName || 'Report'}`, { targetModule: 'doctor' })));
+        reports
+          .filter((item) => item && item.appointmentId?.status !== 'COMPLETED' && item.appointmentId?.status !== 'CANCELLED' && !item.reviewedAt && item.chargeStatus !== 'APPROVED')
+          .forEach((item) => tasks.push(task('DEPARTMENT_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=DEPT_TRACKER', `Review report: ${item.testName || 'Report'}`, { targetModule: 'doctor' })));
         doctorRequests.forEach((item) => item && tasks.push(task('DOCTOR_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Patient request: ${item.requestType || 'Request'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
         subRequests.forEach((item) => item && tasks.push(task('SUBSTITUTION_REQUEST', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=QUERIES', `Substitution approval: ${item.originalMedicineName || 'Medicine'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
-        nurseResponses.forEach((item) => item && tasks.push(task('NURSE_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=NURSE', `Injection Administered: ${item.medicineName || 'Treatment'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
+        nurseResponses
+          .filter((item) => item && item.appointmentId?.status !== 'COMPLETED' && item.appointmentId?.status !== 'CANCELLED' && !item.doctorReviewedAt && item.status !== 'CANCELLED' && !item.isResolved)
+          .forEach((item) => tasks.push(task('NURSE_RESPONSE', item, '/doctor/dashboard?tab=DEPT_RESPONSES&subTab=NURSE', `Injection Administered: ${item.medicineName || 'Treatment'}`, { targetModule: 'doctor', patientName: `${item.patientId?.firstName || ''} ${item.patientId?.lastName || ''}`.trim(), uhid: item.patientId?.uhid })));
 
         const seenInvoiceIds = new Set();
         billingQueries.forEach((item) => {

@@ -208,10 +208,21 @@ export class BillingService {
 
     if (invoice.status === PAYMENT_STATUS.PAID) {
       const { NotificationService } = await import('../notifications/notification.service.js');
+      const { NurseTask } = await import('../../models/NurseTask.js');
+      await NurseTask.updateMany(
+        {
+          hospitalId,
+          patientId: invoice.patientId?._id || invoice.patientId,
+          doctorReviewedAt: null,
+        },
+        { $set: { doctorReviewedAt: new Date() } }
+      ).catch(() => {});
       await NotificationService.completeEntityTasks({
         hospitalId,
         entityType: 'Invoice',
         entityId: invoice._id,
+        relatedPatientId: invoice.patientId?._id || invoice.patientId,
+        targetModule: 'doctor',
       });
       await Notification.updateMany(
         {
@@ -222,6 +233,7 @@ export class BillingService {
             { relatedPatientId: invoice.patientId?._id || invoice.patientId },
             { 'metadata.invoiceId': String(invoice._id) },
             { targetModule: 'billing', relatedPatientId: invoice.patientId?._id || invoice.patientId },
+            { targetModule: 'doctor', relatedPatientId: invoice.patientId?._id || invoice.patientId },
           ],
         },
         { $set: { isCompleted: true, completedAt: new Date(), isRead: true, readAt: new Date(), status: 'COMPLETED' } }
@@ -342,6 +354,18 @@ export class BillingService {
       { $set: { 'billingQuery.resolved': true, 'billingQuery.resolvedAt': new Date(), 'billingQuery.resolvedByDoctorId': doctorId, dispenseStatus: 'DISPENSED' } },
     );
     const { Appointment } = await import('../../models/Appointment.js');
+    const { NurseTask } = await import('../../models/NurseTask.js');
+    await NurseTask.updateMany(
+      {
+        hospitalId,
+        $or: [
+          ...(query.appointmentId ? [{ appointmentId: query.appointmentId }] : []),
+          { patientId: invoice.patientId },
+        ],
+        doctorReviewedAt: null,
+      },
+      { $set: { doctorReviewedAt: new Date() } }
+    ).catch(() => {});
     if (query.appointmentId) {
       await Appointment.updateOne(
         { _id: query.appointmentId, hospitalId },

@@ -216,15 +216,23 @@ export const useDepartmentNotificationStore = create((set, get) => ({
   markAllAsRead: () => get().fetchPendingWork(),
   markAsReadForNav: () => {},
 
-  setNavCount: (navPath, count) => set((state) => ({
-    navCountOverrides: {
-      ...state.navCountOverrides,
-      [navPath]: Math.max(0, Number(count) || 0),
-    },
-  })),
+  setNavCount: (navPath, count) => set((state) => {
+    const cleaned = cleanPath(navPath);
+    const parsedCount = Math.max(0, Number(count) || 0);
+    return {
+      navCountOverrides: {
+        ...state.navCountOverrides,
+        [navPath]: parsedCount,
+        ...(cleaned ? { [cleaned]: parsedCount } : {}),
+      },
+    };
+  }),
 
   getUnreadCountForNav: (navPath) => {
-    const override = get().navCountOverrides[navPath];
+    const cleaned = cleanPath(navPath);
+    const override = get().navCountOverrides[navPath] !== undefined
+      ? get().navCountOverrides[navPath]
+      : get().navCountOverrides[cleaned];
     if (override !== undefined) return override;
 
     // 1. Check matching pending tasks from /workflow/pending (active queue tasks)
@@ -233,6 +241,7 @@ export const useDepartmentNotificationStore = create((set, get) => ({
 
     // 2. Direct path mapping from workflow pending snapshot
     if (get().byPath[navPath] !== undefined) return get().byPath[navPath];
+    if (cleaned && get().byPath[cleaned] !== undefined) return get().byPath[cleaned];
 
     // 3. Fallback: Check active unread notifications from notificationStore
     try {

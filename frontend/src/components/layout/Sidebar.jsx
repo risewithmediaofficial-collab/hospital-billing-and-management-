@@ -666,16 +666,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
             const isCatActive = group.items.some((it) => isItemActive(it.path));
 
             const catEmergencyCount = group.items.reduce((acc, it) => acc + (it.path === '/emergency' ? activeCount : 0), 0);
-            const catUnreadCount = (() => {
-              const catTasks = new Set();
-              group.items.forEach((it) => {
-                if (it.path === '/emergency') return;
-                const matching = deptNotifs.filter((task) => pathMatches(task.linkedPath, it.path, task));
-                matching.forEach((m) => catTasks.add(m.id || m.resourceId || m._id || m.linkedPath));
-              });
-              if (catTasks.size > 0) return catTasks.size;
-              return Math.max(0, ...group.items.filter((it) => it.path !== '/emergency').map((it) => getUnreadCountForNav(it.path)));
-            })();
+            const catUnreadCount = group.items.reduce((acc, it) => {
+              if (it.path === '/emergency') return acc;
+              return acc + (getUnreadCountForNav(it.path) || 0);
+            }, 0);
             const hasCategoryAlerts = catEmergencyCount > 0 || catUnreadCount > 0;
 
             return (

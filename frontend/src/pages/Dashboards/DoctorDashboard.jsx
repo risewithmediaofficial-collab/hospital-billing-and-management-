@@ -784,6 +784,14 @@ const targetDocId = user?.id || user?._id;
     useDepartmentNotificationStore.getState().setNavCount('/doctor/dashboard?tab=DEPT_RESPONSES', pendingReportsCount);
     if (activeTab === 'DEPT_RESPONSES' && pendingReportsCount === 0) {
       useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
+      useNotificationStore.getState().resolveRouteNotifications?.('/doctor/dashboard?tab=DEPT_RESPONSES');
+      useDepartmentNotificationStore.setState((state) => {
+        const remaining = state.notifications.filter((item) => !pathMatches(item.linkedPath, '/doctor/dashboard?tab=DEPT_RESPONSES', item));
+        return {
+          notifications: remaining,
+          unreadCount: Math.max(0, remaining.length),
+        };
+      });
     }
   }, [activeTab, pendingReportsCount]);
 
@@ -1863,6 +1871,71 @@ const targetDocId = user?.id || user?._id;
                   </table>
                 </div>
               </Card>
+
+              {/* Reviewed Nurse Treatment History */}
+              {filteredHistoryNurseTasks.length > 0 && (
+                <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+                  <div className="border-b border-slate-200 pb-3">
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                      Reviewed &amp; Completed Nurse Treatment History ({filteredHistoryNurseTasks.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Past administered injections and treatments from completed consultations.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                        <tr>
+                          <th className="p-3">Patient Name</th>
+                          <th className="p-3">UHID</th>
+                          <th className="p-3">Medicine &amp; Dose</th>
+                          <th className="p-3">Route / Site</th>
+                          <th className="p-3">Administering Nurse</th>
+                          <th className="p-3">Administered Time</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Reaction / Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-black">
+                        {filteredHistoryNurseTasks.map((task) => (
+                          <tr key={task._id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-black">
+                              {task.patientId?.firstName} {task.patientId?.lastName}
+                            </td>
+                            <td className="p-3 font-mono font-bold text-indigo-700">
+                              {task.patientId?.uhid || '—'}
+                            </td>
+                            <td className="p-3 font-extrabold text-slate-900">
+                              {task.medicineName} ({task.dose})
+                            </td>
+                            <td className="p-3 text-slate-700 font-bold uppercase">
+                              {task.administrationDetails?.siteOrRoute || task.route || 'IV'}
+                            </td>
+                            <td className="p-3 font-medium text-slate-800">
+                              {`Nurse ${task.administrationDetails?.nurseName || 'Duty Nurse'}`}
+                            </td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">
+                              {task.administrationDetails?.administeredAt
+                                ? new Date(task.administrationDetails.administeredAt).toLocaleString()
+                                : new Date(task.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                ✓ COMPLETED
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 max-w-xs truncate">
+                              {task.administrationDetails?.notes || 'Normal / Completed'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
             </div>
           )}
 
@@ -1979,6 +2052,53 @@ const targetDocId = user?.id || user?._id;
                   </table>
                 </div>
               </Card>
+
+              {/* Reviewed Department Reports History */}
+              {filteredHistoryDeptOrders.length > 0 && (
+                <Card className="space-y-4 bg-white border border-slate-200 shadow-sm text-black">
+                  <div className="border-b border-slate-200 pb-3">
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                      Reviewed Department Reports History ({filteredHistoryDeptOrders.length})
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      Completed investigation reports reviewed by the doctor.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 font-bold">
+                        <tr>
+                          <th className="p-3">Patient Name</th>
+                          <th className="p-3">Token / UHID</th>
+                          <th className="p-3">Department</th>
+                          <th className="p-3">Requested Service</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Reviewed Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-black">
+                        {filteredHistoryDeptOrders.map((ord) => (
+                          <tr key={ord._id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-black">{ord.patientName}</td>
+                            <td className="p-3"><span className="font-mono font-black text-indigo-700">#{ord.tokenNumber || '—'}</span><div className="font-mono text-[10px] text-slate-500">{ord.uhid}</div></td>
+                            <td className="p-3 font-bold text-slate-800">{departmentLabel(ord.testCategory)}</td>
+                            <td className="p-3 font-extrabold text-slate-900">{ord.testName}</td>
+                            <td className="p-3">
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                REVIEWED BY DOCTOR
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 whitespace-nowrap">
+                              {ord.reviewedAt ? new Date(ord.reviewedAt).toLocaleString() : ord.completedAt ? new Date(ord.completedAt).toLocaleString() : 'Completed'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
             </div>
           )}
 

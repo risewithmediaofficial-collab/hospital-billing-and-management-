@@ -267,6 +267,34 @@ export const useNotificationStore = create((set, get) => ({
     }
   },
 
+  resolveRouteNotifications: async (routePath) => {
+    if (!routePath) return;
+    const clean = String(routePath).split('?')[0];
+    const matching = get().notifications.filter((n) => {
+      const link = n.linkedPath || n.targetRoute || n.link || '';
+      return link.includes(clean);
+    });
+    if (matching.length > 0) {
+      const ids = new Set(matching.map((m) => m.id));
+      const unreadRemoved = matching.filter((m) => !m.isRead).length;
+      set((state) => ({
+        notifications: state.notifications.filter((n) => !ids.has(n.id)),
+        historyNotifications: [
+          ...matching.map((m) => ({ ...m, isCompleted: true, isRead: true, completedAt: new Date() })),
+          ...state.historyNotifications,
+        ],
+        activeCount: Math.max(0, state.activeCount - matching.length),
+        historyCount: state.historyCount + matching.length,
+        unreadCount: Math.max(0, state.unreadCount - unreadRemoved),
+      }));
+      for (const m of matching) {
+        try {
+          await axiosClient.patch(`/notifications/${encodeURIComponent(m.id)}/complete`);
+        } catch {}
+      }
+    }
+  },
+
   markAllAsRead: async () => {
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, isRead: true })),

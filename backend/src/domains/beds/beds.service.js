@@ -33,10 +33,10 @@ export class BedsService {
     const cleanRoomId = data.roomId ? String(data.roomId).trim() : null;
 
     const [block, floor, ward, room] = await Promise.all([
-      cleanBlockId ? HospitalBlock.findOne({ _id: cleanBlockId, hospitalId }) : null,
-      cleanFloorId ? HospitalFloor.findOne({ _id: cleanFloorId, hospitalId }) : null,
-      cleanWardId ? HospitalWard.findOne({ _id: cleanWardId, hospitalId }) : null,
-      cleanRoomId ? HospitalRoom.findOne({ _id: cleanRoomId, hospitalId }) : null,
+      data.blockId ? HospitalBlock.findOne({ _id: data.blockId, hospitalId }) : null,
+      data.floorId ? HospitalFloor.findOne({ _id: data.floorId, hospitalId }) : null,
+      data.wardId ? HospitalWard.findOne({ _id: data.wardId, hospitalId }) : null,
+      data.roomId ? HospitalRoom.findOne({ _id: data.roomId, hospitalId }) : null,
     ]);
     for (const [id, document, label] of [
       [cleanBlockId, block, 'Block'], [cleanFloorId, floor, 'Floor'],
