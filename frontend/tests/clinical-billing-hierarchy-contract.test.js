@@ -128,3 +128,57 @@ test('Doctor Department Responses badge clears completely when billing query is 
   );
 });
 
+test('TeamChatWidget defines PRESETS and QUICK_EMOJIS constants without ReferenceError', async () => {
+  const teamChatSource = await readFile(
+    path.resolve(rootDir, 'frontend/src/components/chat/TeamChatWidget.jsx'),
+    'utf8'
+  );
+
+  assert.match(
+    teamChatSource,
+    /const\s+PRESETS\s*=\s*\[/,
+    'TeamChatWidget must define PRESETS constant array'
+  );
+
+  assert.match(
+    teamChatSource,
+    /const\s+QUICK_EMOJIS\s*=\s*\[/,
+    'TeamChatWidget must define QUICK_EMOJIS constant array'
+  );
+});
+
+test('Physical bed hierarchy performs cascading deletion across floors, wards, rooms, and beds', async () => {
+  const bedsServiceSource = await readFile(
+    path.resolve(rootDir, 'backend/src/domains/beds/beds.service.js'),
+    'utf8'
+  );
+
+  // Floor deletion cascades to wards, rooms, and beds
+  assert.match(
+    bedsServiceSource,
+    /HospitalFloor\.deleteOne[\s\S]*?HospitalWard\.deleteMany[\s\S]*?HospitalRoom\.deleteMany[\s\S]*?Bed\.deleteMany|HospitalWard\.find[\s\S]*?deleteFloor[\s\S]*?Bed\.deleteMany[\s\S]*?HospitalRoom\.deleteMany[\s\S]*?HospitalWard\.deleteMany[\s\S]*?HospitalFloor\.deleteOne/,
+    'deleteFloor must cascade delete subordinate wards, rooms, and beds'
+  );
+
+  // Ward deletion cascades to rooms and beds
+  assert.match(
+    bedsServiceSource,
+    /deleteWard[\s\S]*?Bed\.deleteMany[\s\S]*?HospitalRoom\.deleteMany[\s\S]*?HospitalWard\.deleteOne/,
+    'deleteWard must cascade delete subordinate rooms and beds'
+  );
+
+  // Room deletion cascades to beds
+  assert.match(
+    bedsServiceSource,
+    /deleteRoom[\s\S]*?Bed\.deleteMany[\s\S]*?HospitalRoom\.deleteOne/,
+    'deleteRoom must cascade delete subordinate beds'
+  );
+
+  // Block deletion cascades to floors, wards, rooms, and beds
+  assert.match(
+    bedsServiceSource,
+    /deleteBlock[\s\S]*?Bed\.deleteMany[\s\S]*?HospitalRoom\.deleteMany[\s\S]*?HospitalWard\.deleteMany[\s\S]*?HospitalFloor\.deleteMany[\s\S]*?HospitalBlock\.deleteOne/,
+    'deleteBlock must cascade delete subordinate floors, wards, rooms, and beds'
+  );
+});
+

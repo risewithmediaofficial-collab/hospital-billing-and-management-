@@ -78,9 +78,21 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
     if (selWardId) {
       const matched = wards.find((w) => String(w._id) === String(selWardId));
       if (matched) {
+        if (matched.floorId?._id || matched.floorId) setFloorId(matched.floorId?._id || matched.floorId);
+        if (matched.blockId?._id || matched.blockId) setBlockId(matched.blockId?._id || matched.blockId);
         const wCharge = Number(matched.defaultDailyCharge) || 150;
         setDailyWardCharge(wCharge);
         setDailyTariff((Number(dailyBedCharge) || 0) + (Number(dailyRoomCharge) || 0) + wCharge);
+      }
+    }
+  };
+
+  const handleFloorSelect = (selFloorId) => {
+    setFloorId(selFloorId);
+    if (selFloorId) {
+      const matched = floors.find((f) => String(f._id) === String(selFloorId));
+      if (matched && (matched.blockId?._id || matched.blockId)) {
+        setBlockId(matched.blockId?._id || matched.blockId);
       }
     }
   };
@@ -142,8 +154,20 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
     { value: 'CUSTOM', label: 'Custom Specification' },
   ];
 
+  const filteredFloors = blockId
+    ? floors.filter((f) => String(f.blockId?._id || f.blockId) === String(blockId))
+    : floors;
+
+  const filteredWards = floorId
+    ? wards.filter((w) => String(w.floorId?._id || w.floorId) === String(floorId))
+    : wards;
+
+  const filteredRooms = wardId
+    ? rooms.filter((r) => String(r.wardId?._id || r.wardId) === String(wardId))
+    : rooms;
+
   return (
-    <div className="modal-overlay animate-fade-in z-50">
+    <div className="modal-overlay animate-fade-in z-50" data-testid="bed-modal">
       <div className="modal-container max-w-lg" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
@@ -158,7 +182,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
               <p className="text-xs text-slate-500 mt-0.5">Physical inpatient bed and tariff configuration</p>
             </div>
           </div>
-          <button onClick={onClose} className="modal-close-btn" aria-label="Close">
+          <button onClick={onClose} className="modal-close-btn" aria-label="Close" data-testid="bed-close-icon">
             <X size={18} />
           </button>
         </div>
@@ -184,6 +208,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                   value={bedNumber}
                   onChange={(e) => setBedNumber(e.target.value.toUpperCase())}
                   required
+                  data-testid="bed-number-input"
                   className="w-full text-xs font-bold uppercase font-mono"
                 />
               </div>
@@ -197,6 +222,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                   placeholder="e.g. Bed 101-A"
                   value={bedName}
                   onChange={(e) => setBedName(e.target.value)}
+                  data-testid="bed-name-input"
                   className="w-full text-xs font-semibold"
                 />
               </div>
@@ -210,6 +236,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 <select
                   value={bedType}
                   onChange={(e) => setBedType(e.target.value)}
+                  data-testid="bed-type-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   {BED_TYPE_OPTIONS.map((b) => (
@@ -227,6 +254,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
+                  data-testid="bed-status-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="AVAILABLE">Available (Ready for Admission)</option>
@@ -246,10 +274,11 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 <select
                   value={roomId}
                   onChange={(e) => handleRoomSelect(e.target.value)}
+                  data-testid="bed-room-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Room</option>
-                  {rooms.map((r) => (
+                  {filteredRooms.map((r) => (
                     <option key={r._id} value={r._id}>
                       {r.roomNumber} ({r.roomName || r.roomType})
                     </option>
@@ -264,10 +293,11 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 <select
                   value={wardId}
                   onChange={(e) => handleWardSelect(e.target.value)}
+                  data-testid="bed-ward-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Ward</option>
-                  {wards.map((w) => (
+                  {filteredWards.map((w) => (
                     <option key={w._id} value={w._id}>
                       {w.name}
                     </option>
@@ -284,6 +314,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 <select
                   value={blockId}
                   onChange={(e) => setBlockId(e.target.value)}
+                  data-testid="bed-block-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Block</option>
@@ -301,11 +332,12 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                 </label>
                 <select
                   value={floorId}
-                  onChange={(e) => setFloorId(e.target.value)}
+                  onChange={(e) => handleFloorSelect(e.target.value)}
+                  data-testid="bed-floor-select"
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Floor</option>
-                  {floors.map((f) => (
+                  {filteredFloors.map((f) => (
                     <option key={f._id} value={f._id}>
                       {f.name}
                     </option>
@@ -324,6 +356,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                   min="0"
                   value={dailyTariff}
                   onChange={(e) => setDailyTariff(e.target.value)}
+                  data-testid="bed-charge-input"
                   className="text-sm font-extrabold text-emerald-700"
                   required
                 />
@@ -338,6 +371,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                data-testid="bed-notes-input"
                 rows={2}
                 placeholder="Oxygen port connected, near window, pediatric rails..."
                 className="w-full glass-input rounded-xl px-3 py-2 text-xs text-slate-900 border border-slate-200 resize-none"
@@ -345,10 +379,10 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading} data-testid="bed-cancel-button">
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="font-bold">
+              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="bed-save-button" className="font-bold">
                 {bedToEdit ? 'Save Changes' : 'Create Bed'}
               </Button>
             </div>

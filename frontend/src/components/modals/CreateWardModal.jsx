@@ -171,6 +171,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 </label>
                 <Input
                   type="text"
+                  data-testid="ward-name-input"
                   placeholder="e.g. ICU, General Ward 3B, Maternity Ward"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -185,6 +186,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 </label>
                 <Input
                   type="text"
+                  data-testid="ward-code-input"
                   placeholder="e.g. ICU-1, GW-3B"
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -200,6 +202,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 </label>
                 <select
                   value={wardType}
+                  data-testid="ward-type-select"
                   onChange={(e) => setWardType(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -232,6 +235,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 </label>
                 <select
                   value={blockId}
+                  data-testid="ward-block-select"
                   onChange={(e) => setBlockId(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -251,7 +255,15 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 <select
                   value={floorId}
                   data-testid="ward-floor-select"
-                  onChange={(e) => setFloorId(e.target.value)}
+                  onChange={(e) => {
+                    const selFloorId = e.target.value;
+                    setFloorId(selFloorId);
+                    if (selFloorId) {
+                      const found = floors.find((f) => String(f._id) === String(selFloorId));
+                      const bId = found?.blockId?._id || found?.blockId;
+                      if (bId) setBlockId(String(bId));
+                    }
+                  }}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Floor</option>
@@ -313,10 +325,10 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" data-testid="ward-cancel-button" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="ward-modal-save" className="font-bold">
+              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="ward-save-button" className="font-bold">
                 {wardToEdit ? 'Save Changes' : 'Create Ward'}
               </Button>
             </div>

@@ -35,6 +35,20 @@ const getRoleBadge = (role) => {
   );
 };
 
+const QUICK_EMOJIS = ['👍', '❤️', '✅', '🙏', '👏', '😮', '🚨', '💊'];
+
+const PRESETS = [
+  { icon: '👋', text: 'Hello team!' },
+  { icon: '🚨', text: 'Urgent assistance needed' },
+  { icon: '💊', text: 'Pharmacy: Prescription ready' },
+  { icon: '💳', text: 'Billing clearance confirmed' },
+  { icon: '🧪', text: 'Lab: Diagnostics completed' },
+  { icon: '🩻', text: 'Radiology: Scan ready' },
+  { icon: '🛏️', text: 'Bed allocation updated' },
+  { icon: '✅', text: 'Patient attended & verified' },
+  { icon: '⏳', text: 'Please hold, verifying status' },
+];
+
 export const TeamChatWidget = () => {
   const location = useLocation();
   const { user, isAuthenticated, token } = useAuthStore();

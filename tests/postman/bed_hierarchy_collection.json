@@ -1,0 +1,190 @@
+{
+  "info": {
+    "_postman_id": "bed-hierarchy-cascading-deletion-collection",
+    "name": "HMS Bed Infrastructure & Cascading Deletion Collection",
+    "description": "API collection covering Building (Block) -> Floor -> Ward -> Room -> Bed hierarchy and cascading deletion flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Blocks",
+      "item": [
+        {
+          "name": "List Blocks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/blocks", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "blocks"] }
+          }
+        },
+        {
+          "name": "Create Block",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tower Alpha\",\n  \"code\": \"T-ALPHA\",\n  \"numberOfFloors\": 5\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/blocks", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "blocks"] }
+          }
+        },
+        {
+          "name": "Delete Block (Cascades Floors, Wards, Rooms, Beds)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/blocks/{{blockId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "blocks", "{{blockId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Floors",
+      "item": [
+        {
+          "name": "List Floors",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/floors", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "floors"] }
+          }
+        },
+        {
+          "name": "Create Floor",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Floor 2 - Critical Care\",\n  \"floorNumber\": 2,\n  \"blockId\": \"{{blockId}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/floors", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "floors"] }
+          }
+        },
+        {
+          "name": "Delete Floor (Cascades subordinate Wards, Rooms, Beds)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/floors/{{floorId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "floors", "{{floorId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wards",
+      "item": [
+        {
+          "name": "List Wards",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/wards", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "wards"] }
+          }
+        },
+        {
+          "name": "Create Ward",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cardiology Ward\",\n  \"code\": \"CARD-01\",\n  \"wardType\": \"CARDIOLOGY\",\n  \"floorId\": \"{{floorId}}\",\n  \"defaultDailyCharge\": 250\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/wards", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "wards"] }
+          }
+        },
+        {
+          "name": "Delete Ward (Cascades subordinate Rooms and Beds)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/wards/{{wardId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "wards", "{{wardId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "List Rooms",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/rooms", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "rooms"] }
+          }
+        },
+        {
+          "name": "Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomNumber\": \"201\",\n  \"roomName\": \"Cardio Room 201\",\n  \"roomType\": \"TWIN_SHARING\",\n  \"wardId\": \"{{wardId}}\",\n  \"maxBedCapacity\": 2,\n  \"dailyRoomCharge\": 500,\n  \"autoGenerateBeds\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/rooms", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "rooms"] }
+          }
+        },
+        {
+          "name": "Delete Room (Cascades Beds)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/rooms/{{roomId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "rooms", "{{roomId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Beds",
+      "item": [
+        {
+          "name": "Get Bed Matrix",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/matrix", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "matrix"] }
+          }
+        },
+        {
+          "name": "Create Individual Bed",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bedNumber\": \"201-A\",\n  \"bedName\": \"Cardio Bed 201-A\",\n  \"bedType\": \"NORMAL\",\n  \"roomId\": \"{{roomId}}\",\n  \"dailyBedCharge\": 100,\n  \"dailyTariff\": 850,\n  \"status\": \"AVAILABLE\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/beds", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds"] }
+          }
+        },
+        {
+          "name": "Delete Bed",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/beds/{{bedId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "beds", "{{bedId}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

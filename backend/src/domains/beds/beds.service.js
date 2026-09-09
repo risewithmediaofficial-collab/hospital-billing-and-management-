@@ -415,19 +415,76 @@ export class BedsService {
     const block = await HospitalBlock.findOne({ _id: id, hospitalId });
     if (!block) throw new ApiError(404, 'Block not found.', null, 'NOT_FOUND');
 
-    // Deletion safety check
-    const occupiedCount = await Bed.countDocuments({ hospitalId, blockId: id, status: BED_STATUS.OCCUPIED });
+    // 1. Find all child floors under this block
+    const childFloors = await HospitalFloor.find({ hospitalId, blockId: id }).select('_id');
+    const floorIds = childFloors.map((f) => f._id);
+
+    // 2. Find all child wards under this block or its floors
+    const childWards = await HospitalWard.find({
+      hospitalId,
+      $or: [{ blockId: id }, { floorId: { $in: floorIds } }],
+    }).select('_id');
+    const wardIds = childWards.map((w) => w._id);
+
+    // 3. Find all child rooms under this block, its floors, or its wards
+    const childRooms = await HospitalRoom.find({
+      hospitalId,
+      $or: [
+        { blockId: id },
+        { floorId: { $in: floorIds } },
+        { wardId: { $in: wardIds } },
+      ],
+    }).select('_id');
+    const roomIds = childRooms.map((r) => r._id);
+
+    // 4. Deletion safety check across all subordinate beds
+    const occupiedCount = await Bed.countDocuments({
+      hospitalId,
+      status: BED_STATUS.OCCUPIED,
+      $or: [
+        { blockId: id },
+        { floorId: { $in: floorIds } },
+        { wardId: { $in: wardIds } },
+        { roomId: { $in: roomIds } },
+      ],
+    });
     if (occupiedCount > 0) {
-      throw new ApiError(400, `Cannot delete Block "${block.name}" because it contains ${occupiedCount} currently occupied bed(s). Transfer or discharge patients first.`, null, 'HAS_OCCUPIED_PATIENTS');
+      throw new ApiError(
+        400,
+        `Cannot delete Block "${block.name}" because it contains ${occupiedCount} currently occupied bed(s). Transfer or discharge patients first.`,
+        null,
+        'HAS_OCCUPIED_PATIENTS'
+      );
     }
 
+    // 5. Cascade delete: Beds -> Rooms -> Wards -> Floors -> Block
+    const bedDel = await Bed.deleteMany({
+      hospitalId,
+      $or: [
+        { blockId: id },
+        { floorId: { $in: floorIds } },
+        { wardId: { $in: wardIds } },
+        { roomId: { $in: roomIds } },
+      ],
+    });
+    const roomDel = await HospitalRoom.deleteMany({
+      hospitalId,
+      $or: [
+        { blockId: id },
+        { floorId: { $in: floorIds } },
+        { wardId: { $in: wardIds } },
+      ],
+    });
+    const wardDel = await HospitalWard.deleteMany({
+      hospitalId,
+      $or: [{ blockId: id }, { floorId: { $in: floorIds } }],
+    });
+    const floorDel = await HospitalFloor.deleteMany({ hospitalId, blockId: id });
     await HospitalBlock.deleteOne({ _id: id, hospitalId });
-    await HospitalFloor.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null } });
-    await HospitalWard.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null, blockName: '' } });
-    await HospitalRoom.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null } });
-    await Bed.updateMany({ hospitalId, blockId: id }, { $set: { blockId: null, blockName: '' } });
 
-    return { message: `Block "${block.name}" deleted successfully.` };
+    return {
+      message: `Block "${block.name}" and all subordinate floors (${floorDel.deletedCount}), wards (${wardDel.deletedCount}), rooms (${roomDel.deletedCount}), and beds (${bedDel.deletedCount}) deleted successfully.`,
+    };
   }
 
   // --- FLOORS ---
@@ -478,17 +535,55 @@ export class BedsService {
     const floor = await HospitalFloor.findOne({ _id: id, hospitalId });
     if (!floor) throw new ApiError(404, 'Floor not found.', null, 'NOT_FOUND');
 
-    const occupiedCount = await Bed.countDocuments({ hospitalId, floorId: id, status: BED_STATUS.OCCUPIED });
+    // 1. Find all child wards under this floor
+    const childWards = await HospitalWard.find({ hospitalId, floorId: id }).select('_id');
+    const wardIds = childWards.map((w) => w._id);
+
+    // 2. Find all child rooms under this floor or its wards
+    const childRooms = await HospitalRoom.find({
+      hospitalId,
+      $or: [{ floorId: id }, { wardId: { $in: wardIds } }],
+    }).select('_id');
+    const roomIds = childRooms.map((r) => r._id);
+
+    // 3. Safety check across all subordinate beds
+    const occupiedCount = await Bed.countDocuments({
+      hospitalId,
+      status: BED_STATUS.OCCUPIED,
+      $or: [
+        { floorId: id },
+        { wardId: { $in: wardIds } },
+        { roomId: { $in: roomIds } },
+      ],
+    });
     if (occupiedCount > 0) {
-      throw new ApiError(400, `Cannot delete Floor "${floor.name}" because it contains ${occupiedCount} active occupied bed(s).`, null, 'HAS_OCCUPIED_PATIENTS');
+      throw new ApiError(
+        400,
+        `Cannot delete Floor "${floor.name}" because it contains ${occupiedCount} active occupied bed(s). Transfer or discharge patients first.`,
+        null,
+        'HAS_OCCUPIED_PATIENTS'
+      );
     }
 
+    // 4. Cascade delete: Beds -> Rooms -> Wards -> Floor
+    const bedDel = await Bed.deleteMany({
+      hospitalId,
+      $or: [
+        { floorId: id },
+        { wardId: { $in: wardIds } },
+        { roomId: { $in: roomIds } },
+      ],
+    });
+    const roomDel = await HospitalRoom.deleteMany({
+      hospitalId,
+      $or: [{ floorId: id }, { wardId: { $in: wardIds } }],
+    });
+    const wardDel = await HospitalWard.deleteMany({ hospitalId, floorId: id });
     await HospitalFloor.deleteOne({ _id: id, hospitalId });
-    await HospitalWard.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null } });
-    await HospitalRoom.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null } });
-    await Bed.updateMany({ hospitalId, floorId: id }, { $set: { floorId: null, floorName: '' } });
 
-    return { message: `Floor "${floor.name}" deleted successfully.` };
+    return {
+      message: `Floor "${floor.name}" and all subordinate wards (${wardDel.deletedCount}), rooms (${roomDel.deletedCount}), and beds (${bedDel.deletedCount}) deleted successfully.`,
+    };
   }
 
   // --- WARDS ---
@@ -505,17 +600,19 @@ export class BedsService {
     if (!data.name || !data.name.trim()) {
       throw new ApiError(400, 'Ward Name is required.', null, 'VALIDATION_ERROR');
     }
-    await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId, floorId: data.floorId });
+    const hierarchy = await this.resolveHierarchyDocuments(hospitalId, { blockId: data.blockId, floorId: data.floorId });
 
     const existing = await HospitalWard.findOne({ hospitalId, name: data.name.trim() });
     if (existing) {
       throw new ApiError(400, `Ward "${data.name}" already exists in this hospital.`, null, 'DUPLICATE_NAME');
     }
 
+    const blockId = data.blockId || (hierarchy.floor?.blockId ? String(hierarchy.floor.blockId) : null);
+
     const ward = await HospitalWard.create({
       hospitalId,
       branchId,
-      blockId: data.blockId || null,
+      blockId,
       floorId: data.floorId || null,
       name: data.name.trim(),
       code: (data.code || '').trim().toUpperCase(),
@@ -575,16 +672,36 @@ export class BedsService {
     const ward = await HospitalWard.findOne({ _id: id, hospitalId });
     if (!ward) throw new ApiError(404, 'Ward not found.', null, 'NOT_FOUND');
 
-    const occupiedCount = await Bed.countDocuments({ hospitalId, wardId: id, status: BED_STATUS.OCCUPIED });
+    // 1. Find all child rooms in this ward
+    const childRooms = await HospitalRoom.find({ hospitalId, wardId: id }).select('_id');
+    const roomIds = childRooms.map((r) => r._id);
+
+    // 2. Safety check: ensure no occupied beds exist in this ward or its rooms
+    const occupiedCount = await Bed.countDocuments({
+      hospitalId,
+      status: BED_STATUS.OCCUPIED,
+      $or: [{ wardId: id }, { roomId: { $in: roomIds } }],
+    });
     if (occupiedCount > 0) {
-      throw new ApiError(400, `Cannot delete Ward "${ward.name}" because it contains ${occupiedCount} active admitted patient(s).`, null, 'HAS_OCCUPIED_PATIENTS');
+      throw new ApiError(
+        400,
+        `Cannot delete Ward "${ward.name}" because it contains ${occupiedCount} active admitted patient(s). Transfer or discharge patients first.`,
+        null,
+        'HAS_OCCUPIED_PATIENTS'
+      );
     }
 
+    // 3. Cascade delete: Beds -> Rooms -> Ward
+    const bedDel = await Bed.deleteMany({
+      hospitalId,
+      $or: [{ wardId: id }, { roomId: { $in: roomIds } }],
+    });
+    const roomDel = await HospitalRoom.deleteMany({ hospitalId, wardId: id });
     await HospitalWard.deleteOne({ _id: id, hospitalId });
-    await HospitalRoom.updateMany({ hospitalId, wardId: id }, { $set: { wardId: null } });
-    await Bed.updateMany({ hospitalId, wardId: id }, { $set: { wardId: null } });
 
-    return { message: `Ward "${ward.name}" deleted successfully.` };
+    return {
+      message: `Ward "${ward.name}" and all subordinate rooms (${roomDel.deletedCount}) and beds (${bedDel.deletedCount}) deleted successfully.`,
+    };
   }
 
   // --- ROOMS ---
@@ -616,12 +733,15 @@ export class BedsService {
 
     const capacity = Number(data.maxBedCapacity) || 1;
     const dailyRoomCharge = Number(data.dailyRoomCharge) || 0;
+    const wardDoc = hierarchy.ward;
+    const floorId = data.floorId || (wardDoc?.floorId ? String(wardDoc.floorId) : null);
+    const blockId = data.blockId || (wardDoc?.blockId ? String(wardDoc.blockId) : (hierarchy.floor?.blockId ? String(hierarchy.floor.blockId) : null));
 
     const room = await HospitalRoom.create({
       hospitalId,
       branchId,
-      blockId: data.blockId || null,
-      floorId: data.floorId || null,
+      blockId,
+      floorId,
       wardId: data.wardId || null,
       roomNumber,
       roomName: data.roomName ? data.roomName.trim() : `Room ${roomNumber}`,
@@ -636,7 +756,6 @@ export class BedsService {
     // Auto-generate beds if requested
     if (data.autoGenerateBeds && capacity > 0) {
       const bedSuffixes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-      const wardDoc = hierarchy.ward;
       const floorDoc = hierarchy.floor;
       const blockDoc = hierarchy.block;
 
@@ -650,8 +769,8 @@ export class BedsService {
         bedsToCreate.push({
           hospitalId,
           branchId,
-          blockId: data.blockId || null,
-          floorId: data.floorId || null,
+          blockId,
+          floorId,
           wardId: data.wardId || null,
           roomId: room._id,
           blockName: blockDoc?.name || '',
@@ -729,13 +848,13 @@ export class BedsService {
 
     const occupiedCount = await Bed.countDocuments({ hospitalId, roomId: id, status: BED_STATUS.OCCUPIED });
     if (occupiedCount > 0) {
-      throw new ApiError(400, `Cannot delete Room "${room.roomNumber}" because it contains ${occupiedCount} active occupied bed(s).`, null, 'HAS_OCCUPIED_PATIENTS');
+      throw new ApiError(400, `Cannot delete Room "${room.roomNumber}" because it contains ${occupiedCount} active occupied bed(s). Transfer or discharge patients first.`, null, 'HAS_OCCUPIED_PATIENTS');
     }
 
+    const bedDel = await Bed.deleteMany({ hospitalId, roomId: id });
     await HospitalRoom.deleteOne({ _id: id, hospitalId });
-    await Bed.deleteMany({ hospitalId, roomId: id, status: { $ne: BED_STATUS.OCCUPIED } });
 
-    return { message: `Room "${room.roomNumber}" and its unoccupied beds deleted.` };
+    return { message: `Room "${room.roomNumber}" and its beds (${bedDel.deletedCount}) deleted successfully.` };
   }
 
   // --- BEDS CRUD ---
@@ -759,10 +878,19 @@ export class BedsService {
       throw new ApiError(400, `Bed Number "${bedNumber}" already exists in this room/hospital.`, null, 'DUPLICATE_BED');
     }
 
-    let blockName = '';
-    let floorName = '';
-    let wardName = data.wardName || 'General Ward';
-    let roomNumber = data.roomNumber || '';
+    const roomDoc = hierarchy.room;
+    const wardDoc = hierarchy.ward;
+    const floorDoc = hierarchy.floor;
+    const blockDoc = hierarchy.block;
+
+    const wardId = data.wardId || (roomDoc?.wardId ? String(roomDoc.wardId) : null);
+    const floorId = data.floorId || (roomDoc?.floorId ? String(roomDoc.floorId) : (wardDoc?.floorId ? String(wardDoc.floorId) : null));
+    const blockId = data.blockId || (roomDoc?.blockId ? String(roomDoc.blockId) : (wardDoc?.blockId ? String(wardDoc.blockId) : (floorDoc?.blockId ? String(floorDoc.blockId) : null)));
+
+    let blockName = blockDoc?.name || '';
+    let floorName = floorDoc?.name || '';
+    let wardName = data.wardName || wardDoc?.name || 'General Ward';
+    let roomNumber = data.roomNumber || roomDoc?.roomNumber || '';
 
     if (hierarchy.block) blockName = hierarchy.block.name;
     if (hierarchy.floor) floorName = hierarchy.floor.name;
@@ -777,9 +905,9 @@ export class BedsService {
     const bed = await Bed.create({
       hospitalId,
       branchId,
-      blockId: data.blockId || null,
-      floorId: data.floorId || null,
-      wardId: data.wardId || null,
+      blockId: blockId || null,
+      floorId: floorId || null,
+      wardId: wardId || null,
       roomId: data.roomId || null,
       blockName,
       floorName,

@@ -27,7 +27,7 @@ export const CreateBlockModal = ({ isOpen, onClose, blockToEdit = null, onSucces
         setName('');
         setCode('');
         setDescription('');
-        setNumberOfFloors(1);
+        setNumberOfFloors('');
         setStatus('ACTIVE');
       }
       setError(null);
@@ -112,6 +112,7 @@ export const CreateBlockModal = ({ isOpen, onClose, blockToEdit = null, onSucces
               </label>
               <Input
                 type="text"
+                data-testid="block-name-input"
                 placeholder="e.g. Main Block, Maternity Wing, Surgical Tower"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -127,6 +128,7 @@ export const CreateBlockModal = ({ isOpen, onClose, blockToEdit = null, onSucces
                 </label>
                 <Input
                   type="text"
+                  data-testid="block-code-input"
                   placeholder="e.g. MB, EB, ST"
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -140,6 +142,8 @@ export const CreateBlockModal = ({ isOpen, onClose, blockToEdit = null, onSucces
                 </label>
                 <Input
                   type="number"
+                  data-testid="block-floors-input"
+                  placeholder="e.g. 3"
                   min="1"
                   max="100"
                   value={numberOfFloors}
@@ -177,10 +181,10 @@ export const CreateBlockModal = ({ isOpen, onClose, blockToEdit = null, onSucces
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" data-testid="block-cancel-button" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="font-bold">
+              <Button type="submit" variant="primary" data-testid="block-save-button" isLoading={isLoading} className="font-bold">
                 {blockToEdit ? 'Save Changes' : 'Create Block'}
               </Button>
             </div>

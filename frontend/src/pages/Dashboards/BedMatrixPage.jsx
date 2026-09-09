@@ -983,14 +983,15 @@ export const BedMatrixPage = () => {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                 {[
-                  { id: 'BLOCKS', label: `1. Buildings (${blocks.length})`, icon: Building2 },
-                  { id: 'FLOORS', label: `2. Floors (${floors.length})`, icon: Layers },
-                  { id: 'WARDS', label: `3. Wards (${wards.length})`, icon: GitFork },
-                  { id: 'ROOMS', label: `4. Rooms (${rooms.length})`, icon: DoorOpen },
-                  { id: 'BEDS', label: `5. Beds (${beds.length})`, icon: BedDouble },
+                  { id: 'BLOCKS', label: `1. Buildings (${blocks.length})`, icon: Building2, testId: 'tab-blocks' },
+                  { id: 'FLOORS', label: `2. Floors (${floors.length})`, icon: Layers, testId: 'tab-floors' },
+                  { id: 'WARDS', label: `3. Wards (${wards.length})`, icon: GitFork, testId: 'tab-wards' },
+                  { id: 'ROOMS', label: `4. Rooms (${rooms.length})`, icon: DoorOpen, testId: 'tab-rooms' },
+                  { id: 'BEDS', label: `5. Beds (${beds.length})`, icon: BedDouble, testId: 'tab-beds' },
                 ].map((sTab) => (
                   <button
                     key={sTab.id}
+                    data-testid={sTab.testId}
                     onClick={() => setSetupSubTab(sTab.id)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
                       setupSubTab === sTab.id
@@ -1009,6 +1010,7 @@ export const BedMatrixPage = () => {
                   <Button
                     variant="primary"
                     size="sm"
+                    data-testid="block-create-button"
                     onClick={() => {
                       setSelectedBlockToEdit(null);
                       setIsBlockModalOpen(true);
@@ -1022,6 +1024,7 @@ export const BedMatrixPage = () => {
                   <Button
                     variant="primary"
                     size="sm"
+                    data-testid="floor-create-button"
                     onClick={() => {
                       setSelectedFloorToEdit(null);
                       setIsFloorModalOpen(true);
@@ -1035,6 +1038,7 @@ export const BedMatrixPage = () => {
                   <Button
                     variant="primary"
                     size="sm"
+                    data-testid="ward-create-button"
                     onClick={() => {
                       setSelectedWardToEdit(null);
                       setIsWardModalOpen(true);
@@ -1048,6 +1052,7 @@ export const BedMatrixPage = () => {
                   <Button
                     variant="primary"
                     size="sm"
+                    data-testid="room-create-button"
                     onClick={() => {
                       setSelectedRoomToEdit(null);
                       setIsRoomModalOpen(true);
@@ -1061,6 +1066,7 @@ export const BedMatrixPage = () => {
                   <Button
                     variant="primary"
                     size="sm"
+                    data-testid="bed-create-button"
                     onClick={() => {
                       setSelectedBedToEdit(null);
                       setIsBedModalOpen(true);
@@ -1089,7 +1095,7 @@ export const BedMatrixPage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {blocks.map((b) => (
-                      <tr key={b._id} className="hover:bg-slate-50">
+                      <tr key={b._id} data-testid="block-row" className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-bold text-slate-900">{b.name}</td>
                         <td className="py-3 px-4 font-mono font-bold text-slate-600">{b.code || '--'}</td>
                         <td className="py-3 px-4 text-slate-700 font-semibold">{b.numberOfFloors || 1}</td>
@@ -1105,6 +1111,7 @@ export const BedMatrixPage = () => {
                               setSelectedBlockToEdit(b);
                               setIsBlockModalOpen(true);
                             }}
+                            data-testid="block-edit-button"
                             className="p-1 rounded text-slate-400 hover:text-indigo-600"
                             title="Edit"
                           >
@@ -1112,6 +1119,7 @@ export const BedMatrixPage = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteHierarchyItem('Block', b._id, b.name)}
+                            data-testid="block-delete-button"
                             className="p-1 rounded text-slate-400 hover:text-rose-600"
                             title="Delete"
                           >
@@ -1140,7 +1148,7 @@ export const BedMatrixPage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {floors.map((f) => (
-                      <tr key={f._id} className="hover:bg-slate-50">
+                      <tr key={f._id} data-testid="floor-row" className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-bold text-slate-900">{f.name}</td>
                         <td className="py-3 px-4 font-mono text-slate-600">{f.floorNumber}</td>
                         <td className="py-3 px-4 text-slate-700 font-semibold">{f.blockId?.name || 'Unassigned'}</td>
@@ -1155,12 +1163,14 @@ export const BedMatrixPage = () => {
                               setSelectedFloorToEdit(f);
                               setIsFloorModalOpen(true);
                             }}
+                            data-testid="floor-edit-button"
                             className="p-1 rounded text-slate-400 hover:text-indigo-600"
                           >
                             <Edit size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteHierarchyItem('Floor', f._id, f.name)}
+                            data-testid="floor-delete-button"
                             className="p-1 rounded text-slate-400 hover:text-rose-600"
                           >
                             <Trash2 size={14} />
@@ -1190,7 +1200,7 @@ export const BedMatrixPage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {wards.map((w) => (
-                      <tr key={w._id} className="hover:bg-slate-50">
+                      <tr key={w._id} data-testid="ward-row" className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-bold text-slate-900">{w.name}</td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
@@ -1209,12 +1219,14 @@ export const BedMatrixPage = () => {
                               setSelectedWardToEdit(w);
                               setIsWardModalOpen(true);
                             }}
+                            data-testid="ward-edit-button"
                             className="p-1 rounded text-slate-400 hover:text-indigo-600"
                           >
                             <Edit size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteHierarchyItem('Ward', w._id, w.name)}
+                            data-testid="ward-delete-button"
                             className="p-1 rounded text-slate-400 hover:text-rose-600"
                           >
                             <Trash2 size={14} />
@@ -1244,7 +1256,7 @@ export const BedMatrixPage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {rooms.map((r) => (
-                      <tr key={r._id} className="hover:bg-slate-50">
+                      <tr key={r._id} data-testid="room-row" className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-mono font-extrabold text-slate-900">{r.roomNumber}</td>
                         <td className="py-3 px-4 text-slate-700 font-semibold">{r.roomName || `Room ${r.roomNumber}`}</td>
                         <td className="py-3 px-4">
@@ -1261,12 +1273,14 @@ export const BedMatrixPage = () => {
                               setSelectedRoomToEdit(r);
                               setIsRoomModalOpen(true);
                             }}
+                            data-testid="room-edit-button"
                             className="p-1 rounded text-slate-400 hover:text-indigo-600"
                           >
                             <Edit size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteHierarchyItem('Room', r._id, r.roomNumber)}
+                            data-testid="room-delete-button"
                             className="p-1 rounded text-slate-400 hover:text-rose-600"
                           >
                             <Trash2 size={14} />
@@ -1295,7 +1309,7 @@ export const BedMatrixPage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {beds.map((b) => (
-                      <tr key={b._id} className="hover:bg-slate-50">
+                      <tr key={b._id} data-testid="bed-row" className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-mono font-extrabold text-slate-900">{b.bedNumber}</td>
                         <td className="py-3 px-4 text-slate-600 font-semibold">{b.bedType}</td>
                         <td className="py-3 px-4 text-slate-700">
@@ -1309,12 +1323,14 @@ export const BedMatrixPage = () => {
                               setSelectedBedToEdit(b);
                               setIsBedModalOpen(true);
                             }}
+                            data-testid="bed-edit-button"
                             className="p-1 rounded text-slate-400 hover:text-indigo-600"
                           >
                             <Edit size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteHierarchyItem('Bed', b._id, b.bedNumber)}
+                            data-testid="bed-delete-button"
                             className="p-1 rounded text-slate-400 hover:text-rose-600"
                           >
                             <Trash2 size={14} />

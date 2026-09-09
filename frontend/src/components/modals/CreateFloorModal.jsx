@@ -112,6 +112,7 @@ export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks =
               </label>
               <Input
                 type="text"
+                data-testid="floor-name-input"
                 placeholder="e.g. Ground Floor, 1st Floor, Basement -1, Mezzanine"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -127,6 +128,7 @@ export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks =
                 </label>
                 <select
                   value={blockId}
+                  data-testid="floor-block-select"
                   onChange={(e) => setBlockId(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -145,6 +147,7 @@ export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks =
                 </label>
                 <Input
                   type="number"
+                  data-testid="floor-number-input"
                   placeholder="0 for Ground, 1, 2, -1"
                   value={floorNumber}
                   onChange={(e) => setFloorNumber(e.target.value)}
@@ -181,10 +184,10 @@ export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks =
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" data-testid="floor-cancel-button" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="font-bold">
+              <Button type="submit" variant="primary" data-testid="floor-save-button" isLoading={isLoading} className="font-bold">
                 {floorToEdit ? 'Save Changes' : 'Create Floor'}
               </Button>
             </div>

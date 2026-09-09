@@ -204,6 +204,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <Input
                   type="text"
+                  data-testid="room-number-input"
                   placeholder="e.g. 101, 205, ICU-01"
                   value={roomNumber}
                   onChange={(e) => {
@@ -221,6 +222,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <Input
                   type="text"
+                  data-testid="room-name-input"
                   placeholder="e.g. Deluxe Room 101"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
@@ -236,6 +238,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <select
                   value={roomType}
+                  data-testid="room-type-select"
                   onChange={(e) => handleRoomTypeChange(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -253,7 +256,18 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <select
                   value={wardId}
-                  onChange={(e) => setWardId(e.target.value)}
+                  data-testid="room-ward-select"
+                  onChange={(e) => {
+                    const selWardId = e.target.value;
+                    setWardId(selWardId);
+                    if (selWardId) {
+                      const found = wards.find((w) => String(w._id) === String(selWardId));
+                      const fId = found?.floorId?._id || found?.floorId;
+                      const bId = found?.blockId?._id || found?.blockId;
+                      if (fId) setFloorId(String(fId));
+                      if (bId) setBlockId(String(bId));
+                    }
+                  }}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Ward</option>
@@ -273,6 +287,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <select
                   value={blockId}
+                  data-testid="room-block-select"
                   onChange={(e) => setBlockId(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -312,6 +327,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <Input
                   type="number"
+                  data-testid="room-capacity-input"
                   min="1"
                   max="50"
                   placeholder="e.g. 1"
@@ -327,6 +343,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <Input
                   type="number"
+                  data-testid="room-charge-input"
                   min="0"
                   placeholder="e.g. 500"
                   value={dailyRoomCharge}
@@ -392,10 +409,10 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
             )}
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" data-testid="room-cancel-button" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="room-modal-save" className="font-bold">
+              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="room-save-button" className="font-bold">
                 {roomToEdit ? 'Save Changes' : 'Create Room'}
               </Button>
             </div>
