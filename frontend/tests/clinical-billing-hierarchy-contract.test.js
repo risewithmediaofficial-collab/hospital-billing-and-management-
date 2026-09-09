@@ -102,3 +102,29 @@ test('Central billing desk shows pending invoices without false exclusion', asyn
     'Cashier dashboard must only exclude invoices with active non-empty doctorReviewQuery'
   );
 });
+
+test('Doctor Department Responses badge clears completely when billing query is returned to billing', async () => {
+  const [doctorDashboardSource, billingServiceSource] = await Promise.all([
+    readFile(path.resolve(rootDir, 'frontend/src/pages/Dashboards/DoctorDashboard.jsx'), 'utf8'),
+    readFile(path.resolve(rootDir, 'backend/src/domains/billing/billing.service.js'), 'utf8'),
+  ]);
+
+  assert.match(
+    doctorDashboardSource,
+    /setNavCount\(['"]\/doctor\/dashboard\?tab=DEPT_RESPONSES['"],\s*pendingReportsCount\)/,
+    'Doctor dashboard navCount must strictly equal pendingReportsCount so 0 active subtabs clears the badge'
+  );
+
+  assert.match(
+    doctorDashboardSource,
+    /!rx\.billingQuery\?\.resolved/,
+    'Doctor dashboard must exclude resolved billing queries from returned list'
+  );
+
+  assert.match(
+    billingServiceSource,
+    /NotificationService\.completeEntityTasks/,
+    'Billing service must complete entity tasks when doctor responds to billing query'
+  );
+});
+

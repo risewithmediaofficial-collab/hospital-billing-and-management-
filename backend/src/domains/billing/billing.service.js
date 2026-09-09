@@ -338,7 +338,7 @@ export class BillingService {
 
     const { Prescription } = await import('../../models/Prescription.js');
     await Prescription.updateMany(
-      { hospitalId, 'billingQuery.invoiceId': invoice._id, 'billingQuery.resolved': false },
+      { hospitalId, $or: [{ 'billingQuery.invoiceId': invoice._id }, { patientId: invoice.patientId, 'billingQuery.resolved': false }] },
       { $set: { 'billingQuery.resolved': true, 'billingQuery.resolvedAt': new Date(), 'billingQuery.resolvedByDoctorId': doctorId, dispenseStatus: 'DISPENSED' } },
     );
     const { Appointment } = await import('../../models/Appointment.js');
@@ -348,9 +348,31 @@ export class BillingService {
         { $set: { status: 'COMPLETED', departmentReturnedAt: new Date() } },
       );
     }
+    const { NotificationService } = await import('../notifications/notification.service.js');
+    await NotificationService.completeEntityTasks({
+      hospitalId,
+      entityId: invoice._id,
+      relatedPatientId: invoice.patientId,
+      targetModule: 'doctor',
+    });
+    if (query.appointmentId) {
+      await NotificationService.completeEntityTasks({
+        hospitalId,
+        entityId: query.appointmentId,
+        relatedPatientId: invoice.patientId,
+        targetModule: 'doctor',
+      });
+    }
     await Notification.updateMany(
-      { hospitalId, recipientUserId: doctorId, entityId: String(invoice._id), actionType: 'REVIEW_BILLING_QUERY', isRead: false },
-      { $set: { isRead: true, readAt: new Date() } },
+      {
+        hospitalId,
+        $or: [
+          { recipientUserId: doctorId },
+          { targetModule: 'doctor' },
+        ],
+        entityId: { $in: [String(invoice._id), invoice._id] },
+      },
+      { $set: { isRead: true, readAt: new Date(), isCompleted: true, completedAt: new Date(), status: 'COMPLETED' } },
     );
 
     if (query.requestedBy) {

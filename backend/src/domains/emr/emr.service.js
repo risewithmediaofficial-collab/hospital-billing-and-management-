@@ -186,13 +186,17 @@ export class EmrService {
         {
           hospitalId: hospId,
           patientId: appointment.patientId,
-          'billingQuery.resolved': false,
+          $or: [
+            { 'billingQuery.resolved': false },
+            { dispenseStatus: 'RETURNED_TO_DOCTOR' },
+          ],
         },
         {
           $set: {
             'billingQuery.resolved': true,
             'billingQuery.resolvedAt': new Date(),
             'billingQuery.resolvedByDoctorId': user.id || user._id,
+            dispenseStatus: 'DISPENSED',
           },
         }
       );
@@ -222,6 +226,18 @@ export class EmrService {
         targetModule: 'doctor',
         branchId: appointment.branchId,
       });
+      const pendingInvoices = await Invoice.find({
+        hospitalId: hospId,
+        patientId: appointment.patientId,
+      }).select('_id').lean();
+      for (const inv of pendingInvoices) {
+        await NotificationService.completeEntityTasks({
+          hospitalId: hospId,
+          entityId: inv._id,
+          relatedPatientId: appointment.patientId,
+          targetModule: 'doctor',
+        });
+      }
     } catch (ntErr) {
       console.warn('Failed to auto-resolve nurse tasks or billing queries:', ntErr?.message);
     }

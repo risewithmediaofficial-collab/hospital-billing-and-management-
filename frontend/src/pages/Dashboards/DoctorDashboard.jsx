@@ -454,7 +454,7 @@ const targetDocId = user?.id || user?._id;
       ]);
       const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
       const returned = list.filter(
-        (rx) => rx.dispenseStatus === 'RETURNED_TO_DOCTOR' || (rx.billingQuery && !rx.billingQuery.resolved)
+        (rx) => (rx.dispenseStatus === 'RETURNED_TO_DOCTOR' || Boolean(rx.billingQuery?.query)) && !rx.billingQuery?.resolved
       );
       const invoices = Array.isArray(invoiceRes?.data) ? invoiceRes.data : Array.isArray(invoiceRes) ? invoiceRes : [];
       const prescriptionInvoiceIds = new Set(returned.map((rx) => String(rx.billingQuery?.invoiceId || '')).filter(Boolean));
@@ -595,6 +595,9 @@ const targetDocId = user?.id || user?._id;
       await axiosClient.post(`/billing/invoices/${invoiceId}/doctor-review-response`, {
         responseNote: 'Clinical charges reviewed and confirmed by the attending doctor.',
       });
+      setReturnedBillingPrescriptions((prev) =>
+        prev.filter((item) => String(item.invoiceId || item.billingQuery?.invoiceId) !== String(invoiceId))
+      );
       useNotificationStore.getState().resolveEntityNotification(String(invoiceId));
       resolvePending(String(invoiceId));
       useDepartmentNotificationStore.getState().fetchPendingWork?.();
@@ -724,19 +727,7 @@ const targetDocId = user?.id || user?._id;
     return hasResponse && !isReviewed;
   });
 
-  // Keep badge counts strictly synced with active items
-  useEffect(() => {
-    const activeTotal =
-      (activeNurseTasks?.length || 0) +
-      (unreviewedDeptResponses?.length || 0) +
-      (doctorRequests?.length || 0) +
-      (substitutionRequests?.length || 0) +
-      (returnedBillingPrescriptions?.length || 0);
-    useDepartmentNotificationStore.getState().setNavCount('/doctor/dashboard?tab=DEPT_RESPONSES', activeTotal);
-    if (activeTab === 'DEPT_RESPONSES') {
-      useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
-    }
-  }, [activeTab, activeNurseTasks?.length, unreviewedDeptResponses?.length, doctorRequests?.length, substitutionRequests?.length, returnedBillingPrescriptions?.length]);
+
 
   // Backward compatibility alias
   const filteredDeptOrders = filteredActiveDeptOrders;
@@ -787,6 +778,14 @@ const targetDocId = user?.id || user?._id;
     historySubstitutions.length +
     historyDoctorRequests.length
   );
+
+  // Keep badge counts strictly synced with active items
+  useEffect(() => {
+    useDepartmentNotificationStore.getState().setNavCount('/doctor/dashboard?tab=DEPT_RESPONSES', pendingReportsCount);
+    if (activeTab === 'DEPT_RESPONSES' && pendingReportsCount === 0) {
+      useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
+    }
+  }, [activeTab, pendingReportsCount]);
 
   const departmentLabel = (category) => ['XRAY', 'MRI', 'CT_SCAN', 'ULTRASOUND', 'RADIOLOGY'].includes(category)
     ? 'Radiology / X-Ray'
