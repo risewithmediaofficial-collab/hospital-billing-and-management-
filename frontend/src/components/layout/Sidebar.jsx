@@ -531,6 +531,45 @@ export const Sidebar = ({ isOpen, onClose }) => {
     });
   };
 
+  // Memoized active departments alert list for incoming department work
+  const activeDepts = React.useMemo(() => {
+    if (isDual && currentMode === 'ADMIN') return [];
+    const depts = [];
+    const seenKeys = new Set();
+
+    groupedCategories.forEach((grp) => {
+      grp.items.forEach((item) => {
+        if (item.path === '/emergency') {
+          if (activeCount > 0 && !seenKeys.has('/emergency')) {
+            seenKeys.add('/emergency');
+            depts.push({
+              title: 'Emergency Console',
+              category: grp.category,
+              path: '/emergency',
+              count: activeCount,
+              isEmergency: true,
+            });
+          }
+          return;
+        }
+
+        const count = getUnreadCountForNav(item.path);
+        const fullKey = item.path;
+        if (count > 0 && !seenKeys.has(fullKey)) {
+          seenKeys.add(fullKey);
+          depts.push({
+            title: item.title || item.name,
+            category: grp.category,
+            path: item.path,
+            count,
+            isEmergency: false,
+          });
+        }
+      });
+    });
+    return depts;
+  }, [isDual, currentMode, groupedCategories, activeCount, deptUnreadCount, deptNotifs, deptByPath]);
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -572,86 +611,47 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Quick Department Activity Alert Bar (Highlights exactly which department has incoming data in Work Mode) */}
-        {(() => {
-          if (isDual && currentMode === 'ADMIN') return null;
-          const activeDepts = [];
-          const seenKeys = new Set();
-
-          groupedCategories.forEach((grp) => {
-            grp.items.forEach((item) => {
-              if (item.path === '/emergency') {
-                if (activeCount > 0 && !seenKeys.has('/emergency')) {
-                  seenKeys.add('/emergency');
-                  activeDepts.push({
-                    title: 'Emergency Console',
-                    category: grp.category,
-                    path: '/emergency',
-                    count: activeCount,
-                    isEmergency: true,
-                  });
-                }
-                return;
-              }
-
-              const count = getUnreadCountForNav(item.path);
-              const fullKey = item.path;
-              if (count > 0 && !seenKeys.has(fullKey)) {
-                seenKeys.add(fullKey);
-                activeDepts.push({
-                  title: item.title || item.name,
-                  category: grp.category,
-                  path: item.path,
-                  count,
-                  isEmergency: false,
-                });
-              }
-            });
-          });
-
-          if (activeDepts.length === 0) return null;
-
-          return (
-            <div className="mx-3 mt-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-indigo-50/50 to-amber-50/30 border border-amber-200/90 shadow-2xs">
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-900">
-                    Incoming Dept Data
-                  </span>
-                </div>
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-black">
-                  {activeDepts.reduce((acc, d) => acc + d.count, 0)} New
+        {activeDepts.length > 0 && (
+          <div className="mx-3 mt-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-indigo-50/50 to-amber-50/30 border border-amber-200/90 shadow-2xs">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900">
+                  Incoming Dept Data
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {activeDepts.map((dept) => (
-                  <button
-                    key={dept.path}
-                    type="button"
-                    onClick={() => {
-                      setOpenCategories((prev) => ({ ...prev, [dept.category]: true }));
-                      navigate(formatTenantPath(dept.path));
-                    }}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 transition-all shadow-2xs ${
-                      dept.isEmergency
-                        ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
-                        : 'bg-white hover:bg-amber-100/60 text-slate-800 border-amber-200 hover:border-amber-300'
-                    }`}
-                    title={`Click to open ${dept.title} in ${dept.category}`}
-                  >
-                    <span className="truncate max-w-[100px]">{dept.title}</span>
-                    <span className={`px-1 rounded-full text-[9px] font-black ${dept.isEmergency ? 'bg-white text-rose-600' : 'bg-amber-500 text-white'}`}>
-                      {dept.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-black">
+                {activeDepts.reduce((acc, d) => acc + d.count, 0)} New
+              </span>
             </div>
-          );
-        })()}
+            <div className="flex flex-wrap gap-1">
+              {activeDepts.map((dept) => (
+                <button
+                  key={dept.path}
+                  type="button"
+                  onClick={() => {
+                    setOpenCategories((prev) => ({ ...prev, [dept.category]: true }));
+                    navigate(formatTenantPath(dept.path));
+                  }}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 transition-all shadow-2xs ${
+                    dept.isEmergency
+                      ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
+                      : 'bg-white hover:bg-amber-100/60 text-slate-800 border-amber-200 hover:border-amber-300'
+                  }`}
+                  title={`Click to open ${dept.title} in ${dept.category}`}
+                >
+                  <span className="truncate max-w-[100px]">{dept.title}</span>
+                  <span className={`px-1 rounded-full text-[9px] font-black ${dept.isEmergency ? 'bg-white text-rose-600' : 'bg-amber-500 text-white'}`}>
+                    {dept.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Navigation Links with Collapsible Dropdown Accordion */}
         <nav

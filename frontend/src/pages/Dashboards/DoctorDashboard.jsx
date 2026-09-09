@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { ConsultationModal } from '../../components/modals/ConsultationModal';
-import { DirectToBillingModal } from '../../components/modals/DirectToBillingModal';
-import { RequestInvestigationModal } from '../../components/modals/RequestInvestigationModal';
-import { RequestInjectionModal } from '../../components/modals/RequestInjectionModal';
-import { AdmitPatientModal } from '../../components/modals/AdmitPatientModal';
+// Heavy modals — lazy-loaded so they don't inflate the initial chunk
+const ConsultationModal        = lazy(() => import('../../components/modals/ConsultationModal').then(m => ({ default: m.ConsultationModal })));
+const DirectToBillingModal     = lazy(() => import('../../components/modals/DirectToBillingModal').then(m => ({ default: m.DirectToBillingModal })));
+const RequestInvestigationModal = lazy(() => import('../../components/modals/RequestInvestigationModal').then(m => ({ default: m.RequestInvestigationModal })));
+const RequestInjectionModal    = lazy(() => import('../../components/modals/RequestInjectionModal').then(m => ({ default: m.RequestInjectionModal })));
+const AdmitPatientModal        = lazy(() => import('../../components/modals/AdmitPatientModal').then(m => ({ default: m.AdmitPatientModal })));
+const PatientHistoryModal      = lazy(() => import('../../components/modals/PatientHistoryModal').then(m => ({ default: m.PatientHistoryModal })));
 import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
@@ -17,7 +19,6 @@ import { useDepartmentNotificationStore, pathMatches } from '../../store/departm
 import { useNotificationStore } from '../../store/notificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { axiosClient } from '../../api/axiosClient';
-import { PatientHistoryModal } from '../../components/modals/PatientHistoryModal';
 import { FollowUpVisitsSection } from '../../components/common/FollowUpVisitsSection';
 import {
   Stethoscope,
@@ -2366,7 +2367,8 @@ const targetDocId = user?.id || user?._id;
             />
           )}
 
-      {/* Pop-up Consultation Modal */}
+      {/* Pop-up Consultation Modal — lazy-loaded modals wrapped in Suspense */}
+      <Suspense fallback={<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"><div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" /></div>}>
       <ConsultationModal
         isOpen={isConsultationModalOpen}
         onClose={() => {
@@ -2483,6 +2485,7 @@ const targetDocId = user?.id || user?._id;
         }}
         initialIdentifier={historyPatientId}
       />
+      </Suspense>
     </div>
   );
 };
