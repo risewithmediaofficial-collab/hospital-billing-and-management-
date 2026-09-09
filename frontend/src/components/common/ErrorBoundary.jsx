@@ -35,6 +35,42 @@ export class ErrorBoundary extends React.Component {
 
   handleGoHome = () => {
     this.setState({ hasError: false, error: null });
+    try {
+      // Try to resolve the user's actual dashboard from persisted session
+      const raw = localStorage.getItem('hpmbs_user');
+      const user = raw ? JSON.parse(raw) : null;
+      if (user) {
+        const domain = user.hospitalDomain || null;
+        const roleRouteMap = {
+          DOCTOR: '/doctor/dashboard',
+          HOSPITAL_ADMIN: '/admin/dashboard',
+          SUPER_ADMIN: '/super-admin/dashboard',
+          NURSE: '/nurse-incharge/dashboard?tab=TASKS',
+          NURSE_INCHARGE: '/nurse-incharge/dashboard',
+          IPD_STAFF: '/nurse-incharge/dashboard',
+          RECEPTIONIST: '/reception/registered-patients',
+          OPD_STAFF: '/reception/registered-patients',
+          PHARMACIST: '/pharmacy/dashboard',
+          PHARMACY_STAFF: '/pharmacy/dashboard',
+          LAB_TECH: '/laboratory/dashboard',
+          LABORATORY_STAFF: '/laboratory/dashboard',
+          RADIOLOGIST: '/radiology/dashboard',
+          RADIOLOGY_STAFF: '/radiology/dashboard',
+          CASHIER: '/billing/dashboard',
+          BILLING_STAFF: '/billing/dashboard',
+          INVENTORY_MANAGER: '/inventory/dashboard',
+          HR_MANAGER: '/hr/dashboard',
+          EMERGENCY_STAFF: '/emergency',
+          PATIENT: '/patient/dashboard',
+          GUARDIAN: '/guardian/dashboard',
+        };
+        const basePath = roleRouteMap[user.role] || '/admin/dashboard';
+        const target = domain ? `/${domain}${basePath}` : basePath;
+        window.location.href = target;
+        return;
+      }
+    } catch {}
+    // Fallback: reload the SPA root and let the router redirect
     window.location.href = '/';
   };
 

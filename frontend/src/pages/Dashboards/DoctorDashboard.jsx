@@ -13,7 +13,7 @@ import { SoloDoctorFlowBar } from '../../components/common/SoloDoctorFlowBar';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkspaceModeStore } from '../../store/workspaceModeStore';
 import { useSocket } from '../../providers/SocketProvider';
-import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useDepartmentNotificationStore, pathMatches } from '../../store/departmentNotificationStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { ROLE_NAMES } from '../../utils/constants';
 import { axiosClient } from '../../api/axiosClient';
