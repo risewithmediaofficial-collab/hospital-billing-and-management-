@@ -18,6 +18,8 @@ import {
   AlertCircle,
   Clock,
   ExternalLink,
+  Building2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null }) => {
@@ -223,12 +225,12 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                               </span>
                             )}
                             {c.isExternalHospitalRecord ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-100 text-amber-800 border-amber-300">
-                                🏥 {c.originHospitalName || 'Partner Hospital'} — Clinical View Only
+                              <span className="inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-100 text-amber-800 border-amber-300">
+                                <Building2 size={11} className="mr-1" /> {c.originHospitalName || 'Partner Hospital'} — Clinical View Only
                               </span>
                             ) : (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-indigo-50 text-indigo-700 border-indigo-200">
-                                🏥 {c.originHospitalName || 'This Hospital'}
+                              <span className="inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-md border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                <Building2 size={11} className="mr-1" /> {c.originHospitalName || 'This Hospital'}
                               </span>
                             )}
                           </div>
@@ -282,8 +284,9 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                         )}
 
                         {c.isExternalHospitalRecord && (
-                          <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 font-semibold">
-                            ⚠️ Billing &amp; fee information from this visit is confidential to {c.originHospitalName}.
+                          <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 font-semibold flex items-center gap-1.5">
+                            <AlertTriangle size={12} className="text-amber-700 shrink-0" />
+                            Billing &amp; fee information from this visit is confidential to {c.originHospitalName}.
                           </div>
                         )}
                       </div>
@@ -307,8 +310,8 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                           <div className="flex items-center gap-2">
                             <span>Rx by: <strong className="text-slate-800">{rx.doctorId?.name ? `Dr. ${rx.doctorId.name}` : 'Doctor'}</strong></span>
                             {rx.isExternalHospitalRecord && (
-                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                🏥 {rx.originHospitalName}
+                              <span className="inline-flex items-center text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                <Building2 size={10} className="mr-1" /> {rx.originHospitalName}
                               </span>
                             )}
                           </div>
@@ -328,7 +331,10 @@ export const PatientHistoryModal = ({ isOpen, onClose, initialIdentifier = null 
                           ))}
                         </div>
                         {rx.isExternalHospitalRecord && (
-                          <p className="text-[10px] text-amber-700 font-semibold">⚠️ Medicine pricing from this prescription is confidential to {rx.originHospitalName}.</p>
+                          <p className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+                            <AlertTriangle size={11} className="text-amber-700 shrink-0" />
+                            Medicine pricing from this prescription is confidential to {rx.originHospitalName}.
+                          </p>
                         )}
                       </div>
                     ))}

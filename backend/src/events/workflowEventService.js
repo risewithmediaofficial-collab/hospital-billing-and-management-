@@ -15,44 +15,44 @@ import { User } from '../models/User.js';
 
 // ─── Canonical workflow event names ──────────────────────────────────────────
 export const WORKFLOW_EVENTS = {
-  // Reception → Doctor
+  // Reception to Doctor
   PATIENT_QUEUED:          'PATIENT_QUEUED',
   TOKEN_REQUEUED:          'TOKEN_REQUEUED',
 
-  // Doctor ↔ Reception
+  // Doctor and Reception
   DOCTOR_ACCEPTED_PATIENT: 'DOCTOR_ACCEPTED_PATIENT',
   CONSULTATION_COMPLETE:   'CONSULTATION_COMPLETE',
 
-  // Doctor → Lab / Radiology
+  // Doctor to Lab / Radiology
   LAB_ORDER_CREATED:       'LAB_ORDER_CREATED',
   RADIOLOGY_ORDER_CREATED: 'RADIOLOGY_ORDER_CREATED',
 
-  // Lab → Doctor
+  // Lab to Doctor
   LAB_ACCEPTED:            'LAB_ACCEPTED',      // Processing only — no unlock
   LAB_SUBMITTED:           'LAB_SUBMITTED',     // Report ready  — unlocks doctor review
 
-  // Radiology → Doctor
+  // Radiology to Doctor
   RADIOLOGY_ACCEPTED:      'RADIOLOGY_ACCEPTED',
   RADIOLOGY_SUBMITTED:     'RADIOLOGY_SUBMITTED',
 
-  // Doctor → Lab / Radiology (review feedback)
+  // Doctor to Lab / Radiology (review feedback)
   DOCTOR_REVIEWED_LAB:     'DOCTOR_REVIEWED_LAB',
   DOCTOR_REVIEWED_RADIOLOGY: 'DOCTOR_REVIEWED_RADIOLOGY',
 
-  // Doctor → Pharmacy
+  // Doctor to Pharmacy
   PRESCRIPTION_ISSUED:     'PRESCRIPTION_ISSUED',
 
-  // Pharmacy → Doctor
+  // Pharmacy to Doctor
   PHARMACY_ACCEPTED:       'PHARMACY_ACCEPTED',
   PHARMACY_DISPENSED:      'PHARMACY_DISPENSED',
 
-  // Doctor / Nurse → Billing
+  // Doctor and Nurse to Billing
   BILL_REQUESTED:          'BILL_REQUESTED',
   BILL_READY:              'BILL_READY',
   PAYMENT_PENDING:         'PAYMENT_PENDING',
   PAYMENT_COLLECTED:       'PAYMENT_COLLECTED',
 
-  // Nurse ↔ Doctor
+  // Nurse and Doctor
   NURSE_REQUEST_RAISED:    'NURSE_REQUEST_RAISED',
   NURSE_REQUEST_COMPLETED: 'NURSE_REQUEST_COMPLETED',
   PATIENT_CARE_REQUEST_RAISED: 'PATIENT_CARE_REQUEST_RAISED',
@@ -230,13 +230,7 @@ const MESSAGE_TEMPLATES = {
     (p) => ({ title: p.guardianMessageType === 'HISTORY' ? 'Guardian Shared Patient History' : 'Patient/Guardian Doctor Request', message: `${safePat(p.patientName, p.uhid)} has sent a message requiring the attending doctor's review.`, type: 'NEW_DATA' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
-    (p) => ({ title: 'EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Report immediately!`, type: 'EMERGENCY' }),
-
-  [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
-    (p) => ({ title: 'Emergency Resolved', message: `Emergency at ${p.location || 'Facility'} has been resolved by ${p.resolvedBy || 'Medical Team'}.`, type: 'SYSTEM_ALERT' }),
-
-  [WORKFLOW_EVENTS.EMERGENCY_RAISED]:
-    (p) => ({ title: 'EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Report immediately!`, type: 'EMERGENCY' }),
+    (p) => ({ title: 'EMERGENCY ALERT', message: `${p.emergencyType || 'Medical'} emergency raised at ${p.location || 'Facility'} by ${p.raisedBy || 'Staff'}. Patient: ${p.patientName || 'Emergency Patient'}. Immediate clinical evaluation required.`, type: 'EMERGENCY' }),
 
   [WORKFLOW_EVENTS.EMERGENCY_RESOLVED]:
     (p) => ({ title: 'Emergency Resolved', message: `Emergency at ${p.location || 'Facility'} has been resolved by ${p.resolvedBy || 'Medical Team'}.`, type: 'SYSTEM_ALERT' }),
@@ -415,7 +409,7 @@ export class WorkflowEventService {
       }
     }
 
-    // ── Persist to DB (non-blocking) ─────────────────────────────────────────
+    // Persist actionable notifications to database
     // Skip DB persistence for transient presence/internal events — socket-only signals
     const SKIP_DB_EVENTS = new Set([
       WORKFLOW_EVENTS.STAFF_WENT_OFFLINE,

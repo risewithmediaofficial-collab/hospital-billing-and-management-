@@ -33,12 +33,17 @@ export const Input = React.forwardRef(
                 'focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15',
                 'disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed',
                 'transition-colors duration-150',
+                props.type === 'number' ? '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none' : '',
                 Icon ? 'pl-9' : '',
                 rightElement ? 'pr-10' : '',
                 error ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : '',
                 className
               )
             )}
+            onWheel={(e) => {
+              if (props.type === 'number') e.currentTarget.blur();
+              if (props.onWheel) props.onWheel(e);
+            }}
             {...props}
           />
           {rightElement && (

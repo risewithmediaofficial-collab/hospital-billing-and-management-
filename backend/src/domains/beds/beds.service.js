@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { Hospital } from '../../models/Hospital.js';
 import { Bed } from '../../models/Bed.js';
 import { HospitalBlock } from '../../models/HospitalBlock.js';
 import { HospitalFloor } from '../../models/HospitalFloor.js';
@@ -26,15 +27,20 @@ export class BedsService {
   }
 
   static async resolveHierarchyDocuments(hospitalId, data = {}) {
+    const cleanBlockId = data.blockId ? String(data.blockId).trim() : null;
+    const cleanFloorId = data.floorId ? String(data.floorId).trim() : null;
+    const cleanWardId = data.wardId ? String(data.wardId).trim() : null;
+    const cleanRoomId = data.roomId ? String(data.roomId).trim() : null;
+
     const [block, floor, ward, room] = await Promise.all([
-      data.blockId ? HospitalBlock.findOne({ _id: data.blockId, hospitalId }) : null,
-      data.floorId ? HospitalFloor.findOne({ _id: data.floorId, hospitalId }) : null,
-      data.wardId ? HospitalWard.findOne({ _id: data.wardId, hospitalId }) : null,
-      data.roomId ? HospitalRoom.findOne({ _id: data.roomId, hospitalId }) : null,
+      cleanBlockId ? HospitalBlock.findOne({ _id: cleanBlockId, hospitalId }) : null,
+      cleanFloorId ? HospitalFloor.findOne({ _id: cleanFloorId, hospitalId }) : null,
+      cleanWardId ? HospitalWard.findOne({ _id: cleanWardId, hospitalId }) : null,
+      cleanRoomId ? HospitalRoom.findOne({ _id: cleanRoomId, hospitalId }) : null,
     ]);
     for (const [id, document, label] of [
-      [data.blockId, block, 'Block'], [data.floorId, floor, 'Floor'],
-      [data.wardId, ward, 'Ward'], [data.roomId, room, 'Room'],
+      [cleanBlockId, block, 'Block'], [cleanFloorId, floor, 'Floor'],
+      [cleanWardId, ward, 'Ward'], [cleanRoomId, room, 'Room'],
     ]) {
       if (id && !document) throw new ApiError(404, `${label} was not found in this hospital.`, null, 'INVALID_HIERARCHY_REFERENCE');
     }
@@ -121,20 +127,32 @@ export class BedsService {
       .populate('roomId', 'roomNumber roomName roomType maxBedCapacity dailyRoomCharge')
       .sort({ bedNumber: 1 });
 
-    // Auto-seed default bed matrix if entirely empty for this hospital
+    // Auto-seed default bed matrix ONLY if hospital has never been initialized and is completely empty
     if (beds.length === 0 && Object.keys(query).length === 0) {
-      const existingCount = await Bed.countDocuments({ hospitalId });
-      if (existingCount === 0) {
-        await this.seedDefaultHospitalSetup(hospitalId, branchId, user?.id);
-        beds = await Bed.find({ hospitalId })
-          .populate('currentPatientId', 'firstName lastName uhid gender age phone admissionStatus activeAdmissionId emergencyContact')
-          .populate('assignedNurseId', 'name role specialization phone')
-          .populate('assignedDoctorId', 'name role specialization phone')
-          .populate('blockId', 'name code')
-          .populate('floorId', 'name floorNumber')
-          .populate('wardId', 'name code wardType genderRestriction defaultDailyCharge')
-          .populate('roomId', 'roomNumber roomName roomType maxBedCapacity dailyRoomCharge')
-          .sort({ bedNumber: 1 });
+      const hospital = await Hospital.findById(hospitalId).select('bedStructureInitialized');
+      if (!hospital?.bedStructureInitialized) {
+        const [existingBlocks, existingFloors, existingWards, existingRooms, existingCount] = await Promise.all([
+          HospitalBlock.countDocuments({ hospitalId }),
+          HospitalFloor.countDocuments({ hospitalId }),
+          HospitalWard.countDocuments({ hospitalId }),
+          HospitalRoom.countDocuments({ hospitalId }),
+          Bed.countDocuments({ hospitalId }),
+        ]);
+        if (existingBlocks === 0 && existingFloors === 0 && existingWards === 0 && existingRooms === 0 && existingCount === 0) {
+          await this.seedDefaultHospitalSetup(hospitalId, branchId, user?.id);
+          await Hospital.findByIdAndUpdate(hospitalId, { bedStructureInitialized: true });
+          beds = await Bed.find({ hospitalId })
+            .populate('currentPatientId', 'firstName lastName uhid gender age phone admissionStatus activeAdmissionId emergencyContact')
+            .populate('assignedNurseId', 'name role specialization phone')
+            .populate('assignedDoctorId', 'name role specialization phone')
+            .populate('blockId', 'name code')
+            .populate('floorId', 'name floorNumber')
+            .populate('wardId', 'name code wardType genderRestriction defaultDailyCharge')
+            .populate('roomId', 'roomNumber roomName roomType maxBedCapacity dailyRoomCharge')
+            .sort({ bedNumber: 1 });
+        } else {
+          await Hospital.findByIdAndUpdate(hospitalId, { bedStructureInitialized: true });
+        }
       }
     }
 

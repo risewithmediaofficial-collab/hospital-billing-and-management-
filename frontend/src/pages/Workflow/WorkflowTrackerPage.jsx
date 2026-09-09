@@ -263,12 +263,12 @@ export const WorkflowTrackerPage = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
             { key: 'ALL', label: 'All Active' },
-            { key: 'NURSE', label: '💉 Nursing' },
-            { key: 'DIAGNOSTICS', label: '🧪 Diagnostics' },
-            { key: 'PHARMACY', label: '💊 Pharmacy' },
-            { key: 'BILLING', label: '💳 Billing Settlement' },
-            { key: 'COMPLETED', label: '✓ Settled & Done' },
-            { key: 'ALERTS', label: '⚠️ Audit Alerts' },
+            { key: 'NURSE', label: 'Nursing' },
+            { key: 'DIAGNOSTICS', label: 'Diagnostics' },
+            { key: 'PHARMACY', label: 'Pharmacy' },
+            { key: 'BILLING', label: 'Billing Settlement' },
+            { key: 'COMPLETED', label: 'Settled & Completed' },
+            { key: 'ALERTS', label: 'Audit Alerts' },
           ].map((tab) => (
             <button
               key={tab.key}

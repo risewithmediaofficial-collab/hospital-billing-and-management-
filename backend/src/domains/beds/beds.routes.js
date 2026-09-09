@@ -35,12 +35,12 @@ import {
   deleteRoom,
 } from './beds.controller.js';
 import { verifyJwt } from '../../middleware/verifyJwt.js';
-import { requireAssignedRole } from '../../middleware/permissions.js';
+import { requireAssignedRole, requireRole } from '../../middleware/permissions.js';
 
 const router = Router();
 
 router.use(verifyJwt);
-const manageBedStructure = requireAssignedRole('NURSE_INCHARGE', 'IPD_STAFF');
+const manageBedStructure = requireRole('HOSPITAL_ADMIN', 'NURSE_INCHARGE', 'IPD_STAFF');
 const operateBeds = requireAssignedRole('NURSE', 'NURSE_INCHARGE', 'IPD_STAFF', 'SUPPORT_STAFF');
 
 // --- Real-time Matrix & Analytics ---

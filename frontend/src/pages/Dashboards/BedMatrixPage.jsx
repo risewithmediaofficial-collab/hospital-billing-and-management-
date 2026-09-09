@@ -272,20 +272,20 @@ export const BedMatrixPage = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'AVAILABLE':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Available</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Available</span>;
       case 'OCCUPIED':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">🔴 Occupied</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Occupied</span>;
       case 'CLEANING':
       case 'CLEANING_SANITIZING':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">🟡 Cleaning</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Cleaning</span>;
       case 'RESERVED':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">🟠 Reserved</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Reserved</span>;
       case 'MAINTENANCE':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-300">⚫ Maintenance</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Maintenance</span>;
       case 'ISOLATION':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">🟣 Isolation</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Isolation</span>;
       case 'BLOCKED':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-500 border border-slate-200">🟤 Blocked</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-500 border border-slate-200"><span className="w-1.5 h-1.5 rounded-full bg-slate-400" /> Blocked</span>;
       default:
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">{status}</span>;
     }
@@ -382,7 +382,7 @@ export const BedMatrixPage = () => {
 
         <div className="p-4 rounded-2xl bg-white border border-emerald-200 shadow-2xs space-y-1 bg-gradient-to-br from-white to-emerald-50/30">
           <div className="flex items-center justify-between text-emerald-700">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Available (🟢)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Available</span>
             <CheckCircle2 size={16} className="text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-emerald-700 tracking-tight">{summary.available || 0}</div>
@@ -391,7 +391,7 @@ export const BedMatrixPage = () => {
 
         <div className="p-4 rounded-2xl bg-white border border-rose-200 shadow-2xs space-y-1 bg-gradient-to-br from-white to-rose-50/30">
           <div className="flex items-center justify-between text-rose-700">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Occupied (🔴)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Occupied</span>
             <User size={16} className="text-rose-500" />
           </div>
           <div className="text-2xl font-black text-rose-700 tracking-tight">{summary.occupied || 0}</div>
@@ -400,7 +400,7 @@ export const BedMatrixPage = () => {
 
         <div className="p-4 rounded-2xl bg-white border border-amber-200 shadow-2xs space-y-1 bg-gradient-to-br from-white to-amber-50/30">
           <div className="flex items-center justify-between text-amber-800">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Cleaning (🟡)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Cleaning</span>
             <Sparkles size={16} className="text-amber-600" />
           </div>
           <div className="text-2xl font-black text-amber-800 tracking-tight">{summary.cleaning || 0}</div>
@@ -561,13 +561,13 @@ export const BedMatrixPage = () => {
                   className="w-full glass-input rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 border border-slate-200 bg-white"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="AVAILABLE">🟢 Available</option>
-                  <option value="OCCUPIED">🔴 Occupied</option>
-                  <option value="RESERVED">🟠 Reserved</option>
-                  <option value="CLEANING">🟡 Cleaning</option>
-                  <option value="MAINTENANCE">⚫ Maintenance</option>
-                  <option value="ISOLATION">🟣 Isolation</option>
-                  <option value="BLOCKED">🟤 Blocked</option>
+                  <option value="AVAILABLE">Available</option>
+                  <option value="OCCUPIED">Occupied</option>
+                  <option value="RESERVED">Reserved</option>
+                  <option value="CLEANING">Cleaning</option>
+                  <option value="MAINTENANCE">Maintenance</option>
+                  <option value="ISOLATION">Isolation</option>
+                  <option value="BLOCKED">Blocked</option>
                 </select>
               </div>
 
@@ -642,10 +642,10 @@ export const BedMatrixPage = () => {
                     </div>
 
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      <span className="text-emerald-700">🟢 {wardGroup.beds.filter((b) => b.status === 'AVAILABLE').length} Avail</span>
-                      <span className="text-rose-700">🔴 {wardGroup.beds.filter((b) => b.status === 'OCCUPIED').length} Occ</span>
+                      <span className="inline-flex items-center text-emerald-700"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" /> {wardGroup.beds.filter((b) => b.status === 'AVAILABLE').length} Avail</span>
+                      <span className="inline-flex items-center text-rose-700"><span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1" /> {wardGroup.beds.filter((b) => b.status === 'OCCUPIED').length} Occ</span>
                       {wardGroup.beds.filter((b) => b.status === 'CLEANING').length > 0 && (
-                        <span className="text-amber-700">🟡 {wardGroup.beds.filter((b) => b.status === 'CLEANING').length} Clean</span>
+                        <span className="inline-flex items-center text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" /> {wardGroup.beds.filter((b) => b.status === 'CLEANING').length} Clean</span>
                       )}
                     </div>
                   </div>
@@ -709,15 +709,15 @@ export const BedMatrixPage = () => {
 
                             {/* Cleaning Warning */}
                             {isCleaning && (
-                              <div className="mt-2 p-2 rounded-xl bg-white border border-amber-200 text-[10px] text-amber-900 font-bold">
-                                ⏳ Requires Housekeeping Sign-off
+                              <div className="mt-2 p-2 rounded-xl bg-white border border-amber-200 text-[10px] text-amber-900 font-bold flex items-center gap-1">
+                                <Clock size={11} className="text-amber-700 shrink-0" /> Requires Housekeeping Sign-off
                               </div>
                             )}
 
                             {/* Maintenance Warning */}
                             {isMaintenance && (
-                              <div className="mt-2 p-2 rounded-xl bg-white border border-slate-300 text-[10px] text-slate-700 font-semibold truncate">
-                                🔧 {bed.maintenanceDetails?.issue || 'Fault reported'}
+                              <div className="mt-2 p-2 rounded-xl bg-white border border-slate-300 text-[10px] text-slate-700 font-semibold truncate flex items-center gap-1">
+                                <Wrench size={11} className="text-slate-500 shrink-0" /> {bed.maintenanceDetails?.issue || 'Fault reported'}
                               </div>
                             )}
                           </div>
@@ -1389,7 +1389,7 @@ export const BedMatrixPage = () => {
                       }}
                       className="w-full font-bold text-xs bg-emerald-600 hover:bg-emerald-700"
                     >
-                      Certify Cleaned &amp; Release (🟢)
+                      Certify Cleaned &amp; Release
                     </Button>
                   </div>
                 ))

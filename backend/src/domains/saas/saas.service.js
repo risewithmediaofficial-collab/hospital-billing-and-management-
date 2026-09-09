@@ -1107,16 +1107,16 @@ export class SaasService {
         await NotificationService.createNotification({
           recipientRole: 'HOSPITAL_ADMIN',
           hospitalId: hosp._id,
-          title: 'Subscription Expiring in 7 Days!',
-          message: `Your ${hosp.plan} subscription expires on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Renew now to avoid service interruption.`,
+          title: 'Subscription Expiring in 7 Days',
+          message: `Your ${hosp.plan} subscription expires on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Renew to maintain uninterrupted service.`,
           type: 'TRIAL_EXPIRING',
         });
 
         await NotificationService.createNotification({
           recipientRole: 'SUPER_ADMIN',
           hospitalId: hosp._id,
-          title: `⚠️ Plan Expiring Soon: ${hosp.name}`,
-          message: `${hosp.name}'s ${hosp.plan} plan expires in ${remainingDays} days on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Contact them to renew.`,
+          title: `Plan Expiring Soon: ${hosp.name}`,
+          message: `${hosp.name}'s ${hosp.plan} plan expires in ${remainingDays} days on ${new Date(hosp.subscriptionEndDate).toLocaleDateString()}. Contact organization to renew.`,
           type: 'TRIAL_EXPIRING',
           link: `/admin/hospital/${hosp._id}/dashboard`,
         });
@@ -1128,8 +1128,8 @@ export class SaasService {
         await NotificationService.createNotification({
           recipientRole: 'HOSPITAL_ADMIN',
           hospitalId: hosp._id,
-          title: `Subscription Expiring in ${remainingDays} Days!`,
-          message: `URGENT: Your ${hosp.plan} plan expires in ${remainingDays} days. Renew immediately to prevent data access interruption.`,
+          title: `Subscription Expiring in ${remainingDays} Days`,
+          message: `Your ${hosp.plan} plan expires in ${remainingDays} days. Please renew to prevent service disruption.`,
           type: 'TRIAL_EXPIRING',
         });
       } else if (remainingDays <= 1 && !warnings['1_day']) {
@@ -1140,32 +1140,21 @@ export class SaasService {
         await NotificationService.createNotification({
           recipientRole: 'HOSPITAL_ADMIN',
           hospitalId: hosp._id,
-          title: 'Subscription Expires Tomorrow!',
-          message: `FINAL WARNING: Your ${hosp.plan} plan expires tomorrow. Renew immediately to avoid loss of access.`,
+          title: 'Subscription Expires Tomorrow',
+          message: `Your ${hosp.plan} plan expires tomorrow. Renew immediately to maintain access.`,
           type: 'TRIAL_EXPIRING',
         });
       }
     }
 
-    // Check 90-day data retention deadlines — notify super admin before purge
-    // Clear historical deadlines from the retired automatic-retention policy.
+    // Check 90-day data retention deadlines — clear legacy deadlines if present
     const expiringRetention = await Hospital.find({
       dataRetentionDeadline: { $ne: null },
     });
     for (const hosp of expiringRetention) {
-      const daysLeft = 0;
       hosp.dataRetentionDeadline = null;
       hosp.dataRetentionNotified = true;
       await hosp.save();
-      /* Historical cleanup only. Automatic deletion notifications are disabled.
-      await NotificationService.createNotification({
-        recipientRole: 'SUPER_ADMIN',
-        hospitalId: hosp._id,
-        title: `⚠️ Data Deletion in ${daysLeft} Days: ${hosp.name}`,
-        message: `${hosp.name}'s 90-day data retention period ends on ${new Date(hosp.dataRetentionDeadline).toLocaleDateString()}. All hospital data will be permanently deleted unless they renew.`,
-        type: 'TRIAL_EXPIRED',
-        link: `/admin/hospital/${hosp._id}/dashboard`,
-      }); */
     }
   }
 

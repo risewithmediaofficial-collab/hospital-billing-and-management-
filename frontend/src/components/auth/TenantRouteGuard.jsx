@@ -99,7 +99,7 @@ export const TenantRouteGuard = ({ children, allowedRoles = [] }) => {
   const normalizedRouteDomain = hospitalDomain ? hospitalDomain.toLowerCase().trim() : "";
   const normalizedUserDomain = userDomain ? userDomain.toLowerCase().trim() : "";
 
-  if (normalizedRouteDomain && (!normalizedUserDomain || normalizedRouteDomain !== normalizedUserDomain)) {
+  if (user.role !== 'SUPER_ADMIN' && normalizedRouteDomain && (!normalizedUserDomain || normalizedRouteDomain !== normalizedUserDomain)) {
     // Cross-tenant access denied! The logged-in user belongs to another hospital (or has no tenant domain)
     // Redirect to the login page of the requested hospital workspace
     const targetLogin = `/${normalizedRouteDomain}/login`;

@@ -134,8 +134,8 @@ export class DiagnosticsService {
     const targetRole = isRadio ? 'RADIOLOGIST' : 'LAB_TECH';
     const availableStaff = await User.find({ hospitalId, role: { $in: isRadio ? ['RADIOLOGIST', 'RADIOLOGY_STAFF'] : ['LAB_TECH', 'LABORATORY_STAFF'] }, isAvailable: { $ne: false } });
     if (availableStaff.length === 0) {
-      // Still create the order (it queues), but warn in the notes
-      newOrder.timeline.push({ status: 'REQUESTED', timestamp: new Date(), updatedBy: doctorName, notes: `⚠️ No ${isRadio ? 'radiology' : 'lab'} staff currently available. Order queued.` });
+      // Still create the order (it queues), but record status note
+      newOrder.timeline.push({ status: 'REQUESTED', timestamp: new Date(), updatedBy: doctorName, notes: `No ${isRadio ? 'radiology' : 'lab'} staff currently available. Order queued.` });
       await newOrder.save();
     }
 

@@ -69,7 +69,7 @@ export const MarkCleaningCompleteModal = ({ isOpen, onClose, bed = null, onSucce
             <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2">
               <ShieldCheck size={16} className="text-emerald-700 shrink-0 mt-0.5" />
               <span>
-                Certifying cleaning will immediately update Bed <strong>{bed.bedNumber}</strong> status to <strong className="text-emerald-800">AVAILABLE (🟢)</strong> for new patient admission.
+                Certifying cleaning will immediately update Bed <strong>{bed.bedNumber}</strong> status to <strong className="text-emerald-800">AVAILABLE</strong> for new patient admission.
               </span>
             </div>
 

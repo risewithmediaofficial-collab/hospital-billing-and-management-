@@ -14,8 +14,8 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
   const [floorId, setFloorId] = useState('');
   const [department, setDepartment] = useState('Inpatient');
   const [genderRestriction, setGenderRestriction] = useState('ANY');
-  const [bedCapacity, setBedCapacity] = useState(10);
-  const [defaultDailyCharge, setDefaultDailyCharge] = useState(150);
+  const [bedCapacity, setBedCapacity] = useState('');
+  const [defaultDailyCharge, setDefaultDailyCharge] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('ACTIVE');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,8 +43,8 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
         setFloorId('');
         setDepartment('Inpatient');
         setGenderRestriction('ANY');
-        setBedCapacity(10);
-        setDefaultDailyCharge(150);
+        setBedCapacity('');
+        setDefaultDailyCharge('');
         setDescription('');
         setStatus('ACTIVE');
       }
@@ -108,6 +108,12 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
   const filteredFloors = blockId
     ? floors.filter((f) => String(f.blockId?._id || f.blockId) === String(blockId))
     : floors;
+
+  useEffect(() => {
+    if (floorId && !filteredFloors.some((f) => String(f._id) === String(floorId))) {
+      setFloorId('');
+    }
+  }, [blockId, floors, floorId, filteredFloors]);
 
   const WARD_TYPE_OPTIONS = [
     { value: 'GENERAL', label: 'General Ward' },
@@ -244,6 +250,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 </label>
                 <select
                   value={floorId}
+                  data-testid="ward-floor-select"
                   onChange={(e) => setFloorId(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
@@ -283,6 +290,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                   type="number"
                   min="1"
                   max="200"
+                  placeholder="e.g. 10"
                   value={bedCapacity}
                   onChange={(e) => setBedCapacity(e.target.value)}
                   className="w-full text-xs font-semibold"
@@ -296,6 +304,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 <Input
                   type="number"
                   min="0"
+                  placeholder="e.g. 150"
                   value={defaultDailyCharge}
                   onChange={(e) => setDefaultDailyCharge(e.target.value)}
                   className="w-full text-xs font-bold text-indigo-700"
@@ -307,7 +316,7 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
               <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="font-bold">
+              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="ward-modal-save" className="font-bold">
                 {wardToEdit ? 'Save Changes' : 'Create Ward'}
               </Button>
             </div>

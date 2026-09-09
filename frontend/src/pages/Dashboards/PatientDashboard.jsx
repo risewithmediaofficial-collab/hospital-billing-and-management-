@@ -36,6 +36,7 @@ import {
   MapPin,
   ClipboardList,
   Mail,
+  Wind,
 } from 'lucide-react';
 
 export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
@@ -497,6 +498,25 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
               </div>
             </div>
           </Card>
+
+          {/* Bedside Care Assistance */}
+          {hasActiveAdmission ? <Card>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-900">Bedside Care Assistance</h3>
+              <span className="text-xs text-emerald-600 font-semibold">Active Admission Verified</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {['WATER', 'NURSE_ASSIST', 'CLEANING', 'PAIN_RELIEF'].map((type) => (
+                <Button key={type} size="sm" variant="outline" onClick={() => handleCreateRequest(type)}>
+                  Request {type}
+                </Button>
+              ))}
+            </div>
+          </Card> : (
+            <div className="hidden">
+              In-Bed Care Requests Unavailable
+            </div>
+          )}
         </div>
       )}
 
@@ -804,10 +824,10 @@ export const PatientDashboard = ({ activeTab = 'dashboard' }) => {
                     {/* Rich Consultation Metadata */}
                     {item.vitals && (
                       <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-[11px] text-slate-800 flex items-center gap-3 flex-wrap">
-                        <span>🌡️ Temp: <strong>{item.vitals.temperature || '102.4'}°F</strong></span>
-                        <span>🩺 BP: <strong>{item.vitals.bp || '120/80'}</strong></span>
-                        <span>💓 Pulse: <strong>{item.vitals.pulse || '98'} bpm</strong></span>
-                        <span>🫁 SpO2: <strong>{item.vitals.spo2 || '98'}%</strong></span>
+                        <span className="flex items-center gap-1"><Thermometer size={12} className="text-orange-500 shrink-0" /> Temp: <strong>{item.vitals.temperature || '102.4'}°F</strong></span>
+                        <span className="flex items-center gap-1"><Activity size={12} className="text-blue-500 shrink-0" /> BP: <strong>{item.vitals.bp || '120/80'}</strong></span>
+                        <span className="flex items-center gap-1"><Heart size={12} className="text-rose-500 shrink-0" /> Pulse: <strong>{item.vitals.pulse || '98'} bpm</strong></span>
+                        <span className="flex items-center gap-1"><Wind size={12} className="text-emerald-500 shrink-0" /> SpO2: <strong>{item.vitals.spo2 || '98'}%</strong></span>
                       </div>
                     )}
 

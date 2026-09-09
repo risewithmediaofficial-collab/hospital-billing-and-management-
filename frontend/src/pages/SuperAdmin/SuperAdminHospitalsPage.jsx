@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, MapPin, Mail, Phone, Trash2, RotateCcw, Clock, X } from 'lucide-react';
+import { Building2, ShieldCheck, CheckCircle, CheckCircle2, XCircle, PlusCircle, Key, Eye, MapPin, Mail, Phone, Trash2, RotateCcw, Clock, X, AlertTriangle } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -190,6 +190,10 @@ export const SuperAdminHospitalsPage = () => {
     if (pass || confirm) {
       if (pass !== confirm) {
         setActionMessage('New Password and Confirm Password do not match.');
+        return;
+      }
+      if (pass.length < 8) {
+        setActionMessage('Password must be at least 8 characters long.');
         return;
       }
     }
@@ -603,7 +607,7 @@ export const SuperAdminHospitalsPage = () => {
 
                   {modalError && (
                     <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm">
-                      <span>⚠️</span>
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>{modalError}</span>
                     </div>
                   )}

@@ -118,4 +118,7 @@ diagnosticOrderSchema.plugin(encryptedFieldsPlugin, {
   fields: ['clinicalNotes', 'cancellationReason', 'correctionNote', 'reportSummary'],
 });
 
+diagnosticOrderSchema.index({ hospitalId: 1, testCategory: 1, createdAt: -1 });
+diagnosticOrderSchema.index({ hospitalId: 1, status: 1, createdAt: -1 });
+
 export const DiagnosticOrder = tenantAwareModel(mongoose.model('DiagnosticOrder', diagnosticOrderSchema));

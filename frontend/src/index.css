@@ -59,6 +59,17 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* Suppress number input spinners and arrows globally */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', 'Inter', sans-serif;
     color: var(--text-primary);
@@ -372,9 +383,9 @@
 }
 
 /* ============================================================
-   EMERGENCY CODE BLUE — Red pulse (clinically required)
+   EMERGENCY STATUS NOTIFICATION — Controlled pulse
    ============================================================ */
-@keyframes emergencyGlow {
+@keyframes emergency-glow {
   0%, 100% {
     box-shadow: 0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 15px rgba(239, 68, 68, 0.2);
     border-color: #ef4444;
@@ -386,7 +397,7 @@
 }
 
 .emergency-pulse {
-  animation: emergencyGlow 1.2s infinite ease-in-out;
+  animation: emergency-glow 1.2s infinite ease-in-out;
 }
 
 /* ============================================================
@@ -413,13 +424,13 @@
 /* ============================================================
    ANIMATIONS
    ============================================================ */
-@keyframes fadeIn {
+@keyframes fade-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fade-in 0.2s ease-out;
 }
 
 /* ============================================================

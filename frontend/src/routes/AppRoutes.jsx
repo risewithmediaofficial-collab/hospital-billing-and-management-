@@ -66,8 +66,14 @@ const RouteLoadingSpinner = () => (
   </div>
 );
 
+const TenantRedirect = ({ target }) => {
+  const { hospitalDomain } = useParams();
+  return <Navigate to={`/${hospitalDomain}${target}`} replace />;
+};
+
 const TenantDomainRedirect = () => {
   const { hospitalDomain } = useParams();
+  const { user, isAuthenticated } = useAuthStore();
   const reserved = [
     'login', 'admin', 'doctor', 'nurse', 'nursing', 'nurse-incharge',
     'reception', 'pharmacy', 'laboratory', 'radiology', 'billing',
@@ -83,6 +89,25 @@ const TenantDomainRedirect = () => {
     hospitalDomain.startsWith('some-')
   ) {
     return <NotFoundPage />;
+  }
+  if (isAuthenticated && user) {
+    if (user.role === ROLES.SUPER_ADMIN) {
+      return <Navigate to={`/${hospitalDomain}/admin/dashboard`} replace />;
+    }
+    const routes = {
+      [ROLES.HOSPITAL_ADMIN]: `/${hospitalDomain}/admin/dashboard`,
+      [ROLES.DOCTOR]: `/${hospitalDomain}/doctor/dashboard`,
+      [ROLES.NURSE]: `/${hospitalDomain}/nurse/dashboard`,
+      [ROLES.NURSE_INCHARGE]: `/${hospitalDomain}/nurse-incharge/dashboard`,
+      [ROLES.RECEPTIONIST]: `/${hospitalDomain}/reception/dashboard`,
+      [ROLES.PHARMACIST]: `/${hospitalDomain}/pharmacy/dashboard`,
+      [ROLES.LAB_TECH]: `/${hospitalDomain}/laboratory/dashboard`,
+      [ROLES.RADIOLOGIST]: `/${hospitalDomain}/radiology/dashboard`,
+      [ROLES.CASHIER]: `/${hospitalDomain}/billing/dashboard`,
+      [ROLES.PATIENT]: `/${hospitalDomain}/patient/dashboard`,
+      [ROLES.GUARDIAN]: `/${hospitalDomain}/guardian/dashboard`,
+    };
+    return <Navigate to={routes[user.role] || `/${hospitalDomain}/admin/dashboard`} replace />;
   }
   return <Navigate to={`/${hospitalDomain}/login`} replace />;
 };
@@ -133,6 +158,46 @@ export const AppRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/403" element={<ForbiddenPage />} />
+
+      {/* Direct Tenant Base Role Shortcuts (Eliminates 404 on base role routes) */}
+      <Route path="/:hospitalDomain/admin" element={<TenantRedirect target="/admin/dashboard" />} />
+      <Route path="/:hospitalDomain/hospital-admin" element={<TenantRedirect target="/admin/dashboard" />} />
+      <Route path="/:hospitalDomain/doctor" element={<TenantRedirect target="/doctor/dashboard" />} />
+      <Route path="/:hospitalDomain/nurse" element={<TenantRedirect target="/nurse/dashboard" />} />
+      <Route path="/:hospitalDomain/nursing" element={<TenantRedirect target="/nursing/dashboard" />} />
+      <Route path="/:hospitalDomain/nurse-incharge" element={<TenantRedirect target="/nurse-incharge/dashboard" />} />
+      <Route path="/:hospitalDomain/reception" element={<TenantRedirect target="/reception/dashboard" />} />
+      <Route path="/:hospitalDomain/pharmacy" element={<TenantRedirect target="/pharmacy/dashboard" />} />
+      <Route path="/:hospitalDomain/laboratory" element={<TenantRedirect target="/laboratory/dashboard" />} />
+      <Route path="/:hospitalDomain/radiology" element={<TenantRedirect target="/radiology/dashboard" />} />
+      <Route path="/:hospitalDomain/billing" element={<TenantRedirect target="/billing/dashboard" />} />
+      <Route path="/:hospitalDomain/cashier" element={<TenantRedirect target="/billing/dashboard" />} />
+      <Route path="/:hospitalDomain/patient" element={<TenantRedirect target="/patient/dashboard" />} />
+      <Route path="/:hospitalDomain/patient-portal" element={<TenantRedirect target="/patient/dashboard" />} />
+      <Route path="/:hospitalDomain/guardian" element={<TenantRedirect target="/guardian/dashboard" />} />
+      <Route path="/:hospitalDomain/guardian-portal" element={<TenantRedirect target="/guardian/dashboard" />} />
+      <Route path="/:hospitalDomain/workflow" element={<TenantRedirect target="/workflow/tracker" />} />
+      <Route path="/:hospitalDomain/ipd" element={<TenantRedirect target="/ipd/beds" />} />
+      <Route path="/:hospitalDomain/opd" element={<TenantRedirect target="/reception/registered-patients" />} />
+
+      {/* Global Non-Tenant Base Role Shortcuts (Eliminates 404 on base role routes) */}
+      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+      <Route path="/hospital-admin" element={<Navigate to="/admin/dashboard" replace />} />
+      <Route path="/doctor" element={<Navigate to="/doctor/dashboard" replace />} />
+      <Route path="/nurse" element={<Navigate to="/nursing/dashboard" replace />} />
+      <Route path="/nursing" element={<Navigate to="/nursing/dashboard" replace />} />
+      <Route path="/nurse-incharge" element={<Navigate to="/nurse-incharge/dashboard" replace />} />
+      <Route path="/reception" element={<Navigate to="/reception/dashboard" replace />} />
+      <Route path="/pharmacy" element={<Navigate to="/pharmacy/dashboard" replace />} />
+      <Route path="/laboratory" element={<Navigate to="/laboratory/dashboard" replace />} />
+      <Route path="/radiology" element={<Navigate to="/radiology/dashboard" replace />} />
+      <Route path="/billing" element={<Navigate to="/billing/dashboard" replace />} />
+      <Route path="/cashier" element={<Navigate to="/billing/dashboard" replace />} />
+      <Route path="/patient" element={<Navigate to="/patient/dashboard" replace />} />
+      <Route path="/patient-portal" element={<Navigate to="/patient/dashboard" replace />} />
+      <Route path="/workflow" element={<Navigate to="/workflow/tracker" replace />} />
+      <Route path="/ipd" element={<Navigate to="/admin/bed-matrix" replace />} />
+      <Route path="/opd" element={<Navigate to="/reception/registered-patients" replace />} />
 
       {/* 1. Master Platform Super Admin Sub-Routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
@@ -189,6 +254,12 @@ export const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER]} />}>
         <Route path="/admin/dashboard" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/admin/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/hospital-admin/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/ipd/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/ipd/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/admin/staff" element={<MainLayout><HospitalAdminDashboard /></MainLayout>} />
         <Route path="/admin/departments" element={<MainLayout><GenericSubView title="Departments & Wards Setup" subtitle="Clinical and Diagnostic Departments" iconName="GitFork" /></MainLayout>} />
         <Route path="/admin/tariffs" element={<MainLayout><AdminExtraPage /></MainLayout>} />
@@ -248,6 +319,15 @@ export const AppRoutes = () => {
         <Route path="/nurse-incharge/bed-transfers" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+      </Route>
+
+      {/* Patient Registration — Accessible to Receptionist, OPD, Hospital Admin, Super Admin, Doctor */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DOCTOR]} />}>
+        <Route path="/patient/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/patient/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/patients/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/patient-registration" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/reception/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
       </Route>
 
       {/* 6. Receptionist Sub-Routes */}
@@ -354,6 +434,11 @@ export const AppRoutes = () => {
       <Route element={<TenantRouteGuard allowedRoles={[ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_MANAGER, ROLES.DOCTOR, ROLES.NURSE, ROLES.NURSE_INCHARGE, ROLES.IPD_STAFF]} />}>
         <Route path="/:hospitalDomain/admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/hospital-admin/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/admin/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/ipd/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/ipd/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/bed-matrix" element={<MainLayout><BedMatrixPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/beds" element={<MainLayout><BedMatrixPage /></MainLayout>} />
       </Route>
 
       {/* Hospital Admin & Department Manager — management views */}
@@ -416,6 +501,15 @@ export const AppRoutes = () => {
         <Route path="/:hospitalDomain/nurse-incharge/bed-transfers" element={<MainLayout><BedMatrixPage /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/overdue-requests" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/nurse-incharge/roster" element={<MainLayout><NurseInchargeDashboard /></MainLayout>} />
+      </Route>
+
+      {/* Patient Registration tenant routes — Accessible to Receptionist, OPD, Hospital Admin, Super Admin, Doctor */}
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.RECEPTIONIST, ROLES.OPD_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN, ROLES.DOCTOR]} />}>
+        <Route path="/:hospitalDomain/patient/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/patient/register-patient" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/patients/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/patient-registration" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
+        <Route path="/:hospitalDomain/reception/register" element={<MainLayout><PatientRegistrationPage /></MainLayout>} />
       </Route>
 
       {/* Reception tenant routes */}

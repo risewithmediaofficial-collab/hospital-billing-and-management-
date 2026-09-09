@@ -49,6 +49,12 @@ export const WORK_MODE_NAVIGATION = [
   { title: 'HR Desk', path: '/hr/dashboard', icon: 'UserCheck', module: 'hr', category: 'Clinic Operations', requiredRoles: ['HR_MANAGER'] },
 ];
 
+// Canonical workflow path resolution mapping for live navigation notifications
+// Resolves data.targetRoute || data.linkedPath || data.payload?.linkedPath || workflowPaths
+export const WORKFLOW_PATHS = {
+  PATIENT_CARE_REQUEST_RAISED: '/nurse-incharge/dashboard?tab=REQUESTS',
+};
+
 const ALL_MODULE_NAVIGATION = [
   { title: 'Live Data Tracker', path: '/workflow/tracker', icon: 'GitBranch', module: 'workflowTracker' },
   { title: 'Registered Patients', path: '/reception/registered-patients?tab=ALL', icon: 'Users', module: 'patients' },
@@ -168,10 +174,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
   useEffect(() => {
     fetchPendingWork();
     useNotificationStore.getState().fetchNotifications();
+
+    // Dynamically throttle polling interval (30s if socket connected, 20s otherwise)
+    const pollTime = socket?.connected ? 30000 : 20000;
     const interval = setInterval(() => {
+      // Skip polling if window/document is hidden or offline
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       fetchPendingWork();
       useNotificationStore.getState().fetchNotifications();
-    }, 10000);
+    }, pollTime);
 
     if (!socket) return () => clearInterval(interval);
 

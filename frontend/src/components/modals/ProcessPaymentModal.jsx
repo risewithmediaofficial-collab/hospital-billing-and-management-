@@ -372,7 +372,7 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                         <CreditCard size={14} /> Single Mode
                       </button>
                       <button type="button" onClick={() => { setIsSplitMode(true); handleApply5050('CASH', 'UPI'); }} className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${isSplitMode ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>
-                        <Split size={14} /> ⚡ Split Tender
+                        <Split size={14} /> Split Tender
                       </button>
                     </div>
 
@@ -400,11 +400,11 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Payment Mode</label>
                           <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)} className="w-full glass-input rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15">
-                            <option value="CARD">💳 Credit / Debit Card</option>
-                            <option value="CASH">💵 Cash at Counter</option>
-                            <option value="UPI">📱 UPI / QR Code</option>
-                            <option value="NET_BANKING">🏦 Net Banking</option>
-                            <option value="INSURANCE">🏥 Insurance</option>
+                            <option value="CARD">Credit / Debit Card</option>
+                            <option value="CASH">Cash at Counter</option>
+                            <option value="UPI">UPI / QR Code</option>
+                            <option value="NET_BANKING">Net Banking</option>
+                            <option value="INSURANCE">Insurance</option>
                           </select>
                         </div>
                         <Input label="Transaction Reference" value={transactionRef} onChange={(e) => setTransactionRef(e.target.value)} required />
@@ -422,9 +422,9 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                             <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
                               <div className="flex items-center justify-between gap-2">
                                 <select value={row.mode} onChange={(e) => handleSplitRowChange(idx, 'mode', e.target.value)} className="w-1/2 rounded-md bg-white border border-slate-200 px-2 py-1 text-xs font-bold text-slate-900">
-                                  <option value="CASH">💵 Cash</option>
-                                  <option value="UPI">📱 UPI</option>
-                                  <option value="CARD">💳 Card</option>
+                                  <option value="CASH">Cash</option>
+                                  <option value="UPI">UPI</option>
+                                  <option value="CARD">Card</option>
                                 </select>
                                 <div className="w-1/2 relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
@@ -438,7 +438,19 @@ export const ProcessPaymentModal = ({ isOpen, onClose, invoice, onSuccess }) => 
                         <button type="button" onClick={handleAddSplitRow} className="w-full py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-xs font-bold flex items-center justify-center gap-1.5"><Plus size={13} /> Add Mode</button>
                         <div className={`p-2.5 rounded-lg border flex items-center justify-between text-xs font-bold ${isSplitBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
                           <span>Total: ₹{totalSplitSum.toFixed(2)}</span>
-                          <span>{isSplitBalanced ? '✅ Balanced' : `⚠️ ₹${splitDiff.toFixed(2)}`}</span>
+                          <span className="flex items-center gap-1">
+                            {isSplitBalanced ? (
+                              <>
+                                <CheckCircle2 size={13} className="text-emerald-700" />
+                                Balanced
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={13} className="text-rose-700" />
+                                Difference: ₹{splitDiff.toFixed(2)}
+                              </>
+                            )}
+                          </span>
                         </div>
                       </div>
                     )}

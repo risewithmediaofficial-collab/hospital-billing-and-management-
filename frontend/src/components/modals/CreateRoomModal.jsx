@@ -13,10 +13,10 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
   const [blockId, setBlockId] = useState('');
   const [floorId, setFloorId] = useState('');
   const [wardId, setWardId] = useState('');
-  const [maxBedCapacity, setMaxBedCapacity] = useState(1);
-  const [dailyRoomCharge, setDailyRoomCharge] = useState(500);
+  const [maxBedCapacity, setMaxBedCapacity] = useState('');
+  const [dailyRoomCharge, setDailyRoomCharge] = useState('');
   const [autoGenerateBeds, setAutoGenerateBeds] = useState(true);
-  const [dailyBedCharge, setDailyBedCharge] = useState(0);
+  const [dailyBedCharge, setDailyBedCharge] = useState('');
   const [bedType, setBedType] = useState('NORMAL');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('ACTIVE');
@@ -44,10 +44,10 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
         setBlockId('');
         setFloorId('');
         setWardId(wards.length > 0 ? (wards[0]._id || '') : '');
-        setMaxBedCapacity(1);
-        setDailyRoomCharge(500);
+        setMaxBedCapacity('');
+        setDailyRoomCharge('');
         setAutoGenerateBeds(true);
-        setDailyBedCharge(0);
+        setDailyBedCharge('');
         setBedType('NORMAL');
         setDescription('');
         setStatus('ACTIVE');
@@ -137,6 +137,16 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
       setIsLoading(false);
     }
   };
+
+  const filteredFloors = blockId
+    ? floors.filter((f) => String(f.blockId?._id || f.blockId) === String(blockId))
+    : floors;
+
+  useEffect(() => {
+    if (floorId && !filteredFloors.some((f) => String(f._id) === String(floorId))) {
+      setFloorId('');
+    }
+  }, [blockId, floors, floorId, filteredFloors]);
 
   const ROOM_TYPE_OPTIONS = [
     { value: 'SINGLE', label: 'Single Occupancy Room' },
@@ -281,13 +291,14 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </label>
                 <select
                   value={floorId}
+                  data-testid="room-floor-select"
                   onChange={(e) => setFloorId(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
                   <option value="">No Specific Floor</option>
-                  {floors.map((f) => (
+                  {filteredFloors.map((f) => (
                     <option key={f._id} value={f._id}>
-                      {f.name}
+                      {f.name} {f.blockId?.name ? `(${f.blockId.name})` : ''}
                     </option>
                   ))}
                 </select>
@@ -303,6 +314,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                   type="number"
                   min="1"
                   max="50"
+                  placeholder="e.g. 1"
                   value={maxBedCapacity}
                   onChange={(e) => setMaxBedCapacity(e.target.value)}
                   className="w-full text-xs font-semibold"
@@ -316,6 +328,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 <Input
                   type="number"
                   min="0"
+                  placeholder="e.g. 500"
                   value={dailyRoomCharge}
                   onChange={(e) => setDailyRoomCharge(e.target.value)}
                   className="w-full text-xs font-bold text-indigo-700"
@@ -382,7 +395,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
               <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="font-bold">
+              <Button type="submit" variant="primary" isLoading={isLoading} data-testid="room-modal-save" className="font-bold">
                 {roomToEdit ? 'Save Changes' : 'Create Room'}
               </Button>
             </div>

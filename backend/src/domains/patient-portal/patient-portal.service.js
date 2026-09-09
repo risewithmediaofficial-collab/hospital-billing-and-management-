@@ -215,11 +215,10 @@ export class PatientPortalService {
     }
 
     let patient = null;
-    if (dbUser.patientId) {
-      patient = await Patient.findOne({
-        _id: dbUser.patientId,
-        ...(hospitalId ? { hospitalId } : {})
-      }).populate('hospitalId').populate('branchId');
+    if (user.patientId || dbUser.patientId) {
+      patient = await Patient.findOne(
+        hospitalId ? { _id: user.patientId, hospitalId } : { _id: dbUser.patientId }
+      ).populate('hospitalId').populate('branchId');
     }
     if (!patient && dbUser.uhid) {
       patient = await Patient.findOne({

@@ -173,6 +173,15 @@ export class AuthService {
 
   static async login(identifier, password, hospitalDomain = null) {
     const cleanId = identifier ? String(identifier).trim() : '';
+    const cleanPass = password ? String(password) : '';
+
+    if (!cleanId) {
+      throw new ApiError(400, 'Email, phone, or UHID identifier is required.', null, 'VALIDATION_ERROR');
+    }
+    if (!cleanPass) {
+      throw new ApiError(400, 'Password is required.', null, 'VALIDATION_ERROR');
+    }
+
     let targetHospital = null;
     if (hospitalDomain && String(hospitalDomain).trim()) {
       const cleanDomain = String(hospitalDomain).toLowerCase().trim();

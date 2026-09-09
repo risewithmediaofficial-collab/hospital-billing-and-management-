@@ -115,8 +115,12 @@ userSchema.post('findOneAndUpdate', async function syncUpdatedIdentity(document)
 });
 
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  if (!this.passwordHash) return false;
-  return await bcrypt.compare(enteredPassword, this.passwordHash);
+  if (!enteredPassword || typeof enteredPassword !== 'string' || !this.passwordHash) return false;
+  try {
+    return await bcrypt.compare(enteredPassword, this.passwordHash);
+  } catch {
+    return false;
+  }
 };
 
 userSchema.methods.generateAccessToken = function () {

@@ -87,7 +87,10 @@ export const CashierDashboard = () => {
     try {
       const res = await axiosClient.get('/billing/unpaid-invoices');
       const allInvoices = res.data || [];
-      const invoices = allInvoices.filter((inv) => !(inv.doctorReviewQuery && inv.doctorReviewQuery.resolved === false));
+      const invoices = allInvoices.filter((inv) => {
+        const hasActiveDoctorQuery = Boolean(inv.doctorReviewQuery?.query?.trim() && !inv.doctorReviewQuery?.resolved);
+        return !hasActiveDoctorQuery;
+      });
       setUnpaidInvoices(invoices);
       useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard', invoices.length);
       useDepartmentNotificationStore.getState().setNavCount?.('/billing/dashboard?tab=CENTRAL_DESK', invoices.length);
@@ -255,7 +258,7 @@ export const CashierDashboard = () => {
         reason,
         note,
       });
-      alert(res.data?.message || res.message || 'Item/Prescription returned to department successfully!');
+      alert(res.data?.message || res.message || 'Item returned to originating department.');
       setIsReturnModalOpen(false);
       setSelectedInvoice(null);
       fetchUnpaidInvoices();
@@ -544,10 +547,10 @@ export const CashierDashboard = () => {
                               <button
                                 type="button"
                                 onClick={() => setIsReturnModalOpen(true)}
-                                className="block ml-auto text-[10px] text-amber-600 hover:text-amber-800 font-sans hover:underline font-bold mt-0.5 cursor-pointer"
+                                className="inline-flex items-center gap-1 ml-auto text-[10px] text-amber-600 hover:text-amber-800 font-sans hover:underline font-bold mt-0.5 cursor-pointer"
                                 title="Send back to Pharmacy for price / batch correction"
                               >
-                                ↩️ Return to Pharmacy
+                                <RotateCcw size={10} /> Return to Pharmacy
                               </button>
                             )}
                           </td>

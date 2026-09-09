@@ -8,7 +8,7 @@ import { X, Layers, ShieldAlert } from 'lucide-react';
 export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks = [], onSuccess }) => {
   useScrollLock(isOpen);
   const [name, setName] = useState('');
-  const [floorNumber, setFloorNumber] = useState(0);
+  const [floorNumber, setFloorNumber] = useState('');
   const [blockId, setBlockId] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('ACTIVE');
@@ -25,7 +25,7 @@ export const CreateFloorModal = ({ isOpen, onClose, floorToEdit = null, blocks =
         setStatus(floorToEdit.status || 'ACTIVE');
       } else {
         setName('');
-        setFloorNumber(0);
+        setFloorNumber('');
         setBlockId(blocks.length > 0 ? (blocks[0]._id || '') : '');
         setDescription('');
         setStatus('ACTIVE');

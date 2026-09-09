@@ -138,7 +138,10 @@ export const useNotificationStore = create((set, get) => ({
         });
       }
     } catch (error) {
-      console.error('Failed to load notifications:', error);
+      const isNetworkError = error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error') || !error?.response;
+      if (!isNetworkError) {
+        console.error('Failed to load notifications:', error);
+      }
       set({ isLoading: false });
     }
   },

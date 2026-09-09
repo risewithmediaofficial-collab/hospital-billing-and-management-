@@ -132,8 +132,17 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   }
 
   // 6. Diagnostics (Lab / Radiology)
-  if (nPath.startsWith('/laboratory') && tPath.startsWith('/laboratory')) return true;
-  if (nPath.startsWith('/radiology') && tPath.startsWith('/radiology')) return true;
+  if (nPath.startsWith('/laboratory') && tPath.startsWith('/laboratory')) {
+    if (nTab === 'RESULTS' || nTab === 'REPORTS') return tTab === 'RESULTS' || tTab === 'REPORTS';
+    if (!nTab) return !tTab || tTab === 'ACTIVE' || tTab === 'QUEUE';
+    return tTab === nTab;
+  }
+  if (nPath.startsWith('/radiology') && tPath.startsWith('/radiology')) {
+    if (nTab === 'DICOM') return tTab === 'DICOM';
+    if (nTab === 'REPORTS') return tTab === 'REPORTS';
+    if (!nTab || nTab === 'ACTIVE') return !tTab || tTab === 'ACTIVE' || tTab === 'QUEUE';
+    return tTab === nTab;
+  }
   if (nPath.startsWith('/emergency') && tPath.startsWith('/emergency')) return true;
 
   if (tPath !== nPath) return false;

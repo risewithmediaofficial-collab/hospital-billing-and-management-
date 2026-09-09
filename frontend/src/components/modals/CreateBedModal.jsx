@@ -14,10 +14,10 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
   const [floorId, setFloorId] = useState('');
   const [wardId, setWardId] = useState('');
   const [roomId, setRoomId] = useState('');
-  const [dailyTariff, setDailyTariff] = useState(150);
-  const [dailyBedCharge, setDailyBedCharge] = useState(0);
-  const [dailyRoomCharge, setDailyRoomCharge] = useState(0);
-  const [dailyWardCharge, setDailyWardCharge] = useState(150);
+  const [dailyTariff, setDailyTariff] = useState('');
+  const [dailyBedCharge, setDailyBedCharge] = useState('');
+  const [dailyRoomCharge, setDailyRoomCharge] = useState('');
+  const [dailyWardCharge, setDailyWardCharge] = useState('');
   const [status, setStatus] = useState('AVAILABLE');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,10 +47,10 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
         setFloorId('');
         setWardId(wards.length > 0 ? (wards[0]._id || '') : '');
         setRoomId('');
-        setDailyTariff(150);
-        setDailyBedCharge(0);
-        setDailyRoomCharge(0);
-        setDailyWardCharge(150);
+        setDailyTariff('');
+        setDailyBedCharge('');
+        setDailyRoomCharge('');
+        setDailyWardCharge('');
         setStatus('AVAILABLE');
         setNotes('');
       }
@@ -229,11 +229,11 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                   onChange={(e) => setStatus(e.target.value)}
                   className="w-full glass-input rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 border border-slate-200"
                 >
-                  <option value="AVAILABLE">Available (🟢 Ready for Admission)</option>
-                  <option value="CLEANING">Cleaning / Sanitizing (🟡 Queued)</option>
-                  <option value="MAINTENANCE">Maintenance (⚫ Fault Reported)</option>
-                  <option value="BLOCKED">Blocked (🟤 Temporarily Inactive)</option>
-                  <option value="ISOLATION">Isolation (🟣 Quarantine Only)</option>
+                  <option value="AVAILABLE">Available (Ready for Admission)</option>
+                  <option value="CLEANING">Cleaning / Sanitizing (Queued)</option>
+                  <option value="MAINTENANCE">Maintenance (Fault Reported)</option>
+                  <option value="BLOCKED">Blocked (Temporarily Inactive)</option>
+                  <option value="ISOLATION">Isolation (Quarantine Only)</option>
                 </select>
               </div>
             </div>

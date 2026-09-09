@@ -58,6 +58,7 @@ const hospitalSchema = new mongoose.Schema(
       index: true,
     },
     isDeleted: { type: Boolean, default: false, index: true },
+    bedStructureInitialized: { type: Boolean, default: false },
     plan: {
       type: String,
       enum: ['BASIC', 'STANDARD', 'UNLIMITED', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE', 'ADVANCED', 'CUSTOM'],

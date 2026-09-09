@@ -22,10 +22,13 @@ export class BillingService {
       status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
       isDeleted: { $ne: true },
       $or: [
+        { doctorReviewQuery: null },
         { doctorReviewQuery: { $exists: false } },
-        { 'doctorReviewQuery.resolved': { $ne: false } },
-        { 'doctorReviewQuery.query': null },
+        { 'doctorReviewQuery.query': '' },
+        { 'doctorReviewQuery.query': { $in: ['', null] } },
         { 'doctorReviewQuery.query': { $exists: false } },
+        { 'doctorReviewQuery.resolved': true },
+        { 'doctorReviewQuery.resolved': { $ne: false } },
       ],
     })
       .populate('patientId')
@@ -226,6 +229,7 @@ export class BillingService {
 
       const patientName = `${invoice.patientId?.firstName || ''} ${invoice.patientId?.lastName || ''}`.trim() || 'Patient';
       const paymentPayload = {
+        hospitalId: invoice.hospitalId,
         invoiceId: invoice._id,
         invoiceNo: invoice.invoiceNo,
         receiptId: receipt._id,
@@ -235,6 +239,7 @@ export class BillingService {
         receiptNo: receipt.receiptNo,
         linkedPath: `/billing/dashboard?tab=RECEIPTS&receiptId=${receipt._id}&patientId=${invoice.patientId?._id || invoice.patientId}`,
       };
+      await WorkflowEventService.emit(WORKFLOW_EVENTS.PAYMENT_COLLECTED, paymentPayload, invoice.branchId).catch(() => {});
       socketManager.emitToBranch(invoice.branchId, 'billing:payment_collected', paymentPayload);
       socketManager.emitToBranch(invoice.branchId, 'workflow:notification_cleared', { targetModule: 'billing', patientId: invoice.patientId });
       socketManager.emitToBranch(invoice.branchId, 'workflow:pending_changed', { invoiceId: invoice._id });

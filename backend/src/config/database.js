@@ -14,7 +14,7 @@ export const connectDB = async () => {
     return conn;
   } catch (error) {
     console.error(`[MongoDB Error] Connection Failed: ${error.message}`);
-    // Non-fatal fallback for development offline environment if MongoDB service is restarting
+    // Allow dev process to stay alive during temporary database restarts
     if (env.NODE_ENV === 'production') {
       process.exit(1);
     }

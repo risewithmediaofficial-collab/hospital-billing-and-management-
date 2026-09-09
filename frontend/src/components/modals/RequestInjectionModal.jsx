@@ -156,7 +156,7 @@ export const RequestInjectionModal = ({ isOpen, onClose, patient, appointmentId,
                     {inj.name}
                   </option>
                 ))}
-                <option value="CUSTOM">✏️ Custom / Type Own Medicine</option>
+                <option value="CUSTOM">Custom / Manual Entry</option>
               </select>
             </div>
 

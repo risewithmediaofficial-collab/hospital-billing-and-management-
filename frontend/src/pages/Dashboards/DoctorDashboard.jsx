@@ -718,11 +718,17 @@ const targetDocId = user?.id || user?._id;
     return pName.includes(search) || uhid.includes(search) || tName.includes(search);
   });
 
+  const unreviewedDeptResponses = allMyDeptOrders.filter((ord) => {
+    const hasResponse = ['REPORT_UPLOADED', 'COMPLETED'].includes(ord.status) || Boolean(ord.responseSubmittedAt || ord.completedAt);
+    const isReviewed = Boolean(ord.reviewedAt || ord.status === 'REVIEWED' || ord.chargeStatus === 'APPROVED' || ord.chargeStatus === 'INCLUDED_IN_FINAL_BILL');
+    return hasResponse && !isReviewed;
+  });
+
   // Keep badge counts strictly synced with active items
   useEffect(() => {
     const activeTotal =
       (activeNurseTasks?.length || 0) +
-      (activeDeptOrders?.length || 0) +
+      (unreviewedDeptResponses?.length || 0) +
       (doctorRequests?.length || 0) +
       (substitutionRequests?.length || 0) +
       (returnedBillingPrescriptions?.length || 0);
@@ -730,7 +736,7 @@ const targetDocId = user?.id || user?._id;
     if (activeTab === 'DEPT_RESPONSES') {
       useNotificationStore.getState().markRouteAsRead('/doctor/dashboard?tab=DEPT_RESPONSES');
     }
-  }, [activeTab, activeNurseTasks?.length, activeDeptOrders?.length, doctorRequests?.length, substitutionRequests?.length, returnedBillingPrescriptions?.length]);
+  }, [activeTab, activeNurseTasks?.length, unreviewedDeptResponses?.length, doctorRequests?.length, substitutionRequests?.length, returnedBillingPrescriptions?.length]);
 
   // Backward compatibility alias
   const filteredDeptOrders = filteredActiveDeptOrders;
@@ -1478,13 +1484,21 @@ const targetDocId = user?.id || user?._id;
                             </span>
                           </div>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black ${
                               t.status === 'ADMINISTERED'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-rose-100 text-rose-800 animate-pulse'
                             }`}
                           >
-                            {t.status === 'ADMINISTERED' ? '✓ ADMINISTERED' : '⏳ PENDING IN NURSING'}
+                            {t.status === 'ADMINISTERED' ? (
+                              <>
+                                <CheckCircle2 size={11} /> Administered
+                              </>
+                            ) : (
+                              <>
+                                <Hourglass size={11} /> Pending in Nursing
+                              </>
+                            )}
                           </span>
                         </div>
 

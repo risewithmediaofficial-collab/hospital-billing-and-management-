@@ -469,7 +469,7 @@ export class PatientsService {
           socketManager.emitToHospital(String(patient.hospitalId), 'patient:created', regPayload);
         }
       } catch (sockErr) {
-        // non-blocking
+        // Socket broadcast failures do not interrupt registration completion
       }
 
       return responseData;

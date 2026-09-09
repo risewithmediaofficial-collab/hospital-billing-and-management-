@@ -5,18 +5,8 @@ import { useAuthStore } from '../../store/authStore';
 import { useSocket } from '../../providers/SocketProvider';
 import {
   MessageSquare, X, Send, Users, Tag,
-  CheckCheck, Minimize2, Maximize2, Reply, Smile, Clock
+  CheckCheck, Minimize2, Maximize2, Reply, Smile, Clock, Lock
 } from 'lucide-react';
-
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👏', '💊', '💉'];
-
-const PRESETS = [
-  { icon: '💊', text: 'Can you verify this medicine dosage / availability?' },
-  { icon: '💳', text: 'Patient at counter asking for bill / fee clarification.' },
-  { icon: '↩️', text: 'Prescription price updated & re-dispensed to Billing.' },
-  { icon: '🧪', text: 'Urgent diagnostic investigation sample dispatched.' },
-  { icon: 'ℹ️', text: 'Is the consultant doctor available right now?' },
-];
 
 const ROLE_BADGE_STYLES = {
   DOCTOR:        { bg: 'bg-blue-100',    text: 'text-blue-700',    label: 'Doctor' },
@@ -327,11 +317,12 @@ export const TeamChatWidget = () => {
                 <div className="text-center my-1.5 space-y-1">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50/95 border border-amber-200 text-[10.5px] font-bold text-amber-900 shadow-2xs">
                     <Clock size={12} className="text-amber-700 shrink-0" />
-                    <span>⏱️ Disappearing messages are ON &bull; Messages disappear after 7 days</span>
+                    <span>Disappearing messages enabled &bull; Messages expire after 7 days</span>
                   </div>
                   <div>
-                    <span className="px-2.5 py-0.5 rounded-md bg-white/85 border border-slate-200 text-[9.5px] font-semibold text-slate-500 shadow-2xs">
-                      🔒 Hospital staff internal bridge &bull; Visible only to hospital members
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white/85 border border-slate-200 text-[9.5px] font-semibold text-slate-500 shadow-2xs">
+                      <Lock size={10} className="text-slate-400 shrink-0" />
+                      Hospital staff internal bridge &bull; Visible only to verified members
                     </span>
                   </div>
                 </div>

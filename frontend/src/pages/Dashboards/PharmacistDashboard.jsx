@@ -8,7 +8,7 @@ import { useAvailability } from '../../hooks/useAvailability';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
-  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info, Receipt
+  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info, Receipt, Syringe
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
@@ -266,15 +266,15 @@ export const PharmacistDashboard = () => {
       alert('Please open substitution request from a specific pending prescription.');
       return;
     }
-    if (!subForm.suggestedMedicineId || subForm.suggestedMedicineId.startsWith('rec_')) {
-      alert('Please select an available medicine from your inventory first.');
-      return;
-    }
+    const payload = {
+      ...subForm,
+      suggestedMedicineId: (subForm.suggestedMedicineId && !subForm.suggestedMedicineId.startsWith('rec_')) ? subForm.suggestedMedicineId : null,
+    };
     try {
-      await axiosClient.post('/pharmacy/substitutions/request', subForm);
+      await axiosClient.post('/pharmacy/substitutions/request', payload);
       setShowSubReqModal(false);
       setSubForm({ prescriptionId: '', originalMedicineName: '', suggestedMedicineId: '', reason: 'Brand out of stock, offering bioequivalent generic' });
-      alert('Substitution request sent to Doctor for approval!');
+      alert('Substitution request submitted for physician review.');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to send substitution request');
     }
@@ -426,8 +426,16 @@ export const PharmacistDashboard = () => {
                         <div key={idx} className="flex items-center justify-between text-slate-700">
                           <div>
                             <span className="font-bold">{med.medicineName}</span> ({med.dosageForm} - {med.dosage}) — {med.frequency} for {med.durationDays} days
-                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] font-extrabold ${med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-sky-100 text-sky-800 border border-sky-200'}`}>
-                              {med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? '💉 Nurse Station Administration' : '💊 Take-Home Medication'}
+                            <span className={`inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded text-[9px] font-extrabold ${med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-sky-100 text-sky-800 border border-sky-200'}`}>
+                              {med.treatmentType === 'NURSE_ADMINISTERED' || med.dosageForm === 'INJECTION' ? (
+                                <>
+                                  <Syringe size={10} /> Nurse Station Administration
+                                </>
+                              ) : (
+                                <>
+                                  <Pill size={10} /> Take-Home Medication
+                                </>
+                              )}
                             </span>
                           </div>
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${med.itemStatus === 'DISPENSED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
@@ -838,9 +846,9 @@ export const PharmacistDashboard = () => {
                 <input type="text" disabled value={subForm.originalMedicineName} className="w-full p-2 border bg-slate-100 rounded mt-1" />
               </div>
               <div>
-                <label className="font-bold text-slate-700">Suggested Available Alternative *</label>
-                <select required value={subForm.suggestedMedicineId} onChange={(e) => setSubForm({ ...subForm, suggestedMedicineId: e.target.value })} className="w-full p-2 border rounded mt-1">
-                  <option value="">-- Select from your inventory --</option>
+                <label className="font-bold text-slate-700">Suggested Available Alternative (Optional)</label>
+                <select value={subForm.suggestedMedicineId} onChange={(e) => setSubForm({ ...subForm, suggestedMedicineId: e.target.value })} className="w-full p-2 border rounded mt-1">
+                  <option value="">-- Optional: Select from your inventory (or leave blank) --</option>
                   {medicines.map((m) => (
                     <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — ₹{m.sellingPrice}</option>
                   ))}
@@ -855,7 +863,7 @@ export const PharmacistDashboard = () => {
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <Button type="button" variant="ghost" onClick={() => setShowSubReqModal(false)}>Cancel</Button>
-                <Button type="submit" variant="primary" disabled={!subForm.suggestedMedicineId || subForm.suggestedMedicineId.startsWith('rec_')}>Send to Doctor</Button>
+                <Button type="submit" variant="primary" disabled={!subForm.reason.trim()}>Send to Doctor</Button>
               </div>
             </form>
           </div>

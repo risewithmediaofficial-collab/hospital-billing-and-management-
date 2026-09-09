@@ -652,16 +652,21 @@ export class PharmacyService {
     const prescription = await Prescription.findOne({ _id: prescriptionId, hospitalId: user.hospitalId });
     if (!prescription) throw new ApiError(404, 'Prescription not found');
 
-    const suggestedMed = await Medicine.findOne({ _id: suggestedMedicineId, hospitalId: user.hospitalId });
-    if (!suggestedMed) throw new ApiError(404, 'Suggested alternative medicine not found');
+    let suggestedMed = null;
+    let availQty = 0;
 
-    const batches = await MedicineBatch.find({
-      hospitalId: user.hospitalId,
-      medicineId: suggestedMed._id,
-      quantity: { $gt: 0 },
-      expiryDate: { $gt: new Date() },
-    });
-    const availQty = batches.reduce((acc, b) => acc + b.quantity, 0);
+    if (suggestedMedicineId) {
+      suggestedMed = await Medicine.findOne({ _id: suggestedMedicineId, hospitalId: user.hospitalId });
+      if (suggestedMed) {
+        const batches = await MedicineBatch.find({
+          hospitalId: user.hospitalId,
+          medicineId: suggestedMed._id,
+          quantity: { $gt: 0 },
+          expiryDate: { $gt: new Date() },
+        });
+        availQty = batches.reduce((acc, b) => acc + b.quantity, 0);
+      }
+    }
 
     const req = await PharmacySubstitutionRequest.create({
       hospitalId: user.hospitalId,
@@ -671,12 +676,12 @@ export class PharmacyService {
       doctorId: prescription.doctorId,
       pharmacistId: user.id,
       originalMedicineName,
-      suggestedMedicineId: suggestedMed._id,
-      suggestedMedicineName: suggestedMed.name,
-      genericComposition: suggestedMed.genericName,
-      strength: suggestedMed.strength,
+      suggestedMedicineId: suggestedMed ? suggestedMed._id : null,
+      suggestedMedicineName: suggestedMed ? suggestedMed.name : 'No specific alternative suggested (Physician discretion)',
+      genericComposition: suggestedMed ? suggestedMed.genericName : '',
+      strength: suggestedMed ? suggestedMed.strength : '',
       availableQty: availQty,
-      priceDifference: suggestedMed.sellingPrice,
+      priceDifference: suggestedMed ? suggestedMed.sellingPrice : 0,
       reason: reason || 'Prescribed brand is out of stock in pharmacy, offering bioequivalent alternative',
     });
 
@@ -686,13 +691,17 @@ export class PharmacyService {
       const patient = await Patient.findOne({ _id: prescription.patientId, hospitalId: user.hospitalId }).select('firstName lastName uhid').lean();
       const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient';
 
+      const notifMsg = suggestedMed
+        ? `Pharmacy requested substitution for ${patientName} (${patient?.uhid || 'N/A'}): Replace "${originalMedicineName}" with "${suggestedMed.name}" (${suggestedMed.manufacturer ? `Brand/Mfg: ${suggestedMed.manufacturer}` : 'Alternative Company'}). Reason: ${req.reason}`
+        : `Pharmacy requested consultation for ${patientName} (${patient?.uhid || 'N/A'}): Prescribed medicine "${originalMedicineName}" is out of stock. Reason: ${req.reason}. Please prescribe an alternative.`;
+
       await NotificationService.createNotification({
         hospitalId: user.hospitalId,
         branchId: user.branchId,
         recipientUserId: prescription.doctorId,
         recipientRole: 'DOCTOR',
         title: 'Medicine Substitution Request',
-        message: `Pharmacy requested substitution for ${patientName} (${patient?.uhid || 'N/A'}): Replace "${originalMedicineName}" with "${suggestedMed.name}" (${suggestedMed.manufacturer ? `Brand/Mfg: ${suggestedMed.manufacturer}` : 'Alternative Company'}). Reason: ${req.reason}`,
+        message: notifMsg,
         notificationType: 'ACTION_REQUIRED',
         sourceModule: 'pharmacy',
         entityType: 'PharmacySubstitutionRequest',

@@ -162,7 +162,6 @@ export const PasswordInput = React.forwardRef(
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onContextMenu={(e) => e.preventDefault()}
-            onSelectStart={(e) => e.preventDefault()}
             onDragStart={(e) => e.preventDefault()}
             className={twMerge(
               'absolute inset-y-0 right-0 flex items-center justify-center w-10 text-slate-400 hover:text-indigo-600 focus:outline-none focus:text-indigo-600 transition-colors duration-150 cursor-pointer select-none z-10',
