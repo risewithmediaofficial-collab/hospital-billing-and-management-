@@ -84,6 +84,11 @@ export class PharmacyService {
 
     const medicine = await Medicine.create({
       ...data,
+      purchasePrice: (data.purchasePrice !== undefined && data.purchasePrice !== '' && data.purchasePrice !== null) ? Number(data.purchasePrice) : 0,
+      sellingPrice: (data.sellingPrice !== undefined && data.sellingPrice !== '' && data.sellingPrice !== null) ? Number(data.sellingPrice) : 0,
+      taxPercentage: (data.taxPercentage !== undefined && data.taxPercentage !== '' && data.taxPercentage !== null) ? Number(data.taxPercentage) : 0,
+      minimumStockLevel: (data.minimumStockLevel !== undefined && data.minimumStockLevel !== '' && data.minimumStockLevel !== null) ? Number(data.minimumStockLevel) : 20,
+      reorderQuantity: (data.reorderQuantity !== undefined && data.reorderQuantity !== '' && data.reorderQuantity !== null) ? Number(data.reorderQuantity) : 100,
       hospitalId: user.hospitalId,
       branchId: user.branchId,
     });
@@ -98,18 +103,80 @@ export class PharmacyService {
       details: `Created new medicine SKU: ${medicine.name} (${medicine.genericName})`,
     });
 
+    // Automatically create initial batch stock if initialQuantity is provided
+    const initialQty = Number(data.initialQuantity || data.quantity || 0);
+    if (initialQty > 0) {
+      const defaultExp = new Date();
+      defaultExp.setFullYear(defaultExp.getFullYear() + 1);
+      const expiryDate = data.initialExpiryDate || data.expiryDate ? new Date(data.initialExpiryDate || data.expiryDate) : defaultExp;
+      const batchNumber = (data.initialBatchNumber || data.batchNumber || `BATCH-${Date.now().toString().slice(-6)}`).trim();
+
+      const batch = await MedicineBatch.create({
+        hospitalId: user.hospitalId || medicine.hospitalId,
+        branchId: user.branchId || medicine.branchId,
+        medicineId: medicine._id,
+        batchNumber,
+        location: data.location || 'MAIN_PHARMACY',
+        mfgDate: data.mfgDate ? new Date(data.mfgDate) : new Date(),
+        expiryDate,
+        purchasePrice: medicine.purchasePrice,
+        sellingPrice: medicine.sellingPrice,
+        quantity: initialQty,
+        storageLocation: data.rackLocation || data.storageLocation || 'Rack 1',
+      });
+
+      await PharmacyStockAdjustment.create({
+        hospitalId: user.hospitalId || medicine.hospitalId,
+        branchId: user.branchId || medicine.branchId,
+        medicineId: medicine._id,
+        batchId: batch._id,
+        batchNumber: batch.batchNumber,
+        type: 'ADD_STOCK',
+        sourceLocation: batch.location,
+        previousQuantity: 0,
+        quantityChanged: initialQty,
+        newQuantity: initialQty,
+        reason: 'Initial stock on SKU creation',
+        performedBy: user.id,
+        performedByName: user.name,
+      });
+
+      socketManager.emitToBranch(user.branchId || user.hospitalId || medicine.hospitalId, 'workflow:pending_changed', {
+        resource: 'PHARMACY_STOCK',
+      });
+    }
+
     return medicine;
   }
 
   static async updateMedicine(medicineId, data, user) {
-    const medicine = await Medicine.findOne({ _id: medicineId, hospitalId: user.hospitalId });
+    const query = { _id: medicineId };
+    if (user?.hospitalId && user.role !== 'SUPER_ADMIN') {
+      query.hospitalId = user.hospitalId;
+    }
+    const medicine = await Medicine.findOne(query);
     if (!medicine) throw new ApiError(404, 'Medicine not found');
 
-    Object.assign(medicine, data);
+    const updatableFields = [
+      'name', 'genericName', 'brandName', 'category', 'dosageForm', 'strength',
+      'manufacturer', 'supplier', 'purchasePrice', 'sellingPrice', 'taxPercentage',
+      'minimumStockLevel', 'reorderQuantity', 'prescriptionRequired', 'isActive'
+    ];
+
+    updatableFields.forEach((field) => {
+      if (data[field] !== undefined) {
+        if (['purchasePrice', 'sellingPrice', 'taxPercentage', 'minimumStockLevel', 'reorderQuantity'].includes(field)) {
+          medicine[field] = data[field] === '' ? 0 : Number(data[field]);
+        } else {
+          medicine[field] = data[field];
+        }
+      }
+    });
+
     await medicine.save();
 
     await AuditLog.create({
-      hospitalId: user.hospitalId,
+      hospitalId: medicine.hospitalId,
       userId: user.id,
       userRole: user.role,
       action: 'MEDICINE_UPDATED',
@@ -118,33 +185,56 @@ export class PharmacyService {
       details: `Updated medicine details for ${medicine.name}`,
     });
 
+    socketManager.emitToBranch(user.branchId || user.hospitalId || medicine.hospitalId, 'workflow:pending_changed', {
+      resource: 'PHARMACY_STOCK',
+    });
+
     return medicine;
   }
 
   // --- BATCH MANAGEMENT ---
 
   static async addBatch(data, user) {
-    const medicine = await Medicine.findOne({ _id: data.medicineId, hospitalId: user.hospitalId });
+    const query = { _id: data.medicineId };
+    if (user?.hospitalId && user.role !== 'SUPER_ADMIN') {
+      query.hospitalId = user.hospitalId;
+    }
+    const medicine = await Medicine.findOne(query);
     if (!medicine) throw new ApiError(404, 'Medicine record not found');
 
+    const defaultExp = new Date();
+    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
+    const expiryDate = data.expiryDate ? new Date(data.expiryDate) : defaultExp;
+    const batchNumber = (data.batchNumber || `BATCH-${Date.now().toString().slice(-6)}`).trim();
+
+    const purchasePrice = (data.purchasePrice !== undefined && data.purchasePrice !== '' && data.purchasePrice !== null && Number(data.purchasePrice) > 0)
+      ? Number(data.purchasePrice)
+      : (medicine.purchasePrice || 0);
+
+    const sellingPrice = (data.sellingPrice !== undefined && data.sellingPrice !== '' && data.sellingPrice !== null && Number(data.sellingPrice) > 0)
+      ? Number(data.sellingPrice)
+      : (medicine.sellingPrice || 0);
+
+    const quantity = Number(data.quantity) || 0;
+
     const batch = await MedicineBatch.create({
-      hospitalId: user.hospitalId,
-      branchId: user.branchId,
+      hospitalId: user.hospitalId || medicine.hospitalId,
+      branchId: user.branchId || medicine.branchId,
       medicineId: medicine._id,
-      batchNumber: data.batchNumber,
+      batchNumber,
       location: data.location || 'MAIN_PHARMACY',
-      mfgDate: data.mfgDate,
-      expiryDate: data.expiryDate,
-      purchasePrice: data.purchasePrice ?? medicine.purchasePrice,
-      sellingPrice: data.sellingPrice ?? medicine.sellingPrice,
-      quantity: Number(data.quantity) || 0,
+      mfgDate: data.mfgDate ? new Date(data.mfgDate) : new Date(),
+      expiryDate,
+      purchasePrice,
+      sellingPrice,
+      quantity,
       storageLocation: data.storageLocation || 'Rack 1',
     });
 
     // Record stock adjustment audit log
     await PharmacyStockAdjustment.create({
-      hospitalId: user.hospitalId,
-      branchId: user.branchId,
+      hospitalId: user.hospitalId || medicine.hospitalId,
+      branchId: user.branchId || medicine.branchId,
       medicineId: medicine._id,
       batchId: batch._id,
       batchNumber: batch.batchNumber,
@@ -153,12 +243,12 @@ export class PharmacyService {
       previousQuantity: 0,
       quantityChanged: batch.quantity,
       newQuantity: batch.quantity,
-      reason: data.reason || 'Initial purchase / stock addition',
+      reason: data.reason || 'Batch purchase / stock addition',
       performedBy: user.id,
       performedByName: user.name,
     });
 
-    socketManager.emitToBranch(user.branchId || user.hospitalId, 'workflow:pending_changed', {
+    socketManager.emitToBranch(user.branchId || user.hospitalId || medicine.hospitalId, 'workflow:pending_changed', {
       resource: 'PHARMACY_STOCK',
     });
 
@@ -268,7 +358,10 @@ export class PharmacyService {
   // --- DASHBOARD ALERTS & REPORTS ---
 
   static async getDashboardAlerts(user) {
-    const filter = { hospitalId: user.hospitalId, isActive: true };
+    const filter = { isActive: true };
+    if (user?.hospitalId && user.role !== 'SUPER_ADMIN') {
+      filter.hospitalId = user.hospitalId;
+    }
 
     const medicines = await Medicine.find(filter).lean();
     const batches = await MedicineBatch.find(filter).lean();

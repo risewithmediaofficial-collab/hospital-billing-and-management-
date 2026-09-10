@@ -29,12 +29,12 @@ router.use(verifyJwt);
 
 // Inventory & Batches
 router.get('/medicines', getMedicines);
-router.post('/medicines', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), createMedicine);
-router.put('/medicines/:id', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), updateMedicine);
+router.post('/medicines', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER', 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'), requireModulePermission('pharmacy', 'edit'), createMedicine);
+router.put('/medicines/:id', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER', 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'), requireModulePermission('pharmacy', 'edit'), updateMedicine);
 router.get('/batches', getBatches);
-router.post('/batches', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), addBatch);
-router.post('/stock/adjust', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), adjustStock);
-router.post('/stock/transfer', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER'), requireModulePermission('pharmacy', 'edit'), transferStock);
+router.post('/batches', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER', 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'), requireModulePermission('pharmacy', 'edit'), addBatch);
+router.post('/stock/adjust', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER', 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'), requireModulePermission('pharmacy', 'edit'), adjustStock);
+router.post('/stock/transfer', requireAssignedRole('PHARMACIST', 'PHARMACY_STAFF', 'INVENTORY_MANAGER', 'HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN'), requireModulePermission('pharmacy', 'edit'), transferStock);
 router.get('/alerts', getDashboardAlerts);
 router.get('/stock-movements', getStockAdjustments);
 router.get('/stock/adjustments', getStockAdjustments);

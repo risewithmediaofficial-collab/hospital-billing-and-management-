@@ -8,7 +8,8 @@ import { useAvailability } from '../../hooks/useAvailability';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import {
   Pill, Boxes, AlertTriangle, CheckCircle2, Plus, ArrowRightLeft,
-  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info, Receipt, Syringe
+  Search, ShieldAlert, Layers, RefreshCw, Calendar, FileText, X, IndianRupee, Info, Receipt, Syringe,
+  Eye, Edit, TrendingDown, TrendingUp, Sparkles, Clock, AlertCircle, Check
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { axiosClient } from '../../api/axiosClient';
@@ -67,17 +68,23 @@ export const PharmacistDashboard = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showSubReqModal, setShowSubReqModal] = useState(false);
+  const [showViewMedModal, setShowViewMedModal] = useState(false);
+  const [viewingMedicine, setViewingMedicine] = useState(null);
+  const [showEditMedModal, setShowEditMedModal] = useState(false);
+  const [editMedForm, setEditMedForm] = useState(null);
+  const [inventorySubTab, setInventorySubTab] = useState('all'); // 'all' | 'prediction' | 'in_stock' | 'out_of_stock'
   const [selectedRx, setSelectedRx] = useState(null);
   const [billingPrescription, setBillingPrescription] = useState(null);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
   const [isBillingSubmitting, setIsBillingSubmitting] = useState(false);
 
-  useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal || isBillingModalOpen);
+  useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal || isBillingModalOpen || showViewMedModal || showEditMedModal);
 
   const [medForm, setMedForm] = useState({
     name: '', genericName: '', brandName: '', category: 'Antibiotic', dosageForm: 'TABLET',
     strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: '', sellingPrice: '',
-    taxPercentage: '', minimumStockLevel: '', reorderQuantity: '', prescriptionRequired: true
+    taxPercentage: '', minimumStockLevel: '20', reorderQuantity: '100', prescriptionRequired: true,
+    initialQuantity: '', initialBatchNumber: '', initialExpiryDate: '', rackLocation: 'Rack 1'
   });
 
   const [batchForm, setBatchForm] = useState({
@@ -247,13 +254,18 @@ export const PharmacistDashboard = () => {
         taxPercentage: medForm.taxPercentage === '' ? 0 : Number(medForm.taxPercentage),
         minimumStockLevel: medForm.minimumStockLevel === '' ? 20 : Number(medForm.minimumStockLevel),
         reorderQuantity: medForm.reorderQuantity === '' ? 100 : Number(medForm.reorderQuantity),
+        initialQuantity: medForm.initialQuantity === '' ? 0 : Number(medForm.initialQuantity),
+        initialBatchNumber: medForm.initialBatchNumber?.trim() || undefined,
+        initialExpiryDate: medForm.initialExpiryDate || undefined,
+        rackLocation: medForm.rackLocation?.trim() || 'Rack 1',
       };
       await axiosClient.post('/pharmacy/medicines', payload);
       setShowAddMedModal(false);
       setMedForm({
         name: '', genericName: '', brandName: '', category: 'Antibiotic', dosageForm: 'TABLET',
         strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: '', sellingPrice: '',
-        taxPercentage: '', minimumStockLevel: '', reorderQuantity: '', prescriptionRequired: true
+        taxPercentage: '', minimumStockLevel: '20', reorderQuantity: '100', prescriptionRequired: true,
+        initialQuantity: '', initialBatchNumber: '', initialExpiryDate: '', rackLocation: 'Rack 1'
       });
       fetchData();
     } catch (err) {
@@ -261,25 +273,93 @@ export const PharmacistDashboard = () => {
     }
   };
 
+  const handleUpdateMedicine = async (e) => {
+    e.preventDefault();
+    if (!editMedForm?._id) return;
+    try {
+      const payload = {
+        ...editMedForm,
+        purchasePrice: editMedForm.purchasePrice === '' ? 0 : Number(editMedForm.purchasePrice),
+        sellingPrice: editMedForm.sellingPrice === '' ? 0 : Number(editMedForm.sellingPrice),
+        taxPercentage: editMedForm.taxPercentage === '' ? 0 : Number(editMedForm.taxPercentage),
+        minimumStockLevel: editMedForm.minimumStockLevel === '' ? 20 : Number(editMedForm.minimumStockLevel),
+        reorderQuantity: editMedForm.reorderQuantity === '' ? 100 : Number(editMedForm.reorderQuantity),
+      };
+      await axiosClient.put(`/pharmacy/medicines/${editMedForm._id}`, payload);
+      setShowEditMedModal(false);
+      setEditMedForm(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update medicine');
+    }
+  };
+
   const handleAddBatch = async (e) => {
     e.preventDefault();
     try {
+      const targetMed = medicines.find((m) => m._id === batchForm.medicineId);
       const payload = {
         ...batchForm,
         quantity: batchForm.quantity === '' ? 1 : Number(batchForm.quantity),
-        purchasePrice: batchForm.purchasePrice === '' ? 0 : Number(batchForm.purchasePrice),
-        sellingPrice: batchForm.sellingPrice === '' ? 0 : Number(batchForm.sellingPrice),
+        purchasePrice: batchForm.purchasePrice === '' ? (targetMed?.purchasePrice || 0) : Number(batchForm.purchasePrice),
+        sellingPrice: batchForm.sellingPrice === '' ? (targetMed?.sellingPrice || 0) : Number(batchForm.sellingPrice),
+        batchNumber: batchForm.batchNumber?.trim() || `BATCH-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       };
       await axiosClient.post('/pharmacy/batches', payload);
       setShowAddBatchModal(false);
       setBatchForm({
         medicineId: '', batchNumber: '', location: 'MAIN_PHARMACY', mfgDate: '', expiryDate: '',
-        purchasePrice: '', sellingPrice: '', quantity: '', storageLocation: 'Rack 1', reason: 'Initial Stock'
+        purchasePrice: '', sellingPrice: '', quantity: '', storageLocation: 'Rack 1', reason: 'Stock replenishment'
       });
       fetchData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to add batch');
     }
+  };
+
+  const handleOpenView = (med) => {
+    setViewingMedicine(med);
+    setShowViewMedModal(true);
+  };
+
+  const handleOpenEdit = (med) => {
+    setEditMedForm({
+      _id: med._id,
+      name: med.name || '',
+      genericName: med.genericName || '',
+      brandName: med.brandName || '',
+      category: med.category || 'Antibiotic',
+      dosageForm: med.dosageForm || 'TABLET',
+      strength: med.strength || '',
+      manufacturer: med.manufacturer || '',
+      supplier: med.supplier || '',
+      purchasePrice: med.purchasePrice !== undefined && med.purchasePrice !== null ? String(med.purchasePrice) : '',
+      sellingPrice: med.sellingPrice !== undefined && med.sellingPrice !== null ? String(med.sellingPrice) : '',
+      taxPercentage: med.taxPercentage !== undefined && med.taxPercentage !== null ? String(med.taxPercentage) : '',
+      minimumStockLevel: med.minimumStockLevel !== undefined && med.minimumStockLevel !== null ? String(med.minimumStockLevel) : '20',
+      reorderQuantity: med.reorderQuantity !== undefined && med.reorderQuantity !== null ? String(med.reorderQuantity) : '100',
+      prescriptionRequired: med.prescriptionRequired ?? true,
+    });
+    setShowEditMedModal(true);
+  };
+
+  const handleOpenAddBatch = (med, suggestedQty) => {
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+    const defaultExpDate = oneYearFromNow.toISOString().split('T')[0];
+    setBatchForm({
+      medicineId: med?._id || '',
+      batchNumber: `BATCH-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      location: 'MAIN_PHARMACY',
+      mfgDate: new Date().toISOString().split('T')[0],
+      expiryDate: defaultExpDate,
+      purchasePrice: med?.purchasePrice !== undefined ? String(med.purchasePrice) : '',
+      sellingPrice: med?.sellingPrice !== undefined ? String(med.sellingPrice) : '',
+      quantity: suggestedQty ? String(suggestedQty) : '',
+      storageLocation: 'Rack 1',
+      reason: suggestedQty ? 'Low stock forecast replenishment' : 'Stock replenishment',
+    });
+    setShowAddBatchModal(true);
   };
 
   const handleTransfer = async (e) => {
@@ -324,12 +404,70 @@ export const PharmacistDashboard = () => {
     }
   };
 
+  const predictionStats = React.useMemo(() => {
+    let outOfStock = 0;
+    let lowStock = 0;
+    let atRisk = 0;
+    let healthy = 0;
+    let totalSuggestedUnits = 0;
+
+    medicines.forEach((m) => {
+      const qty = m.totalQuantity || 0;
+      const min = m.minimumStockLevel || 20;
+      const reorder = m.reorderQuantity || 100;
+      if (qty === 0) {
+        outOfStock++;
+        totalSuggestedUnits += Math.max(reorder, min * 2);
+      } else if (qty <= min) {
+        lowStock++;
+        totalSuggestedUnits += Math.max(reorder, (min * 2) - qty);
+      } else if (qty <= min * 1.5) {
+        atRisk++;
+        totalSuggestedUnits += Math.max(reorder, (min * 2) - qty);
+      } else {
+        healthy++;
+      }
+    });
+
+    return {
+      outOfStock,
+      lowStock,
+      atRisk,
+      healthy,
+      totalAtRiskOrLow: outOfStock + lowStock + atRisk,
+      totalSuggestedUnits,
+      healthScore: medicines.length > 0 ? Math.round((healthy / medicines.length) * 100) : 100,
+    };
+  }, [medicines]);
+
   const filteredMedicines = medicines.filter(
     (m) =>
       m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const inventoryFilteredMedicines = medicines.filter((m) => {
+    const matchesSearch =
+      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.category.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    const qty = m.totalQuantity || 0;
+    const min = m.minimumStockLevel || 20;
+
+    if (inventorySubTab === 'prediction') {
+      return qty <= min * 1.5;
+    }
+    if (inventorySubTab === 'in_stock') {
+      return qty > 0;
+    }
+    if (inventorySubTab === 'out_of_stock') {
+      return qty === 0;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -532,67 +670,348 @@ export const PharmacistDashboard = () => {
 
       {/* TAB 2: Medicine SKUs Inventory */}
       {activeTab === 'inventory' && (
-        <Card>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search medicines by name, generic composition, category..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="text-xs text-slate-500 font-bold">{filteredMedicines.length} Medicines Found</div>
+        <div className="space-y-4">
+          {/* Sub-navigation Tabs */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+            <button
+              type="button"
+              onClick={() => setInventorySubTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                inventorySubTab === 'all'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Boxes size={14} />
+              All Inventory
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${inventorySubTab === 'all' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                {medicines.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInventorySubTab('prediction')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                inventorySubTab === 'prediction'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <TrendingDown size={14} className={predictionStats.totalAtRiskOrLow > 0 ? 'text-amber-500 animate-pulse' : ''} />
+              Low Stock & Smart Forecast
+              {predictionStats.totalAtRiskOrLow > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${inventorySubTab === 'prediction' ? 'bg-amber-700 text-white' : 'bg-rose-500 text-white'}`}>
+                  {predictionStats.totalAtRiskOrLow}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInventorySubTab('in_stock')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                inventorySubTab === 'in_stock'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <CheckCircle2 size={14} />
+              In Stock
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${inventorySubTab === 'in_stock' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                {medicines.filter((m) => (m.totalQuantity || 0) > 0).length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setInventorySubTab('out_of_stock')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                inventorySubTab === 'out_of_stock'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <AlertCircle size={14} />
+              Out of Stock
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${inventorySubTab === 'out_of_stock' ? 'bg-rose-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                {predictionStats.outOfStock}
+              </span>
+            </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider">
-                <tr>
-                  <th className="p-3">Medicine Name</th>
-                  <th className="p-3">Generic Name</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Form & Strength</th>
-                  <th className="p-3">Sell Price</th>
-                  <th className="p-3">Available Stock</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredMedicines.map((med) => (
-                  <tr key={med._id} className="hover:bg-slate-50">
-                    <td className="p-3 font-bold text-slate-900">{med.name}</td>
-                    <td className="p-3 text-slate-600">{med.genericName}</td>
-                    <td className="p-3 text-slate-600">{med.category}</td>
-                    <td className="p-3 text-slate-600">{med.dosageForm} ({med.strength})</td>
-                    <td className="p-3 font-bold text-slate-900">₹{med.sellingPrice}</td>
-                    <td className="p-3 font-bold text-indigo-700">{med.totalQuantity ?? 0} units</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded font-bold ${med.stockStatus === 'IN_STOCK' ? 'bg-emerald-100 text-emerald-800' : med.stockStatus === 'LOW_STOCK' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
-                        {med.stockStatus}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setBatchForm((prev) => ({ ...prev, medicineId: med._id }));
-                          setShowAddBatchModal(true);
-                        }}
-                      >
-                        Add Batch
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+          {/* VIEW: LOW STOCK PREDICTION & RESTOCK FORECAST */}
+          {inventorySubTab === 'prediction' && (
+            <div className="space-y-4">
+              {/* Forecast Metrics Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-50 to-rose-100/50 border border-rose-200">
+                  <p className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                    <AlertTriangle size={14} className="text-rose-600" /> Out of Stock SKUs
+                  </p>
+                  <p className="text-2xl font-extrabold text-rose-950 mt-1">{predictionStats.outOfStock}</p>
+                  <p className="text-[11px] text-rose-600 mt-0.5">Critical: Immediate Reorder</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200">
+                  <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                    <TrendingDown size={14} className="text-amber-600" /> Below Safety Level
+                  </p>
+                  <p className="text-2xl font-extrabold text-amber-950 mt-1">{predictionStats.lowStock}</p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">Stock &le; Minimum Threshold</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200">
+                  <p className="text-xs font-bold text-indigo-800 flex items-center gap-1.5">
+                    <Clock size={14} className="text-indigo-600" /> Forecasted Depletion Risk
+                  </p>
+                  <p className="text-2xl font-extrabold text-indigo-950 mt-1">{predictionStats.atRisk}</p>
+                  <p className="text-[11px] text-indigo-600 mt-0.5">Will deplete within days</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200">
+                  <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-emerald-600" /> Suggested Reorders
+                  </p>
+                  <p className="text-2xl font-extrabold text-emerald-950 mt-1">{predictionStats.totalSuggestedUnits} <span className="text-xs font-normal">units</span></p>
+                  <p className="text-[11px] text-emerald-600 mt-0.5">{predictionStats.healthScore}% Inventory Adequacy</p>
+                </div>
+              </div>
+
+              {/* Prediction Advisory Card */}
+              <Card>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <TrendingDown size={18} className="text-amber-600" />
+                      Low Stock Prediction & Restock Forecast
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Predictive burn-rate analysis. Items highlighted below are depleted or at risk of stockouts.
+                    </p>
+                  </div>
+                  <div className="relative w-full md:w-72">
+                    <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Filter prediction list..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {inventoryFilteredMedicines.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                        <tr>
+                          <th className="p-3">Medicine SKU</th>
+                          <th className="p-3">Current vs Safety Buffer</th>
+                          <th className="p-3">Depletion Risk</th>
+                          <th className="p-3">Estimated Runout</th>
+                          <th className="p-3">Suggested Reorder</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {inventoryFilteredMedicines.map((med) => {
+                          const currQty = med.totalQuantity || 0;
+                          const minStock = med.minimumStockLevel || 20;
+                          const reorderQty = med.reorderQuantity || 100;
+                          const suggestedOrder = Math.max(reorderQty, (minStock * 2) - currQty);
+                          const isOutOfStock = currQty === 0;
+                          const isLowStock = !isOutOfStock && currQty <= minStock;
+                          const isAtRisk = !isOutOfStock && !isLowStock && currQty <= minStock * 1.5;
+                          const bufferPct = Math.min(100, Math.round((currQty / (minStock * 2)) * 100));
+
+                          return (
+                            <tr key={med._id} className="hover:bg-slate-50">
+                              <td className="p-3">
+                                <p className="font-bold text-slate-900">{med.name}</p>
+                                <p className="text-[11px] text-slate-500">{med.genericName} · {med.dosageForm} ({med.strength})</p>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-extrabold ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-700' : 'text-slate-800'}`}>
+                                    {currQty}
+                                  </span>
+                                  <span className="text-slate-400">/ min {minStock} units</span>
+                                </div>
+                                <div className="w-32 bg-slate-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      isOutOfStock ? 'w-0' : isLowStock ? 'bg-amber-500' : isAtRisk ? 'bg-indigo-500' : 'bg-emerald-500'
+                                    }`}
+                                    style={{ width: `${bufferPct}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                  isOutOfStock ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                                  isLowStock ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                  'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                }`}>
+                                  {isOutOfStock ? 'CRITICAL OUT OF STOCK' : isLowStock ? 'HIGH DEPLETION RISK' : 'MODERATE RISK'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <span className={`font-bold text-xs ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-700' : 'text-slate-700'}`}>
+                                  {isOutOfStock ? '0 Days (Stockout)' : currQty <= minStock * 0.5 ? '< 3 Days remaining' : currQty <= minStock ? '3 to 7 Days remaining' : '1 to 2 Weeks remaining'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-extrabold text-indigo-700 text-xs">
+                                  +{suggestedOrder} units
+                                </div>
+                                <p className="text-[10px] text-slate-400">Est. cost: ₹{((med.purchasePrice || 0) * suggestedOrder).toFixed(0)}</p>
+                              </td>
+                              <td className="p-3 text-right space-x-1">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleOpenAddBatch(med, suggestedOrder)}
+                                  title="Add stock batch pre-filled with suggested quantity"
+                                >
+                                  <Plus size={13} className="mr-1" /> Restock Batch
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenView(med)}
+                                  title="View SKU details and batches"
+                                >
+                                  <Eye size={14} />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-10 text-center space-y-3">
+                    <CheckCircle2 size={36} className="mx-auto text-emerald-500" />
+                    <p className="text-slate-700 font-bold text-sm">All Inventory Healthy!</p>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      All medicine SKUs have adequate stock above their minimum safety thresholds. No replenishment is urgently required.
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setInventorySubTab('all')}>
+                      View All Medicines
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* VIEW: INVENTORY TABLE (ALL, IN_STOCK, OUT_OF_STOCK) */}
+          {inventorySubTab !== 'prediction' && (
+            <Card>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search medicines by name, generic composition, category..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-slate-500 font-bold">{inventoryFilteredMedicines.length} Medicines Found</div>
+                  <Button variant="primary" size="sm" onClick={() => setShowAddMedModal(true)}>
+                    <Plus size={14} className="mr-1" /> Add SKU
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="p-3">Medicine Name</th>
+                      <th className="p-3">Generic Name</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Form & Strength</th>
+                      <th className="p-3">Sell Price</th>
+                      <th className="p-3">Available Stock</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inventoryFilteredMedicines.map((med) => {
+                      const totalStock = med.totalQuantity ?? 0;
+                      const batchCount = med.batches?.length || 0;
+
+                      return (
+                        <tr key={med._id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-bold text-slate-900">
+                            <div>{med.name}</div>
+                            {med.brandName && <div className="text-[10px] text-slate-400 font-normal">Brand: {med.brandName}</div>}
+                          </td>
+                          <td className="p-3 text-slate-600">{med.genericName}</td>
+                          <td className="p-3 text-slate-600">{med.category}</td>
+                          <td className="p-3 text-slate-600">{med.dosageForm} ({med.strength})</td>
+                          <td className="p-3 font-bold text-slate-900">₹{med.sellingPrice}</td>
+                          <td className="p-3">
+                            <div className="font-bold text-indigo-700 text-xs">{totalStock} units</div>
+                            <div className="text-[10px] text-slate-400">{batchCount} {batchCount === 1 ? 'batch' : 'batches'}</div>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                              med.stockStatus === 'IN_STOCK' ? 'bg-emerald-100 text-emerald-800' :
+                              med.stockStatus === 'LOW_STOCK' ? 'bg-amber-100 text-amber-800' :
+                              'bg-rose-100 text-rose-800'
+                            }`}>
+                              {med.stockStatus}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenView(med)}
+                                className="text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                                title="View SKU Specifications & Batches"
+                              >
+                                <Eye size={14} className="mr-1" /> View
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEdit(med)}
+                                className="text-slate-600 hover:text-emerald-600 hover:bg-emerald-50"
+                                title="Edit Medicine Details"
+                              >
+                                <Edit size={14} className="mr-1" /> Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenAddBatch(med)}
+                                className="text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+                                title="Add Stock Batch"
+                              >
+                                <Plus size={13} className="mr-1" /> Batch
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* TAB 3: Alerts */}
@@ -705,7 +1124,10 @@ export const PharmacistDashboard = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-slate-900">Add New Medicine SKU</h3>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Add New Medicine SKU</h3>
+                <p className="text-[11px] text-slate-500">Create SKU and optionally add initial batch stock in one step</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddMedModal(false)}
@@ -744,7 +1166,7 @@ export const PharmacistDashboard = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700">Medicine Name *</label>
-                  <input type="text" required value={medForm.name} onChange={(e) => setMedForm({ ...medForm, name: e.target.value })} className="w-full p-2 border rounded mt-1" />
+                  <input type="text" required value={medForm.name} onChange={(e) => setMedForm({ ...medForm, name: e.target.value })} className="w-full p-2 border rounded mt-1 font-semibold" />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">Generic Name *</label>
@@ -760,7 +1182,7 @@ export const PharmacistDashboard = () => {
                 <div>
                   <label className="font-bold text-slate-700">Form *</label>
                   <select value={medForm.dosageForm} onChange={(e) => setMedForm({ ...medForm, dosageForm: e.target.value })} className="w-full p-2 border rounded mt-1">
-                    {['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'DROPS', 'INHALER', 'IV_FLUID', 'OINTMENT'].map((f) => (
+                    {['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'DROPS', 'INHALER', 'IV_FLUID', 'OINTMENT', 'OTHER'].map((f) => (
                       <option key={f} value={f}>{f}</option>
                     ))}
                   </select>
@@ -793,7 +1215,7 @@ export const PharmacistDashboard = () => {
                     placeholder="0"
                     value={medForm.sellingPrice ?? ''}
                     onChange={(e) => setMedForm({ ...medForm, sellingPrice: e.target.value })}
-                    className="w-full p-2 border rounded mt-1"
+                    className="w-full p-2 border rounded mt-1 font-semibold"
                   />
                 </div>
                 <div>
@@ -810,9 +1232,514 @@ export const PharmacistDashboard = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Minimum Stock Level</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="20"
+                    value={medForm.minimumStockLevel ?? ''}
+                    onChange={(e) => setMedForm({ ...medForm, minimumStockLevel: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Reorder Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="100"
+                    value={medForm.reorderQuantity ?? ''}
+                    onChange={(e) => setMedForm({ ...medForm, reorderQuantity: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Manufacturer</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cipla / Sun Pharma"
+                    value={medForm.manufacturer || ''}
+                    onChange={(e) => setMedForm({ ...medForm, manufacturer: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Supplier</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Medico Dist."
+                    value={medForm.supplier || ''}
+                    onChange={(e) => setMedForm({ ...medForm, supplier: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Initial Stock & Batch Setup Card */}
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Boxes size={14} className="text-emerald-700" />
+                  <p className="font-bold text-emerald-900 text-xs">Initial Stock Setup (Optional)</p>
+                </div>
+                <p className="text-[11px] text-emerald-700">
+                  Enter starting units so this medicine immediately displays as In-Stock.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <label className="font-bold text-slate-700 text-[11px]">Initial Stock (Units)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 100"
+                      value={medForm.initialQuantity ?? ''}
+                      onChange={(e) => setMedForm({ ...medForm, initialQuantity: e.target.value })}
+                      className="w-full p-2 border border-emerald-300 rounded mt-1 font-bold text-emerald-950 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 text-[11px]">Batch # (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="Auto if blank"
+                      value={medForm.initialBatchNumber || ''}
+                      onChange={(e) => setMedForm({ ...medForm, initialBatchNumber: e.target.value })}
+                      className="w-full p-2 border border-emerald-300 rounded mt-1 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 text-[11px]">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={medForm.initialExpiryDate || ''}
+                      onChange={(e) => setMedForm({ ...medForm, initialExpiryDate: e.target.value })}
+                      className="w-full p-2 border border-emerald-300 rounded mt-1 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 text-[11px]">Storage Rack</label>
+                    <input
+                      type="text"
+                      placeholder="Rack 1"
+                      value={medForm.rackLocation || ''}
+                      onChange={(e) => setMedForm({ ...medForm, rackLocation: e.target.value })}
+                      className="w-full p-2 border border-emerald-300 rounded mt-1 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="addPrescriptionRequired"
+                  checked={medForm.prescriptionRequired ?? true}
+                  onChange={(e) => setMedForm({ ...medForm, prescriptionRequired: e.target.checked })}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="addPrescriptionRequired" className="font-medium text-slate-700">
+                  Prescription Required (Doctor prescription mandatory to dispense)
+                </label>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <Button type="button" variant="ghost" onClick={() => setShowAddMedModal(false)}>Cancel</Button>
                 <Button type="submit" variant="primary">Save Medicine SKU</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW MEDICINE SKU & BATCH BREAKDOWN */}
+      {showViewMedModal && viewingMedicine && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="flex items-start justify-between border-b pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-extrabold text-slate-900">{viewingMedicine.name}</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-extrabold ${
+                    viewingMedicine.stockStatus === 'IN_STOCK' ? 'bg-emerald-100 text-emerald-800' :
+                    viewingMedicine.stockStatus === 'LOW_STOCK' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {viewingMedicine.stockStatus}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">{viewingMedicine.genericName} {viewingMedicine.brandName ? `· Brand: ${viewingMedicine.brandName}` : ''}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowViewMedModal(false); setViewingMedicine(null); }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Specifications Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 text-[11px] font-medium">Category</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{viewingMedicine.category}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 text-[11px] font-medium">Form & Strength</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{viewingMedicine.dosageForm} ({viewingMedicine.strength})</p>
+              </div>
+              <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                <p className="text-indigo-700 text-[11px] font-medium">Available Stock</p>
+                <p className="font-extrabold text-indigo-900 text-base mt-0.5">{viewingMedicine.totalQuantity ?? 0} units</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 text-[11px] font-medium">Safety Buffer (Min/Reorder)</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5">{viewingMedicine.minimumStockLevel ?? 20} / {viewingMedicine.reorderQuantity ?? 100}</p>
+              </div>
+            </div>
+
+            {/* Financials & Sourcing */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <p className="text-slate-500 text-[11px]">Purchase Price</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">₹{viewingMedicine.purchasePrice || 0}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[11px]">Selling Price</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">₹{viewingMedicine.sellingPrice || 0}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[11px]">Profit Margin</p>
+                <p className="font-bold text-emerald-700 text-sm mt-0.5">
+                  ₹{((viewingMedicine.sellingPrice || 0) - (viewingMedicine.purchasePrice || 0)).toFixed(2)}
+                  {viewingMedicine.sellingPrice > 0 && (
+                    <span className="text-[11px] text-emerald-600 font-normal ml-1">
+                      ({(((viewingMedicine.sellingPrice - viewingMedicine.purchasePrice) / viewingMedicine.sellingPrice) * 100).toFixed(1)}%)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[11px]">GST Tax Rate</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{viewingMedicine.taxPercentage || 0}%</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[11px]">Manufacturer</p>
+                <p className="font-semibold text-slate-800 mt-0.5">{viewingMedicine.manufacturer || 'Not Specified'}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[11px]">Supplier</p>
+                <p className="font-semibold text-slate-800 mt-0.5">{viewingMedicine.supplier || 'Not Specified'}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-slate-500 text-[11px]">Prescription Required</p>
+                <p className="font-semibold text-slate-800 mt-0.5">
+                  {viewingMedicine.prescriptionRequired ? 'Yes (Doctor Prescription Required)' : 'No (Over The Counter / OTC)'}
+                </p>
+              </div>
+            </div>
+
+            {/* Batches Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Boxes size={14} className="text-indigo-600" />
+                  Stock Batches & Locations ({viewingMedicine.batches?.length || 0})
+                </h4>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const m = viewingMedicine;
+                    setShowViewMedModal(false);
+                    handleOpenAddBatch(m);
+                  }}
+                >
+                  <Plus size={13} className="mr-1" /> Add Stock Batch
+                </Button>
+              </div>
+
+              {viewingMedicine.batches && viewingMedicine.batches.length > 0 ? (
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5">Batch #</th>
+                        <th className="p-2.5">Location</th>
+                        <th className="p-2.5">Expiry Date</th>
+                        <th className="p-2.5">Quantity</th>
+                        <th className="p-2.5">Batch Price</th>
+                        <th className="p-2.5 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {viewingMedicine.batches.map((b) => {
+                        const exp = new Date(b.expiryDate);
+                        const now = new Date();
+                        const isExpired = exp < now;
+                        const daysLeft = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+                        const isNearExpiry = !isExpired && daysLeft <= 30;
+
+                        return (
+                          <tr key={b._id} className="hover:bg-slate-50">
+                            <td className="p-2.5 font-mono font-bold text-slate-900">{b.batchNumber}</td>
+                            <td className="p-2.5 text-slate-700">{b.location} {b.storageLocation ? `(${b.storageLocation})` : ''}</td>
+                            <td className="p-2.5">
+                              <div className="font-semibold text-slate-800">{new Date(b.expiryDate).toLocaleDateString()}</div>
+                              <span className={`text-[10px] font-bold ${isExpired ? 'text-rose-600' : isNearExpiry ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                {isExpired ? 'Expired' : isNearExpiry ? `Expires in ${daysLeft} days` : `Valid (${daysLeft} days)`}
+                              </span>
+                            </td>
+                            <td className="p-2.5 font-bold text-indigo-700">{b.quantity} units</td>
+                            <td className="p-2.5 text-slate-600">₹{b.sellingPrice}</td>
+                            <td className="p-2.5 text-right">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                b.quantity === 0 ? 'bg-slate-100 text-slate-600' :
+                                isExpired ? 'bg-rose-100 text-rose-700' :
+                                isNearExpiry ? 'bg-amber-100 text-amber-800' :
+                                'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {b.quantity === 0 ? 'DEPLETED' : isExpired ? 'EXPIRED' : isNearExpiry ? 'NEAR EXPIRY' : 'ACTIVE'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center bg-slate-50 rounded-lg border border-dashed border-slate-300 space-y-2">
+                  <Boxes size={28} className="mx-auto text-slate-400" />
+                  <p className="text-xs font-semibold text-slate-700">No stock batches added yet for this SKU</p>
+                  <p className="text-[11px] text-slate-400">Available stock is currently 0 units. Click below to add your first stock batch.</p>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      const m = viewingMedicine;
+                      setShowViewMedModal(false);
+                      handleOpenAddBatch(m);
+                    }}
+                  >
+                    <Plus size={14} className="mr-1" /> Add First Stock Batch
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between pt-3 border-t">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  const m = viewingMedicine;
+                  setShowViewMedModal(false);
+                  handleOpenEdit(m);
+                }}
+              >
+                <Edit size={14} className="mr-1.5" /> Edit SKU Details
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { setShowViewMedModal(false); setViewingMedicine(null); }}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT MEDICINE SKU */}
+      {showEditMedModal && editMedForm && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Edit Medicine SKU</h3>
+                <p className="text-[11px] text-slate-500">{editMedForm.name} ({editMedForm.genericName})</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowEditMedModal(false); setEditMedForm(null); }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMedicine} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Medicine Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMedForm.name}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, name: e.target.value })}
+                    className="w-full p-2 border rounded mt-1 font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Generic Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMedForm.genericName}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, genericName: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Category *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMedForm.category}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, category: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Form *</label>
+                  <select
+                    value={editMedForm.dosageForm}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, dosageForm: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  >
+                    {['TABLET', 'CAPSULE', 'SYRUP', 'INJECTION', 'CREAM', 'DROPS', 'INHALER', 'IV_FLUID', 'OINTMENT', 'OTHER'].map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Strength *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMedForm.strength}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, strength: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Purchase Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={editMedForm.purchasePrice ?? ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, purchasePrice: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Selling Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={editMedForm.sellingPrice ?? ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, sellingPrice: e.target.value })}
+                    className="w-full p-2 border rounded mt-1 font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">GST Tax %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={editMedForm.taxPercentage ?? ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, taxPercentage: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Minimum Stock Level</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="20"
+                    value={editMedForm.minimumStockLevel ?? ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, minimumStockLevel: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Reorder Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="100"
+                    value={editMedForm.reorderQuantity ?? ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, reorderQuantity: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Brand Name</label>
+                  <input
+                    type="text"
+                    value={editMedForm.brandName || ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, brandName: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Manufacturer</label>
+                  <input
+                    type="text"
+                    value={editMedForm.manufacturer || ''}
+                    onChange={(e) => setEditMedForm({ ...editMedForm, manufacturer: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editPrescriptionRequired"
+                  checked={editMedForm.prescriptionRequired ?? true}
+                  onChange={(e) => setEditMedForm({ ...editMedForm, prescriptionRequired: e.target.checked })}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="editPrescriptionRequired" className="font-medium text-slate-700">
+                  Prescription Required (Doctor prescription mandatory to dispense)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button type="button" variant="ghost" onClick={() => { setShowEditMedModal(false); setEditMedForm(null); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Save Changes
+                </Button>
               </div>
             </form>
           </div>
@@ -824,7 +1751,10 @@ export const PharmacistDashboard = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-slate-900">Add New Batch Stock</h3>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Add New Batch Stock</h3>
+                <p className="text-[11px] text-slate-500">Replenish stock inventory with batch tracking and expiry dates</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddBatchModal(false)}
@@ -838,10 +1768,24 @@ export const PharmacistDashboard = () => {
             <form onSubmit={handleAddBatch} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700">Select Medicine SKU *</label>
-                <select required value={batchForm.medicineId} onChange={(e) => setBatchForm({ ...batchForm, medicineId: e.target.value })} className="w-full p-2.5 border rounded mt-1 font-bold text-slate-900 bg-slate-50">
+                <select
+                  required
+                  value={batchForm.medicineId}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const m = medicines.find((med) => med._id === selectedId);
+                    setBatchForm({
+                      ...batchForm,
+                      medicineId: selectedId,
+                      purchasePrice: m?.purchasePrice !== undefined ? String(m.purchasePrice) : batchForm.purchasePrice,
+                      sellingPrice: m?.sellingPrice !== undefined ? String(m.sellingPrice) : batchForm.sellingPrice,
+                    });
+                  }}
+                  className="w-full p-2.5 border rounded mt-1 font-bold text-slate-900 bg-slate-50"
+                >
                   <option value="">-- Choose Medicine --</option>
                   {medicines.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — SKU: {m.strength}</option>
+                    <option key={m._id} value={m._id}>{m.name} ({m.genericName}) — Stock: {m.totalQuantity ?? 0} units</option>
                   ))}
                   {medicines.length === 0 && RECOMMENDED_MEDICINES.map((r, i) => (
                     <option key={i} value={`rec_${i}`}>{r.name} ({r.genericName}) — Recommended Standard</option>
@@ -849,10 +1793,35 @@ export const PharmacistDashboard = () => {
                 </select>
               </div>
 
+              {/* Selected SKU Banner */}
+              {batchForm.medicineId && (() => {
+                const m = medicines.find(med => med._id === batchForm.medicineId);
+                if (!m) return null;
+                return (
+                  <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-950 text-xs flex justify-between items-center">
+                    <div>
+                      <p className="font-bold">{m.name} ({m.genericName})</p>
+                      <p className="text-[11px] text-indigo-700">Current Stock: <span className="font-bold">{m.totalQuantity || 0} units</span> · Min: {m.minimumStockLevel} units</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-slate-700">Sell Price: ₹{m.sellingPrice}</p>
+                      <p className="text-[11px] text-slate-500">Buy: ₹{m.purchasePrice}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700">Batch Number *</label>
-                  <input type="text" required placeholder="e.g. BATCH-2026-99" value={batchForm.batchNumber} onChange={(e) => setBatchForm({ ...batchForm, batchNumber: e.target.value })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. BATCH-2026-99"
+                    value={batchForm.batchNumber}
+                    onChange={(e) => setBatchForm({ ...batchForm, batchNumber: e.target.value })}
+                    className="w-full p-2 border rounded mt-1 font-mono font-bold"
+                  />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">Storage Location</label>
@@ -867,7 +1836,13 @@ export const PharmacistDashboard = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700">Expiry Date *</label>
-                  <input type="date" required value={batchForm.expiryDate} onChange={(e) => setBatchForm({ ...batchForm, expiryDate: e.target.value })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="date"
+                    required
+                    value={batchForm.expiryDate}
+                    onChange={(e) => setBatchForm({ ...batchForm, expiryDate: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">Quantity (Units) *</label>
@@ -878,14 +1853,46 @@ export const PharmacistDashboard = () => {
                     placeholder="100"
                     value={batchForm.quantity ?? ''}
                     onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })}
+                    className="w-full p-2 border rounded mt-1 font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700">Batch Purchase Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="From SKU if empty"
+                    value={batchForm.purchasePrice ?? ''}
+                    onChange={(e) => setBatchForm({ ...batchForm, purchasePrice: e.target.value })}
                     className="w-full p-2 border rounded mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Batch Selling Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="From SKU if empty"
+                    value={batchForm.sellingPrice ?? ''}
+                    onChange={(e) => setBatchForm({ ...batchForm, sellingPrice: e.target.value })}
+                    className="w-full p-2 border rounded mt-1 font-semibold text-slate-900"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="font-bold text-slate-700">Audit Log Reason</label>
-                <input type="text" value={batchForm.reason} onChange={(e) => setBatchForm({ ...batchForm, reason: e.target.value })} className="w-full p-2 border rounded mt-1" />
+                <input
+                  type="text"
+                  value={batchForm.reason}
+                  onChange={(e) => setBatchForm({ ...batchForm, reason: e.target.value })}
+                  className="w-full p-2 border rounded mt-1"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t">

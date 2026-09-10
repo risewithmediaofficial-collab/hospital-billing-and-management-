@@ -12,6 +12,7 @@ export const ROLE_PERMISSION_DEFAULTS = {
     usage: ['view'],
     admin: ['view', 'manage'],
     requests: ['view', 'create', 'edit', 'manage', '*'],
+    pharmacy: ['view', 'create', 'edit', 'dispense', 'adjust', 'transfer', 'print', 'delete', '*'],
   },
   SUPER_ADMIN: { '*': ['*'] },
   DOCTOR: {
