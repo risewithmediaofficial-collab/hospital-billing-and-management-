@@ -509,99 +509,28 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
               </div>
 
               <div>
-                <div className="flex items-center justify-between pb-1.5">
-                  <label className={labelClass}>Consultation Fee (₹)</label>
-                  <span className="text-[11px] text-slate-500 font-medium">Click +/- or type directly</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <div className="relative flex-1 flex items-center">
-                    <span className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none select-none">₹</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="10"
-                      placeholder="0"
-                      onWheel={(e) => e.target.blur()}
-                      value={consultationFee}
-                      onChange={(e) => setConsultationFee(e.target.value)}
-                      className="w-full pl-8 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
-                    />
-                    {consultationFee !== '' && (
-                      <button
-                        type="button"
-                        onClick={() => setConsultationFee('')}
-                        title="Clear fee to type a new amount"
-                        className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold rounded-full hover:bg-slate-100 transition-colors"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Steppers to Increase / Decrease */}
-                  <div className="flex items-center gap-1.5">
+                <label className={labelClass}>Consultation Fee (₹)</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none select-none">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    onWheel={(e) => e.target.blur()}
+                    value={consultationFee}
+                    onChange={(e) => setConsultationFee(e.target.value)}
+                    className="w-full pl-8 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-colors"
+                  />
+                  {consultationFee !== '' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const cur = parseFloat(consultationFee) || 0;
-                        setConsultationFee(String(Math.max(0, cur - 50)));
-                      }}
-                      title="Decrease by ₹50"
-                      className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-xs border border-slate-300 transition-colors cursor-pointer"
+                      onClick={() => setConsultationFee('')}
+                      title="Clear fee"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
                     >
-                      - ₹50
+                      ✕
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseFloat(consultationFee) || 0;
-                        setConsultationFee(String(cur + 50));
-                      }}
-                      title="Increase by ₹50"
-                      className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-xs border border-slate-300 transition-colors cursor-pointer"
-                    >
-                      + ₹50
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseFloat(consultationFee) || 0;
-                        setConsultationFee(String(cur + 100));
-                      }}
-                      title="Increase by ₹100"
-                      className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 font-bold text-xs border border-indigo-200 transition-colors cursor-pointer"
-                    >
-                      + ₹100
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Presets */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[11px] text-slate-400 font-medium">Quick Presets:</span>
-                  {[
-                    { label: 'Free (₹0)', val: 0 },
-                    { label: '₹50', val: 50 },
-                    { label: '₹100', val: 100 },
-                    { label: '₹150', val: 150 },
-                    { label: '₹200', val: 200 },
-                    { label: '₹300', val: 300 },
-                    { label: '₹500', val: 500 },
-                  ].map((p) => (
-                    <button
-                      key={p.val}
-                      type="button"
-                      onClick={() => setConsultationFee(String(p.val))}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
-                        (consultationFee !== '' && Number(consultationFee) === p.val)
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                  )}
                 </div>
               </div>
 
