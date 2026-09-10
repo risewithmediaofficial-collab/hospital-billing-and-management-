@@ -52,8 +52,6 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
     }
   }, [isOpen, wardToEdit]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -110,10 +108,11 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
     : floors;
 
   useEffect(() => {
+    if (!isOpen) return;
     if (floorId && !filteredFloors.some((f) => String(f._id) === String(floorId))) {
       setFloorId('');
     }
-  }, [blockId, floors, floorId, filteredFloors]);
+  }, [isOpen, blockId, floors, floorId, filteredFloors]);
 
   const WARD_TYPE_OPTIONS = [
     { value: 'GENERAL', label: 'General Ward' },
@@ -132,6 +131,8 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
     { value: 'DELUXE', label: 'Deluxe Ward' },
     { value: 'CUSTOM', label: 'Custom Ward' },
   ];
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay animate-fade-in z-50">

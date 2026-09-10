@@ -84,8 +84,6 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
     }
   };
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!roomNumber.trim()) {
@@ -143,10 +141,11 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
     : floors;
 
   useEffect(() => {
+    if (!isOpen) return;
     if (floorId && !filteredFloors.some((f) => String(f._id) === String(floorId))) {
       setFloorId('');
     }
-  }, [blockId, floors, floorId, filteredFloors]);
+  }, [isOpen, blockId, floors, floorId, filteredFloors]);
 
   const ROOM_TYPE_OPTIONS = [
     { value: 'SINGLE', label: 'Single Occupancy Room' },
@@ -165,6 +164,8 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
     { value: 'EMERGENCY_OBSERVATION', label: 'Emergency Observation Bay' },
     { value: 'CUSTOM', label: 'Custom Room' },
   ];
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay animate-fade-in z-50">
