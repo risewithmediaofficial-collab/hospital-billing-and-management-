@@ -12,7 +12,7 @@ import {
   Stethoscope, Activity, ConciergeBell, CreditCard, TestTube, Scan, Pill,
   Users, ClipboardList, BedDouble, ShieldAlert, Edit, Key, Eye, UserCog,
   CheckCircle, AlertCircle, TrendingUp, Clock, FileSpreadsheet, ShieldCheck,
-  Trash2, Archive, Search, Receipt
+  Trash2, Archive, Search, Receipt, Boxes, ExternalLink, Plus
 } from 'lucide-react';
 
 export const HospitalAdminManagementViews = ({ viewType }) => {
@@ -48,6 +48,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
   const [deletedReceiptsList, setDeletedReceiptsList] = useState([]);
   const [pendingBillingSearch, setPendingBillingSearch] = useState('');
   const [deletedBillingSearch, setDeletedBillingSearch] = useState('');
+  const [pharmacyStockSearch, setPharmacyStockSearch] = useState('');
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
   const [billingSummary, setBillingSummary] = useState({
     totalRevenue: 0,
@@ -1075,6 +1076,21 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
         const nearExpiryCount = medicinesList.filter((m) =>
           Array.isArray(m.batches) && m.batches.some((b) => b.expiryDate && (new Date(b.expiryDate) - new Date()) / (1000 * 60 * 60 * 24) <= 30)
         ).length;
+        const lowStockCount = medicinesList.filter((m) => {
+          const qty = m.totalQuantity ?? m.currentStock ?? 0;
+          const min = m.minimumStockLevel ?? 20;
+          return qty <= min;
+        }).length;
+        const totalUnits = medicinesList.reduce((sum, m) => sum + (m.totalQuantity ?? m.currentStock ?? 0), 0);
+
+        const filteredMeds = medicinesList.filter((m) => {
+          if (!pharmacyStockSearch) return true;
+          const q = pharmacyStockSearch.toLowerCase();
+          const name = (m.name || '').toLowerCase();
+          const gen = (m.genericName || '').toLowerCase();
+          const cat = (m.category || '').toLowerCase();
+          return name.includes(q) || gen.includes(q) || cat.includes(q);
+        });
 
         return (
           <div className="space-y-6">
@@ -1085,21 +1101,150 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                   Pharmacy & Stock Inventory Management
                 </h2>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Pharmacist Roster, Dispensing Summaries & FEFO Inventory Control Overview
+                  Real-Time Medicine Stock Levels, FEFO Batches, Low Stock Predictions & Pharmacist Oversight
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={navigateToStaff}>
-                <UserCog size={16} /> Manage Pharmacy Staff
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-xs"
+                  onClick={() => navigate(formatTenantPath('/pharmacy/stock'))}
+                >
+                  <Boxes size={15} /> Open FEFO Stock & Prediction Desk <ExternalLink size={13} />
+                </Button>
+                <Button variant="outline" size="sm" onClick={navigateToStaff}>
+                  <UserCog size={16} /> Manage Pharmacy Staff
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Pharmacy Personnel" value={`${pharmStaff.length} Pharmacists`} subtitle="FEFO Dispensing Desk" icon={Pill} color="rose" />
-              <StatCard title="Prescriptions Filled" value={`${filledPrescriptions} ${filledPrescriptions === 1 ? 'Prescription' : 'Prescriptions'}`} subtitle="FEFO Auto-Batched" icon={CheckCircle} color="emerald" />
-              <StatCard title="Inventory Items" value={`${totalDrugs} ${totalDrugs === 1 ? 'Drug' : 'Drugs'}`} subtitle="In Central Pharmacy Store" icon={FileSpreadsheet} color="purple" />
-              <StatCard title="Near Expiry Warnings" value={`${nearExpiryCount} ${nearExpiryCount === 1 ? 'Batch' : 'Batches'}`} subtitle="30-Day Expiry Alerts" icon={AlertCircle} color="amber" />
+              <StatCard title="Total Medicine SKUs" value={`${totalDrugs} Drugs`} subtitle={`${totalUnits.toLocaleString()} Total Units in Stock`} icon={Boxes} color="sky" />
+              <StatCard title="Low Stock / Depletion" value={`${lowStockCount} ${lowStockCount === 1 ? 'Alert' : 'Alerts'}`} subtitle="Below Safety Minimum" icon={AlertCircle} color={lowStockCount > 0 ? 'rose' : 'emerald'} />
+              <StatCard title="Near Expiry Warnings" value={`${nearExpiryCount} ${nearExpiryCount === 1 ? 'Batch' : 'Batches'}`} subtitle="30-Day Expiry Alerts" icon={Clock} color={nearExpiryCount > 0 ? 'amber' : 'sky'} />
+              <StatCard title="Prescriptions Filled" value={`${filledPrescriptions} Prescriptions`} subtitle="FEFO Auto-Batched" icon={CheckCircle} color="emerald" />
             </div>
 
+            {/* Central Pharmacy Stock & Inventory Table */}
+            <Card className="border-indigo-100 bg-white space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Boxes size={18} className="text-indigo-600" />
+                    Current Pharmacy Medicine Stock ({filteredMeds.length} of {medicinesList.length})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Live inventory on hospital pharmacy shelves with current units, safety buffers, and batch counts.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <input
+                      type="text"
+                      placeholder="Search brand, generic name, category..."
+                      value={pharmacyStockSearch}
+                      onChange={(e) => setPharmacyStockSearch(e.target.value)}
+                      className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 border-slate-300 focus:border-indigo-500"
+                    />
+                    <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs font-semibold whitespace-nowrap"
+                    onClick={() => navigate(formatTenantPath('/pharmacy/stock'))}
+                  >
+                    <Plus size={13} className="mr-1 text-emerald-600" /> Add / Restock
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-700 uppercase text-[10px] font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Medicine & Generic Name</th>
+                      <th className="p-3">Category & Form</th>
+                      <th className="p-3">Current Stock</th>
+                      <th className="p-3">Safety Buffer</th>
+                      <th className="p-3">Unit Sell Price</th>
+                      <th className="p-3">Batches on Shelf</th>
+                      <th className="p-3 text-right">Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-800">
+                    {filteredMeds.length > 0 ? (
+                      filteredMeds.map((med) => {
+                        const currQty = med.totalQuantity ?? med.currentStock ?? 0;
+                        const minStock = med.minimumStockLevel ?? 20;
+                        const isOutOfStock = currQty === 0;
+                        const isLowStock = !isOutOfStock && currQty <= minStock;
+                        const batchesCount = Array.isArray(med.batches) ? med.batches.length : 0;
+
+                        return (
+                          <tr key={med._id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3">
+                              <p className="font-bold text-slate-900">{med.name}</p>
+                              <p className="text-[10px] text-slate-500">{med.genericName || 'Standard Formulation'}</p>
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                {med.dosageForm || med.category || 'Medication'} {med.strength ? `(${med.strength})` : ''}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-mono font-bold text-sm ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                  {currQty}
+                                </span>
+                                <span className={`px-2 py-0.2 rounded-full text-[9px] font-black ${
+                                  isOutOfStock ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                                  isLowStock ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                  'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                }`}>
+                                  {isOutOfStock ? 'OUT OF STOCK' : isLowStock ? 'LOW STOCK' : 'HEALTHY'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-slate-500 font-mono text-xs">
+                              Min {minStock} units
+                            </td>
+                            <td className="p-3 font-mono font-semibold text-slate-900">
+                              ₹{med.unitSellingPrice || med.sellingPrice || med.mrp || 0}
+                            </td>
+                            <td className="p-3">
+                              <span className="font-semibold text-slate-700 text-xs">
+                                {batchesCount} {batchesCount === 1 ? 'batch' : 'batches'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-[11px] font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                                onClick={() => navigate(formatTenantPath('/pharmacy/stock'))}
+                              >
+                                Manage Batches <ExternalLink size={12} className="ml-1" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-400">
+                          {pharmacyStockSearch ? 'No medicines match your search query.' : 'No medicines in inventory database.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* Pharmacy Staff Roster */}
             <Card>
               <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center gap-2">
                 <ShieldCheck size={18} className="text-indigo-600" />

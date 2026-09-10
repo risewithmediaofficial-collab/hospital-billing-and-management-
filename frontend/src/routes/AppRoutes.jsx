@@ -522,7 +522,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Pharmacy tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
         <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />

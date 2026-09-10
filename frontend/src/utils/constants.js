@@ -186,6 +186,7 @@ export const ROLE_NAVIGATION = {
     { title: 'Reception & Appointments', path: '/admin/reception-management', icon: 'LayoutDashboard', module: 'appointments', category: 'Executive & Operations' },
     { title: 'Billing & Cashier Audit', path: '/admin/billing-management', icon: 'CreditCard', module: 'billing', category: 'Executive & Operations' },
     { title: 'Pharmacy & Stock Oversight', path: '/admin/pharmacy-management', icon: 'Pill', module: 'pharmacy', category: 'Executive & Operations' },
+    { title: 'Pharmacy Stock & Prediction', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Executive & Operations' },
     { title: 'Laboratory & Diagnostics', path: '/admin/laboratory-management', icon: 'TestTube', module: 'laboratory', category: 'Executive & Operations' },
     { title: 'Radiology & Imaging Desk', path: '/admin/radiology-management', icon: 'Scan', module: 'radiology', category: 'Executive & Operations' },
     { title: 'Patients Management', path: '/admin/patients-management', icon: 'Users', module: 'patients', category: 'Executive & Operations' },
