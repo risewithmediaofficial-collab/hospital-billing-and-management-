@@ -31,8 +31,8 @@ export const NurseInchargeDashboard = () => {
   const [beds, setBeds] = useState([]);
   const [patientRequests, setPatientRequests] = useState([]);
   const [nurseTasks, setNurseTasks] = useState([]);
-  const requestedTaskId = new URLSearchParams(location.search).get('taskId');
-  const requestedRequestId = new URLSearchParams(location.search).get('requestId');
+  const requestedTaskId = location.state?.taskId || new URLSearchParams(location.search).get('taskId');
+  const requestedRequestId = location.state?.requestId || new URLSearchParams(location.search).get('requestId');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,13 +43,13 @@ export const NurseInchargeDashboard = () => {
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const tabParam = searchParams.get('tab');
+    const tabParam = location.state?.tab || searchParams.get('tab');
     if (tabParam && ['REQUISITIONS', 'ADMITTED', 'BEDS', 'REQUESTS', 'TASKS'].includes(tabParam.toUpperCase())) {
       setActiveTab(tabParam.toUpperCase());
     } else {
       setActiveTab('REQUISITIONS');
     }
-  }, [location.search]);
+  }, [location.search, location.state]);
 
   const { socket } = useSocket();
   const { fetchPendingWork } = useDepartmentNotificationStore();

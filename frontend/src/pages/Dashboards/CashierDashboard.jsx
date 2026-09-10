@@ -48,8 +48,8 @@ export const CashierDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
 
-  const tabParam = searchParams.get('tab');
-  const requestedInvoiceId = searchParams.get('invoiceId');
+  const tabParam = location.state?.tab || searchParams.get('tab');
+  const requestedInvoiceId = location.state?.invoiceId || searchParams.get('invoiceId');
   const isReceiptsRoute = location.pathname.includes('/billing/receipts') || tabParam === 'RECEIPTS';
 
   const [activeTab, setActiveTab] = useState(isReceiptsRoute ? 'RECEIPTS' : 'UNPAID');

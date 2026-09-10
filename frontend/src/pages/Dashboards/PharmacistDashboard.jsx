@@ -36,6 +36,8 @@ const getActiveTabFromPath = (pathname) => {
   return 'queue';
 };
 
+const DEFAULT_ALERTS = { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] };
+
 export const PharmacistDashboard = () => {
   const { user } = useAuthStore();
   const { socket } = useSocket();
@@ -44,13 +46,15 @@ export const PharmacistDashboard = () => {
   const { isAvailable, isToggling, handleToggle, statusMessage } = useAvailability();
   const refreshPendingWork = useDepartmentNotificationStore((state) => state.fetchPendingWork);
 
+  const requestedPrescriptionId = location.state?.prescriptionId || new URLSearchParams(location.search).get('prescriptionId');
+
   // Drive active view from current URL path (sidebar navigation)
   const activeTab = getActiveTabFromPath(location.pathname);
   const [prescriptions, setPrescriptions] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [batches, setBatches] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
-  const [alerts, setAlerts] = useState({ lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
+  const [alerts, setAlerts] = useState(DEFAULT_ALERTS);
   const [stockAdjustments, setStockAdjustments] = useState([]);
   const [substitutions, setSubstitutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,8 +115,16 @@ export const PharmacistDashboard = () => {
       setPrescriptions(rxsRes.data || []);
       setBatches(batchesRes.data || []);
       setAdjustments(adjRes.data || []);
-      setSubstitutions(subsRes.data || []);
-      setAlerts(alertRes.data || { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] });
+      const rawAlerts = alertRes?.data;
+      const safeAlerts = (rawAlerts && typeof rawAlerts === 'object' && !Array.isArray(rawAlerts))
+        ? {
+            lowStock: Array.isArray(rawAlerts.lowStock) ? rawAlerts.lowStock : [],
+            outOfStock: Array.isArray(rawAlerts.outOfStock) ? rawAlerts.outOfStock : [],
+            nearExpiry: Array.isArray(rawAlerts.nearExpiry) ? rawAlerts.nearExpiry : [],
+            expired: Array.isArray(rawAlerts.expired) ? rawAlerts.expired : [],
+          }
+        : DEFAULT_ALERTS;
+      setAlerts(safeAlerts);
     } catch (err) {
       console.error('Failed to load pharmacy data:', err);
       setLoadError(err.error?.message || err.message || 'Pharmacy data could not be loaded.');
@@ -147,6 +159,16 @@ export const PharmacistDashboard = () => {
       socket.off('workflow:pending_changed', refresh);
     };
   }, [socket, refreshPendingWork]);
+
+  useEffect(() => {
+    if (requestedPrescriptionId && prescriptions.length > 0) {
+      const match = prescriptions.find((p) => String(p._id) === String(requestedPrescriptionId));
+      if (match && !billingPrescription) {
+        setBillingPrescription(match);
+        setIsBillingModalOpen(true);
+      }
+    }
+  }, [requestedPrescriptionId, prescriptions, billingPrescription]);
 
   const pending = prescriptions.filter((item) => item.dispenseStatus === 'PENDING_DISPENSE' || item.dispenseStatus === 'PARTIALLY_DISPENSED' || item.dispenseStatus === 'PENDING');
   const dispensed = prescriptions.filter((item) => item.dispenseStatus === 'DISPENSED');
@@ -335,8 +357,8 @@ export const PharmacistDashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Prescriptions Pending" value={`${pending.length} Orders`} subtitle="FEFO Auto E-Prescription Queue" icon={Pill} color="sky" />
         <StatCard title="Today Dispensed" value={`${dispensed.length} Orders`} subtitle="Auto Invoice Billing Sync" icon={CheckCircle2} color="emerald" />
-        <StatCard title="Near-Expiry / Expired" value={`${alerts.nearExpiry.length + alerts.expired.length} Batches`} subtitle="Requires Immediate Action" icon={AlertTriangle} color="amber" />
-        <StatCard title="Total Medicine SKUs" value={`${medicines.length} SKUs`} subtitle={`${alerts.outOfStock.length} Out of Stock`} icon={Boxes} color="purple" />
+        <StatCard title="Near-Expiry / Expired" value={`${(alerts?.nearExpiry?.length || 0) + (alerts?.expired?.length || 0)} Batches`} subtitle="Requires Immediate Action" icon={AlertTriangle} color="amber" />
+        <StatCard title="Total Medicine SKUs" value={`${medicines.length} SKUs`} subtitle={`${alerts?.outOfStock?.length || 0} Out of Stock`} icon={Boxes} color="purple" />
       </div>
 
 
@@ -556,10 +578,10 @@ export const PharmacistDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <h3 className="text-base font-bold text-amber-900 mb-3 flex items-center gap-2">
-              <AlertTriangle size={18} className="text-amber-600" /> Low Stock Medicines ({alerts.lowStock.length})
+              <AlertTriangle size={18} className="text-amber-600" /> Low Stock Medicines ({alerts?.lowStock?.length || 0})
             </h3>
             <div className="divide-y divide-slate-100 text-xs">
-              {alerts.lowStock.map((med) => (
+              {(alerts?.lowStock || []).map((med) => (
                 <div key={med._id} className="py-2.5 flex items-center justify-between">
                   <div>
                     <p className="font-bold text-slate-900">{med.name}</p>
@@ -570,16 +592,16 @@ export const PharmacistDashboard = () => {
                   </span>
                 </div>
               ))}
-              {alerts.lowStock.length === 0 && <p className="text-slate-500 py-4 text-center">No low stock items.</p>}
+              {(alerts?.lowStock?.length || 0) === 0 && <p className="text-slate-500 py-4 text-center">No low stock items.</p>}
             </div>
           </Card>
 
           <Card>
             <h3 className="text-base font-bold text-rose-900 mb-3 flex items-center gap-2">
-              <ShieldAlert size={18} className="text-rose-600" /> Expired or Near-Expiry Stock ({alerts.nearExpiry.length + alerts.expired.length})
+              <ShieldAlert size={18} className="text-rose-600" /> Expired or Near-Expiry Stock ({(alerts?.nearExpiry?.length || 0) + (alerts?.expired?.length || 0)})
             </h3>
             <div className="divide-y divide-slate-100 text-xs">
-              {alerts.expired.map((b, i) => (
+              {(alerts?.expired || []).map((b, i) => (
                 <div key={i} className="py-2.5 flex items-center justify-between bg-rose-50/50 px-2 rounded">
                   <div>
                     <p className="font-bold text-rose-900">{b.name} (Batch: {b.batchNumber})</p>
@@ -597,7 +619,7 @@ export const PharmacistDashboard = () => {
                   </Button>
                 </div>
               ))}
-              {alerts.nearExpiry.map((b, i) => (
+              {(alerts?.nearExpiry || []).map((b, i) => (
                 <div key={i} className="py-2.5 flex items-center justify-between">
                   <div>
                     <p className="font-bold text-slate-900">{b.name} (Batch: {b.batchNumber})</p>

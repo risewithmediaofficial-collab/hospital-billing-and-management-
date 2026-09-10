@@ -19,8 +19,8 @@ export const RadiologistDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const requestedOrderId = searchParams.get('orderId');
+  const tabParam = location.state?.tab || searchParams.get('tab');
+  const requestedOrderId = location.state?.orderId || searchParams.get('orderId');
 
   const [activeTab, setActiveTab] = useState(tabParam || 'ACTIVE');
   const [orders, setOrders] = useState([]);
@@ -34,7 +34,7 @@ export const RadiologistDashboard = () => {
     } else {
       setActiveTab('ACTIVE');
     }
-  }, [tabParam, location.search]);
+  }, [tabParam, location.search, location.state]);
 
   useEffect(() => {
     fetchOrders();

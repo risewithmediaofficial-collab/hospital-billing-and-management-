@@ -325,30 +325,37 @@ export class EmrService {
       }
     }
 
-    const year = new Date().getFullYear();
-    let seqNum = (await Invoice.countDocuments({ hospitalId: hospId })) + 1;
-    let invoiceNo = `INV-${year}-${String(seqNum).padStart(5, '0')}`;
-    let existing = await Invoice.findOne({ hospitalId: hospId, invoiceNo });
-    while (existing) {
-      seqNum++;
-      invoiceNo = `INV-${year}-${String(seqNum).padStart(5, '0')}`;
-      existing = await Invoice.findOne({ hospitalId: hospId, invoiceNo });
+    let existingInvoice = null;
+    if (data.invoiceId) {
+      existingInvoice = await Invoice.findOne({
+        _id: data.invoiceId,
+        hospitalId: hospId,
+        status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
+        isDeleted: { $ne: true },
+      });
+    }
+    if (!existingInvoice) {
+      existingInvoice = await Invoice.findOne({
+        hospitalId: hospId,
+        patientId: appointment.patientId,
+        status: { $in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.PARTIALLY_PAID] },
+        isDeleted: { $ne: true },
+      }).sort({ createdAt: -1 });
     }
 
-    const items = [
-      {
-        description: `OPD Consultation — Dr. ${user.name || 'Doctor'} (${data.chiefComplaints || 'OPD Check-up'})`,
-        category: 'CONSULTATION',
-        qty: 1,
-        unitPrice: consultationFee + emergencyFee,
-        totalPrice: consultationFee + emergencyFee,
-      },
-    ];
+    const consultationItem = {
+      description: `OPD Consultation — Dr. ${user.name || 'Doctor'} (${data.chiefComplaints || 'OPD Check-up'})`,
+      category: 'CONSULTATION',
+      qty: 1,
+      unitPrice: consultationFee + emergencyFee,
+      totalPrice: consultationFee + emergencyFee,
+    };
 
+    const newProcedureItems = [];
     if (doctorProcedureCharges.length > 0) {
       doctorProcedureCharges.forEach((proc) => {
         if (proc.description && proc.amount) {
-          items.push({
+          newProcedureItems.push({
             description: `Doctor Procedure: ${proc.description}`,
             category: 'OTHER',
             qty: 1,
@@ -362,7 +369,7 @@ export class EmrService {
     const activeDeptOrders = departmentOrders.filter(
       (ord) => ord.chargeStatus !== 'CANCELLED' && ord.chargeStatus !== 'INCLUDED_IN_FINAL_BILL'
     );
-
+    const newDeptItems = [];
     for (const ord of activeDeptOrders) {
       const catMap = {
         XRAY: 'RADIOLOGY',
@@ -376,36 +383,88 @@ export class EmrService {
       };
       const cat = catMap[ord.testCategory] || 'OTHER';
       const chgAmount = ord.totalDepartmentCharge || ord.price || 50.0;
-
-      items.push({
+      newDeptItems.push({
         description: `[${ord.testCategory}] ${ord.testName} (${ord.technicianName || 'Department'})`,
+        sourceRef: String(ord._id),
         category: cat,
         qty: 1,
         unitPrice: chgAmount,
         totalPrice: chgAmount,
       });
-
     }
 
-    const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
+    let invoiceNo;
+    let isNewInvoice = false;
+    let activeInvoice = existingInvoice;
 
-    const invoice = await Invoice.create({
-      hospitalId: hospId,
-      branchId: brId,
-      patientId: appointment.patientId,
-      doctorId: user.id || user._id,
-      doctorName: user.name ? `Dr. ${user.name}` : 'Doctor Consultant',
-      consultationId: consultation._id,
-      followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
-      invoiceNo,
-      items,
-      subtotal,
-      discountAmount: 0,
-      grandTotal: subtotal,
-      paidAmount: 0,
-      balanceAmount: subtotal,
-      status: PAYMENT_STATUS.UNPAID,
-    });
+    if (activeInvoice) {
+      invoiceNo = activeInvoice.invoiceNo;
+      // Filter out old CONSULTATION and old Doctor Procedure items to replace with updated ones
+      const remainingItems = (activeInvoice.items || []).filter((item) => {
+        if (item.category === 'CONSULTATION') return false;
+        if (item.category === 'OTHER' && (item.description?.startsWith('Doctor Procedure:') || item.description?.toLowerCase().includes('procedure'))) return false;
+        return true;
+      });
+
+      const existingDeptRefs = new Set(remainingItems.map((it) => it.sourceRef).filter(Boolean));
+      const filteredDeptItems = newDeptItems.filter((it) => !existingDeptRefs.has(it.sourceRef));
+
+      activeInvoice.items = [consultationItem, ...newProcedureItems, ...remainingItems, ...filteredDeptItems];
+      activeInvoice.consultationId = consultation._id;
+      if (data.followUpDate) activeInvoice.followUpDate = new Date(data.followUpDate);
+      if (user.id || user._id) {
+        activeInvoice.doctorId = user.id || user._id;
+        activeInvoice.doctorName = user.name ? `Dr. ${user.name}` : 'Doctor Consultant';
+      }
+      activeInvoice.subtotal = activeInvoice.items.reduce((acc, item) => acc + item.totalPrice, 0);
+      const discount = Number(activeInvoice.discountAmount) || 0;
+      activeInvoice.grandTotal = Math.max(0, activeInvoice.subtotal - discount);
+      activeInvoice.balanceAmount = Math.max(0, activeInvoice.grandTotal - (Number(activeInvoice.paidAmount) || 0));
+
+      if (activeInvoice.doctorReviewQuery) {
+        activeInvoice.doctorReviewQuery.resolved = true;
+        activeInvoice.doctorReviewQuery.resolvedAt = new Date();
+        activeInvoice.doctorReviewQuery.resolvedByDoctorId = user.id || user._id;
+        activeInvoice.doctorReviewQuery.responseNote = `Consultation fees & clinical items updated by Dr. ${user.name || 'Doctor'}`;
+      }
+
+      await activeInvoice.save();
+    } else {
+      isNewInvoice = true;
+      const year = new Date().getFullYear();
+      let seqNum = (await Invoice.countDocuments({ hospitalId: hospId })) + 1;
+      invoiceNo = `INV-${year}-${String(seqNum).padStart(5, '0')}`;
+      let existing = await Invoice.findOne({ hospitalId: hospId, invoiceNo });
+      while (existing) {
+        seqNum++;
+        invoiceNo = `INV-${year}-${String(seqNum).padStart(5, '0')}`;
+        existing = await Invoice.findOne({ hospitalId: hospId, invoiceNo });
+      }
+
+      const items = [consultationItem, ...newProcedureItems, ...newDeptItems];
+      const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
+
+      const invoice = await Invoice.create({
+        hospitalId: hospId,
+        branchId: brId,
+        patientId: appointment.patientId,
+        doctorId: user.id || user._id,
+        doctorName: user.name ? `Dr. ${user.name}` : 'Doctor Consultant',
+        consultationId: consultation._id,
+        followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
+        invoiceNo,
+        items,
+        subtotal,
+        discountAmount: 0,
+        grandTotal: subtotal,
+        paidAmount: 0,
+        balanceAmount: subtotal,
+        status: PAYMENT_STATUS.UNPAID,
+      });
+      activeInvoice = invoice;
+    }
+
+    const invoice = activeInvoice;
 
     if (activeDeptOrders.length > 0) {
       await DiagnosticOrder.updateMany(
@@ -444,15 +503,15 @@ export class EmrService {
         patientName,
         uhid: patObj?.uhid || 'N/A',
         doctorName: user.name || 'Doctor',
-        grandTotal: subtotal,
+        grandTotal: invoice.grandTotal,
         linkedPath: billingRoute,
       }, brId);
 
-      socketManager.emitToBranch(brId, 'billing:invoice_created', {
+      socketManager.emitToBranch(brId, isNewInvoice ? 'billing:invoice_created' : 'billing:invoice_updated', {
         invoiceId: invoice._id,
         invoiceNo,
         patientId: appointment.patientId,
-        grandTotal: subtotal,
+        grandTotal: invoice.grandTotal,
       });
     }
 

@@ -68,13 +68,13 @@ export const DoctorDashboard = () => {
   const [selectedDeptOrder, setSelectedDeptOrder] = useState(null);
   const [substitutionRequests, setSubstitutionRequests] = useState([]);
   const searchParams = new URLSearchParams(location.search);
-  const requestedAppointmentId = searchParams.get('appointmentId');
-  const requestedPatientId = searchParams.get('patientId');
-  const requestedOrderId = searchParams.get('orderId');
-  const requestedSubstitutionId = new URLSearchParams(location.search).get('substitutionId');
-  const requestedNurseTaskId = new URLSearchParams(location.search).get('taskId');
-  const requestedPatientRequestId = new URLSearchParams(location.search).get('requestId');
-  const requestedInvoiceId = new URLSearchParams(location.search).get('invoiceId');
+  const requestedAppointmentId = location.state?.appointmentId || searchParams.get('appointmentId');
+  const requestedPatientId = location.state?.patientId || searchParams.get('patientId');
+  const requestedOrderId = location.state?.orderId || searchParams.get('orderId');
+  const requestedSubstitutionId = location.state?.substitutionId || new URLSearchParams(location.search).get('substitutionId');
+  const requestedNurseTaskId = location.state?.taskId || location.state?.nurseTaskId || new URLSearchParams(location.search).get('taskId');
+  const requestedPatientRequestId = location.state?.requestId || new URLSearchParams(location.search).get('requestId');
+  const requestedInvoiceId = location.state?.invoiceId || new URLSearchParams(location.search).get('invoiceId');
   const [doctorRequests, setDoctorRequests] = useState([]);
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
 
@@ -100,7 +100,7 @@ export const DoctorDashboard = () => {
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [deptResponseSubTab, setDeptResponseSubTab] = useState('NURSE'); // 'NURSE' | 'DEPT_TRACKER' | 'QUERIES'
 
-  // Sync active tab & subtab with URL query parameters
+  // Sync active tab & subtab with URL query parameters or location state
   // No ?tab= param  → OVERVIEW (Clinical EMR Desk)
   // ?tab=LIVE        → Queued Patients
   // ?tab=FOLLOW_UPS  → Follow-Up Visits & Missed Calls
@@ -108,13 +108,13 @@ export const DoctorDashboard = () => {
   // ?tab=DEPT_RESPONSES → Department Responses (subTab=NURSE | DEPT_TRACKER | QUERIES)
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const tabParam = searchParams.get('tab');
-    const subTabParam = searchParams.get('subTab');
-    const invoiceId = searchParams.get('invoiceId');
-    const prescriptionId = searchParams.get('prescriptionId');
-    const requestId = searchParams.get('requestId');
-    const orderId = searchParams.get('orderId');
-    const nurseTaskId = searchParams.get('nurseTaskId');
+    const tabParam = location.state?.tab || searchParams.get('tab');
+    const subTabParam = location.state?.subTab || searchParams.get('subTab');
+    const invoiceId = location.state?.invoiceId || searchParams.get('invoiceId');
+    const prescriptionId = location.state?.prescriptionId || searchParams.get('prescriptionId');
+    const requestId = location.state?.requestId || searchParams.get('requestId');
+    const orderId = location.state?.orderId || searchParams.get('orderId');
+    const nurseTaskId = location.state?.taskId || location.state?.nurseTaskId || searchParams.get('nurseTaskId');
 
     if (tabParam && ['LIVE', 'COMPLETED', 'SENT_DEPARTMENTS', 'DEPT_RESPONSES', 'FOLLOW_UPS'].includes(tabParam.toUpperCase())) {
       const normalizedTab = tabParam.toUpperCase() === 'SENT_DEPARTMENTS' ? 'DEPT_RESPONSES' : tabParam.toUpperCase();
@@ -140,7 +140,7 @@ export const DoctorDashboard = () => {
     } else {
       setActiveTab('OVERVIEW');
     }
-  }, [location.search]);
+  }, [location.search, location.state]);
 
   const handleTabClick = (tabKey) => {
     setActiveTab(tabKey);
@@ -373,8 +373,8 @@ export const DoctorDashboard = () => {
     // Handle direct shortcut navigation from notifications when user is already on the page
     useEffect(() => {
       const params = new URLSearchParams(location.search);
-      const reqApptId = params.get('appointmentId');
-      const reqPatId = params.get('patientId');
+      const reqApptId = location.state?.appointmentId || params.get('appointmentId');
+      const reqPatId = location.state?.patientId || params.get('patientId');
       if (!reqApptId && !reqPatId) return;
 
       const allTokens = [...liveQueue, ...departmentHoldQueue, ...completedQueue];
@@ -390,7 +390,7 @@ export const DoctorDashboard = () => {
           fetchPatientNurseTasks(pId);
         }
       }
-    }, [location.search, liveQueue.length, departmentHoldQueue.length]);
+    }, [location.search, location.state, liveQueue.length, departmentHoldQueue.length]);
 
     const fetchLiveQueue = fetchOpdQueue;
   // console.log("fetchlivequeue", fetchLiveQueue)
@@ -561,6 +561,22 @@ const targetDocId = user?.id || user?._id;
           gender: 'GENERAL',
         };
 
+    const prevItems = rx.invoiceItems || rx.items || [];
+    const prevConsultationItem = prevItems.find((i) => i.category === 'CONSULTATION');
+    const prevFee = rx.consultationFee ?? (prevConsultationItem ? prevConsultationItem.unitPrice : undefined);
+    const prevProcs = rx.doctorProcedureCharges || prevItems
+      .filter((i) => i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure')))
+      .map((p) => ({
+        description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
+        amount: p.unitPrice || p.totalPrice || 0,
+      }));
+
+    const enrichedRx = {
+      ...rx,
+      consultationFee: prevFee,
+      doctorProcedureCharges: prevProcs,
+    };
+
     let targetToken = liveQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
       || departmentHoldQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
       || completedQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId));
@@ -572,12 +588,16 @@ const targetDocId = user?.id || user?._id;
         status: 'IN_CONSULTATION',
         patientId: patObj,
         chiefComplaints: rx.consultationId?.chiefComplaints || rx.billingQuery?.query || 'Returned from Billing',
-        returnedPrescription: rx,
+        returnedPrescription: enrichedRx,
+        consultationFee: prevFee,
+        doctorProcedureCharges: prevProcs,
       };
     } else {
       targetToken = {
         ...targetToken,
-        returnedPrescription: rx,
+        returnedPrescription: enrichedRx,
+        consultationFee: prevFee,
+        doctorProcedureCharges: prevProcs,
       };
     }
 

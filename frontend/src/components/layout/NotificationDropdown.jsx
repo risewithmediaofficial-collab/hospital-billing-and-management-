@@ -90,38 +90,30 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
       return;
     }
 
-    // Build the target path — start from linkedPath or targetRoute stored in DB
-    let target = notif.linkedPath || notif.targetRoute || notif.link || '';
+    // Build the clean target path (no query parameters in the address bar)
+    const rawTarget = notif.linkedPath || notif.targetRoute || notif.link || '';
+    const cleanTarget = rawTarget.split('?')[0] || '';
 
-    // Enrich with entity IDs from metadata so the target page can auto-select the record
-    if (target) {
-      const meta = notif.metadata || {};
-      const params = new URLSearchParams();
+    // Extract entity IDs and metadata into navigation state so destination pages
+    // can auto-select the targeted record without polluting the browser address bar
+    const meta = notif.metadata || {};
+    const orderId = meta.orderId || notif.relatedTaskId;
+    const patientId = meta.patientId || notif.relatedPatientId;
+    const appointmentId = meta.appointmentId;
+    const invoiceId = meta.invoiceId;
+    const taskId = meta.taskId;
+    const substitutionId = meta.substitutionId;
 
-      // Preserve any existing query params already in the target path
-      const [basePath, existingQuery] = target.split('?');
-      if (existingQuery) {
-        new URLSearchParams(existingQuery).forEach((v, k) => params.set(k, v));
-      }
-
-      // Append entity IDs from metadata or top-level fields
-      const orderId = meta.orderId || notif.relatedTaskId;
-      const patientId = meta.patientId || notif.relatedPatientId;
-      const appointmentId = meta.appointmentId;
-      const invoiceId = meta.invoiceId;
-      const taskId = meta.taskId;
-      const substitutionId = meta.substitutionId;
-
-      if (orderId && !params.has('orderId')) params.set('orderId', orderId);
-      if (patientId && !params.has('patientId')) params.set('patientId', patientId);
-      if (appointmentId && !params.has('appointmentId')) params.set('appointmentId', appointmentId);
-      if (invoiceId && !params.has('invoiceId')) params.set('invoiceId', invoiceId);
-      if (taskId && !params.has('taskId')) params.set('taskId', taskId);
-      if (substitutionId && !params.has('substitutionId')) params.set('substitutionId', substitutionId);
-
-      const queryStr = params.toString();
-      target = queryStr ? `${basePath}?${queryStr}` : basePath;
-    }
+    const navigationState = {
+      ...meta,
+      orderId,
+      patientId,
+      appointmentId,
+      invoiceId,
+      taskId,
+      substitutionId,
+      notifId: notif.id,
+    };
 
     const userRole = user?.role || 'GUEST';
     const userRoles = [
@@ -149,13 +141,13 @@ export const NotificationDropdown = ({ isOpen, onClose }) => {
     };
 
     const allowedPrefixes = userRoles.flatMap((r) => rolePrefixes[r] || ['/']);
-    const isAllowedPath = target && allowedPrefixes.some((prefix) => target.includes(prefix));
+    const isAllowedPath = cleanTarget && allowedPrefixes.some((prefix) => cleanTarget.includes(prefix));
 
     if (isAllowedPath) {
-      navigate(formatTenantPath(target));
+      navigate(formatTenantPath(cleanTarget), { state: navigationState });
     } else {
       const fallback = defaultRoleDashboard[userRole] || '/';
-      navigate(formatTenantPath(fallback));
+      navigate(formatTenantPath(fallback), { state: navigationState });
     }
   };
 

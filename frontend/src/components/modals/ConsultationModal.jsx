@@ -128,15 +128,35 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       setHistoryOfPresentIllness('');
       setFollowUpDate('');
       setAdviceToPatient('');
-      setConsultationFee('');
-      setDoctorProcedureCharges([]);
 
-      // Pre-fill existing medicines if returned from Billing or Pharmacy
-      const prevMeds = activeReturnedPrescription?.medicines || token?.prescriptions;
+      // Pre-fill previous consultation fee & procedure charges from activeReturnedPrescription or token
+      const prevInvoiceItems = activeReturnedPrescription?.invoiceItems || token?.returnedPrescription?.invoiceItems || [];
+      const prevConsultationItem = prevInvoiceItems.find((i) => i.category === 'CONSULTATION');
+      const prevConsultationFee = activeReturnedPrescription?.consultationFee 
+        ?? token?.returnedPrescription?.consultationFee 
+        ?? token?.consultationFee 
+        ?? (prevConsultationItem ? prevConsultationItem.unitPrice : '');
+      setConsultationFee(prevConsultationFee !== undefined && prevConsultationFee !== null ? String(prevConsultationFee) : '');
+
+      const prevProcedureItems = prevInvoiceItems.filter((i) => 
+        i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure'))
+      );
+      const prevDoctorProcedureCharges = activeReturnedPrescription?.doctorProcedureCharges 
+        || token?.returnedPrescription?.doctorProcedureCharges 
+        || (prevProcedureItems.length > 0 
+            ? prevProcedureItems.map((p) => ({
+                description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
+                amount: p.unitPrice || p.totalPrice || 0,
+              }))
+            : []);
+      setDoctorProcedureCharges(prevDoctorProcedureCharges);
+
+      // Pre-fill existing medicines if returned from Billing or Pharmacy or token
+      const prevMeds = activeReturnedPrescription?.medicines || token?.returnedPrescription?.medicines || token?.prescriptions;
       if (Array.isArray(prevMeds) && prevMeds.length > 0) {
         setPrescriptions(
           prevMeds.map((m) => ({
-            medicineName: m.medicineName || '',
+            medicineName: m.medicineName || m.description || '',
             genericName: m.genericName || '',
             dosageForm: m.dosageForm || 'TABLET',
             dosage: m.dosage || '',
@@ -334,6 +354,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       await axiosClient.post('/emr/consultations', {
         appointmentId: token._id,
         patientId: activePatient._id || activePatient.id,
+        invoiceId: activeReturnedPrescription?.invoiceId || activeReturnedPrescription?.billingQuery?.invoiceId || token?.returnedPrescription?.invoiceId || token?.invoiceId || undefined,
         chiefComplaints: chiefComplaints.trim() || 'General Consultation',
         historyOfPresentIllness,
         prescriptions: validPrescriptions,
@@ -442,11 +463,21 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
               </div>
             )}
 
-            {/* Doctor Fees */}
+            {/* Doctor Fees & Procedure Charges */}
             <div className={sectionBg}>
-              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
-                <Receipt size={16} className="text-indigo-600" /> Doctor Fees & Charges
-              </span>
+              <div className="flex items-center justify-between pb-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
+                  <Receipt size={16} className="text-indigo-600" /> Doctor Consultation &amp; Procedure Fees
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAddProcedureRow}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1 text-xs border border-indigo-200 transition-colors"
+                >
+                  <Plus size={13} /> Add Procedure Charge
+                </button>
+              </div>
+
               <div>
                 <label className={labelClass}>Consultation Fee (₹)</label>
                 <Input
@@ -458,6 +489,43 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                   onChange={(e) => setConsultationFee(e.target.value)}
                 />
               </div>
+
+              {doctorProcedureCharges.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <label className={labelClass}>Doctor Procedure Charges (Dressing, Suturing, Minor Surgery, etc.)</label>
+                  {doctorProcedureCharges.map((proc, pIdx) => (
+                    <div key={pIdx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
+                      <input
+                        type="text"
+                        placeholder="Procedure Description (e.g. Wound Dressing, Suture Removal)"
+                        value={proc.description}
+                        onChange={(e) => handleProcedureChange(pIdx, 'description', e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900"
+                      />
+                      <div className="relative w-28">
+                        <span className="absolute left-2.5 top-1.5 text-slate-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          onWheel={(e) => e.target.blur()}
+                          value={proc.amount !== undefined && proc.amount !== null ? proc.amount : ''}
+                          onChange={(e) => handleProcedureChange(pIdx, 'amount', e.target.value)}
+                          className="w-full pl-6 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveProcedureRow(pIdx)}
+                        className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Remove procedure"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Structured Prescriptions */}

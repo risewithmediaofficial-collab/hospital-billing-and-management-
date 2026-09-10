@@ -48,6 +48,7 @@ export const DirectToBillingModal = ({ isOpen, onClose, token, onSuccess }) => {
       await axiosClient.post('/emr/consultations', {
         appointmentId: token._id,
         patientId: patId,
+        invoiceId: token?.invoiceId || token?.returnedPrescription?.invoiceId || undefined,
         chiefComplaints: token.chiefComplaints || 'General Consultation',
         prescriptions: [],
         pharmacyMode: 'EXTERNAL_NO_INHOUSE_PHARMACY',

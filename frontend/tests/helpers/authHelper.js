@@ -105,6 +105,15 @@ export async function mockAuthSession(page, role = 'SUPER_ADMIN', options = {}) 
           },
         }),
       });
+    } else if (url.includes('/pharmacy/alerts')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { lowStock: [], outOfStock: [], nearExpiry: [], expired: [] },
+        }),
+      });
     } else {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) });
     }

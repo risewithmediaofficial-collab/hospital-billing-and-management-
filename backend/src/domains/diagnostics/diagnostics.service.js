@@ -420,6 +420,57 @@ export class DiagnosticsService {
     if (resolvedBillingQuery) {
       const { NotificationService } = await import('../notifications/notification.service.js');
       const invoiceId = order.billingQuery.invoiceId;
+
+      if (invoiceId) {
+        try {
+          const { Invoice } = await import('../../models/Invoice.js');
+          const inv = await Invoice.findOne({ _id: invoiceId, hospitalId: order.hospitalId });
+          if (inv && inv.status !== 'PAID' && !inv.isDeleted) {
+            const catMap = {
+              XRAY: 'RADIOLOGY',
+              MRI: 'RADIOLOGY',
+              CT_SCAN: 'RADIOLOGY',
+              ULTRASOUND: 'RADIOLOGY',
+              LABORATORY: 'LAB',
+              BLOOD_TEST: 'LAB',
+              URINE_ANALYSIS: 'LAB',
+              ECG: 'OTHER',
+            };
+            const cat = catMap[order.testCategory] || 'OTHER';
+            const orderRef = String(order._id);
+            let found = false;
+            (inv.items || []).forEach((item) => {
+              if (item.sourceRef === orderRef || (item.description && item.description.includes(order.testName))) {
+                item.unitPrice = order.totalDepartmentCharge;
+                item.totalPrice = order.totalDepartmentCharge;
+                item.sourceRef = orderRef;
+                found = true;
+              }
+            });
+            if (!found) {
+              inv.items.push({
+                description: `[${order.testCategory}] ${order.testName} (${user?.name || 'Department'})`,
+                sourceRef: orderRef,
+                category: cat,
+                qty: 1,
+                unitPrice: order.totalDepartmentCharge,
+                totalPrice: order.totalDepartmentCharge,
+              });
+            }
+            inv.subtotal = inv.items.reduce((acc, it) => acc + (Number(it.totalPrice) || 0), 0);
+            inv.grandTotal = Math.max(0, inv.subtotal - (Number(inv.discountAmount) || 0));
+            inv.balanceAmount = Math.max(0, inv.grandTotal - (Number(inv.paidAmount) || 0));
+            await inv.save();
+            socketManager.emitToBranch(inv.branchId || order.branchId, 'billing:invoice_updated', {
+              invoiceId: inv._id,
+              patientId: inv.patientId,
+            });
+          }
+        } catch (invErr) {
+          console.error('Failed to update invoice with corrected diagnostic charge:', invErr);
+        }
+      }
+
       await NotificationService.createNotification({
         hospitalId: order.hospitalId,
         branchId: order.branchId,
@@ -429,13 +480,13 @@ export class DiagnosticsService {
         notificationType: 'DEPARTMENT_RESPONSE',
         title: `Corrected diagnostic charge: ${order.patientName}`,
         message: `${order.testName} charge was corrected and resubmitted by ${user?.name || 'the department'}.`,
-        targetRoute: `/billing/dashboard?invoiceId=${invoiceId}&tab=UNPAID`,
+        targetRoute: `/billing/dashboard?invoiceId=${invoiceId}&tab=CENTRAL_DESK`,
         relatedPatientId: order.patientId,
         sourceModule: order.billingQuery.targetDepartment?.toLowerCase() || 'diagnostics',
         entityType: 'INVOICE',
         entityId: invoiceId,
         actionType: 'REVIEW_DEPARTMENT_RESPONSE',
-        metadata: { invoiceId, orderId: order._id, patientId: order.patientId },
+        metadata: { invoiceId, orderId: order._id, patientId: order.patientId, tab: 'CENTRAL_DESK' },
       });
     }
 
