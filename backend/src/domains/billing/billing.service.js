@@ -313,6 +313,7 @@ export class BillingService {
     return Invoice.find(query)
       .populate('patientId', 'firstName lastName uhid phone age gender')
       .populate('doctorId', 'name specialization')
+      .populate('consultationId', 'chiefComplaints vitals prescriptions consultationFee doctorProcedureCharges')
       .sort({ 'doctorReviewQuery.requestedAt': -1 })
       .lean();
   }
@@ -333,10 +334,16 @@ export class BillingService {
     if (data.consultationFee !== undefined && data.consultationFee !== null && data.consultationFee !== '') {
       const fee = Number(data.consultationFee);
       if (!Number.isFinite(fee) || fee < 0) throw new ApiError(400, 'Consultation fee must be a non-negative amount.', null, 'INVALID_AMOUNT');
-      const line = invoice.items.find((item) => item.category === 'CONSULTATION');
-      if (!line) throw new ApiError(409, 'This invoice has no consultation charge to correct.', null, 'CONSULTATION_LINE_NOT_FOUND');
-      line.unitPrice = fee;
-      line.totalPrice = fee * (Number(line.qty) || 1);
+      let line = invoice.items.find((item) => 
+        item.category === 'CONSULTATION' || (item.description && item.description.toLowerCase().includes('consultation'))
+      );
+      if (!line) {
+        line = { description: 'OPD Consultation Fee', category: 'CONSULTATION', qty: 1, unitPrice: fee, totalPrice: fee };
+        invoice.items.unshift(line);
+      } else {
+        line.unitPrice = fee;
+        line.totalPrice = fee * (Number(line.qty) || 1);
+      }
     }
 
     invoice.subtotal = invoice.items.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);

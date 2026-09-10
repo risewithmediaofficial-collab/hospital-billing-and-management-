@@ -316,7 +316,15 @@ export const DoctorDashboard = () => {
               const matchInWaitingOrHeld = [...waiting, ...held].find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
-              if (matchInWaitingOrHeld) return { ...prev, ...matchInWaitingOrHeld };
+              if (matchInWaitingOrHeld) {
+                return {
+                  ...matchInWaitingOrHeld,
+                  returnedPrescription: prev.returnedPrescription || matchInWaitingOrHeld.returnedPrescription,
+                  consultationFee: prev.consultationFee ?? matchInWaitingOrHeld.consultationFee,
+                  doctorProcedureCharges: prev.doctorProcedureCharges || matchInWaitingOrHeld.doctorProcedureCharges,
+                  invoiceItems: prev.invoiceItems || matchInWaitingOrHeld.invoiceItems,
+                };
+              }
 
               // If consultation modal is open or patient was explicitly opened from history/nurse tasks, keep it
               if (isConsultationModalOpen) {
@@ -327,7 +335,15 @@ export const DoctorDashboard = () => {
               const matchInCompleted = done.find(
                 (t) => String(t._id || t.id) === currentId || String(t.patientId?._id || t.patientId) === currentPatId
               );
-              if (matchInCompleted) return { ...prev, ...matchInCompleted };
+              if (matchInCompleted) {
+                return {
+                  ...matchInCompleted,
+                  returnedPrescription: prev.returnedPrescription || matchInCompleted.returnedPrescription,
+                  consultationFee: prev.consultationFee ?? matchInCompleted.consultationFee,
+                  doctorProcedureCharges: prev.doctorProcedureCharges || matchInCompleted.doctorProcedureCharges,
+                  invoiceItems: prev.invoiceItems || matchInCompleted.invoiceItems,
+                };
+              }
 
               // If previous patient was completed/billed or is no longer waiting/held, select the next waiting token
               const nextTok = waiting[0];
@@ -446,7 +462,7 @@ export const DoctorDashboard = () => {
 
   const fetchReturnedBillingPrescriptions = async () => {
     try {
-const targetDocId = user?.id || user?._id;
+      const targetDocId = user?.id || user?._id;
       const [res, invoiceRes] = await Promise.all([
         axiosClient.get('/pharmacy/prescriptions', {
           params: targetDocId ? { doctorId: targetDocId } : {},
@@ -454,25 +470,84 @@ const targetDocId = user?.id || user?._id;
         axiosClient.get('/billing/doctor-review-queries'),
       ]);
       const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-      const returned = list.filter(
+      const returnedRaw = list.filter(
         (rx) => (rx.dispenseStatus === 'RETURNED_TO_DOCTOR' || Boolean(rx.billingQuery?.query)) && !rx.billingQuery?.resolved
       );
       const invoices = Array.isArray(invoiceRes?.data) ? invoiceRes.data : Array.isArray(invoiceRes) ? invoiceRes : [];
-      const prescriptionInvoiceIds = new Set(returned.map((rx) => String(rx.billingQuery?.invoiceId || '')).filter(Boolean));
+      const prescriptionInvoiceIds = new Set(returnedRaw.map((rx) => String(rx.billingQuery?.invoiceId || rx.invoiceId || '')).filter(Boolean));
+
+      const returned = returnedRaw.map((rx) => {
+        const matchingInvoice = invoices.find(
+          (inv) =>
+            (rx.billingQuery?.invoiceId && String(inv._id) === String(rx.billingQuery.invoiceId)) ||
+            (rx.invoiceId && String(inv._id) === String(rx.invoiceId)) ||
+            (rx.patientId?._id && String(inv.patientId?._id || inv.patientId) === String(rx.patientId._id)) ||
+            (rx.patientId && String(inv.patientId?._id || inv.patientId) === String(rx.patientId))
+        );
+
+        const consultLine = (matchingInvoice?.items || []).find(
+          (i) => i.category === 'CONSULTATION' || (i.description && i.description.toLowerCase().includes('consultation'))
+        );
+        const invoiceFee = consultLine ? (consultLine.unitPrice ?? consultLine.totalPrice) : undefined;
+        const resolvedFee = rx.consultationFee
+          ?? rx.consultationId?.consultationFee
+          ?? matchingInvoice?.consultationId?.consultationFee
+          ?? invoiceFee
+          ?? user?.consultationFee
+          ?? 100;
+
+        const invoiceProcs = (matchingInvoice?.items || [])
+          .filter((i) => i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure')))
+          .map((p) => ({
+            description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
+            amount: p.unitPrice || p.totalPrice || 0,
+          }));
+
+        return {
+          ...rx,
+          invoiceId: matchingInvoice?._id || rx.billingQuery?.invoiceId || rx.invoiceId,
+          invoiceItems: matchingInvoice?.items || rx.invoiceItems || [],
+          invoice: matchingInvoice || null,
+          consultationFee: resolvedFee,
+          doctorProcedureCharges: (rx.doctorProcedureCharges && rx.doctorProcedureCharges.length > 0)
+            ? rx.doctorProcedureCharges
+            : invoiceProcs,
+        };
+      });
+
       const invoiceQueries = invoices
         .filter((invoice) => !prescriptionInvoiceIds.has(String(invoice._id)))
-        .map((invoice) => ({
-          _id: `invoice-query-${invoice._id}`,
-          invoiceId: invoice._id,
-          appointmentId: invoice.doctorReviewQuery?.appointmentId,
-          patientId: invoice.patientId,
-          medicines: [],
-          invoiceItems: invoice.items || [],
-          billingQuery: invoice.doctorReviewQuery,
-          dispenseStatus: 'RETURNED_TO_DOCTOR',
-          createdAt: invoice.createdAt,
-          updatedAt: invoice.updatedAt,
-        }));
+        .map((invoice) => {
+          const consultLine = (invoice.items || []).find(
+            (i) => i.category === 'CONSULTATION' || (i.description && i.description.toLowerCase().includes('consultation'))
+          );
+          const fee = consultLine
+            ? (consultLine.unitPrice ?? consultLine.totalPrice)
+            : (invoice.consultationId?.consultationFee ?? user?.consultationFee ?? 100);
+          const procs = (invoice.items || [])
+            .filter((i) => i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure')))
+            .map((p) => ({
+              description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
+              amount: p.unitPrice || p.totalPrice || 0,
+            }));
+
+          return {
+            _id: `invoice-query-${invoice._id}`,
+            invoiceId: invoice._id,
+            appointmentId: invoice.doctorReviewQuery?.appointmentId,
+            patientId: invoice.patientId,
+            medicines: [],
+            invoiceItems: invoice.items || [],
+            invoice,
+            consultationFee: fee,
+            doctorProcedureCharges: procs,
+            billingQuery: invoice.doctorReviewQuery,
+            dispenseStatus: 'RETURNED_TO_DOCTOR',
+            createdAt: invoice.createdAt,
+            updatedAt: invoice.updatedAt,
+          };
+        });
+
       setReturnedBillingPrescriptions([...returned, ...invoiceQueries]);
     } catch (err) {
       console.error('Failed to load returned billing prescriptions:', err);
@@ -549,7 +624,6 @@ const targetDocId = user?.id || user?._id;
   };
 
   const handleReviewBillingQuery = (rx) => {
-    setSelectedReturnedRx(rx);
     const patId = rx.patientId?._id || rx.patientId;
     const patObj = typeof rx.patientId === 'object' && rx.patientId !== null
       ? rx.patientId
@@ -561,21 +635,35 @@ const targetDocId = user?.id || user?._id;
           gender: 'GENERAL',
         };
 
-    const prevItems = rx.invoiceItems || rx.items || [];
-    const prevConsultationItem = prevItems.find((i) => i.category === 'CONSULTATION');
-    const prevFee = rx.consultationFee ?? (prevConsultationItem ? prevConsultationItem.unitPrice : undefined);
-    const prevProcs = rx.doctorProcedureCharges || prevItems
-      .filter((i) => i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure')))
-      .map((p) => ({
-        description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
-        amount: p.unitPrice || p.totalPrice || 0,
-      }));
+    const prevItems = rx.invoiceItems || rx.items || rx.invoice?.items || [];
+    const prevConsultationItem = prevItems.find((i) => 
+      i.category === 'CONSULTATION' || (i.description && i.description.toLowerCase().includes('consultation'))
+    );
+    const resolvedFee = rx.consultationFee 
+      ?? rx.consultationId?.consultationFee 
+      ?? rx.invoice?.consultationId?.consultationFee
+      ?? (prevConsultationItem ? (prevConsultationItem.unitPrice ?? prevConsultationItem.totalPrice) : undefined)
+      ?? user?.consultationFee
+      ?? 100;
+
+    const prevProcs = (rx.doctorProcedureCharges && rx.doctorProcedureCharges.length > 0)
+      ? rx.doctorProcedureCharges
+      : prevItems
+          .filter((i) => i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure')))
+          .map((p) => ({
+            description: p.description ? p.description.replace(/^Doctor Procedure:\s*/i, '') : 'Procedure',
+            amount: p.unitPrice || p.totalPrice || 0,
+          }));
 
     const enrichedRx = {
       ...rx,
-      consultationFee: prevFee,
+      consultationFee: resolvedFee,
       doctorProcedureCharges: prevProcs,
+      invoiceItems: prevItems,
+      invoiceId: rx.invoiceId || rx.billingQuery?.invoiceId,
     };
+
+    setSelectedReturnedRx(enrichedRx);
 
     let targetToken = liveQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
       || departmentHoldQueue.find((t) => String(t.patientId?._id || t.patientId) === String(patId))
@@ -589,15 +677,19 @@ const targetDocId = user?.id || user?._id;
         patientId: patObj,
         chiefComplaints: rx.consultationId?.chiefComplaints || rx.billingQuery?.query || 'Returned from Billing',
         returnedPrescription: enrichedRx,
-        consultationFee: prevFee,
+        consultationFee: resolvedFee,
         doctorProcedureCharges: prevProcs,
+        invoiceItems: prevItems,
+        invoiceId: enrichedRx.invoiceId,
       };
     } else {
       targetToken = {
         ...targetToken,
         returnedPrescription: enrichedRx,
-        consultationFee: prevFee,
+        consultationFee: resolvedFee,
         doctorProcedureCharges: prevProcs,
+        invoiceItems: prevItems,
+        invoiceId: enrichedRx.invoiceId,
       };
     }
 

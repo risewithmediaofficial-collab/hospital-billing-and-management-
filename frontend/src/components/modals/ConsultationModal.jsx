@@ -6,6 +6,7 @@ import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSocket } from '../../providers/SocketProvider';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Stethoscope, X, AlertCircle, Plus, Trash2, CheckCircle2,
@@ -16,6 +17,7 @@ import {
 export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, returnedPrescription }) => {
   useScrollLock(isOpen);
   const { socket } = useSocket();
+  const { user } = useAuthStore();
 
   const activePatient = (typeof patient === 'object' && patient !== null)
     ? patient
@@ -130,13 +132,30 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       setAdviceToPatient('');
 
       // Pre-fill previous consultation fee & procedure charges from activeReturnedPrescription or token
-      const prevInvoiceItems = activeReturnedPrescription?.invoiceItems || token?.returnedPrescription?.invoiceItems || [];
-      const prevConsultationItem = prevInvoiceItems.find((i) => i.category === 'CONSULTATION');
-      const prevConsultationFee = activeReturnedPrescription?.consultationFee 
+      const prevInvoiceItems = activeReturnedPrescription?.invoiceItems 
+        || activeReturnedPrescription?.items
+        || activeReturnedPrescription?.invoice?.items
+        || token?.returnedPrescription?.invoiceItems 
+        || token?.returnedPrescription?.items
+        || token?.invoiceItems
+        || [];
+      const prevConsultationItem = prevInvoiceItems.find((i) => 
+        i.category === 'CONSULTATION' || (i.description && i.description.toLowerCase().includes('consultation'))
+      );
+      const resolvedFee = activeReturnedPrescription?.consultationFee 
+        ?? activeReturnedPrescription?.consultationId?.consultationFee
+        ?? activeReturnedPrescription?.invoice?.consultationId?.consultationFee
         ?? token?.returnedPrescription?.consultationFee 
+        ?? token?.returnedPrescription?.consultationId?.consultationFee
         ?? token?.consultationFee 
-        ?? (prevConsultationItem ? prevConsultationItem.unitPrice : '');
-      setConsultationFee(prevConsultationFee !== undefined && prevConsultationFee !== null ? String(prevConsultationFee) : '');
+        ?? token?.consultationId?.consultationFee
+        ?? token?.fee
+        ?? (prevConsultationItem ? (prevConsultationItem.unitPrice ?? prevConsultationItem.totalPrice) : undefined)
+        ?? token?.doctorId?.consultationFee
+        ?? user?.consultationFee
+        ?? (activeReturnedPrescription || token?.returnedPrescription ? 100 : undefined);
+      const prevConsultationFee = resolvedFee !== undefined && resolvedFee !== null && resolvedFee !== '' ? String(resolvedFee) : '';
+      setConsultationFee(prevConsultationFee);
 
       const prevProcedureItems = prevInvoiceItems.filter((i) => 
         i.category === 'OTHER' || (i.description && i.description.toLowerCase().includes('procedure'))
@@ -216,6 +235,37 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
       socket.off('pharmacy:billing_sent_to_doctor', handleUpdate);
     };
   }, [socket, isOpen, activePatient, fetchDepartmentOrders, fetchPharmacyBilled]);
+
+  // If consultationFee is empty or 0 for a returned case, query pending doctor review invoices to recover the consultation fee
+  useEffect(() => {
+    if (!isOpen) return;
+    const invId = activeReturnedPrescription?.invoiceId 
+      || activeReturnedPrescription?.billingQuery?.invoiceId 
+      || token?.invoiceId 
+      || token?.returnedPrescription?.invoiceId;
+    const patId = activePatient?._id || activePatient?.id;
+
+    if (!consultationFee || consultationFee === '0') {
+      axiosClient.get('/billing/doctor-review-queries')
+        .then((res) => {
+          const invoices = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+          const matched = invoices.find((inv) => 
+            (invId && String(inv._id) === String(invId)) ||
+            (patId && String(inv.patientId?._id || inv.patientId) === String(patId))
+          );
+          if (matched && Array.isArray(matched.items)) {
+            const consultLine = matched.items.find((i) => 
+              i.category === 'CONSULTATION' || (i.description && i.description.toLowerCase().includes('consultation'))
+            );
+            const fee = consultLine?.unitPrice ?? consultLine?.totalPrice ?? matched.consultationId?.consultationFee;
+            if (fee !== undefined && fee !== null && fee !== '') {
+              setConsultationFee(String(fee));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, activeReturnedPrescription, token, activePatient, consultationFee]);
 
   if (!isOpen || !token) return null;
 
@@ -933,7 +983,7 @@ export const ConsultationModal = ({ isOpen, onClose, token, patient, onSuccess, 
                   <Receipt size={16} className="text-indigo-600" /> Itemized Consultation Bill Breakdown
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                  Dispatched to Cashier
+                  {returnedQuery || activeReturnedPrescription ? 'Returned from Billing' : 'Dispatched to Cashier'}
                 </span>
               </div>
 

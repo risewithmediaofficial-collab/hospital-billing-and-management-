@@ -5,11 +5,13 @@ import { axiosClient } from '../../api/axiosClient';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useDepartmentNotificationStore } from '../../store/departmentNotificationStore';
+import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/formatters';
 import { Receipt, X, AlertCircle, CheckCircle2, User, FileText, Sparkles, Stethoscope } from 'lucide-react';
 
 export const DirectToBillingModal = ({ isOpen, onClose, token, onSuccess }) => {
   useScrollLock(isOpen);
+  const { user } = useAuthStore();
 
   const activePatient = (typeof token?.patientId === 'object' && token?.patientId !== null)
     ? token.patientId
@@ -20,19 +22,21 @@ export const DirectToBillingModal = ({ isOpen, onClose, token, onSuccess }) => {
         gender: 'GENERAL',
       };
 
-  const [consultantFee, setConsultantFee] = useState('0');
+  const defaultFee = token?.consultationFee ?? token?.fee ?? token?.doctorId?.consultationFee ?? user?.consultationFee ?? 100;
+  const [consultantFee, setConsultantFee] = useState(String(defaultFee || 100));
   const [suggestions, setSuggestions] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
-      setConsultantFee('0');
+      const initFee = token?.consultationFee ?? token?.fee ?? token?.doctorId?.consultationFee ?? user?.consultationFee ?? 100;
+      setConsultantFee(String(initFee || 100));
       setSuggestions('');
       setError(null);
       setIsLoading(false);
     }
-  }, [isOpen, token]);
+  }, [isOpen, token, user]);
 
   if (!isOpen || !token) return null;
 
