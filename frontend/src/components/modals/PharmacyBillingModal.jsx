@@ -56,21 +56,23 @@ export const PharmacyBillingModal = ({
   if (!isOpen || !prescription) return null;
 
   const handleQtyChange = (index, val) => {
-    const qty = Math.max(1, Number(val) || 1);
     setItems((prev) => {
       const u = [...prev];
-      u[index].qty = qty;
-      u[index].totalPrice = Math.round(qty * Number(u[index].unitPrice || 0) * 100) / 100;
+      u[index].qty = val;
+      const parsedQty = val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0);
+      const parsedPrice = Number(u[index].unitPrice) || 0;
+      u[index].totalPrice = Math.round(parsedQty * parsedPrice * 100) / 100;
       return u;
     });
   };
 
   const handleUnitPriceChange = (index, val) => {
-    const unitPrice = Math.max(0, Number(val) || 0);
     setItems((prev) => {
       const u = [...prev];
-      u[index].unitPrice = unitPrice;
-      u[index].totalPrice = Math.round(Number(u[index].qty || 1) * unitPrice * 100) / 100;
+      u[index].unitPrice = val;
+      const parsedPrice = val === '' ? 0 : Math.max(0, parseFloat(val) || 0);
+      const parsedQty = Number(u[index].qty) || 0;
+      u[index].totalPrice = Math.round(parsedQty * parsedPrice * 100) / 100;
       return u;
     });
   };
@@ -111,10 +113,21 @@ export const PharmacyBillingModal = ({
 
   const handleConfirmFinalizeToBilling = () => {
     if (onDispense) {
+      const cleanItems = items.map((item) => {
+        const q = Math.max(1, parseInt(item.qty, 10) || 1);
+        const p = Math.max(0, parseFloat(item.unitPrice) || 0);
+        return {
+          ...item,
+          qty: q,
+          unitPrice: p,
+          totalPrice: Math.round(q * p * 100) / 100,
+        };
+      });
+      const cleanTotal = cleanItems.reduce((sum, item) => sum + item.totalPrice, 0);
       onDispense({
-        items,
-        totalMedicineCharge,
-        pharmacyNotes: pharmacyNotes.trim() || `Medicine bill ₹${totalMedicineCharge} sent directly to Cashier / Billing Desk`,
+        items: cleanItems,
+        totalMedicineCharge: cleanTotal,
+        pharmacyNotes: pharmacyNotes.trim() || `Medicine bill ₹${cleanTotal} sent directly to Cashier / Billing Desk`,
       });
     }
   };
@@ -228,7 +241,8 @@ export const PharmacyBillingModal = ({
                       <input
                         type="number"
                         min="1"
-                        value={item.qty}
+                        placeholder="1"
+                        value={item.qty ?? ''}
                         onChange={(e) => handleQtyChange(idx, e.target.value)}
                         className="w-20 px-2 py-1 border border-slate-300 rounded text-center text-xs font-black text-slate-900 focus:ring-1 focus:ring-indigo-500 bg-slate-50"
                       />
@@ -242,7 +256,8 @@ export const PharmacyBillingModal = ({
                           type="number"
                           step="0.5"
                           min="0"
-                          value={item.unitPrice}
+                          placeholder="0"
+                          value={item.unitPrice ?? ''}
                           onChange={(e) => handleUnitPriceChange(idx, e.target.value)}
                           className="w-24 pl-5 pr-2 py-1 border border-slate-300 rounded text-right text-xs font-bold text-slate-900 focus:ring-1 focus:ring-indigo-500 bg-slate-50"
                         />

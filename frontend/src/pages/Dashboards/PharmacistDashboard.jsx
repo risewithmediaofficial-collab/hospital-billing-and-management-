@@ -74,16 +74,15 @@ export const PharmacistDashboard = () => {
 
   useScrollLock(showAddMedModal || showAddBatchModal || showSubReqModal || showAdjustModal || showTransferModal || isBillingModalOpen);
 
-  // Forms
   const [medForm, setMedForm] = useState({
     name: '', genericName: '', brandName: '', category: 'Antibiotic', dosageForm: 'TABLET',
-    strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: 0, sellingPrice: 0,
-    taxPercentage: 0, minimumStockLevel: 20, reorderQuantity: 100, prescriptionRequired: true
+    strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: '', sellingPrice: '',
+    taxPercentage: '', minimumStockLevel: '', reorderQuantity: '', prescriptionRequired: true
   });
 
   const [batchForm, setBatchForm] = useState({
     medicineId: '', batchNumber: '', location: 'MAIN_PHARMACY', mfgDate: '', expiryDate: '',
-    purchasePrice: 0, sellingPrice: 0, quantity: 100, storageLocation: 'Rack 1', reason: 'Initial Stock'
+    purchasePrice: '', sellingPrice: '', quantity: '', storageLocation: 'Rack 1', reason: 'Initial Stock'
   });
 
   const [transferForm, setTransferForm] = useState({
@@ -241,8 +240,21 @@ export const PharmacistDashboard = () => {
   const handleCreateMedicine = async (e) => {
     e.preventDefault();
     try {
-      await axiosClient.post('/pharmacy/medicines', medForm);
+      const payload = {
+        ...medForm,
+        purchasePrice: medForm.purchasePrice === '' ? 0 : Number(medForm.purchasePrice),
+        sellingPrice: medForm.sellingPrice === '' ? 0 : Number(medForm.sellingPrice),
+        taxPercentage: medForm.taxPercentage === '' ? 0 : Number(medForm.taxPercentage),
+        minimumStockLevel: medForm.minimumStockLevel === '' ? 20 : Number(medForm.minimumStockLevel),
+        reorderQuantity: medForm.reorderQuantity === '' ? 100 : Number(medForm.reorderQuantity),
+      };
+      await axiosClient.post('/pharmacy/medicines', payload);
       setShowAddMedModal(false);
+      setMedForm({
+        name: '', genericName: '', brandName: '', category: 'Antibiotic', dosageForm: 'TABLET',
+        strength: '500 mg', manufacturer: '', supplier: '', purchasePrice: '', sellingPrice: '',
+        taxPercentage: '', minimumStockLevel: '', reorderQuantity: '', prescriptionRequired: true
+      });
       fetchData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to add medicine');
@@ -252,8 +264,18 @@ export const PharmacistDashboard = () => {
   const handleAddBatch = async (e) => {
     e.preventDefault();
     try {
-      await axiosClient.post('/pharmacy/batches', batchForm);
+      const payload = {
+        ...batchForm,
+        quantity: batchForm.quantity === '' ? 1 : Number(batchForm.quantity),
+        purchasePrice: batchForm.purchasePrice === '' ? 0 : Number(batchForm.purchasePrice),
+        sellingPrice: batchForm.sellingPrice === '' ? 0 : Number(batchForm.sellingPrice),
+      };
+      await axiosClient.post('/pharmacy/batches', payload);
       setShowAddBatchModal(false);
+      setBatchForm({
+        medicineId: '', batchNumber: '', location: 'MAIN_PHARMACY', mfgDate: '', expiryDate: '',
+        purchasePrice: '', sellingPrice: '', quantity: '', storageLocation: 'Rack 1', reason: 'Initial Stock'
+      });
       fetchData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to add batch');
@@ -701,7 +723,14 @@ export const PharmacistDashboard = () => {
                   onChange={(e) => {
                     if (!e.target.value) return;
                     const rec = RECOMMENDED_MEDICINES.find(r => r.name === e.target.value);
-                    if (rec) setMedForm({ ...medForm, ...rec });
+                    if (rec) {
+                      setMedForm({
+                        ...medForm,
+                        ...rec,
+                        purchasePrice: rec.purchasePrice !== undefined && rec.purchasePrice !== null ? String(rec.purchasePrice) : '',
+                        sellingPrice: rec.sellingPrice !== undefined && rec.sellingPrice !== null ? String(rec.sellingPrice) : '',
+                      });
+                    }
                   }}
                   className="w-full p-2 border border-indigo-200 bg-white rounded font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500"
                 >
@@ -745,15 +774,39 @@ export const PharmacistDashboard = () => {
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="font-bold text-slate-700">Purchase Price (₹)</label>
-                  <input type="number" value={medForm.purchasePrice} onChange={(e) => setMedForm({ ...medForm, purchasePrice: Number(e.target.value) })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={medForm.purchasePrice ?? ''}
+                    onChange={(e) => setMedForm({ ...medForm, purchasePrice: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">Selling Price (₹)</label>
-                  <input type="number" value={medForm.sellingPrice} onChange={(e) => setMedForm({ ...medForm, sellingPrice: Number(e.target.value) })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={medForm.sellingPrice ?? ''}
+                    onChange={(e) => setMedForm({ ...medForm, sellingPrice: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">GST Tax %</label>
-                  <input type="number" value={medForm.taxPercentage} onChange={(e) => setMedForm({ ...medForm, taxPercentage: Number(e.target.value) })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0"
+                    value={medForm.taxPercentage ?? ''}
+                    onChange={(e) => setMedForm({ ...medForm, taxPercentage: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
                 </div>
               </div>
 
@@ -818,7 +871,15 @@ export const PharmacistDashboard = () => {
                 </div>
                 <div>
                   <label className="font-bold text-slate-700">Quantity (Units) *</label>
-                  <input type="number" required min="1" value={batchForm.quantity} onChange={(e) => setBatchForm({ ...batchForm, quantity: Number(e.target.value) })} className="w-full p-2 border rounded mt-1" />
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="100"
+                    value={batchForm.quantity ?? ''}
+                    onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })}
+                    className="w-full p-2 border rounded mt-1"
+                  />
                 </div>
               </div>
 

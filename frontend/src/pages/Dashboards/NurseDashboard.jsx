@@ -96,6 +96,7 @@ export const NurseDashboard = () => {
       await axiosClient.patch(`/pharmacy/nurse-tasks/${taskId}/status`, {
         status: newStatus,
         ...adminForm,
+        administeredQty: Math.max(1, parseInt(adminForm.administeredQty, 10) || 1),
       });
       setSelectedTask(null);
       fetchNurseTasks();
@@ -233,8 +234,9 @@ export const NurseDashboard = () => {
                   <input
                     type="number"
                     min="1"
-                    value={adminForm.administeredQty}
-                    onChange={(e) => setAdminForm({ ...adminForm, administeredQty: Number(e.target.value) })}
+                    placeholder="1"
+                    value={adminForm.administeredQty ?? ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, administeredQty: e.target.value })}
                     className="w-full p-2 border rounded mt-1"
                   />
                 </div>
