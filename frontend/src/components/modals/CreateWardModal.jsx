@@ -310,18 +310,24 @@ export const CreateWardModal = ({ isOpen, onClose, wardToEdit = null, blocks = [
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                  Default Tariff (₹/day)
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[11px] font-bold text-emerald-800 mb-1 uppercase tracking-wider flex items-center justify-between">
+                  <span>Daily Bed Tariff (₹/day) *</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold lowercase">inherited by all beds</span>
                 </label>
                 <Input
                   type="number"
                   min="0"
-                  placeholder="e.g. 150"
+                  placeholder="e.g. 500"
                   value={defaultDailyCharge}
                   onChange={(e) => setDefaultDailyCharge(e.target.value)}
-                  className="w-full text-xs font-bold text-indigo-700"
+                  data-testid="ward-tariff-input"
+                  className="w-full text-xs font-extrabold text-emerald-700 border-emerald-300 focus:ring-emerald-500"
+                  required
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  ⭐ Set once here. All rooms &amp; beds under this ward automatically inherit this price.
+                </p>
               </div>
             </div>
 

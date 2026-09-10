@@ -764,7 +764,6 @@ export class BedsService {
         const suffix = capacity === 1 ? '' : `-${bedSuffixes[i] || (i + 1)}`;
         const bedNum = `${roomNumber}${suffix}`;
         const wardTariff = wardDoc?.defaultDailyCharge || 150;
-        const totalTariff = (data.dailyBedCharge ? Number(data.dailyBedCharge) : 0) + dailyRoomCharge + wardTariff;
 
         bedsToCreate.push({
           hospitalId,
@@ -781,10 +780,10 @@ export class BedsService {
           bedNumber: bedNum,
           bedName: `Bed ${bedNum}`,
           bedType: data.bedType || 'NORMAL',
-          dailyBedCharge: Number(data.dailyBedCharge) || 0,
-          dailyRoomCharge,
+          dailyBedCharge: 0,
+          dailyRoomCharge: 0,
           dailyWardCharge: wardTariff,
-          dailyTariff: totalTariff > 0 ? totalTariff : 150,
+          dailyTariff: wardTariff,
           status: BED_STATUS.AVAILABLE,
         });
       }
@@ -1076,7 +1075,6 @@ export class BedsService {
         const existingBed = await Bed.findOne({ hospitalId, bedNumber, roomId: room._id });
         if (!existingBed) {
           const wardTariff = wardDoc?.defaultDailyCharge || 150;
-          const totalTariff = (Number(dailyBedCharge) || 0) + (Number(dailyRoomCharge) || 0) + wardTariff;
 
           const newBed = await Bed.create({
             hospitalId,
@@ -1093,10 +1091,10 @@ export class BedsService {
             bedNumber,
             bedName: `Bed ${bedNumber}`,
             bedType,
-            dailyBedCharge: Number(dailyBedCharge) || 0,
-            dailyRoomCharge: Number(dailyRoomCharge) || 0,
+            dailyBedCharge: 0,
+            dailyRoomCharge: 0,
             dailyWardCharge: wardTariff,
-            dailyTariff: totalTariff > 0 ? totalTariff : 150,
+            dailyTariff: wardTariff,
             status: BED_STATUS.AVAILABLE,
           });
           createdBeds.push(newBed);

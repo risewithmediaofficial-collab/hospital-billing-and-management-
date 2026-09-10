@@ -61,25 +61,18 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
     if (!roomToEdit) {
       if (type === 'SINGLE') {
         setMaxBedCapacity(1);
-        setDailyRoomCharge(1000);
       } else if (type === 'TWIN_SHARING') {
         setMaxBedCapacity(2);
-        setDailyRoomCharge(500);
       } else if (type === 'TRIPLE_SHARING') {
         setMaxBedCapacity(3);
-        setDailyRoomCharge(350);
       } else if (type === 'FOUR_SHARING') {
         setMaxBedCapacity(4);
-        setDailyRoomCharge(250);
       } else if (type === 'MULTI_SHARING' || type === 'GENERAL_WARD_ROOM') {
         setMaxBedCapacity(6);
-        setDailyRoomCharge(150);
       } else if (type === 'DELUXE' || type === 'SUITE') {
         setMaxBedCapacity(1);
-        setDailyRoomCharge(2500);
       } else if (type === 'ICU' || type === 'NICU') {
         setMaxBedCapacity(2);
-        setDailyRoomCharge(1500);
       }
     }
   };
@@ -104,7 +97,7 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
           floorId: floorId || null,
           wardId: wardId || null,
           maxBedCapacity: Number(maxBedCapacity) || 1,
-          dailyRoomCharge: Number(dailyRoomCharge) || 0,
+          dailyRoomCharge: 0,
           description: description.trim(),
           status,
         });
@@ -117,9 +110,9 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
           floorId: floorId || null,
           wardId: wardId || null,
           maxBedCapacity: Number(maxBedCapacity) || 1,
-          dailyRoomCharge: Number(dailyRoomCharge) || 0,
+          dailyRoomCharge: 0,
           autoGenerateBeds,
-          dailyBedCharge: Number(dailyBedCharge) || 0,
+          dailyBedCharge: 0,
           bedType,
           description: description.trim(),
           status,
@@ -321,36 +314,32 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                  Bed Capacity (Beds in this Room)
-                </label>
-                <Input
-                  type="number"
-                  data-testid="room-capacity-input"
-                  min="1"
-                  max="50"
-                  placeholder="e.g. 1"
-                  value={maxBedCapacity}
-                  onChange={(e) => setMaxBedCapacity(e.target.value)}
-                  className="w-full text-xs font-semibold"
-                />
-              </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                Bed Capacity (Beds in this Room)
+              </label>
+              <Input
+                type="number"
+                data-testid="room-capacity-input"
+                min="1"
+                max="50"
+                placeholder="e.g. 1"
+                value={maxBedCapacity}
+                onChange={(e) => setMaxBedCapacity(e.target.value)}
+                className="w-full text-xs font-semibold"
+              />
+            </div>
 
+            {/* Inherited tariff info banner */}
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5">
+              <span className="text-emerald-500 text-base shrink-0 mt-0.5">✓</span>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                  Daily Room Charge (₹/day)
-                </label>
-                <Input
-                  type="number"
-                  data-testid="room-charge-input"
-                  min="0"
-                  placeholder="e.g. 500"
-                  value={dailyRoomCharge}
-                  onChange={(e) => setDailyRoomCharge(e.target.value)}
-                  className="w-full text-xs font-bold text-indigo-700"
-                />
+                <p className="text-xs font-bold text-emerald-800">
+                  Pricing automatically inherited from Ward
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  The daily bed tariff is set once at the Ward level. All rooms and beds under this ward are billed at the ward's configured rate — no separate room or bed charge needed.
+                </p>
               </div>
             </div>
 
@@ -372,38 +361,26 @@ export const CreateRoomModal = ({ isOpen, onClose, roomToEdit = null, blocks = [
                 </div>
 
                 {autoGenerateBeds && (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div>
-                      <label className="block text-[10px] font-bold text-indigo-900 mb-1 uppercase tracking-wider">
-                        Bed Type
-                      </label>
-                      <select
-                        value={bedType}
-                        onChange={(e) => setBedType(e.target.value)}
-                        className="w-full glass-input rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 border border-indigo-200 bg-white"
-                      >
-                        <option value="NORMAL">Normal Standard</option>
-                        <option value="ELECTRIC">Electric / Adjustable</option>
-                        <option value="ICU">ICU Critical Bed</option>
-                        <option value="VENTILATOR">Ventilator Bed</option>
-                        <option value="PEDIATRIC">Pediatric Crib</option>
-                        <option value="MATERNITY">Maternity Delivery Bed</option>
-                        <option value="ISOLATION">Isolation Bed</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-indigo-900 mb-1 uppercase tracking-wider">
-                        Daily Bed Charge (₹/day)
-                      </label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={dailyBedCharge}
-                        onChange={(e) => setDailyBedCharge(e.target.value)}
-                        className="w-full text-xs font-bold bg-white"
-                      />
-                    </div>
+                  <div className="pt-1">
+                    <label className="block text-[10px] font-bold text-indigo-900 mb-1 uppercase tracking-wider">
+                      Bed Type
+                    </label>
+                    <select
+                      value={bedType}
+                      onChange={(e) => setBedType(e.target.value)}
+                      className="w-full glass-input rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 border border-indigo-200 bg-white"
+                    >
+                      <option value="NORMAL">Normal Standard</option>
+                      <option value="ELECTRIC">Electric / Adjustable</option>
+                      <option value="ICU">ICU Critical Bed</option>
+                      <option value="VENTILATOR">Ventilator Bed</option>
+                      <option value="PEDIATRIC">Pediatric Crib</option>
+                      <option value="MATERNITY">Maternity Delivery Bed</option>
+                      <option value="ISOLATION">Isolation Bed</option>
+                    </select>
+                    <p className="text-[10px] text-indigo-600 mt-1 font-semibold">
+                      ⭐ Bed tariff is inherited from the selected Ward — no separate price needed.
+                    </p>
                   </div>
                 )}
               </div>

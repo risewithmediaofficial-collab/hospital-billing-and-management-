@@ -15,9 +15,6 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
   const [wardId, setWardId] = useState('');
   const [roomId, setRoomId] = useState('');
   const [dailyTariff, setDailyTariff] = useState('');
-  const [dailyBedCharge, setDailyBedCharge] = useState('');
-  const [dailyRoomCharge, setDailyRoomCharge] = useState('');
-  const [dailyWardCharge, setDailyWardCharge] = useState('');
   const [status, setStatus] = useState('AVAILABLE');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -33,10 +30,7 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
         setFloorId(bedToEdit.floorId?._id || bedToEdit.floorId || '');
         setWardId(bedToEdit.wardId?._id || bedToEdit.wardId || '');
         setRoomId(bedToEdit.roomId?._id || bedToEdit.roomId || '');
-        setDailyTariff(bedToEdit.dailyTariff !== undefined ? bedToEdit.dailyTariff : 150);
-        setDailyBedCharge(bedToEdit.dailyBedCharge || 0);
-        setDailyRoomCharge(bedToEdit.dailyRoomCharge || 0);
-        setDailyWardCharge(bedToEdit.dailyWardCharge || 150);
+        setDailyTariff(bedToEdit.dailyTariff !== undefined ? bedToEdit.dailyTariff : '');
         setStatus(bedToEdit.status || 'AVAILABLE');
         setNotes(bedToEdit.notes || '');
       } else {
@@ -45,12 +39,11 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
         setBedType('NORMAL');
         setBlockId('');
         setFloorId('');
-        setWardId(wards.length > 0 ? (wards[0]._id || '') : '');
+        // Auto-select first ward and pre-fill tariff
+        const firstWard = wards.length > 0 ? wards[0] : null;
+        setWardId(firstWard?._id || '');
+        setDailyTariff(firstWard?.defaultDailyCharge || '');
         setRoomId('');
-        setDailyTariff('');
-        setDailyBedCharge('');
-        setDailyRoomCharge('');
-        setDailyWardCharge('');
         setStatus('AVAILABLE');
         setNotes('');
       }
@@ -63,12 +56,15 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
     if (selRoomId) {
       const matched = rooms.find((r) => String(r._id) === String(selRoomId));
       if (matched) {
-        if (matched.wardId?._id || matched.wardId) setWardId(matched.wardId?._id || matched.wardId);
+        const selWardId = matched.wardId?._id || matched.wardId;
+        if (selWardId) {
+          setWardId(selWardId);
+          // Auto-fill tariff from the ward this room belongs to
+          const matchedWard = wards.find((w) => String(w._id) === String(selWardId));
+          if (matchedWard) setDailyTariff(matchedWard.defaultDailyCharge || '');
+        }
         if (matched.floorId?._id || matched.floorId) setFloorId(matched.floorId?._id || matched.floorId);
         if (matched.blockId?._id || matched.blockId) setBlockId(matched.blockId?._id || matched.blockId);
-        const rCharge = Number(matched.dailyRoomCharge) || 0;
-        setDailyRoomCharge(rCharge);
-        setDailyTariff((Number(dailyBedCharge) || 0) + rCharge + (Number(dailyWardCharge) || 150));
       }
     }
   };
@@ -80,9 +76,8 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
       if (matched) {
         if (matched.floorId?._id || matched.floorId) setFloorId(matched.floorId?._id || matched.floorId);
         if (matched.blockId?._id || matched.blockId) setBlockId(matched.blockId?._id || matched.blockId);
-        const wCharge = Number(matched.defaultDailyCharge) || 150;
-        setDailyWardCharge(wCharge);
-        setDailyTariff((Number(dailyBedCharge) || 0) + (Number(dailyRoomCharge) || 0) + wCharge);
+        // Auto-fill tariff from ward
+        setDailyTariff(matched.defaultDailyCharge || '');
       }
     }
   };
@@ -118,9 +113,9 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
         floorId: floorId || null,
         wardId: wardId || null,
         roomId: roomId || null,
-        dailyBedCharge: Number(dailyBedCharge) || 0,
-        dailyRoomCharge: Number(dailyRoomCharge) || 0,
-        dailyWardCharge: Number(dailyWardCharge) || 0,
+        dailyBedCharge: 0,
+        dailyRoomCharge: 0,
+        dailyWardCharge: 0,
         dailyTariff: Number(dailyTariff) || 150,
         status,
         notes: notes.trim(),
@@ -346,9 +341,10 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                Total Daily Accommodation Charge (₹/day)
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 space-y-2">
+              <label className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                <span>Daily Bed Tariff (₹/day)</span>
+                <span className="text-[10px] text-emerald-600 font-semibold lowercase">auto-filled from ward</span>
               </label>
               <div className="flex items-center gap-2">
                 <Input
@@ -357,11 +353,14 @@ export const CreateBedModal = ({ isOpen, onClose, bedToEdit = null, blocks = [],
                   value={dailyTariff}
                   onChange={(e) => setDailyTariff(e.target.value)}
                   data-testid="bed-charge-input"
-                  className="text-sm font-extrabold text-emerald-700"
+                  className="text-sm font-extrabold text-emerald-700 border-emerald-300"
                   required
                 />
                 <span className="text-xs text-slate-500 font-semibold shrink-0">₹ per 24 hours</span>
               </div>
+              <p className="text-[10px] text-emerald-700 font-semibold">
+                ⭐ Auto-inherited from the selected ward's tariff. You may adjust for this specific bed if needed.
+              </p>
             </div>
 
             <div>
