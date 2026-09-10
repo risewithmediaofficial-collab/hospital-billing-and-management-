@@ -72,7 +72,19 @@ export const PharmacistDashboard = () => {
   const [viewingMedicine, setViewingMedicine] = useState(null);
   const [showEditMedModal, setShowEditMedModal] = useState(false);
   const [editMedForm, setEditMedForm] = useState(null);
-  const [inventorySubTab, setInventorySubTab] = useState('all'); // 'all' | 'prediction' | 'in_stock' | 'out_of_stock'
+  const [inventorySubTab, setInventorySubTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    return ['all', 'prediction', 'in_stock', 'out_of_stock'].includes(tab) ? tab : 'all';
+  }); // 'all' | 'prediction' | 'in_stock' | 'out_of_stock'
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab && ['all', 'prediction', 'in_stock', 'out_of_stock'].includes(tab)) {
+      setInventorySubTab(tab);
+    }
+  }, [location.search]);
   const [selectedRx, setSelectedRx] = useState(null);
   const [billingPrescription, setBillingPrescription] = useState(null);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);

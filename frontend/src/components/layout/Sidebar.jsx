@@ -35,6 +35,7 @@ export const WORK_MODE_NAVIGATION = [
 
   // Support & Diagnostics
   { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF'] },
+  { title: 'Pharmacy Stock & Prediction', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy', category: 'Support & Diagnostics', requiredRoles: ['PHARMACIST', 'PHARMACY_STAFF'] },
   { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory', category: 'Support & Diagnostics', requiredRoles: ['LAB_TECH', 'LABORATORY_STAFF'] },
   { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology', category: 'Support & Diagnostics', requiredRoles: ['RADIOLOGIST', 'RADIOLOGY_STAFF'] },
 
@@ -68,6 +69,7 @@ const ALL_MODULE_NAVIGATION = [
   { title: 'Laboratory Desk', path: '/laboratory/dashboard', icon: 'TestTube', module: 'laboratory' },
   { title: 'Radiology Desk', path: '/radiology/dashboard', icon: 'Scan', module: 'radiology' },
   { title: 'Pharmacy Desk', path: '/pharmacy/dashboard', icon: 'Pill', module: 'pharmacy' },
+  { title: 'Pharmacy Stock & Prediction', path: '/pharmacy/stock', icon: 'Boxes', module: 'pharmacy' },
   { title: 'Central Billing Desk', path: '/billing/dashboard', icon: 'CreditCard', module: 'billing' },
   { title: 'Receipts & Payments', path: '/billing/dashboard?tab=RECEIPTS', icon: 'Receipt', module: 'billing' },
   { title: 'Emergency Console', path: '/emergency', icon: 'ShieldAlert', module: 'emergency' },
