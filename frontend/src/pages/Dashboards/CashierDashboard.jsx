@@ -299,7 +299,7 @@ export const CashierDashboard = () => {
     const name = `${pat.firstName || ''} ${pat.lastName || ''}`.toLowerCase();
     const uhid = (pat.uhid || '').toLowerCase();
     const rcNo = (rc.receiptNo || '').toLowerCase();
-    const invNo = (rc.invoiceId?.invoiceNo || '').toLowerCase();
+    const invNo = (rc.invoiceId?.invoiceNo || rc.invoiceNo || '').toLowerCase();
     const reason = (rc.deletionReason || '').toLowerCase();
     const deletedBy = (rc.deletedByName || rc.deletedBy?.name || '').toLowerCase();
     const search = receiptSearchTerm.toLowerCase();
@@ -802,6 +802,7 @@ export const CashierDashboard = () => {
                       <th className="p-3">Deleted By</th>
                       <th className="p-3">Deletion Reason</th>
                       <th className="p-3 text-center">Date Deleted</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -819,7 +820,7 @@ export const CashierDashboard = () => {
                                   VOIDED
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || rc.invoiceNo || 'INV'}</p>
                             </td>
                             <td className="p-3">
                               <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
@@ -833,7 +834,7 @@ export const CashierDashboard = () => {
                               )}
                             </td>
                             <td className="p-3 text-right font-mono font-bold text-rose-600 text-sm">
-                              {formatCurrency(rc.amountPaid)}
+                              {formatCurrency(rc.amountPaid || rc.grandTotal || 0)}
                             </td>
                             <td className="p-3">
                               <p className="font-bold text-slate-800 text-[11px]">{rc.cashierId?.name || 'Cashier'}</p>
@@ -853,12 +854,22 @@ export const CashierDashboard = () => {
                                 ? new Date(rc.deletedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                                 : new Date(rc.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                             </td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptForView(rc)}
+                                className="px-2.5 py-1.5 rounded-xl font-bold text-xs text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 shrink-0 ml-auto cursor-pointer active:scale-95"
+                              >
+                                <Eye size={13} className="text-rose-600" />
+                                <span>View</span>
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
+                        <td colSpan={8} className="p-8 text-center text-slate-500 text-xs">
                           No deleted bills found in the archive. All active records remain intact.
                         </td>
                       </tr>

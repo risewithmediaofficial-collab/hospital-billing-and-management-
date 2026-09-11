@@ -102,12 +102,17 @@ export const OfficialReceiptModal = ({
     window.open(`https://wa.me/${rawClean.length >= 10 ? rawClean : ''}?text=${encoded}`, '_blank');
   };
 
+  const isDeleted = Boolean(receipt?.isDeleted || invData?.isDeleted || invData?.status === 'CANCELLED');
+  const deletionReason = receipt?.deletionReason || invData?.deletionReason;
+  const deletedByName = receipt?.deletedByName || receipt?.deletedBy?.name || invData?.deletedByName || invData?.deletedBy?.name;
+  const deletedAt = receipt?.deletedAt || invData?.deletedAt;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Official Medical Receipt & Bill"
-      subtitle="Executive 80mm / A4 Thermal Printable Patient Bill"
+      title={isDeleted ? "Voided / Cancelled Patient Bill" : "Official Medical Receipt & Bill"}
+      subtitle={isDeleted ? "Read-Only Audit Trail Archive" : "Executive 80mm / A4 Thermal Printable Patient Bill"}
       icon={ReceiptIcon}
       maxWidth="max-w-2xl"
     >
@@ -132,10 +137,39 @@ export const OfficialReceiptModal = ({
             <p className="text-[10px] text-slate-500 font-mono">
               Phone: {hospPhone} &nbsp;|&nbsp; Email: {hospEmail}
             </p>
-            <div className="inline-block mt-1 px-3 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-800">
-              Official Medical Cash Receipt & Treatment Bill
-            </div>
+            {isDeleted ? (
+              <div className="inline-block mt-1 px-3 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-[10px] font-black uppercase tracking-wider text-rose-800">
+                ⚠️ VOIDED / CANCELLED BILL (DELETED ARCHIVE)
+              </div>
+            ) : (
+              <div className="inline-block mt-1 px-3 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-800">
+                Official Medical Cash Receipt & Treatment Bill
+              </div>
+            )}
           </div>
+
+          {/* AUDIT RECORD BANNER FOR VOIDED BILLS */}
+          {isDeleted && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5 text-rose-950">
+                <ShieldCheck size={14} className="text-rose-600" /> Voided Bill Audit Trail Record
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-rose-200/80">
+                <div>
+                  <span className="text-rose-700 font-medium">Deleted By: </span>
+                  <span className="font-bold">{deletedByName || 'Authorized Staff'}</span>
+                </div>
+                <div>
+                  <span className="text-rose-700 font-medium">Date Deleted: </span>
+                  <span className="font-bold">{deletedAt ? new Date(deletedAt).toLocaleString() : 'N/A'}</span>
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <span className="text-rose-700 font-medium">Reason: </span>
+                  <span className="font-bold text-rose-950">{deletionReason || 'Reason not recorded'}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* PATIENT & BILL METADATA GRID */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 p-3 rounded-xl bg-slate-50/80 border border-slate-200 text-[11px]">

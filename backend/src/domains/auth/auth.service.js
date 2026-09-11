@@ -744,7 +744,11 @@ export class AuthService {
   }
 
   static async getMe(userId) {
-    const user = await User.findById(userId).populate('hospitalId').populate('branchId');
+    let user = await User.findById(userId).populate('hospitalId').populate('branchId');
+    if (!user) {
+      // Fallback: Check the base platform User model in case of SUPER_ADMIN or master directory account
+      user = await mongoose.model('User').findById(userId).populate('hospitalId').populate('branchId');
+    }
     if (!user) {
       throw new ApiError(404, 'User account not found', null, 'USER_NOT_FOUND');
     }

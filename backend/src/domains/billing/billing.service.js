@@ -492,7 +492,7 @@ export class BillingService {
   }
 
   /**
-   * Fetch all voided/deleted bills for the hospital
+   * Fetch all voided/deleted bills for the hospital (both voided receipts and cancelled invoices)
    */
   static async getDeletedReceipts(user) {
     const query = { isDeleted: true };
@@ -505,21 +505,78 @@ export class BillingService {
       else if (user?.hospitalId) query.hospitalId = user.hospitalId;
     }
 
-    const deletedReceipts = await Receipt.find(query)
-      .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
-      .populate({
-        path: 'invoiceId',
-        populate: [
-          { path: 'patientId' },
-          { path: 'doctorId', select: 'name specialization cabinNo' },
-        ],
-      })
-      .populate('patientId')
-      .populate('cashierId', 'name email role')
-      .populate('deletedBy', 'name email role')
-      .sort({ deletedAt: -1, updatedAt: -1 });
+    const [deletedReceipts, deletedInvoices] = await Promise.all([
+      Receipt.find(query)
+        .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
+        .populate({
+          path: 'invoiceId',
+          populate: [
+            { path: 'patientId' },
+            { path: 'doctorId', select: 'name specialization cabinNo' },
+          ],
+        })
+        .populate('patientId')
+        .populate('cashierId', 'name email role')
+        .populate('deletedBy', 'name email role')
+        .sort({ deletedAt: -1, updatedAt: -1 })
+        .lean(),
+      Invoice.find(query)
+        .populate('hospitalId', 'name code domain address contactPhone contactEmail logo')
+        .populate('patientId')
+        .populate('doctorId', 'name specialization cabinNo email')
+        .populate('deletedBy', 'name email role')
+        .sort({ deletedAt: -1, updatedAt: -1 })
+        .lean(),
+    ]);
 
-    return deletedReceipts;
+    // Track invoice IDs that already have a deleted receipt entry to prevent duplicate cards
+    const seenInvoiceIds = new Set(
+      deletedReceipts
+        .map((r) => String(r.invoiceId?._id || r.invoiceId || ''))
+        .filter(Boolean)
+    );
+
+    // Format deleted invoices that do not have a deleted receipt (cancelled before payment)
+    const formattedDeletedInvoices = deletedInvoices
+      .filter((inv) => !seenInvoiceIds.has(String(inv._id)))
+      .map((inv) => ({
+        _id: inv._id,
+        receiptNo: `BILL-${inv.invoiceNo}`,
+        invoiceNo: inv.invoiceNo,
+        invoiceId: {
+          _id: inv._id,
+          invoiceNo: inv.invoiceNo,
+          patientId: inv.patientId,
+          doctorId: inv.doctorId,
+          doctorName: inv.doctorName || inv.doctorId?.name || '',
+          items: inv.items || [],
+          grandTotal: inv.grandTotal,
+          balanceAmount: inv.balanceAmount,
+          subtotal: inv.subtotal,
+        },
+        patientId: inv.patientId,
+        doctorId: inv.doctorId,
+        cashierId: inv.deletedBy ? { _id: inv.deletedBy._id || inv.deletedBy, name: inv.deletedByName || inv.deletedBy.name || 'Staff', email: inv.deletedBy.email || '' } : null,
+        amountPaid: inv.grandTotal || inv.subtotal || 0,
+        grandTotal: inv.grandTotal || inv.subtotal || 0,
+        paymentMode: 'UNPAID / CANCELLED',
+        isDeleted: true,
+        deletedAt: inv.deletedAt || inv.updatedAt || inv.createdAt,
+        deletedBy: inv.deletedBy,
+        deletedByName: inv.deletedByName || inv.deletedBy?.name || 'Staff',
+        deletionReason: inv.deletionReason || 'Cancelled while billing',
+        isInvoiceOnly: true,
+        createdAt: inv.createdAt,
+        updatedAt: inv.updatedAt,
+      }));
+
+    const combined = [...deletedReceipts, ...formattedDeletedInvoices].sort((a, b) => {
+      const dateA = new Date(a.deletedAt || a.updatedAt || a.createdAt || 0);
+      const dateB = new Date(b.deletedAt || b.updatedAt || b.createdAt || 0);
+      return dateB - dateA;
+    });
+
+    return combined;
   }
 
   /**
@@ -598,16 +655,16 @@ export class BillingService {
     }
 
     // Real-time notification & pending status broadcast
-    const branchId = receipt.branchId || user?.branchId;
-    if (branchId) {
-      socketManager.emitToBranch(branchId, 'billing:receipt_deleted', {
+    const targetRoom = receipt.branchId || user?.branchId || receipt.hospitalId || user?.hospitalId;
+    if (targetRoom) {
+      socketManager.emitToBranch(targetRoom, 'billing:receipt_deleted', {
         receiptId: receipt._id,
         receiptNo: receipt.receiptNo,
         amountPaid: receipt.amountPaid,
         deletedByName: user?.name || 'Staff',
         deletionReason: reason,
       });
-      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: receipt._id });
+      socketManager.emitToBranch(targetRoom, 'workflow:pending_changed', { resourceId: receipt._id });
     }
 
     return {
@@ -677,15 +734,15 @@ export class BillingService {
     }
 
     // Real-time broadcast
-    const branchId = invoice.branchId || user?.branchId;
-    if (branchId) {
-      socketManager.emitToBranch(branchId, 'billing:invoice_deleted', {
+    const targetRoom = invoice.branchId || user?.branchId || invoice.hospitalId || user?.hospitalId;
+    if (targetRoom) {
+      socketManager.emitToBranch(targetRoom, 'billing:invoice_deleted', {
         invoiceId: invoice._id,
         invoiceNo: invoice.invoiceNo,
         deletedByName: user?.name || 'Staff',
         deletionReason: reason,
       });
-      socketManager.emitToBranch(branchId, 'workflow:pending_changed', { resourceId: invoice._id });
+      socketManager.emitToBranch(targetRoom, 'workflow:pending_changed', { resourceId: invoice._id });
     }
 
     return {

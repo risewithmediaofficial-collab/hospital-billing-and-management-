@@ -78,7 +78,8 @@ const TenantDomainRedirect = () => {
     'login', 'admin', 'doctor', 'nurse', 'nursing', 'nurse-incharge',
     'reception', 'pharmacy', 'laboratory', 'radiology', 'billing',
     'patient', 'guardian', 'emergency', 'register-hospital', 'verify-email',
-    'forgot-password', 'reset-password', '403', '404'
+    'forgot-password', 'reset-password', '403', '404',
+    'superadmin', 'super-admin', 'platform'
   ];
   if (!hospitalDomain || reserved.includes(hospitalDomain.toLowerCase())) {
     return <Navigate to="/login" replace />;
@@ -522,7 +523,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* Pharmacy tenant routes */}
-      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF, ROLES.HOSPITAL_ADMIN, ROLES.SUPER_ADMIN]} />}>
+      <Route element={<TenantRouteGuard allowedRoles={[ROLES.PHARMACIST, ROLES.PHARMACY_STAFF]} />}>
         <Route path="/:hospitalDomain/pharmacy/dashboard" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/dispense-queue" element={<MainLayout><PharmacistDashboard /></MainLayout>} />
         <Route path="/:hospitalDomain/pharmacy/stock" element={<MainLayout><PharmacistDashboard /></MainLayout>} />

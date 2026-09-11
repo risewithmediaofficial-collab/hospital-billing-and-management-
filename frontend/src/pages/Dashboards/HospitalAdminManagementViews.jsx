@@ -84,6 +84,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
     socket.on('billing:invoice_created', handleDataUpdate);
     socket.on('billing:payment_collected', handleDataUpdate);
     socket.on('billing:receipt_deleted', handleDataUpdate);
+    socket.on('billing:invoice_deleted', handleDataUpdate);
     socket.on('patient:registered', handleDataUpdate);
     socket.on('patient:created', handleDataUpdate);
     socket.on('token:generated', handleDataUpdate);
@@ -103,6 +104,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       socket.off('billing:invoice_created', handleDataUpdate);
       socket.off('billing:payment_collected', handleDataUpdate);
       socket.off('billing:receipt_deleted', handleDataUpdate);
+      socket.off('billing:invoice_deleted', handleDataUpdate);
       socket.off('patient:registered', handleDataUpdate);
       socket.off('patient:created', handleDataUpdate);
       socket.off('token:generated', handleDataUpdate);
@@ -176,7 +178,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
       setDeletedReceiptsList(deletedReceipts);
 
       const revenue = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
-      const deletedRevenue = deletedReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+      const deletedRevenue = deletedReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || Number(r.grandTotal) || 0), 0);
       const unpaidInvoices = invoices.filter((i) => i.status !== 'PAID' && !i.isDeleted);
 
       setBillingSummary({
@@ -485,7 +487,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
           const name = `${pat.firstName || ''} ${pat.lastName || ''}`.toLowerCase();
           const uhid = (pat.uhid || '').toLowerCase();
           const rcNo = (rc.receiptNo || '').toLowerCase();
-          const invNo = (rc.invoiceId?.invoiceNo || '').toLowerCase();
+          const invNo = (rc.invoiceId?.invoiceNo || rc.invoiceNo || '').toLowerCase();
           const reason = (rc.deletionReason || '').toLowerCase();
           const deletedBy = (rc.deletedByName || rc.deletedBy?.name || '').toLowerCase();
           const cashier = (rc.cashierId?.name || '').toLowerCase();
@@ -725,6 +727,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                       <th className="p-3">Deleted By</th>
                       <th className="p-3">Mandatory Deletion Reason</th>
                       <th className="p-3 text-center">Date & Time Deleted</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-rose-100 text-slate-800">
@@ -742,7 +745,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                                   VOIDED
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || 'INV'}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">Inv: {rc.invoiceId?.invoiceNo || rc.invoiceNo || 'INV'}</p>
                             </td>
                             <td className="p-3">
                               <p className="font-bold text-slate-900">{pat.firstName} {pat.lastName}</p>
@@ -756,7 +759,7 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                               )}
                             </td>
                             <td className="p-3 text-right font-mono font-bold text-rose-600 text-sm">
-                              ₹{(rc.amountPaid || 0).toLocaleString()}
+                              ₹{(rc.amountPaid || rc.grandTotal || 0).toLocaleString()}
                             </td>
                             <td className="p-3">
                               <p className="font-bold text-slate-800 text-[11px]">{rc.cashierId?.name || 'Cashier'}</p>
@@ -776,12 +779,22 @@ export const HospitalAdminManagementViews = ({ viewType }) => {
                                 ? new Date(rc.deletedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                                 : new Date(rc.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                             </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-white hover:bg-rose-50 text-rose-900 border-rose-200 font-bold text-[11px] flex items-center gap-1.5 ml-auto shadow-2xs"
+                                onClick={() => setSelectedInvoiceForView(rc.invoiceId || rc)}
+                              >
+                                <Eye size={13} className="text-rose-600" /> View Breakdown
+                              </Button>
+                            </td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
+                        <td colSpan={8} className="p-8 text-center text-slate-500 text-xs">
                           {deletedReceiptsList.length === 0
                             ? 'No deleted bills in the hospital record. All billing collections are 100% active.'
                             : 'No matching deleted bills found for this search.'}

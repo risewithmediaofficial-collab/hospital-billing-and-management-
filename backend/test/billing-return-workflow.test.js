@@ -51,3 +51,14 @@ test('payment and billing mutations cannot affect another tenant or unrelated al
   assert.match(source, /OVERPAYMENT_NOT_ALLOWED/);
   assert.doesNotMatch(source, /\$or:\s*\[\s*\{ relatedPatientId:[\s\S]*\{ targetModule: 'billing' \}/);
 });
+
+test('deleted receipts archive aggregates both voided receipts and cancelled invoices', async () => {
+  const source = await readFile(billingFile, 'utf8');
+
+  assert.match(source, /Receipt\.find\(query\)/);
+  assert.match(source, /Invoice\.find\(query\)/);
+  assert.match(source, /formattedDeletedInvoices/);
+  assert.match(source, /billing:invoice_deleted/);
+  assert.match(source, /billing:receipt_deleted/);
+});
+

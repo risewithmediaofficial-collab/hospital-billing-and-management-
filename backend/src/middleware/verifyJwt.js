@@ -32,6 +32,14 @@ const moduleForRequest = (url) => {
 const applyContextIfNeeded = async (req) => {
   if (req.user?.role !== 'SUPER_ADMIN') return;
 
+  // Never divert Super Admin's identity profile or logout to a tenant context
+  if (
+    req.originalUrl?.startsWith('/api/v1/auth/me') ||
+    req.originalUrl?.startsWith('/api/v1/auth/logout')
+  ) {
+    return;
+  }
+
   const contextHospitalId = req.headers['x-hospital-context'] || req.query.hospitalId || req.query.hospitalDomain || req.query.hospital;
   if (!contextHospitalId) return;
 
@@ -224,7 +232,11 @@ export const verifyJwt = async (req, res, next) => {
       res.once('finish', releaseLease);
       res.once('close', releaseLease);
     }
-    await activateVerifiedTenantConnection(req.user);
+    const isAuthProfileOrLogout = req.originalUrl?.startsWith('/api/v1/auth/me') ||
+      req.originalUrl?.startsWith('/api/v1/auth/logout');
+    if (!isAuthProfileOrLogout) {
+      await activateVerifiedTenantConnection(req.user);
+    }
     next();
   } catch (error) {
     if (['TENANT_DATABASE_NOT_READY', 'TENANT_RUNTIME_NOT_READY', 'TENANT_WRITE_MAINTENANCE'].includes(error.code)) {

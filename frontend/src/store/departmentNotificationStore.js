@@ -3,7 +3,7 @@ import { axiosClient } from '../api/axiosClient';
 import { useNotificationStore } from './notificationStore';
 
 // Strips protocol, host, and tenant prefix (e.g. /test-hospital-1/)
-const cleanPath = (raw) => {
+export const cleanPath = (raw) => {
   if (!raw) return '';
   let p = raw.trim();
   // Strip protocol and host if present
@@ -14,10 +14,13 @@ const cleanPath = (raw) => {
     }
   } catch {}
 
-  // Strip tenant prefix: /tenant-name/(doctor|nursing|nurse-incharge|reception|billing|pharmacy|laboratory|radiology|admin|emergency)
-  p = p.replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|billing|pharmacy|laboratory|radiology|emergency))/, '');
+  // Strip tenant prefix: /tenant-name/(doctor|reception|nursing|nurse-incharge|admin|hospital-admin|billing|pharmacy|laboratory|radiology|emergency)
+  // Ensure the section name is bounded by '/', '?', or end of string so '/admin/doctors-management' doesn't match 'doctor'
+  p = p.replace(/^\/[^/]+(?=\/(?:doctor|reception|nursing|nurse-incharge|admin|hospital-admin|billing|pharmacy|laboratory|radiology|emergency)(?:\/|$|\?))/, '');
   return p;
 };
+
+export const isSubPath = (path, prefix) => path === prefix || path.startsWith(`${prefix}/`);
 
 export const pathMatches = (taskPath, navPath, metadata = {}) => {
   if (!navPath) return false;
@@ -34,19 +37,20 @@ export const pathMatches = (taskPath, navPath, metadata = {}) => {
   // If no target path exists, check targetModule
   if (!targetPath && metadata.targetModule) {
     const mod = (metadata.targetModule || '').toLowerCase();
-    if (mod === 'doctor' && baseNav.startsWith('/doctor') && (!nTab || nTab === 'LIVE' || nTab === 'OVERVIEW')) return true;
-    if (mod === 'nursing' && (baseNav.startsWith('/nurse-incharge') || baseNav.startsWith('/nursing')) && (!nTab || nTab === 'TASKS')) return true;
-    if (mod === 'billing' && baseNav.startsWith('/billing') && !nTab) return true;
-    if (mod === 'pharmacy' && baseNav.startsWith('/pharmacy') && !nTab) return true;
-    if (mod === 'laboratory' && baseNav.startsWith('/laboratory') && !nTab) return true;
-    if (mod === 'radiology' && baseNav.startsWith('/radiology') && !nTab) return true;
-    if (mod === 'reception' && baseNav.startsWith('/reception') && !nTab) return true;
+    if (mod === 'doctor' && isSubPath(baseNav, '/doctor') && (!nTab || nTab === 'LIVE' || nTab === 'OVERVIEW')) return true;
+    if (mod === 'nursing' && (isSubPath(baseNav, '/nurse-incharge') || isSubPath(baseNav, '/nursing')) && (!nTab || nTab === 'TASKS')) return true;
+    if (mod === 'billing' && isSubPath(baseNav, '/billing') && !nTab) return true;
+    if (mod === 'pharmacy' && isSubPath(baseNav, '/pharmacy') && !nTab) return true;
+    if (mod === 'laboratory' && isSubPath(baseNav, '/laboratory') && !nTab) return true;
+    if (mod === 'radiology' && isSubPath(baseNav, '/radiology') && !nTab) return true;
+    if (mod === 'reception' && isSubPath(baseNav, '/reception') && !nTab) return true;
   }
 
   if (!targetPath) return false;
 
   // Admin Management Views: Only match exact admin routes or explicit admin notifications
-  if (nPath.startsWith('/admin/')) {
+  // Admin management views (like /admin/doctors-management, /admin/staff, etc.) should NEVER match clinical patient workflow tasks
+  if (isSubPath(nPath, '/admin') || isSubPath(nPath, '/hospital-admin')) {
     if (nPath.includes('/bed-matrix')) return tPath.includes('/admin/bed-matrix') || tPath.includes('/beds');
     return tPath === nPath;
   }
@@ -234,6 +238,18 @@ export const useDepartmentNotificationStore = create((set, get) => ({
       ? get().navCountOverrides[navPath]
       : get().navCountOverrides[cleaned];
     if (override !== undefined) return override;
+
+    // Admin management roster views never show clinical queue counts
+    if (isSubPath(cleaned, '/admin') || isSubPath(cleaned, '/hospital-admin')) {
+      if (!cleaned.includes('/bed-matrix') && !cleaned.includes('/emergency')) {
+        // Direct exact match only for admin tasks (e.g. pending approvals)
+        const matchingAdminTasks = get().notifications.filter((item) => {
+          const itemPath = cleanPath(item.linkedPath || item.targetRoute || item.link || '');
+          return itemPath === cleaned;
+        }).length;
+        return matchingAdminTasks;
+      }
+    }
 
     // 1. Check matching pending tasks from /workflow/pending (active queue tasks)
     const matchingPendingCount = get().notifications.filter((item) => pathMatches(item.linkedPath, navPath, item)).length;

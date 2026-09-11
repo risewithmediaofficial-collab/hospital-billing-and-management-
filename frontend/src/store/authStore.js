@@ -143,10 +143,17 @@ export const useAuthStore = create((set, get) => ({
         return userData;
       }
     } catch (err) {
-      localStorage.removeItem('hpmbs_access_token');
-      localStorage.removeItem('hpmbs_user');
-      localStorage.removeItem('hpmbs_super_admin_context');
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      const isAuthFailure = err?.statusCode === 401 || err?.status === 401 || err?.response?.status === 401;
+      if (isAuthFailure) {
+        localStorage.removeItem('hpmbs_access_token');
+        localStorage.removeItem('hpmbs_user');
+        localStorage.removeItem('hpmbs_super_admin_context');
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      } else {
+        // Transient error (500, 503, network drop) — preserve cached session so user is not logged out
+        const cachedUser = get().user;
+        set({ isLoading: false, isAuthenticated: Boolean(cachedUser && get().token) });
+      }
     }
   },
 
