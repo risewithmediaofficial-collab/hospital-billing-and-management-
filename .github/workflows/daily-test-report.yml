@@ -2,8 +2,8 @@ name: Daily 9 AM Test Suite & Email Report
 
 on:
   schedule:
-    # 03:30 UTC = 09:00 AM Indian Standard Time (IST) every day
-    - cron: '30 3 * * *'
+    # 03:15 UTC = 08:45 AM Indian Standard Time (IST) every day (completes by ~09:00 AM IST)
+    - cron: '15 3 * * *'
   workflow_dispatch:
     inputs:
       recipient_email:

@@ -31,6 +31,7 @@ async function seedSuperAdmin() {
       platformHospital = await Hospital.create({
         name: 'HPMBS SaaS Platform Owner',
         code: 'PLATFORM',
+        domain: 'platform',
         subdomain: 'platform',
         status: 'APPROVED',
         plan: 'ENTERPRISE',
@@ -40,6 +41,9 @@ async function seedSuperAdmin() {
         licenseNumber: 'PLATFORM-MASTER-001',
         isActive: true,
       });
+    } else if (!platformHospital.domain) {
+      platformHospital.domain = 'platform';
+      await platformHospital.save();
     }
 
     console.log('[Seed SuperAdmin] Ensuring Main Branch exists...');
@@ -60,15 +64,15 @@ async function seedSuperAdmin() {
     }
 
     const superAdminEmail = 'superadmin@gmail.com';
-    const superAdminPassword = '0000';
-    const hashedPassword = await bcrypt.hash(superAdminPassword, 12);
+    const rawSuperAdminPassword = process.env.SUPER_ADMIN_PASSWORD || '0000';
+    const hashedPassword = process.env.SUPER_ADMIN_PASSWORD_HASH || await bcrypt.hash(rawSuperAdminPassword, 12);
 
     let superAdminUser = await User.findOne({ email: superAdminEmail });
 
     if (superAdminUser) {
       console.log(`[Seed SuperAdmin] User '${superAdminEmail}' exists. Updating password hash...`);
       superAdminUser.passwordHash = hashedPassword;
-      superAdminUser.assignedPasswordHint = superAdminPassword;
+      superAdminUser.loginIds = [superAdminEmail];
       superAdminUser.role = ROLES.SUPER_ADMIN;
       superAdminUser.status = 'ACTIVE';
       superAdminUser.isActive = true;
@@ -80,11 +84,12 @@ async function seedSuperAdmin() {
         branchId: mainBranch._id,
         name: 'Platform Master Owner',
         email: superAdminEmail,
+        loginIds: [superAdminEmail],
         passwordHash: hashedPassword,
-        assignedPasswordHint: superAdminPassword,
         role: ROLES.SUPER_ADMIN,
         phone: '+1 (800) 555-SAAS',
         status: 'ACTIVE',
+        isActive: true,
       });
     }
 
