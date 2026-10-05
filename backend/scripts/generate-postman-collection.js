@@ -697,9 +697,9 @@ const localEnv = {
   name: "HPMBS Local Environment",
   values: [
     { key: "base_url", value: "http://localhost:5001/api/v1", initialValue: "http://localhost:5001/api/v1", currentValue: "http://localhost:5001/api/v1", type: "default", enabled: true },
-    { key: "superadmin_password", value: "0000", initialValue: "0000", currentValue: "0000", type: "secret", enabled: true },
-    { key: "admin_password", value: "0000", initialValue: "0000", currentValue: "0000", type: "secret", enabled: true },
-    { key: "doctor_password", value: "0000", initialValue: "0000", currentValue: "0000", type: "secret", enabled: true },
+    { key: "superadmin_password", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },
+    { key: "admin_password", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },
+    { key: "doctor_password", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },
     { key: "token", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },
     { key: "superadmin_token", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },
     { key: "hospital_admin_token", value: "", initialValue: "", currentValue: "", type: "secret", enabled: true },

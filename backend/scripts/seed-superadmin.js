@@ -65,17 +65,21 @@ async function seedSuperAdmin() {
 
     const superAdminEmail = 'superadmin@gmail.com';
     const rawSuperAdminPassword = process.env.SUPER_ADMIN_PASSWORD || '0000';
-    const hashedPassword = process.env.SUPER_ADMIN_PASSWORD_HASH || await bcrypt.hash(rawSuperAdminPassword, 12);
+    const hashedPassword = await bcrypt.hash(rawSuperAdminPassword, 12);
 
     let superAdminUser = await User.findOne({ email: superAdminEmail });
 
     if (superAdminUser) {
-      console.log(`[Seed SuperAdmin] User '${superAdminEmail}' exists. Updating password hash...`);
+      console.log(`[Seed SuperAdmin] User '${superAdminEmail}' exists. Updating password hash and unlocking...`);
       superAdminUser.passwordHash = hashedPassword;
       superAdminUser.loginIds = [superAdminEmail];
+      superAdminUser.hospitalId = platformHospital._id;
+      superAdminUser.branchId = mainBranch._id;
       superAdminUser.role = ROLES.SUPER_ADMIN;
       superAdminUser.status = 'ACTIVE';
       superAdminUser.isActive = true;
+      superAdminUser.failedLoginAttempts = 0;
+      superAdminUser.lockUntil = null;
       await superAdminUser.save();
     } else {
       console.log(`[Seed SuperAdmin] Creating Super Admin account '${superAdminEmail}'...`);
@@ -90,6 +94,8 @@ async function seedSuperAdmin() {
         phone: '+1 (800) 555-SAAS',
         status: 'ACTIVE',
         isActive: true,
+        failedLoginAttempts: 0,
+        lockUntil: null,
       });
     }
 
