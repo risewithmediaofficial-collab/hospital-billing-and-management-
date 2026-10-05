@@ -132,6 +132,9 @@ jobs:
               echo "FIELD_ENCRYPTION_KEY=aHBtYnNfYWVzMjU2X2VuY3J5cHRpb25fa2V5XzMyYiE=" >> .env
               echo "SEARCH_HASH_KEY=hpmbs_search_hash_secret_key_2026_production_safe_key_32b" >> .env
             fi
+            if ! grep -q "SUPER_ADMIN_PASSWORD_HASH" .env; then
+              echo "SUPER_ADMIN_PASSWORD_HASH=\$2b\$12\$XXhHbH5aZdRPjaDMs2kKmOc3GxlPsaM9sz43IQDa4gxdCh1u11tk2" >> .env
+            fi
 
             (docker compose down --remove-orphans || true)
 
@@ -144,4 +147,6 @@ jobs:
             fi
 
             (docker compose up -d --build --remove-orphans) || (docker-compose up -d --build --remove-orphans)
+            sleep 5
+            (docker compose exec -T backend node scripts/seed-superadmin.js || true)
             echo "✅ Production deployment completed successfully at $DEPLOY_DIR on port 86"
